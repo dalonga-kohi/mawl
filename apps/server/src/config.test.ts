@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
 const URL_WITH_PASSWORD = 'postgres://faire:s3cr3t-pw@db:5432/faire'
@@ -77,5 +77,24 @@ describe('parseConfig', () => {
     expect(() => parseConfig({ FAIRE_PORT: 'x', LOG_LEVEL: 'y' })).toThrow(
       /DATABASE_URL[\s\S]*FAIRE_PORT[\s\S]*LOG_LEVEL|FAIRE_PORT[\s\S]*LOG_LEVEL[\s\S]*DATABASE_URL/,
     )
+  })
+})
+
+describe('parseConfig with the real process.env', () => {
+  it('never throws text containing the DATABASE_URL password from the environment', () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://faire:env-s3cr3t@db:5432/faire')
+    vi.stubEnv('FAIRE_PORT', 'not-a-port')
+    try {
+      let text = ''
+      try {
+        parseConfig()
+      } catch (e) {
+        text = `${(e as Error).message}${(e as Error).stack}${JSON.stringify((e as ConfigError).issues)}`
+      }
+      expect(text).toContain('FAIRE_PORT')
+      expect(text).not.toContain('env-s3cr3t')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
