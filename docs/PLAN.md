@@ -9,8 +9,8 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 ## P0 — Foundation
 Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothing user-facing yet.
 
-- [ ] **P0.1 Scaffold monorepo.** Set up the workspace and tooling.
-  - pnpm workspace, Turborepo, TS strict base config, Biome, Vitest workspace, `.editorconfig`, `.nvmrc` (Node 22 LTS).
+- [~] **P0.1 Scaffold monorepo.** Set up the workspace and tooling.
+  - pnpm workspace (pnpm 10.18.0 via corepack), Turborepo, TS strict base config, Biome, Vitest `test.projects`, `.editorconfig`, `.nvmrc` (Node 24 LTS).
   - Empty packages per ARCHITECTURE §2, each with a passing smoke test.
   - *Accept:* `pnpm i && pnpm turbo lint typecheck test` is green.
 - [ ] **P0.2 CI.** GitHub Actions running lint, typecheck, test, and build with the Turbo cache. A Postgres service is used for integration tests.
