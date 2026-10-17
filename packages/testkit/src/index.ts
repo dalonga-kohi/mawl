@@ -10,10 +10,11 @@ export type {
 export { fakeModel } from './fake-model'
 export type { FixedClock } from './fixtures'
 export { fixedClock, seededRandom, seq } from './fixtures'
-export type { PostgresHandle } from './postgres'
+export type { PostgresHandle, WithPostgresOptions } from './postgres'
 export {
   DEFAULT_PG_IMAGE,
-  describeWithPostgres,
+  dockerPolicy,
   isDockerAvailable,
   startPostgres,
+  withPostgres,
 } from './postgres'

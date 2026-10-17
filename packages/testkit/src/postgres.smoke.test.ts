@@ -1,11 +1,12 @@
 import pg from 'pg'
-import { expect, it } from 'vitest'
-import { describeWithPostgres, startPostgres } from './postgres'
+import { describe, expect, it } from 'vitest'
+import { withPostgres } from './postgres'
 
-await describeWithPostgres('startPostgres (pgvector)', () => {
+describe('withPostgres (pgvector)', () => {
+  const url = withPostgres()
+
   it('serves a database with the vector extension available', async () => {
-    const db = await startPostgres()
-    const client = new pg.Client({ connectionString: db.url })
+    const client = new pg.Client({ connectionString: url() })
     try {
       await client.connect()
       await client.query('CREATE EXTENSION IF NOT EXISTS vector')
@@ -13,7 +14,6 @@ await describeWithPostgres('startPostgres (pgvector)', () => {
       expect(res.rows[0]?.v).toBe('[1,2,3]')
     } finally {
       await client.end()
-      await db.stop()
     }
-  }, 120_000)
+  })
 })

@@ -14,7 +14,7 @@ describe('@faire/testkit', () => {
       testkit.seededRandom,
       testkit.startPostgres,
       testkit.isDockerAvailable,
-      testkit.describeWithPostgres,
+      testkit.withPostgres,
     ]
     expect(helpers.every((h) => typeof h === 'function')).toBe(true)
   })

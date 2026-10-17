@@ -1,7 +1,8 @@
-import { describe } from 'vitest'
+import { afterAll, beforeAll, beforeEach } from 'vitest'
 
-export const DEFAULT_PG_IMAGE = 'pgvector/pgvector:pg17'
-const DOCKER_PROBE_TIMEOUT_MS = 3000
+export const DEFAULT_PG_IMAGE = 'pgvector/pgvector:0.8.7-pg17'
+/** Cold Docker Desktop can take several seconds to answer. */
+const DOCKER_PROBE_TIMEOUT_MS = 10_000
 
 export interface PostgresHandle {
   /** Connection URI for the throwaway database. */
@@ -58,27 +59,80 @@ export async function isDockerAvailable(
   }
 }
 
-let cachedAvailability: Promise<boolean> | undefined
-let logged = false
+const START_TIMEOUT_MS = 180_000
+
+const isSet = (v: string | undefined) => v !== undefined && v !== '' && v !== '0' && v !== 'false'
 
 /**
- * `describe` for suites that need Docker Postgres. Skips (and logs one line why) when
- * Docker is unavailable. Await it at the top level of the test file:
- *   await describeWithPostgres('repo', () => { ... })
+ * What to do about a Postgres suite: run when Docker is up; otherwise skip locally, but fail
+ * when CI or FAIRE_REQUIRE_DOCKER is set, so CI can never go green by skipping.
  */
-export async function describeWithPostgres(
-  name: string,
-  fn: () => void,
-  opts: { isAvailable?: () => Promise<boolean> } = {},
-): Promise<void> {
-  const available = await (
-    opts.isAvailable ?? (() => (cachedAvailability ??= isDockerAvailable()))
-  )()
-  if (!available && !logged) {
-    logged = true
-    process.stderr.write(
-      '[testkit] Docker is not available: skipping Postgres integration suites\n',
-    )
+export function dockerPolicy(
+  available: boolean,
+  env: Record<string, string | undefined> = process.env,
+): 'run' | 'skip' | 'fail' {
+  if (available) return 'run'
+  return isSet(env.CI) || isSet(env.FAIRE_REQUIRE_DOCKER) ? 'fail' : 'skip'
+}
+
+let defaultAvailability: Promise<boolean> | undefined
+
+export interface WithPostgresOptions {
+  image?: string
+  /** Injectable for tests. */
+  probe?: () => Promise<unknown>
+  /** Injectable for tests. */
+  start?: (opts: { image?: string }) => Promise<PostgresHandle>
+  /** Injectable for tests. Defaults to process.env. */
+  env?: Record<string, string | undefined>
+}
+
+/**
+ * Call inside a (sync) describe. Registers hooks that start one Postgres for the suite
+ * (beforeAll), skip every test when Docker is unavailable (beforeEach), and always stop
+ * the container (afterAll, which Vitest runs even if tests throw). Returns a getter for
+ * the connection url.
+ *
+ * Without Docker the suite is skipped and one line saying why is written to stderr (once per
+ * suite), unless CI or FAIRE_REQUIRE_DOCKER is set, in which case the suite fails.
+ *
+ * beforeAll cannot skip in Vitest 5 (its context has no skip), so the skip happens in
+ * beforeEach via TestContext.skip.
+ */
+export function withPostgres(opts: WithPostgresOptions = {}): () => string {
+  let db: PostgresHandle | undefined
+  let skipNote: string | undefined
+
+  beforeAll(async () => {
+    const available = await (opts.probe
+      ? isDockerAvailable(opts.probe)
+      : (defaultAvailability ??= isDockerAvailable()))
+    const policy = dockerPolicy(available, opts.env)
+    if (policy === 'fail') {
+      throw new Error(
+        'Docker is required (CI or FAIRE_REQUIRE_DOCKER is set) but is not available for Postgres tests',
+      )
+    }
+    if (policy === 'skip') {
+      skipNote = 'Docker is not available'
+      process.stderr.write(`[testkit] ${skipNote}: skipping Postgres integration suite\n`)
+      return
+    }
+    db = await (opts.start ?? startPostgres)(opts.image ? { image: opts.image } : {})
+  }, START_TIMEOUT_MS)
+
+  beforeEach((ctx) => {
+    if (skipNote) ctx.skip(skipNote)
+  })
+
+  afterAll(async () => {
+    const running = db
+    db = undefined
+    await running?.stop()
+  })
+
+  return () => {
+    if (!db) throw new Error('withPostgres: url() called while Postgres is not running')
+    return db.url
   }
-  describe.skipIf(!available)(name, fn)
 }
