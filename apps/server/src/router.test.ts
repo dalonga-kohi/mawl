@@ -2,11 +2,16 @@ import { type CredentialId, contract } from '@faire/contracts'
 import { PROVIDER_DESCRIPTORS } from '@faire/core'
 import { call, isProcedure, traverseContractProcedures } from '@orpc/server'
 import { describe, expect, it } from 'vitest'
-import { CredentialNotFoundError, type ProviderService } from './providers/service.ts'
+import {
+  CredentialNotFoundError,
+  CredentialUnreadableError,
+  type ProviderService,
+} from './providers/service.ts'
 import { unusedProviders } from './providers/test-util.ts'
 import { createRouter } from './router.ts'
 
 const CRED = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6V8' as CredentialId
+const UNREADABLE = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6VA' as CredentialId
 const publicRow = {
   id: CRED,
   provider: 'openai' as const,
@@ -24,6 +29,7 @@ const providers: ProviderService = {
     return publicRow
   },
   test: async (target) => {
+    if ('id' in target && target.id === UNREADABLE) throw new CredentialUnreadableError(target.id)
     if ('id' in target && target.id !== CRED) throw new CredentialNotFoundError(target.id)
     return { ok: true, latencyMs: 3 }
   },
@@ -89,6 +95,14 @@ describe('providers procedures', () => {
     await expect(call(router.providers.test, { id: other })).rejects.toMatchObject({
       code: 'NOT_FOUND',
       status: 404,
+    })
+  })
+
+  it('test answers typed CREDENTIAL_UNREADABLE when the stored key cannot be decrypted', async () => {
+    await expect(call(router.providers.test, { id: UNREADABLE })).rejects.toMatchObject({
+      code: 'CREDENTIAL_UNREADABLE',
+      status: 409,
+      data: { id: UNREADABLE },
     })
   })
 

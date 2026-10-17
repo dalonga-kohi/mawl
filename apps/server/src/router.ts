@@ -1,7 +1,11 @@
 import { contract } from '@faire/contracts'
 import { listProviderDescriptors } from '@faire/core'
 import { implement, ORPCError } from '@orpc/server'
-import { CredentialNotFoundError, type ProviderService } from './providers/service.ts'
+import {
+  CredentialNotFoundError,
+  CredentialUnreadableError,
+  type ProviderService,
+} from './providers/service.ts'
 
 export interface RouterDeps {
   version: string
@@ -75,7 +79,12 @@ export function createRouter({ version, providers }: RouterDeps) {
         providers.delete(input.id).catch(notFound(errors)),
       ),
       test: os.providers.test.handler(({ input, errors }) =>
-        providers.test(input).catch(notFound(errors)),
+        providers.test(input).catch((err: unknown) => {
+          if (err instanceof CredentialUnreadableError) {
+            throw errors.CREDENTIAL_UNREADABLE({ data: { id: err.id } })
+          }
+          return notFound(errors)(err)
+        }),
       ),
     },
     settings: {

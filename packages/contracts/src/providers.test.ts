@@ -137,6 +137,12 @@ describe('providers router contract', () => {
     expect(names).toEqual(['catalog', 'create', 'delete', 'list', 'test'])
   })
 
+  it('test declares CREDENTIAL_UNREADABLE so a changed master key is distinguishable', () => {
+    expect(Object.keys(contract.providers.test['~orpc'].errorMap)).toContain(
+      'CREDENTIAL_UNREADABLE',
+    )
+  })
+
   it('delete and test declare NOT_FOUND', () => {
     expect(Object.keys(contract.providers.delete['~orpc'].errorMap)).toContain('NOT_FOUND')
     expect(Object.keys(contract.providers.test['~orpc'].errorMap)).toContain('NOT_FOUND')

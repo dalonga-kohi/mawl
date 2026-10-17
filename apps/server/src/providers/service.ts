@@ -10,7 +10,7 @@ import { schema } from '@faire/db'
 import { asc, eq } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { Logger } from '../logger.ts'
-import type { SecretBox } from '../secrets/index.ts'
+import { type SecretBox, SecretDecryptError } from '../secrets/index.ts'
 
 const { providerCredentials, providerCredentialPublicColumns } = schema
 
@@ -21,6 +21,14 @@ export class CredentialNotFoundError extends Error {
   constructor(readonly id: CredentialId) {
     super('Provider credential not found')
     this.name = 'CredentialNotFoundError'
+  }
+}
+
+/** A stored key exists but cannot be decrypted (typically the master key changed). */
+export class CredentialUnreadableError extends Error {
+  constructor(readonly id: CredentialId) {
+    super('Provider credential could not be decrypted')
+    this.name = 'CredentialUnreadableError'
   }
 }
 
@@ -90,6 +98,7 @@ export function createProviderService({
         { credentialId: id, errName: err instanceof Error ? err.name : 'unknown' },
         'provider credential could not be decrypted',
       )
+      if (err instanceof SecretDecryptError) throw new CredentialUnreadableError(id)
       throw err
     }
     return { kind: row.provider, baseUrl: row.baseUrl, secret: secret === '' ? null : secret }

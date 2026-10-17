@@ -5,8 +5,12 @@ import { count, eq } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.ts'
-import { createSecretBox, SecretDecryptError } from '../secrets/index.ts'
-import { CredentialNotFoundError, createProviderService } from './service.ts'
+import { createSecretBox } from '../secrets/index.ts'
+import {
+  CredentialNotFoundError,
+  CredentialUnreadableError,
+  createProviderService,
+} from './service.ts'
 
 export type SuiteDb = PgDatabase<PgQueryResultHKT, typeof schema>
 
@@ -145,7 +149,9 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
       await expect(service.resolveCredential(a.id)).resolves.toMatchObject({
         secret: 'secret-of-a-111',
       })
-      await expect(service.resolveCredential(b.id)).rejects.toBeInstanceOf(SecretDecryptError)
+      await expect(service.resolveCredential(b.id)).rejects.toBeInstanceOf(
+        CredentialUnreadableError,
+      )
     })
 
     it('test by id sends the stored key to the provider and reports ok', async () => {
@@ -184,7 +190,7 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
       expect(n?.n).toBe(0)
     })
 
-    it('test by id with an undecryptable row rethrows and logs the error name only', async () => {
+    it('test by id with an undecryptable row throws CredentialUnreadableError and logs the error name only', async () => {
       const { service } = await setup()
       const a = await service.create(input({ label: 'a', secret: 'secret-of-a-111' }))
       const b = await service.create(input({ label: 'b', secret: 'secret-of-b-222' }))
@@ -193,7 +199,10 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
         .update(table)
         .set({ secretEnc: rowA?.secretEnc as Uint8Array })
         .where(eq(table.id, b.id))
-      await expect(service.test({ id: b.id })).rejects.toBeInstanceOf(SecretDecryptError)
+      const err = await service.test({ id: b.id }).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(CredentialUnreadableError)
+      expect((err as CredentialUnreadableError).id).toBe(b.id)
+      expect(String((err as Error).message)).not.toContain('secret-of-')
       expect(requests).toHaveLength(0)
       const logged = logLines.join('')
       expect(logged).toContain('SecretDecryptError')

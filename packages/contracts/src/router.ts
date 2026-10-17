@@ -140,6 +140,10 @@ export const contract = {
     delete: withNotFound.input(Id(CredentialId)).output(ProviderCredential),
     /** Tests a stored credential by id, or a not-yet-saved one (nothing is written). */
     test: withNotFound
+      .errors({
+        // The stored key cannot be decrypted, e.g. the server's master key changed.
+        CREDENTIAL_UNREADABLE: { status: 409, data: z.object({ id: CredentialId }) },
+      })
       .input(z.union([z.strictObject({ id: CredentialId }), ProviderCredentialInput]))
       .output(ProviderTestResult),
   },
