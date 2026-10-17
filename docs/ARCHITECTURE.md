@@ -261,7 +261,7 @@ routines(id, profile_id, name, schedule{cron|rrule|nl_source}, prompt, delivery_
 mcp_servers(id, profile_id|null, name, transport, config_enc, enabled, tool_policy_json)
 channels(id, profile_id, kind, token_enc, allowlist_json, status)
 devices(id, name, pubkey, platform, last_seen_at, revoked_at)
-events(id bigserial, profile_id, type, payload_json, created_at)    -- feed + WS resume + audit
+events(id bigserial, profile_id|null, run_id|null, type, payload_json, created_at)    -- feed + WS resume + audit
 -- memory tables: see MEMORY.md
 ```
 
