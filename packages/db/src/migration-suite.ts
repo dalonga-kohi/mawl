@@ -330,8 +330,7 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         const profileId = await seedProfile(m.db)
         const threadId = newId('thread')
         await m.db.insert(threads).values({ id: threadId, profileId, channel: 'app' })
-        const text = `日本語 ünï 🎉 \\u0041 "q" 
-\t${'x'.repeat(200_000)}`
+        const text = `日本語 ünï 🎉 \\u0041 "q" \n\t${'x'.repeat(200_000)}`
         const parts = [{ type: 'text' as const, text }]
         const id = newId('message')
         await m.db.insert(messages).values({ id, threadId, role: 'user', parts })

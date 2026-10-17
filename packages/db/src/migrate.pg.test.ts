@@ -1,9 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { withPostgres } from '@faire/testkit'
 import { describe, expect, it } from 'vitest'
-import { createDb, migrate } from './index.ts'
+import { createDb, migrate, migrationsFolder } from './index.ts'
 import { describeMigrations } from './migration-suite.ts'
 
 // Real Postgres + pgvector via Testcontainers. Skips locally without Docker, fails in CI.
+const journalEntries = (
+  JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8')) as {
+    entries: unknown[]
+  }
+).entries.length
+
 describe('migrations on real Postgres', () => {
   const url = withPostgres()
 
@@ -36,7 +44,7 @@ describe('migrations on real Postgres', () => {
     try {
       await Promise.all([migrate(a.db), migrate(b.db)])
       const r = await a.pool.query('select count(*)::int as n from drizzle.__drizzle_migrations')
-      expect(r.rows[0].n).toBe(2)
+      expect(r.rows[0].n).toBe(journalEntries)
     } finally {
       await Promise.all([a.close(), b.close()])
     }

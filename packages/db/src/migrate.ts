@@ -11,25 +11,62 @@ export const migrationsFolder = fileURLToPath(new URL('../drizzle', import.meta.
 /** Arbitrary fixed key for the migration advisory lock (bigint range). */
 const MIGRATION_LOCK_KEY = 7_243_001
 
+/** The one capability the lock needs; lets tests pass a fake. */
+export interface Queryable {
+  query(text: string, values?: unknown[]): Promise<unknown>
+}
+
+/**
+ * Runs `fn` while holding the migration advisory lock on one dedicated session. Errors from
+ * `fn` win: a failing unlock never masks them. If the lock or unlock failed, the connection is
+ * suspect, so it is destroyed (release(err)) instead of returned to the pool; that also frees
+ * the session lock.
+ *
+ * With a Pool this holds one connection while `fn` uses another, so the pool needs max >= 2.
+ */
+export async function withAdvisoryLock<T>(
+  client: NodePgClient | Queryable,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const pooled = client instanceof pg.Pool
+  const locker: Queryable = pooled ? await client.connect() : client
+  let suspect: Error | undefined
+  try {
+    try {
+      await locker.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY])
+    } catch (e) {
+      suspect = e instanceof Error ? e : new Error(String(e))
+      throw e
+    }
+    let failed = false
+    let failure: unknown
+    let result: T | undefined
+    try {
+      result = await fn()
+    } catch (e) {
+      failed = true
+      failure = e
+    }
+    try {
+      await locker.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY])
+    } catch (e) {
+      suspect = e instanceof Error ? e : new Error(String(e))
+      if (!failed) throw e
+    }
+    if (failed) throw failure
+    return result as T
+  } finally {
+    if (pooled) (locker as pg.PoolClient).release(suspect)
+  }
+}
+
 /**
  * Applies pending migrations. Idempotent: already-applied migrations are skipped. Serialised
- * across processes with a session-level Postgres advisory lock, so servers starting together
- * do not race on the journal.
+ * across processes with a Postgres advisory lock, so servers starting together do not race on
+ * the journal. Pool must allow max >= 2 connections.
  */
 export async function migrate<S extends Record<string, unknown>>(
   db: NodePgDatabase<S> & { $client: NodePgClient },
 ): Promise<void> {
-  const client = db.$client
-  // A pool needs a dedicated connection: advisory locks belong to one session.
-  const locker = client instanceof pg.Pool ? await client.connect() : client
-  try {
-    await locker.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY])
-    try {
-      await drizzleMigrate(db, { migrationsFolder })
-    } finally {
-      await locker.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY])
-    }
-  } finally {
-    if (client instanceof pg.Pool) (locker as pg.PoolClient).release()
-  }
+  await withAdvisoryLock(db.$client, () => drizzleMigrate(db, { migrationsFolder }))
 }
