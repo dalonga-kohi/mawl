@@ -23,10 +23,10 @@ Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothin
 ## P1 — Talk to a teammate (web + desktop)
 Goal: chat in a real UI with one profile, streaming from a real or fake model.
 
-- [x] **P1.1 DB schema v1.** (b19c779..b1b36eb; the Testcontainers half of the shared migration suite is unverified locally, needs Docker/CI) Drizzle migrations for `profiles`, `provider_credentials`, `threads`, `messages`, `runs`, `run_steps`, `artifacts`, `events`. Add pgvector/FTS extensions.
+- [x] **P1.1 DB schema v1.** (b19c779..b1b36eb; the Testcontainers half was verified later against real Postgres with Docker Desktop) Drizzle migrations for `profiles`, `provider_credentials`, `threads`, `messages`, `runs`, `run_steps`, `artifacts`, `events`. Add pgvector/FTS extensions.
   - Drizzle 0.45.4, drizzle-kit 0.31.11, PGlite 0.5.10 (+ `@electric-sql/pglite-pgvector`) runs the same suite locally without Docker.
-- [~] **P1.2 Server skeleton.**
-  - tsconfig override: `nodenext` resolution, or bundle with tsup/esbuild. Run with tsx in dev. Decide here (review note from P0.1).
+- [x] **P1.2 Server skeleton.** (bad1d4b..5aec5bb; all suites green with `FAIRE_REQUIRE_DOCKER=1`)
+  - Decided: keep the base `bundler` tsconfig. Dev runs `tsx watch`, and prod is an esbuild bundle (`dist/server.mjs` + `dist/drizzle`). Native Node type stripping is out because workspace packages use extensionless relative imports.
   - Hono + oRPC + health endpoint + pino.
   - Secret key bootstrapped on first boot, with libsodium encrypt/decrypt.
 - [ ] **P1.3 Provider registry.** Add the contract procedures `providers.list/create/delete/test`, with the secret only in a strictObject input (review note from P0.5).
@@ -108,6 +108,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 ## P6 — Mobile
 
 - [ ] **P6.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings.
+  - Review notes from P1.2/P1.3: every `/rpc` procedure except `health.get` and `devices.pair` requires a device session (`providers.*` holds the owner's keys). Add a request body size limit on `/rpc`. Until then the server binds to `127.0.0.1` by default.
 - [ ] **P6.2 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
 - [ ] **P6.3 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
 - [ ] **P6.4 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.

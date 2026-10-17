@@ -151,7 +151,7 @@ pnpm test:e2e / pnpm db:migrate                # arrive in P1
 - pnpm isn't global. Run `$env:COREPACK_ENABLE_DOWNLOAD_PROMPT='0'` first.
 - Turbo needs `pnpm` on PATH. Until the user runs `corepack enable` (it may need admin), every agent does:
   `corepack enable --install-directory <scratchpad>\shims` then `$env:PATH="<scratchpad>\shims;$env:PATH"`.
-- **Docker is not installed.** Postgres integration tests skip locally and run only in CI. P1 needs Docker for the DB slices.
+- **Docker Desktop is installed** (engine 29.8.2, context `desktop-linux`). Run DB/server suites with `$env:FAIRE_REQUIRE_DOCKER='1'` so the Testcontainers suites must run, not skip. A cold engine can be slow, so the testkit probe waits up to 30 s.
 - There's no git remote, so CI has never actually run. Pushing or creating a repo is the user's call.
 - The repo-local git identity is `megas`. Line endings are LF via `.gitattributes`; CRLF warnings are cosmetic.
 
