@@ -21,5 +21,5 @@ paths:
 - Keep the prompt prefix byte-stable within a segment, because cache hits matter. Changing the prompt layout requires updating MEMORY.md §7 and the snapshot tests.
 - Large outputs go to artifacts. Never put more than about 4k tokens of raw tool output into context.
 - DB changes go through Drizzle migrations only. Add indexes for each new query path. Use Testcontainers for integration tests.
-- Use the AI SDK v6 APIs as documented now: confirm with `explorer` before use, and don't rely on memory.
+- Use the AI SDK v7 APIs as documented now: confirm with `explorer` before use, and don't rely on memory.
 - Logging uses pino with structured fields `{profileId, runId, step}`. No `console.log` in committed code.

@@ -32,7 +32,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Anthropic, OpenAI, OpenRouter, Ollama, and OpenAI-compatible providers, with capability flags.
   - `providers.test()` validates a key.
 - [ ] **P1.4 Run engine v1.**
-  - AI SDK v6 loop with durable steps, the run state machine (queued → running → succeeded/failed/cancelled), and budget caps.
+  - AI SDK v7 loop with durable steps, the run state machine (queued → running → succeeded/failed/cancelled), and budget caps.
   - Graphile Worker job.
   - *Tests:* fake model; crash/resume from the persisted step.
 - [ ] **P1.5 Event bus + WS hub.**

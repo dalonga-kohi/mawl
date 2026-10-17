@@ -77,7 +77,7 @@ faire/
 | Auth | Single owner + paired devices. Device tokens (Ed25519 keypair per device, JWT session) | No accounts to create; per-device revocation |
 | DB | Postgres 17 + pgvector + built-in FTS (`tsvector`) via Drizzle | One service for relational, vector and BM25 |
 | Jobs | Graphile Worker (Postgres-backed queue + cron) | No Redis; durable, transactional |
-| Agent loop | Vercel AI SDK v6 (`ToolLoopAgent` / `streamText` with `stopWhen`) wrapped by our `Run` engine | Multi-provider, tool approval hooks, stable MCP client |
+| Agent loop | Vercel AI SDK v7 (`ai@7`, spec LanguageModelV4; `ToolLoopAgent` / `streamText` with `stopWhen`, `tool({ needsApproval })`) wrapped by our `Run` engine; MCP via `@ai-sdk/mcp@2` | Multi-provider, tool approval hooks, stable MCP client. Tests use `@faire/testkit` `fakeModel` (wraps `MockLanguageModelV4`) |
 | Providers | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@openrouter/ai-sdk-provider`, `ollama-ai-provider-v2`, `@ai-sdk/openai-compatible` | Bring your own key or a local model |
 | MCP | `@ai-sdk/mcp` `createMCPClient` (HTTP/SSE + stdio) | Stdio servers run *inside* the sandbox via exec |
 | Sandbox | Docker containers via `dockerode`, through `tecnativa/docker-socket-proxy` | The server never mounts the raw socket |
@@ -332,7 +332,7 @@ The desktop app can run the same flow from its "Start my stack" button.
 | 1 | Server-side brain in Docker; clients are thin | Embedded runtime in the desktop app (agents would stop when it quits) |
 | 2 | Tauri 2 desktop + Expo mobile, sharing `contracts`/`client`/tokens | Electron (heavier); Tauri mobile (less mature) |
 | 3 | Postgres + pgvector + FTS, with Graphile Worker | SQLite + sqlite-vec (simpler but weaker under concurrency); Redis queues |
-| 4 | Vercel AI SDK v6 core loop, our own Run engine | Claude Agent SDK (Anthropic-only); Mastra (heavier, opinionated memory) |
+| 4 | Vercel AI SDK v7 core loop, our own Run engine | Claude Agent SDK (Anthropic-only); Mastra (heavier, opinionated memory) |
 | 5 | noVNC through an authenticated gateway first | neko/Selkies WebRTC (later), Guacamole (heavy) |
 | 6 | One sandbox per profile | One shared computer (anti-pattern) |
 | 7 | Our own memory layer inspired by Letta/mem0/Graphiti | Embedding mem0/Letta as a service (an extra stack, less control) |
