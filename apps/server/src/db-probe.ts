@@ -21,8 +21,9 @@ export async function probeDb(pool: ProbePool, timeoutMs: number): Promise<void>
     await client.query('select 1')
     await client.query('commit')
   } catch (err) {
+    // No rollback: release(err) destroys the connection, which ends the transaction
+    // server-side, and awaiting a rollback on a hung connection would hang the probe.
     failure = err instanceof Error ? err : new Error('probe failed')
-    await client.query('rollback').catch(() => {})
     throw err
   } finally {
     if (failure) client.release(failure)

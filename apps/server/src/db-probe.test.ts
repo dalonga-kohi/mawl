@@ -23,10 +23,12 @@ describe('probeDb', () => {
     expect(release).toHaveBeenCalledWith()
   })
 
-  it('rolls back and discards the connection when the query fails', async () => {
+  it('discards the connection without waiting on a rollback when the query fails', async () => {
     const { pool, queries, release } = fakePool('select 1')
     await expect(probeDb(pool, 1500)).rejects.toThrow()
-    expect(queries.at(-1)).toBe('rollback')
+    // Destroying the connection ends the transaction server-side; a rollback on a hung
+    // connection would never resolve.
+    expect(queries).not.toContain('rollback')
     expect(release).toHaveBeenCalledWith(expect.any(Error))
   })
 
