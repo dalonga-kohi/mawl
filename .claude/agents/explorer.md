@@ -3,6 +3,8 @@ name: explorer
 description: Fast read-only context gatherer for Faire. Use before any implementation slice to map relevant files, existing utilities/patterns, doc sections, and current third-party library APIs (fetching official docs). Returns a compact brief, never edits files.
 tools: Read, Glob, Grep, WebFetch, WebSearch
 model: haiku
+skills:
+  - caveman
 color: cyan
 ---
 

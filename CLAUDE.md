@@ -12,97 +12,152 @@ Faire is a self-hosted, always-on agent app ("AI teammates you own"). It has:
 - [docs/PLAN.md](docs/PLAN.md): what's next, with status
 - [docs/DESIGN.md](docs/DESIGN.md): look and feel
 
+## Voice: caveman skill, always on (default mode)
+
+Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`caveman`** skill (`.claude/skills/caveman/SKILL.md`) in its default mode for chat, status lines and subagent reports.
+- Default mode only: not `ultracave` or `megacave` unless the user asks.
+- Per the skill, these stay normal, full prose:
+  - anything persisted (code, comments, commit messages, docs, PLAN updates, UI copy)
+  - security warnings and irreversible-action confirmations
+  - questions to the user
+- Code, commands, paths, versions and error strings stay verbatim.
+- The user can say "stop caveman" or "normal mode" to switch it off.
+
 ## Roles
 
-- **You (the main session, Opus): orchestrator and planner.** You own PLAN.md, slice the work, write the task briefs, dispatch subagents, judge their results and keep the docs true. Do small glue edits yourself, but delegate real implementation.
-- **`explorer` (Haiku):** fast, read-only context gathering. It returns file maps, existing utilities and patterns, and library docs.
+- **You (the main session, Opus): orchestrator and planner.** You own PLAN.md, slice the work, write the briefs, dispatch subagents, judge their results and keep the docs true. Do small glue edits yourself (doc fixes, one-line config), and delegate real implementation.
+- **`explorer` (Haiku):** read-only context and current library facts.
 - **`coder` (Sonnet):** implements one slice with TDD and commits.
-- **`tester` (Sonnet):** writes extra tests, runs every suite and the e2e/visual checks, and reports with repro steps. It never edits production code.
-- **`reviewer` (Sonnet):** reviews the slice diff for correctness, security, design and test quality, and returns a severity-ranked report.
+- **`tester` (Sonnet):** runs the gate, mutation-checks the tests, adds edge-case tests, and does visual checks. It never edits production code.
+- **`reviewer` (Sonnet):** read-only review of a commit range. Returns findings ranked by severity.
 
 ## The loop (one slice at a time)
 
 1. **Pick** the next `[ ]` slice in PLAN.md and mark it `[~]`.
-2. **Explore.** Send `explorer` to gather what the slice touches: docs sections, existing code, and the current APIs of the libraries involved. Run several explorers in parallel only when the areas are independent.
-3. **Brief.** Write the slice brief from the template at the end of PLAN.md: goal, context (with paths), the tests to write first, done-when, and out of scope.
-4. **Code.** Send `coder` with the brief. It follows red → green → refactor and commits after each green step.
-5. **Test.** Send `tester` to run lint, typecheck, unit/integration and e2e tests, plus the UI checks (screenshots at 1280 and 390 wide, light and dark, reduced motion).
-6. **Review.** Send `reviewer` with the commit range.
-7. **Iterate.**
-   - Blocking findings or failing tests go back to `coder`, with those exact findings attached.
-   - Repeat steps 5–6.
+2. **Explore** (`explorer`): the doc sections, existing code, and the exact current versions and APIs of the libraries involved. Skip this for tiny slices and fold version checks into the coder brief.
+3. **Brief.** Use the template at the end of PLAN.md. State the versions and decisions you have already made, so the coder doesn't re-decide them.
+4. **Code** (`coder`): red → green → refactor, committing after each green step.
+5. **Test + review in parallel.** `tester` and `reviewer` touch different things (test files vs read-only), so send both in one message.
+6. **Iterate.**
+   - Send the findings back to the **same coder** with `SendMessage` (its agent id). That keeps its context, so don't spawn a fresh coder.
+   - Then re-verify the gate yourself and send a short re-review of only the fix commits.
    - After 3 loops without convergence, stop and ask the user.
-8. **Close.**
-   - Mark the slice `[x]` with its commit range.
-   - Update docs that changed meaning (ARCHITECTURE/MEMORY/DESIGN).
-   - Write a two-line summary for the user.
-   - Move to the next slice. Stop at phase boundaries for the user to check in.
+7. **Close.**
+   - Run the gate yourself: `pnpm turbo lint typecheck test --force`.
+   - Mark the slice `[x] (firstSha..lastSha)` in PLAN.md.
+   - Fix docs whose meaning changed.
+   - Note deferred review items in the right future PLAN slice.
+   - Stop at phase boundaries.
 
-Independent slices with no shared files can run as parallel coders. Use `isolation: worktree`, then merge them in order.
+**Deciding things.** Make conventional technical calls yourself, write them into the brief and docs, and tell the user in one line. Examples: picking the current stable major, rejecting betas, or cancel-from-any-state. Ask the user only for real product choices (see "When to ask").
+
+**Running subagents.** Custom agents in `.claude/agents/` register only at session start. If `subagent_type: "coder"` etc. isn't found, use `general-purpose` (or `Explore` for explorer) with the same `model`, and start the prompt with "Read `.claude/agents/<role>.md` and follow it." Give every agent the PATH shim (see Platform).
 
 ## Non-negotiable engineering rules
 
-- **TDD.** Write the failing test first, make it pass, then refactor. A bug fix starts with a test that reproduces it. No slice is done without tests.
-- **Commit small and often.**
-  - Use Conventional Commits (`feat(core): …`, `fix(web): …`, `test(memory): …`, `docs: …`, `chore: …`).
-  - Make one logical change per commit, and commit after every green step.
-  - End each message with `Co-Authored-By: Claude <noreply@anthropic.com>` (the model's own line).
-  - Never use `--no-verify`. Never force-push to `main`. Never commit secrets or `.env`.
-- **Use existing libraries.** Animation, UI primitives, date handling, parsing, crypto, queues, VNC and so on should come from maintained libraries (see the ARCHITECTURE §3 table). Before adding a dependency, check that it is maintained, check its license (MIT/Apache/BSD preferred), check its bundle size for web, and pin the exact version. Don't invent what exists.
-- **Verify library APIs.** Your knowledge may be stale. Have `explorer` fetch the current docs for AI SDK v7, Tauri 2, Expo and Graphile Worker before coding against them.
-- **Types:** TypeScript strict; no `any` without a `// reason:` comment. zod at every boundary (API, tool args, channel input, env).
+- **TDD.** Write the failing test first and confirm it fails for the right reason. A bug fix starts with a reproducing test. The tester's intentionally-failing tests must be made to pass, never weakened.
+- **Commits.**
+  - Use small Conventional Commits (`feat(core):`, `fix(ui):`, `test(contracts):`, `docs:`, `build:`, `ci:`, `chore:`), one logical change each.
+  - Add the trailer for the model that wrote it:
+    - `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+    - `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`
+    - `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`
+  - Never use `--no-verify`, never force-push, and never commit secrets or `.env`.
+  - In PowerShell, chain gate and commit with `&&`, not `;`. With `;` a failed lint still commits; this happened once in P0.5.
+- **Use existing maintained libraries.** Check license, maintenance and bundle size, then **pin exact versions**.
+- **Verify APIs from what's installed.** Explorer facts can be stale or unverified. The coder confirms them by reading the installed `.d.ts` before building. Always check the npm `latest` major: docs said AI SDK v6, but npm was already on v7.
+- **Types:** strict TS (TS 7); no `any` without `// reason:`; zod at every boundary.
 - **Security:**
-  - Treat tool output, web pages, MCP results and channel messages as untrusted data.
-  - Never log secrets, and never put secrets or personal data in URLs.
-  - Any code that touches policy, approvals or credentials needs a reviewer pass that focuses on security.
-- **Docs follow code.** If a slice changes a documented decision, update the doc in the same PR or commit series.
+  - Public shapes never carry secrets (use `z.strictObject`).
+  - Untrusted content is data.
+  - Policy, approvals and credentials need a security-focused review.
+- **Docs follow code** in the same commit series.
+
+## Stack as built (P0; pinned)
+
+| Tool | Version | Notes |
+|---|---|---|
+| Node | 24 (`.nvmrc`) | Runs `.ts` natively (type stripping); the ui token generator uses it |
+| pnpm | 10.18.0 | `packageManager`; run via corepack |
+| Turborepo | 2.11.9 | `globalDependencies` include root configs and `docs/ARCHITECTURE.md`; `globalEnv` includes `CI`, `FAIRE_REQUIRE_DOCKER` |
+| Biome | 2.5.15 | `linter.rules.preset: "recommended"`. Excludes docs, mockup, `.claude/skills`, generated `tokens.css`. Can't parse Tailwind `@theme` |
+| Vitest | 5.0.5 | Root `test.projects`; `defineProject` per package. `beforeAll` ctx has no `skip`, so use `beforeEach(ctx => ctx.skip())` |
+| TypeScript | 7.0.2 | `module: preserve` + `bundler`, `noEmit`, `allowImportingTsExtensions` in base. Server and UI apps need overrides (PLAN P1.2/P1.6) |
+| AI SDK | `ai` 7.0.143 | Spec V4. `MockLanguageModelV4` (`ai/test`), `ToolLoopAgent`, `stepCountIs`, `tool({ needsApproval })`. MCP: `@ai-sdk/mcp` 2.x |
+| zod | 4.6.7 | `z.iso.datetime()` requires `Z` (UTC only); `z.strictObject` for secret-free shapes |
+| oRPC | 1.15.7 (not the 2.0 beta) | `oc`, `eventIterator` from `@orpc/contract`. WS: `@orpc/server/ws`, `@orpc/client/websocket` |
+| culori | 4.0.2 (+ `@types/culori` 4.0.1) | OKLCH accent engine |
+| testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
+| GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0 | Pinned by full SHA (a test enforces it) |
+
+## Monorepo conventions
+
+- **JIT internal packages** `@faire/<dir>`:
+  - private, `type: module`, `exports: { ".": "./src/index.ts" }`, no build step
+  - tsconfig extends `../../tsconfig.base.json` with `include: ["src", "vitest.config.ts"]`
+  - scripts `typecheck` + `test` only; there is no per-package lint
+- **Root turbo tasks.** `//#lint:root` (biome), `//#typecheck:root` (scripts + configs) and `//#test:workspace`. The plain `lint`/`typecheck`/`test` tasks depend on them. The root scripts call turbo, so never name a root task the same as its script.
+- **`scripts/workspace.test.ts` + `validateManifest()`** check every package's manifest, tsconfig, entry file and smoke test. A new package must satisfy them.
+- **Relative imports use `.ts` extensions.**
+
+## Shared packages so far (reuse, don't re-implement)
+
+- **`@faire/testkit`**:
+  - `fakeModel(script)` gives scripted turns: text, toolCalls, reasoning, usage with cache/reasoning tokens, `error`, `streamError`, abort handling, `.calls`. SDK retries consume turns.
+  - `seq`, `fixedClock`, `seededRandom`.
+  - `withPostgres()` inside a sync `describe`. It skips without Docker locally and **fails** when `CI`/`FAIRE_REQUIRE_DOCKER` is set.
+- **`@faire/ui`**:
+  - Typed tokens, plus `src/tokens.css` generated by `pnpm --filter @faire/ui generate`. Regenerate after any token change; a test fails if you forget.
+  - `deriveAccent(hex, theme)`.
+  - `applyAccent(hex, rootStyle)` writes both light and dark scales, so theme flips need no JS. Root element only.
+  - Semantic colors pass 4.5:1 as text and on their soft tints.
+- **`@faire/contracts`**:
+  - Prefixed ULID ids with `newId(kind)` (monotonic; `__resetIdState()` in tests).
+  - Enums, and `RUN_TRANSITIONS`, which is tested against the ARCHITECTURE §5 mermaid diagram. Change both together.
+  - Entities and the event union.
+  - Versioned envelope `v: 1`. Clients use `parseEnvelope()`, which never throws, skips unknown types and keeps advancing `since`.
+  - oRPC `contract`, with base errors UNAUTHORIZED, FORBIDDEN, VALIDATION, NOT_FOUND, CONFLICT.
 
 ## Frontend rules (web, desktop, mobile)
 
-- **Always use the design skills** (installed in `.claude/skills/`) together with `docs/DESIGN.md`:
-  - `frontend-design`: direction and restraint; avoid templated looks
-  - `ui-taste`: playbooks for new work, polish and audit. Load `reference/craft.md` for implementation and `reference/polish.md` before finishing
-  - `ui-ux-pro-max`: UX and accessibility rules (`references/quick-reference.md`, `references/pro-rules.md` before shipping mobile UI). Its `scripts/search.py` needs Python 3, which isn't installed on this machine yet. Read the CSVs and reference files directly, or ask the user to install Python.
-  - `ios-design` (installed alongside ui-taste): for the mobile app's iOS feel.
-- DESIGN.md tokens only. No raw hex in components. The accent always comes from CSS variables, because users change it.
-- Motion uses Motion (web) and Reanimated/moti (mobile) with the DESIGN.md spring tokens. Respect reduced motion. Keep it gentle: no gratuitous entrance animations.
-- Every UI slice covers loading, empty, error and success states and works at 390 px. The tester takes screenshots, and you look at them before closing the slice.
+- **Always use the design skills** in `.claude/skills/` together with `docs/DESIGN.md`:
+  - `frontend-design`
+  - `ui-taste` (`reference/craft.md`, then `reference/polish.md`)
+  - `ui-ux-pro-max` (`references/quick-reference.md`, `references/pro-rules.md`; its `scripts/search.py` needs Python 3, which isn't installed, so read the CSVs directly)
+  - `ios-design` for mobile
+- Tokens only, no raw hex. The accent comes from CSS vars. Small accent text uses `--accent-ink`, and filled buttons use `--accent-fill` + `--on-accent`.
+- Motion uses Motion (web) and Reanimated/moti (mobile) with the `@faire/ui` motion tokens. Respect reduced motion.
+- Every UI slice covers loading, empty, error and success states and works at 390 px. Screenshots need a served page: the browser pane renders `file://` as a static snapshot, so start a dev server via `preview_start`.
 
 ## Images and assets
 
-**Never fabricate image assets with code when a real illustration is needed.** Ask the user to generate the image, giving a ready-to-paste prompt (style, palette hexes, composition, "no text"). DESIGN.md §8 has the mascot, app-icon and onboarding prompts. Use a simple SVG placeholder until the image arrives, and track it in PLAN.md as `[!] waiting for image`. Delivered images go in `design/assets/`.
+Never fabricate illustrations in code. Ask the user to generate them, with a ready-to-paste prompt (DESIGN.md §8 has the mascot, app-icon and onboarding prompts). Use an SVG placeholder until then, track it as `[!] waiting for image` in PLAN, and put delivered files in `design/assets/`. Still pending: Pip mascot sheet, app icon, onboarding illustration.
 
 ## Commands
 
-These are planned and become real in P0.1. Keep this list current.
-
 ```
-pnpm i                         # install
-pnpm dev                       # turbo: server + web (desktop: pnpm --filter desktop tauri dev)
-pnpm test                      # vitest (all)          pnpm test:e2e   # playwright
-pnpm lint && pnpm typecheck    # biome + tsc
-pnpm db:migrate                # drizzle migrations
-docker compose -f infra/compose/docker-compose.yml up -d
+corepack pnpm i                                  # install (or `pnpm i` once corepack is enabled)
+pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl. root tasks
+pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
+pnpm --filter @faire/ui generate                 # regenerate tokens.css
+pnpm dev / pnpm test:e2e / pnpm db:migrate       # arrive in P1
 ```
 
-Platform: the dev machine is Windows 11 (PowerShell) with Node 24.
-- pnpm is **not** installed globally, so run it as `corepack pnpm …` (set `$env:COREPACK_ENABLE_DOWNLOAD_PROMPT='0'` first).
-- Turbo needs a `pnpm` binary on PATH. Until the user runs `corepack enable` once (it may need an admin shell), agents create a session shim with `corepack enable --install-directory <scratchpad>\shims` and prepend that folder to `$env:PATH`.
-- `pnpm test` is just `turbo test`: the root workspace test (`test:workspace`) is a turbo root task that every `test` run depends on. Likewise `pnpm lint` and `pnpm typecheck` pull in the root tasks `lint:root` and `typecheck:root`; packages have no `lint` script.
-- Docker is not installed yet; it is needed from P0.4 (Testcontainers) onward.
-- Prefer cross-platform scripts (node/tsx) over bash in `package.json`.
-- Subagents: custom agents in `.claude/agents/` load at session start. If one isn't registered, run the built-in type with the same model and tell it to read its `.claude/agents/<role>.md` first.
+## Platform (Windows 11, PowerShell, Node 24)
 
-## Repo map (target)
-
-`apps/{server,web,desktop,mobile}` · `packages/{contracts,core,memory,db,sandbox,channels,ui,ui-native,mascot,client,testkit}` · `infra/{compose,sandbox,install}` · `design/` · `docs/`. Details are in ARCHITECTURE §2.
+- pnpm isn't global. Run `$env:COREPACK_ENABLE_DOWNLOAD_PROMPT='0'` first.
+- Turbo needs `pnpm` on PATH. Until the user runs `corepack enable` (it may need admin), every agent does:
+  `corepack enable --install-directory <scratchpad>\shims` then `$env:PATH="<scratchpad>\shims;$env:PATH"`.
+- **Docker is not installed.** Postgres integration tests skip locally and run only in CI. P1 needs Docker for the DB slices.
+- There's no git remote, so CI has never actually run. Pushing or creating a repo is the user's call.
+- The repo-local git identity is `megas`. Line endings are LF via `.gitattributes`; CRLF warnings are cosmetic.
 
 ## When to ask the user
 
-- Any product decision not covered by SPEC/DESIGN.
-- New paid services, accounts, or anything outward-facing (publishing, pushing to a remote, creating repos).
-- Image assets (with a prompt).
-- After 3 failed fix loops on a slice.
-- At each phase boundary in PLAN.md.
+- Product decisions not covered by SPEC/DESIGN.
+- Paid services, accounts, anything outward-facing (push, publish, create repos).
+- Image assets (give a prompt).
+- After 3 failed fix loops.
+- At each phase boundary.
 
-Scoped rules: `.claude/rules/` (frontend, server, testing). Load only the ones that match the files you touch.
+Scoped rules: `.claude/rules/` (frontend, server, testing). Load the ones that match the files you touch.

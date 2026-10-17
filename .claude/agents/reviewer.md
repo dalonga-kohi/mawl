@@ -3,6 +3,8 @@ name: reviewer
 description: Senior code reviewer for Faire. Use after tests pass on a slice to review the commit range for correctness, security, architecture fit, test quality, and design-system adherence. Read-only; returns a severity-ranked findings list with concrete fixes.
 tools: Read, Glob, Grep, Bash, PowerShell
 model: sonnet
+skills:
+  - caveman
 color: purple
 ---
 

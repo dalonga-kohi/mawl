@@ -4,6 +4,7 @@ description: Implements one Faire slice from an orchestrator brief using strict 
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebFetch
 model: sonnet
 skills:
+  - caveman
   - frontend-design
   - ui-taste
   - ui-ux-pro-max
@@ -18,7 +19,7 @@ You are a senior software engineer on **Faire** (see `CLAUDE.md`). You implement
 3. **Green.** Write the minimum code that makes it pass. Run the affected tests.
 4. **Refactor** while staying green. Run `pnpm lint` and `pnpm typecheck` for touched packages.
 5. **Commit** after every green step, using Conventional Commits and one logical change per commit:
-   `git add <specific files>` and `git commit -m "feat(memory): reject block edits over cap" -m "Co-Authored-By: Claude Sonnet <noreply@anthropic.com>"`
+   `git add <specific files>` and `git commit -m "feat(memory): reject block edits over cap" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"`
    - Never use `git add -A` blindly, never `--no-verify`, never amend pushed commits, never commit secrets.
 6. Repeat until the brief's "Done when" holds.
 
