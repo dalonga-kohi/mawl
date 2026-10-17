@@ -36,6 +36,9 @@ importers:
       '@faire/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@faire/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@faire/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -51,6 +54,9 @@ importers:
       '@orpc/server':
         specifier: 1.15.7
         version: 1.15.7
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@electric-sql/pglite@0.5.10)(@types/pg@8.23.1)(pg@8.23.1)
       hono:
         specifier: 4.13.13
         version: 4.13.13
@@ -64,6 +70,12 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.10
+        version: 0.5.10
+      '@electric-sql/pglite-pgvector':
+        specifier: 0.0.11
+        version: 0.0.11(@electric-sql/pglite@0.5.10)
       '@faire/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit

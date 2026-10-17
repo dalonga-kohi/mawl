@@ -15,17 +15,21 @@
   },
   "dependencies": {
     "@faire/contracts": "workspace:*",
+    "@faire/core": "workspace:*",
     "@faire/db": "workspace:*",
     "@hono/node-server": "2.1.5",
     "@orpc/client": "1.15.7",
     "@orpc/contract": "1.15.7",
     "@orpc/server": "1.15.7",
+    "drizzle-orm": "0.45.4",
     "hono": "4.13.13",
     "libsodium-wrappers": "0.8.4",
     "pino": "10.4.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@electric-sql/pglite-pgvector": "0.0.11",
     "@faire/testkit": "workspace:*",
     "esbuild": "0.28.2",
     "tsx": "4.23.15"
