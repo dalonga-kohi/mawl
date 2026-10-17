@@ -92,8 +92,12 @@ export const EventType = z.enum(EVENT_TYPES as [EventType, ...EventType[]])
 export const EventId = z.string().regex(/^\d+$/, 'expected decimal event id')
 export type EventId = z.infer<typeof EventId>
 
+/** Wire version of the envelope. Bumped only for breaking envelope or payload changes. */
+export const ENVELOPE_VERSION = 1
+
 function envelopeFor<T extends EventType>(type: T) {
   return z.object({
+    v: z.literal(ENVELOPE_VERSION),
     id: EventId,
     type: z.literal(type),
     profileId: ProfileId,
@@ -121,9 +125,65 @@ export const Envelope = z.discriminatedUnion('type', [
 ])
 export type Envelope = z.infer<typeof Envelope>
 
+/**
+ * Forward-compatible envelope used as the `events.subscribe` stream item: any type, any
+ * version, opaque payload. It lets an old client keep reading a stream that a newer server
+ * extends. Clients MUST run each item through {@link parseEnvelope} and advance their
+ * `since` cursor with `id` even when the event is skipped.
+ */
+export const LenientEnvelope = z.object({
+  v: z.number().int().positive(),
+  id: EventId,
+  type: z.string().min(1),
+  profileId: ProfileId,
+  runId: RunId.optional(),
+  ts: Timestamp,
+  payload: z.unknown(),
+})
+export type LenientEnvelope = z.infer<typeof LenientEnvelope>
+
+export type ParsedEnvelope =
+  | { ok: true; event: Envelope }
+  | {
+      ok: false
+      reason: 'unknown_type' | 'unsupported_version' | 'invalid'
+      id?: EventId
+      type?: string
+    }
+
+/**
+ * Parse one raw stream item without throwing. Known types of version 1 parse strictly;
+ * unknown types and newer versions are reported (not thrown) so callers can skip them and
+ * still advance their cursor using `id`.
+ */
+export function parseEnvelope(raw: unknown): ParsedEnvelope {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
+    return { ok: false, reason: 'invalid' }
+  const r = raw as Record<string, unknown>
+  const idRes = EventId.safeParse(r.id)
+  const meta = {
+    ...(idRes.success ? { id: idRes.data } : {}),
+    ...(typeof r.type === 'string' ? { type: r.type } : {}),
+  }
+  if (typeof r.v !== 'number' || !Number.isInteger(r.v) || r.v < 1)
+    return { ok: false, reason: 'invalid', ...meta }
+  if (r.v > ENVELOPE_VERSION) return { ok: false, reason: 'unsupported_version', ...meta }
+  if (typeof r.type !== 'string' || !(EVENT_TYPES as string[]).includes(r.type)) {
+    return { ok: false, reason: typeof r.type === 'string' ? 'unknown_type' : 'invalid', ...meta }
+  }
+  const parsed = Envelope.safeParse(raw)
+  return parsed.success
+    ? { ok: true, event: parsed.data }
+    : { ok: false, reason: 'invalid', ...meta }
+}
+
 export type Topic = 'profile:*' | `profile:${ProfileId}` | `run:${RunId}`
-const TOPIC_RE = /^(?:profile:(?:\*|prof_[0-7][0-9A-HJKMNP-TV-Z]{25})|run:run_[0-7][0-9A-HJKMNP-TV-Z]{25})$/
-export const Topic = z.custom<Topic>((v) => typeof v === 'string' && TOPIC_RE.test(v), 'invalid topic')
+const TOPIC_RE =
+  /^(?:profile:(?:\*|prof_[0-7][0-9A-HJKMNP-TV-Z]{25})|run:run_[0-7][0-9A-HJKMNP-TV-Z]{25})$/
+export const Topic = z.custom<Topic>(
+  (v) => typeof v === 'string' && TOPIC_RE.test(v),
+  'invalid topic',
+)
 
 /** Typed topic builders: the branded id type keeps arbitrary strings out of `Topic`. */
 export const profileTopic = (id: ProfileId): Topic => `profile:${id}`

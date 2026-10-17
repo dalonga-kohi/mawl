@@ -8,10 +8,10 @@ import {
   runTopic,
   Topic,
 } from './events'
-import { ProfileId, RunId } from './ids'
 import * as f from './fixtures'
+import { ProfileId, RunId } from './ids'
 
-const base = { id: '9007199254740993', profileId: f.id('prof'), ts: f.TS }
+const base = { v: 1, id: '9007199254740993', profileId: f.id('prof'), ts: f.TS }
 
 const payloads: Record<EventType, unknown> = {
   'run.status': { status: 'running', prevStatus: 'queued' },
@@ -27,7 +27,12 @@ const payloads: Record<EventType, unknown> = {
   'approval.created': { approval: f.approval },
   'approval.resolved': { approvalId: f.id('appr'), status: 'approved' },
   'takeover.requested': { leaseId: f.id('lease'), reason: 'captcha' },
-  'takeover.lease': { leaseId: f.id('lease'), state: 'granted', deviceId: f.id('dev'), expiresAt: f.TS },
+  'takeover.lease': {
+    leaseId: f.id('lease'),
+    state: 'granted',
+    deviceId: f.id('dev'),
+    expiresAt: f.TS,
+  },
   'memory.recalled': {
     messageId: f.id('msg'),
     refs: [
