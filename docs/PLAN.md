@@ -13,8 +13,8 @@ Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothin
   - pnpm workspace (pnpm 10.18.0 via corepack), Turborepo, TS strict base config, Biome, Vitest `test.projects`, `.editorconfig`, `.nvmrc` (Node 24 LTS).
   - Empty packages per ARCHITECTURE §2, each with a passing smoke test.
   - *Accept:* `pnpm i && pnpm turbo lint typecheck test` is green.
-- [~] **P0.2 CI.** GitHub Actions running lint, typecheck, test, and build with the Turbo cache. A Postgres service is used for integration tests.
-- [ ] **P0.3 Design tokens.** In `packages/ui`, turn the DESIGN.md tokens into CSS variables plus a TS export.
+- [x] **P0.2 CI.** (1de9ff0..044fca8) GitHub Actions running lint, typecheck, test, and build with the Turbo cache. A Postgres service is used for integration tests.
+- [~] **P0.3 Design tokens.** In `packages/ui`, turn the DESIGN.md tokens into CSS variables plus a TS export.
   - Includes the accent engine: input hex → OKLCH scale → `--accent-*`.
   - *Tests:* contrast ratios ≥ 4.5 for text-on-accent across all presets in light and dark.
 - [ ] **P0.4 testkit.** A scripted fake `LanguageModelV2` (deterministic text, tool calls, streaming), fixture builders, and a Testcontainers Postgres helper.
