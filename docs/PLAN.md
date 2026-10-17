@@ -9,11 +9,11 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 ## P0 — Foundation
 Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothing user-facing yet.
 
-- [~] **P0.1 Scaffold monorepo.** Set up the workspace and tooling.
+- [x] **P0.1 Scaffold monorepo.** (7432cc0..dd50c20) Set up the workspace and tooling.
   - pnpm workspace (pnpm 10.18.0 via corepack), Turborepo, TS strict base config, Biome, Vitest `test.projects`, `.editorconfig`, `.nvmrc` (Node 24 LTS).
   - Empty packages per ARCHITECTURE §2, each with a passing smoke test.
   - *Accept:* `pnpm i && pnpm turbo lint typecheck test` is green.
-- [ ] **P0.2 CI.** GitHub Actions running lint, typecheck, test, and build with the Turbo cache. A Postgres service is used for integration tests.
+- [~] **P0.2 CI.** GitHub Actions running lint, typecheck, test, and build with the Turbo cache. A Postgres service is used for integration tests.
 - [ ] **P0.3 Design tokens.** In `packages/ui`, turn the DESIGN.md tokens into CSS variables plus a TS export.
   - Includes the accent engine: input hex → OKLCH scale → `--accent-*`.
   - *Tests:* contrast ratios ≥ 4.5 for text-on-accent across all presets in light and dark.
@@ -25,6 +25,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 
 - [ ] **P1.1 DB schema v1.** Drizzle migrations for `profiles`, `provider_credentials`, `threads`, `messages`, `runs`, `run_steps`, `artifacts`, `events`. Add pgvector/FTS extensions.
 - [ ] **P1.2 Server skeleton.**
+  - tsconfig override: `nodenext` resolution, or bundle with tsup/esbuild. Run with tsx in dev. Decide here (review note from P0.1).
   - Hono + oRPC + health endpoint + pino.
   - Secret key bootstrapped on first boot, with libsodium encrypt/decrypt.
 - [ ] **P1.3 Provider registry.**
@@ -38,6 +39,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
 - [ ] **P1.6 Web app shell.**
+  - tsconfig override for UI apps: `DOM` + `DOM.Iterable` libs, `jsx: react-jsx`, no `node` types. Relax `exactOptionalPropertyTypes` only where a library forces it (review note from P0.1).
   - Three-pane layout, theme (light/dark/system), and accent switcher wired to tokens.
   - Command palette and Motion presets.
 - [ ] **P1.7 Chat UI.**
