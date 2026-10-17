@@ -57,6 +57,7 @@ describe('parseConfig', () => {
   it('never puts values in the error, including the database password', () => {
     for (const env of [
       { DATABASE_URL: 'mysql://faire:s3cr3t-pw@db/faire' },
+      { DATABASE_URL: 'postgres://faire:s3cr3t-pw@[bad/faire' },
       { DATABASE_URL: URL_WITH_PASSWORD, FAIRE_PORT: 'hunter2-port' },
       { DATABASE_URL: URL_WITH_PASSWORD, LOG_LEVEL: 'hunter2-level' },
     ]) {

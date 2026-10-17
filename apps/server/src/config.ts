@@ -7,9 +7,19 @@ export type LogLevel = (typeof LOG_LEVELS)[number]
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema)
 
+function isPostgresUrl(value: string): boolean {
+  if (!/^postgres(ql)?:\/\//.test(value)) return false
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const EnvSchema = z.object({
-  DATABASE_URL: z.string({ error: 'is required' }).refine((v) => /^postgres(ql)?:\/\//.test(v), {
-    error: 'must be a postgres:// or postgresql:// URL',
+  DATABASE_URL: z.string({ error: 'is required' }).refine(isPostgresUrl, {
+    error: 'must be a valid postgres:// or postgresql:// URL',
   }),
   FAIRE_HOST: optional(z.string().min(1).default('127.0.0.1')),
   FAIRE_PORT: optional(
