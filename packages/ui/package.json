@@ -8,7 +8,7 @@
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "generate": "node scripts/generate-tokens.ts",
+    "generate": "node src/generate-tokens.ts",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
   },

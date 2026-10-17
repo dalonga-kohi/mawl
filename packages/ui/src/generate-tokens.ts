@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { generateTokensCss } from '../src/css.ts'
+import { generateTokensCss } from './css.ts'
 
-const target = new URL('../src/tokens.css', import.meta.url)
+const target = new URL('./tokens.css', import.meta.url)
 writeFileSync(target, generateTokensCss())
 console.log(`wrote ${fileURLToPath(target)}`)
