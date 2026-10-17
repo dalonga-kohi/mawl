@@ -9,5 +9,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "culori": "4.0.2"
+  },
+  "devDependencies": {
+    "@types/culori": "4.0.1"
   }
 }
