@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app.ts'
 import { ConfigError, parseConfig } from './config.ts'
 import { createLogger } from './logger.ts'
+import { unusedProviders } from './providers/test-util.ts'
 import { createSecretBox, loadOrCreateMasterKey, SecretDecryptError } from './secrets/index.ts'
 import { startServer } from './server.ts'
 
@@ -56,7 +57,12 @@ describe('logger redaction depth', () => {
 describe('app edge cases', () => {
   it('never logs a ?ticket= query on /rpc or unknown paths', async () => {
     const { logger, lines } = capture()
-    const app = createApp({ logger, version: '1', checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers: unusedProviders,
+      checkDb: async () => {},
+    })
     await app.request('/rpc/health/get?ticket=LEAK-ME', { method: 'POST' })
     await app.request('/nope?ticket=LEAK-ME')
     await app.request('/healthz?ticket=LEAK-ME')
@@ -65,7 +71,12 @@ describe('app edge cases', () => {
 
   it('answers an unknown /rpc path with 404, not 500', async () => {
     const { logger } = capture()
-    const app = createApp({ logger, version: '1', checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers: unusedProviders,
+      checkDb: async () => {},
+    })
     for (const p of ['/rpc/nope', '/rpc/health/nope', '/rpc/', '/rpc/a/b/c/d']) {
       const res = await app.request(p, { method: 'POST' })
       expect(res.status, p).toBe(404)
@@ -74,7 +85,12 @@ describe('app edge cases', () => {
 
   it('answers malformed rpc JSON with a 4xx, never 500, and does not log the body', async () => {
     const { logger, lines } = capture()
-    const app = createApp({ logger, version: '1', checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers: unusedProviders,
+      checkDb: async () => {},
+    })
     const res = await app.request('/rpc/health/get', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -87,7 +103,12 @@ describe('app edge cases', () => {
   it('healthz returns 503 when checkDb hangs forever (fake timers)', async () => {
     vi.useFakeTimers()
     const { logger } = capture()
-    const app = createApp({ logger, version: '1', checkDb: () => new Promise(() => {}) })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers: unusedProviders,
+      checkDb: () => new Promise(() => {}),
+    })
     const pending = Promise.resolve(app.request('/healthz'))
     await vi.advanceTimersByTimeAsync(1999)
     let settled = false
@@ -107,6 +128,7 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      providers: unusedProviders,
       checkDb: () => {
         throw new Error('postgres://u:LEAK-ME@h/d')
       },
@@ -119,7 +141,12 @@ describe('app edge cases', () => {
 
   it('does not leak the error message from an unhandled route error into logs', async () => {
     const { logger, lines } = capture()
-    const app = createApp({ logger, version: '1', checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers: unusedProviders,
+      checkDb: async () => {},
+    })
     app.get('/boom', () => {
       throw new Error('apiKey=LEAK-ME')
     })

@@ -5,6 +5,7 @@ import type { ContractRouterClient } from '@orpc/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { type AppDeps, createApp } from './app.ts'
 import { createLogger } from './logger.ts'
+import { unusedProviders } from './providers/test-util.ts'
 
 function setup(overrides: Partial<AppDeps> = {}) {
   const lines: string[] = []
@@ -15,6 +16,7 @@ function setup(overrides: Partial<AppDeps> = {}) {
   const app = createApp({
     logger,
     version: '1.2.3',
+    providers: unusedProviders,
     checkDb: async () => {},
     healthTimeoutMs: 50,
     ...overrides,

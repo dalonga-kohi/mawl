@@ -1,8 +1,11 @@
 import { contract } from '@faire/contracts'
+import { listProviderDescriptors } from '@faire/core'
 import { implement, ORPCError } from '@orpc/server'
+import { CredentialNotFoundError, type ProviderService } from './providers/service.ts'
 
 export interface RouterDeps {
   version: string
+  providers: ProviderService
 }
 
 /**
@@ -18,12 +21,22 @@ const notImplemented = (): never => {
 const stub = <T>(procedure: { handler: (handler: () => never) => T }): T =>
   procedure.handler(notImplemented)
 
+/** Maps the service's not-found error to the contract's typed NOT_FOUND; others pass through. */
+const notFound =
+  (errors: { NOT_FOUND: (options: { data: { entity: string; id: string } }) => Error }) =>
+  (err: unknown): never => {
+    if (err instanceof CredentialNotFoundError) {
+      throw errors.NOT_FOUND({ data: { entity: 'credential', id: err.id } })
+    }
+    throw err
+  }
+
 /**
  * Every procedure in the contract must appear here: this object is type-checked against the
  * contract, so adding a procedure to `@faire/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version }: RouterDeps) {
+export function createRouter({ version, providers }: RouterDeps) {
   const os = implement(contract)
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
@@ -53,6 +66,17 @@ export function createRouter({ version }: RouterDeps) {
       pair: stub(os.devices.pair),
       list: stub(os.devices.list),
       revoke: stub(os.devices.revoke),
+    },
+    providers: {
+      catalog: os.providers.catalog.handler(() => listProviderDescriptors()),
+      list: os.providers.list.handler(() => providers.list()),
+      create: os.providers.create.handler(({ input }) => providers.create(input)),
+      delete: os.providers.delete.handler(({ input, errors }) =>
+        providers.delete(input.id).catch(notFound(errors)),
+      ),
+      test: os.providers.test.handler(({ input, errors }) =>
+        providers.test(input).catch(notFound(errors)),
+      ),
     },
     settings: {
       get: stub(os.settings.get),

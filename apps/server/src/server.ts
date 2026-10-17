@@ -8,6 +8,7 @@ import { createApp } from './app.ts'
 import type { Config } from './config.ts'
 import { probeDb } from './db-probe.ts'
 import { createLogger, type Logger } from './logger.ts'
+import { createProviderService } from './providers/service.ts'
 import { createSecretBox, loadOrCreateMasterKey, type SecretBox } from './secrets/index.ts'
 import { readVersion } from './version.ts'
 
@@ -99,6 +100,7 @@ export async function startServer(
     const app = createApp({
       logger,
       version,
+      providers: createProviderService({ db: handle.db, secretBox, logger }),
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
