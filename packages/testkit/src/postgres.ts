@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 
 export const DEFAULT_PG_IMAGE = 'pgvector/pgvector:0.8.7-pg17'
-/** Cold Docker Desktop can take several seconds to answer. */
-const DOCKER_PROBE_TIMEOUT_MS = 10_000
+/** A cold Docker Desktop can take well over 10 s to answer, especially under a parallel run. */
+const DOCKER_PROBE_TIMEOUT_MS = 30_000
 
 export interface PostgresHandle {
   /** Connection URI for the throwaway database. */

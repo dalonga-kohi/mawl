@@ -47,14 +47,14 @@ describe('isDockerAvailable', () => {
 })
 
 describe('isDockerAvailable default timeout', () => {
-  it('gives up on a hanging probe after 10 seconds', async () => {
+  it('gives up on a hanging probe after 30 seconds', async () => {
     vi.useFakeTimers()
     const result = isDockerAvailable(() => new Promise<never>(() => {}))
     let settled = false
     void result.then(() => {
       settled = true
     })
-    await vi.advanceTimersByTimeAsync(9999)
+    await vi.advanceTimersByTimeAsync(29_999)
     expect(settled).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
     expect(await result).toBe(false)
