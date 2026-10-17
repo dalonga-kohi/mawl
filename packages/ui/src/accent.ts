@@ -49,16 +49,16 @@ function hexAt(color: Oklch, l: number): string {
 }
 
 /**
- * Moves lightness from `color` toward black (`-1`) or white (`+1`) until `hex` reaches `target`
- * contrast against `against`. Returns the closest-to-original hex that passes; contrast is checked
- * on the rounded hex so the guarantee holds for what is actually emitted.
+ * Moves lightness from `startHex` toward black (`-1`) or white (`+1`) until the hex reaches `target`
+ * contrast against `against`. Returns the closest-to-start hex that passes; contrast is checked on
+ * the rounded hex so the guarantee holds for what is actually emitted.
  */
-function shiftUntil(color: Oklch, against: string, target: number, direction: -1 | 1): string {
+function shiftUntil(startHex: string, against: string, target: number, direction: -1 | 1): string {
+  if (wcagContrast(startHex, against) >= target) return startHex
+  const color = toOklch(startHex) as Oklch
   const passes = (l: number) => wcagContrast(hexAt(color, l), against) >= target
-  if (passes(color.l)) return hexAt(color, color.l)
-  const end = direction === 1 ? 1 : 0
   let near = color.l // fails
-  let far = end // passes (pure white or black against the surface)
+  let far = direction === 1 ? 1 : 0 // passes (pure white or black against the surface)
   for (let i = 0; i < 24; i++) {
     const mid = (near + far) / 2
     if (passes(mid)) far = mid
@@ -68,8 +68,10 @@ function shiftUntil(color: Oklch, against: string, target: number, direction: -1
 }
 
 /** Raises the base to at least `DARK_MIN_L` after hex rounding. */
-function liftedBase(color: Oklch): string {
-  let l = Math.max(color.l, DARK_MIN_L)
+function liftedBase(baseHex: string): string {
+  const color = toOklch(baseHex) as Oklch
+  if (color.l >= DARK_MIN_L) return baseHex
+  let l = DARK_MIN_L
   let hex = hexAt(color, l)
   while ((toOklch(hex)?.l ?? 1) < DARK_MIN_L && l < 1) {
     l += 0.002
@@ -78,47 +80,75 @@ function liftedBase(color: Oklch): string {
   return hex
 }
 
-export function deriveAccent(hex: string, theme: ThemeName): AccentScale {
-  const base = parseHex(hex)
-  const baseHex = formatHex(base)
-  const surface = neutrals[theme].surface
+/** Hover and press are darker than the fill by 4% and 8% of OKLCH lightness. */
+function fillStates(fillHex: string) {
+  const fill = toOklch(fillHex) as Oklch
+  return { hover: hexAt(fill, fill.l - HOVER_STEP), press: hexAt(fill, fill.l - PRESS_STEP) }
+}
 
-  let accentFill = baseHex
-  let onAccent = WHITE
-  if (wcagContrast(baseHex, WHITE) < TEXT_CONTRAST) {
-    if (wcagContrast(baseHex, ink) >= INK_ON_BASE_CONTRAST) onAccent = ink
-    else accentFill = shiftUntil(base, WHITE, TEXT_CONTRAST, -1)
+export function deriveAccent(hex: string, theme: ThemeName): AccentScale {
+  const baseHex = formatHex(parseHex(hex))
+  // Dark derives everything from the lifted base, so fill, states and ink never go darker than it.
+  const eff = theme === 'dark' ? liftedBase(baseHex) : baseHex
+
+  // White text unless the color is light. Ink is used only when it is >= 6:1 on the base and also
+  // stays >= 4.5:1 on the darker hover and press fills; otherwise darken until white passes.
+  let accentFill = eff
+  let onAccent: string = WHITE
+  if (wcagContrast(eff, WHITE) < TEXT_CONTRAST) {
+    const { hover, press } = fillStates(eff)
+    const inkHolds =
+      wcagContrast(eff, ink) >= INK_ON_BASE_CONTRAST &&
+      wcagContrast(hover, ink) >= TEXT_CONTRAST &&
+      wcagContrast(press, ink) >= TEXT_CONTRAST
+    if (inkHolds) onAccent = ink
+    else accentFill = shiftUntil(eff, WHITE, TEXT_CONTRAST, -1)
   }
 
-  const fill = toOklch(accentFill) as Oklch
+  const states = fillStates(accentFill)
   return {
-    accent: theme === 'dark' ? liftedBase(base) : baseHex,
-    accentHover: hexAt(fill, fill.l - HOVER_STEP),
-    accentPress: hexAt(fill, fill.l - PRESS_STEP),
+    accent: eff,
+    accentHover: states.hover,
+    accentPress: states.press,
     accentFill,
     onAccent,
-    accentInk: shiftUntil(base, surface, TEXT_CONTRAST, theme === 'dark' ? 1 : -1),
+    accentInk: shiftUntil(eff, neutrals[theme].surface, TEXT_CONTRAST, theme === 'dark' ? 1 : -1),
   }
 }
 
-/** CSS custom property name for each scale entry that is set at runtime. */
-export const accentVarNames = {
-  accent: '--accent',
-  accentHover: '--accent-hover',
-  accentPress: '--accent-press',
-  accentFill: '--accent-fill',
-  onAccent: '--on-accent',
-  accentInk: '--accent-ink',
+export interface AccentScales {
+  light: AccentScale
+  dark: AccentScale
+}
+
+/** Suffixes of the runtime variables, per scale entry: `--accent-{light|dark}-{suffix}`. */
+const scaleSuffix = {
+  accent: 'accent',
+  accentHover: 'hover',
+  accentPress: 'press',
+  accentFill: 'fill',
+  onAccent: 'on',
+  accentInk: 'ink',
 } as const satisfies Record<keyof AccentScale, string>
 
+export const accentScaleKeys = Object.keys(scaleSuffix) as (keyof AccentScale)[]
+
+export const accentVarName = (theme: ThemeName, key: keyof AccentScale) =>
+  `--accent-${theme}-${scaleSuffix[key]}`
+
 /**
- * Applies the accent to any style-like target (e.g. `document.documentElement.style`).
- * Call again when the theme flips, because the dark scale differs from the light one.
+ * Applies the accent to any style-like target (e.g. `document.documentElement.style`). Both the
+ * light and dark scales are written; the generated CSS picks one per theme, so a theme flip needs
+ * no JavaScript.
  */
-export function applyAccent(hex: string, theme: ThemeName, target: StyleTarget): AccentScale {
-  const scale = deriveAccent(hex, theme)
-  for (const key of Object.keys(accentVarNames) as (keyof AccentScale)[]) {
-    target.setProperty(accentVarNames[key], scale[key])
+export function applyAccent(hex: string, target: StyleTarget): AccentScales {
+  const scales: AccentScales = {
+    light: deriveAccent(hex, 'light'),
+    dark: deriveAccent(hex, 'dark'),
   }
-  return scale
+  for (const theme of ['light', 'dark'] as const) {
+    for (const key of accentScaleKeys)
+      target.setProperty(accentVarName(theme, key), scales[theme][key])
+  }
+  return scales
 }

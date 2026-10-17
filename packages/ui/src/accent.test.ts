@@ -18,6 +18,11 @@ function prng(seed: number) {
   }
 }
 
+const randomHex = (rand: () => number) =>
+  `#${Math.floor(rand() * 0x1000000)
+    .toString(16)
+    .padStart(6, '0')}`
+
 function expectAccessible(hex: string, theme: ThemeName) {
   const s = deriveAccent(hex, theme)
   for (const value of Object.values(s)) expect(value).toMatch(HEX)
@@ -109,36 +114,85 @@ describe('deriveAccent input validation', () => {
   }
 })
 
+describe('onAccent on every fill state', () => {
+  const failures = (hexes: string[]) => {
+    const out: string[] = []
+    for (const hex of hexes) {
+      for (const theme of themes) {
+        const s = deriveAccent(hex, theme)
+        for (const key of ['accentFill', 'accentHover', 'accentPress'] as const) {
+          const c = wcagContrast(s.onAccent, s[key])
+          if (c < 4.5) out.push(`${hex} ${theme} ${key} ${c.toFixed(2)}`)
+        }
+      }
+    }
+    return out
+  }
+
+  it('reaches 4.5:1 on fill, hover and press for presets and extremes', () => {
+    expect(
+      failures([...accentPresets.map((p) => p.hex), '#000000', '#FFFFFF', '#FFFF00', '#0000FF']),
+    ).toEqual([])
+  })
+
+  it('reaches 4.5:1 on fill, hover and press for 300 pseudo-random colors', () => {
+    const rand = prng(7)
+    const hexes = Array.from({ length: 300 }, () => randomHex(rand))
+    expect(failures(hexes)).toEqual([])
+  })
+
+  it('regressions: colors whose press state used to drop ink below 4.5:1', () => {
+    expect(failures(['#c89446', '#19afa5'])).toEqual([])
+  })
+
+  it('pins Coral: ink on the base is under 6:1, so the fill darkens and keeps white text', () => {
+    for (const theme of themes) {
+      const s = deriveAccent('#EF6F5E', theme)
+      expect(s.onAccent.toLowerCase()).toBe('#ffffff')
+      expect(s.accentFill.toLowerCase()).not.toBe('#ef6f5e')
+      expect(wcagContrast('#ffffff', s.accentFill)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+describe('dark derivation starts from the lifted base', () => {
+  it('keeps accent-ink at OKLCH L >= 0.68 in dark', () => {
+    const rand = prng(11)
+    const hexes = [
+      ...accentPresets.map((p) => p.hex),
+      '#000000',
+      '#0A0F3C',
+      ...Array.from({ length: 100 }, () => randomHex(rand)),
+    ]
+    for (const hex of hexes) {
+      expect(toOklch(deriveAccent(hex, 'dark').accentInk)?.l, hex).toBeGreaterThanOrEqual(0.68)
+    }
+  })
+})
+
 describe('applyAccent', () => {
-  it('sets exactly the six accent variables on a style-like target', () => {
+  const names = ['accent', 'hover', 'press', 'fill', 'on', 'ink']
+  const capture = () => {
     const calls = new Map<string, string>()
-    const scale = applyAccent('#3D8BFD', 'light', {
-      setProperty: (name, value) => {
-        calls.set(name, value)
-      },
-    })
-    expect([...calls.keys()].sort()).toEqual([
-      '--accent',
-      '--accent-fill',
-      '--accent-hover',
-      '--accent-ink',
-      '--accent-press',
-      '--on-accent',
-    ])
-    expect(calls.get('--accent-fill')).toBe(scale.accentFill)
-    expect(calls.get('--on-accent')).toBe(scale.onAccent)
-    expect(calls.get('--accent-ink')).toBe(scale.accentInk)
+    return { calls, target: { setProperty: (n: string, v: string) => void calls.set(n, v) } }
+  }
+
+  it('sets both the light and dark scales, and nothing else', () => {
+    const { calls, target } = capture()
+    const { light, dark } = applyAccent('#3D8BFD', target)
+    expect([...calls.keys()].sort()).toEqual(
+      ['light', 'dark'].flatMap((t) => names.map((n) => `--accent-${t}-${n}`)).sort(),
+    )
+    expect(light).toEqual(deriveAccent('#3D8BFD', 'light'))
+    expect(dark).toEqual(deriveAccent('#3D8BFD', 'dark'))
+    expect(calls.get('--accent-light-fill')).toBe(light.accentFill)
+    expect(calls.get('--accent-dark-on')).toBe(dark.onAccent)
+    expect(calls.get('--accent-dark-ink')).toBe(dark.accentInk)
   })
 
   it('throws before touching the target for an invalid color', () => {
-    let touched = false
-    expect(() =>
-      applyAccent('nope', 'dark', {
-        setProperty: () => {
-          touched = true
-        },
-      }),
-    ).toThrow(InvalidColorError)
-    expect(touched).toBe(false)
+    const { calls, target } = capture()
+    expect(() => applyAccent('nope', target)).toThrow(InvalidColorError)
+    expect(calls.size).toBe(0)
   })
 })

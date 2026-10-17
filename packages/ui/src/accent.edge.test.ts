@@ -143,29 +143,30 @@ describe('determinism and applyAccent', () => {
     }
   })
 
-  it('applyAccent writes the derived values for extreme inputs and returns the scale', () => {
+  it('applyAccent writes valid derived values for extreme inputs and returns both scales', () => {
     for (const hex of extremes) {
-      for (const theme of themes) {
-        const calls = new Map<string, string>()
-        const scale = applyAccent(hex, theme, { setProperty: (n, v) => void calls.set(n, v) })
-        expect(scale).toEqual(deriveAccent(hex, theme))
-        expect(calls.size).toBe(6)
-        for (const v of calls.values()) expect(v).toMatch(HEX6)
-      }
+      const calls = new Map<string, string>()
+      const scales = applyAccent(hex, { setProperty: (n, v) => void calls.set(n, v) })
+      expect(scales.light).toEqual(deriveAccent(hex, 'light'))
+      expect(scales.dark).toEqual(deriveAccent(hex, 'dark'))
+      expect(calls.size).toBe(12)
+      for (const v of calls.values()) expect(v).toMatch(HEX6)
     }
   })
 
-  it('applyAccent can be re-applied on theme flip and overwrites every variable', () => {
+  it('applyAccent can be re-applied with a new color and overwrites every variable', () => {
     const calls = new Map<string, string>()
     const target = { setProperty: (n: string, v: string) => void calls.set(n, v) }
-    applyAccent('#3D8BFD', 'light', target)
-    const light = new Map(calls)
-    applyAccent('#3D8BFD', 'dark', target)
-    expect(calls.get('--accent')).not.toBe(light.get('--accent'))
-    expect(calls.get('--accent-ink')).not.toBe(light.get('--accent-ink'))
+    applyAccent('#3D8BFD', target)
+    const first = new Map(calls)
+    applyAccent('#3FA36B', target)
+    expect(calls.size).toBe(12)
+    // "on" is white for both colors, so it legitimately stays the same.
+    for (const [name, value] of calls) {
+      if (!name.endsWith('-on')) expect(value, name).not.toBe(first.get(name))
+    }
   })
 })
-
 describe('input strictness', () => {
   for (const bad of [
     ' #3D8BFD',
