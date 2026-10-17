@@ -54,15 +54,27 @@ export async function testCredential(
 
   const started = now()
   let res: Response
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    res = await fetch(target.url, {
-      method: 'GET',
-      headers: target.headers,
-      redirect: 'error',
-      signal: AbortSignal.timeout(timeoutMs),
+    // The abort signal alone is not enough: a fetch that ignores it would hang forever.
+    const deadline = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs)
     })
+    const outcome = await Promise.race([
+      fetch(target.url, {
+        method: 'GET',
+        headers: target.headers,
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeoutMs),
+      }),
+      deadline,
+    ])
+    if (!outcome) return { ok: false, reason: 'unreachable' }
+    res = outcome
   } catch {
     return { ok: false, reason: 'unreachable' }
+  } finally {
+    clearTimeout(timer)
   }
   const latencyMs = Math.max(0, Math.round(now() - started))
   // Free the connection without reading anything.
