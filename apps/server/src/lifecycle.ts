@@ -54,7 +54,10 @@ export function installLifecycle({
     )
   }
 
+  let fataling = false
   const onFatal = (kind: string) => (err: unknown) => {
+    if (fataling) return
+    fataling = true
     logger.fatal({ ...describeFailure(err), kind }, 'fatal error')
     exit(1)
   }

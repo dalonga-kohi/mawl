@@ -16,15 +16,18 @@ try {
 
 const logger = createLogger({ level: config.logLevel })
 
-// Installed before boot so an early crash still exits 1 with a redacted log line.
-let stop: () => Promise<void> = async () => {}
-installLifecycle({ logger, stop: () => stop(), exit: (code) => process.exit(code), proc: process })
+// Boot runs in the background so signals are handled from the start. A signal during boot
+// waits for boot to settle (never stop mid-migration), then stops; a failed boot exits 1.
+const booting = startServer(config, { logger })
+installLifecycle({
+  logger,
+  stop: async () => (await booting).stop(),
+  exit: (code) => process.exit(code),
+  proc: process,
+})
 
-try {
-  const server = await startServer(config, { logger })
-  stop = server.stop
-} catch (err) {
+booting.catch((err: unknown) => {
   // Name, code, and message only for our own error classes (see describeFailure).
   logger.fatal(describeFailure(err), 'boot failed')
   process.exit(1)
-}
+})

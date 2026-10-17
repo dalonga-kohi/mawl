@@ -61,6 +61,14 @@ describe('installLifecycle', () => {
     expect(exit).toHaveBeenCalledWith(1)
   })
 
+  it('handles a second fatal event while the first is being processed only once', () => {
+    const { proc, exit, lines } = setup(async () => {})
+    proc.emit('uncaughtException', new Error('a'))
+    proc.emit('unhandledRejection', new Error('b'))
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(lines.filter((l) => l.includes('fatal error'))).toHaveLength(1)
+  })
+
   it.each(['unhandledRejection', 'uncaughtException'])(
     'logs %s by name and code and exits 1',
     async (event) => {
