@@ -63,10 +63,12 @@ export async function withAdvisoryLock<T>(
 /**
  * Applies pending migrations. Idempotent: already-applied migrations are skipped. Serialised
  * across processes with a Postgres advisory lock, so servers starting together do not race on
- * the journal. Pool must allow max >= 2 connections.
+ * the journal. Pool must allow max >= 2 connections. 'folder' overrides the bundled location,
+ * for deployments that ship the SQL next to a single-file bundle.
  */
 export async function migrate<S extends Record<string, unknown>>(
   db: NodePgDatabase<S> & { $client: NodePgClient },
+  folder: string = migrationsFolder,
 ): Promise<void> {
-  await withAdvisoryLock(db.$client, () => drizzleMigrate(db, { migrationsFolder }))
+  await withAdvisoryLock(db.$client, () => drizzleMigrate(db, { migrationsFolder: folder }))
 }
