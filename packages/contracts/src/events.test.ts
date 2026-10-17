@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ClientMessage, EVENT_TYPES, Envelope, EventType, Topic } from './events'
+import { ClientMessage, Envelope, EVENT_TYPES, type EventType, Topic } from './events'
 import * as f from './fixtures'
 
 const base = { id: '9007199254740993', profileId: f.id('prof'), ts: f.TS }
@@ -7,7 +7,12 @@ const base = { id: '9007199254740993', profileId: f.id('prof'), ts: f.TS }
 const payloads: Record<EventType, unknown> = {
   'run.status': { status: 'running', prevStatus: 'queued' },
   'run.delta': { text: 'hel', stepIdx: 0 },
-  'run.tool_call': { toolCallId: 'c1', tool: 'shell', args: { cmd: 'ls' }, actionClass: 'shell_exec' },
+  'run.tool_call': {
+    toolCallId: 'c1',
+    tool: 'shell',
+    args: { cmd: 'ls' },
+    actionClass: 'shell_exec',
+  },
   'run.tool_result': { toolCallId: 'c1', preview: 'ok', isError: false },
   'run.step': { stepId: f.id('step'), idx: 1, kind: 'tool' },
   'approval.created': { approval: f.approval },
@@ -40,7 +45,9 @@ describe('Envelope', () => {
   })
 
   it('rejects a payload that belongs to another event type', () => {
-    expect(Envelope.safeParse({ ...base, type: 'run.status', payload: payloads.notify }).success).toBe(false)
+    expect(
+      Envelope.safeParse({ ...base, type: 'run.status', payload: payloads.notify }).success,
+    ).toBe(false)
   })
 
   it('rejects a non-numeric event id', () => {
@@ -75,14 +82,19 @@ describe('Envelope', () => {
         }
       }
     }
-    expect(label(Envelope.parse({ ...base, type: 'notify', payload: payloads.notify }))).toBe('other')
+    expect(label(Envelope.parse({ ...base, type: 'notify', payload: payloads.notify }))).toBe(
+      'other',
+    )
   })
 })
 
 describe('Topic and ClientMessage', () => {
-  it.each(['profile:*', `profile:${f.id('prof')}`, `run:${f.id('run')}`])('accepts topic %s', (t) => {
-    expect(Topic.safeParse(t).success).toBe(true)
-  })
+  it.each(['profile:*', `profile:${f.id('prof')}`, `run:${f.id('run')}`])(
+    'accepts topic %s',
+    (t) => {
+      expect(Topic.safeParse(t).success).toBe(true)
+    },
+  )
 
   it.each(['profile:', 'run:*', 'run:nope', 'thread:x', `profile:${f.id('run')}`, '*'])(
     'rejects topic %s',
@@ -99,7 +111,9 @@ describe('Topic and ClientMessage', () => {
   })
 
   it('parses unsubscribe and rejects unknown client messages', () => {
-    expect(ClientMessage.safeParse({ type: 'unsubscribe', topics: ['profile:*'] }).success).toBe(true)
+    expect(ClientMessage.safeParse({ type: 'unsubscribe', topics: ['profile:*'] }).success).toBe(
+      true,
+    )
     expect(ClientMessage.safeParse({ type: 'ping' }).success).toBe(false)
     expect(ClientMessage.safeParse({ type: 'subscribe', topics: [] }).success).toBe(false)
   })

@@ -100,7 +100,10 @@ export type Envelope = z.infer<typeof Envelope>
 
 export type Topic = 'profile:*' | `profile:${string}` | `run:${string}`
 const TOPIC_RE = /^(?:profile:(?:\*|prof_[0-9A-HJKMNP-TV-Z]{26})|run:run_[0-9A-HJKMNP-TV-Z]{26})$/
-export const Topic = z.custom<Topic>((v) => typeof v === 'string' && TOPIC_RE.test(v), 'invalid topic')
+export const Topic = z.custom<Topic>(
+  (v) => typeof v === 'string' && TOPIC_RE.test(v),
+  'invalid topic',
+)
 
 const Topics = z.array(Topic).min(1)
 

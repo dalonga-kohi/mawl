@@ -9,6 +9,7 @@ import {
   RunStatus,
   RunTrigger,
   StepKind,
+  ThemePref,
 } from './enums'
 import {
   ApprovalId,
@@ -278,3 +279,15 @@ export const Device = z.object({
   revokedAt: Timestamp.nullable(),
 })
 export type Device = z.infer<typeof Device>
+
+// --- Settings ---------------------------------------------------------------
+
+export const Settings = z.object({
+  theme: ThemePref,
+  /** Accent colour as `#rrggbb`; the UI derives its palette from it. */
+  accent: HexColor,
+})
+export type Settings = z.infer<typeof Settings>
+
+export const SettingsUpdate = Settings.partial()
+export type SettingsUpdate = z.infer<typeof SettingsUpdate>
