@@ -7,6 +7,7 @@
       "!design/mockup",
       "!.claude/skills",
       "!docs",
+      "!packages/ui/src/tokens.css",
       "!**/node_modules",
       "!**/.turbo",
       "!**/dist"
