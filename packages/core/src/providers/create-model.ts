@@ -11,6 +11,12 @@ export interface CreateLanguageModelOptions {
   fetch?: typeof globalThis.fetch
 }
 
+/** Sends every request with `redirect: 'error'`. The global is read per call so stubs apply. */
+function noRedirectFetch(inner?: typeof globalThis.fetch): typeof globalThis.fetch {
+  return ((input: string | URL | Request, init?: RequestInit) =>
+    (inner ?? globalThis.fetch)(input, { ...init, redirect: 'error' })) as typeof globalThis.fetch
+}
+
 /**
  * Builds the AI SDK model for a decrypted credential. OpenAI uses the Responses API (the SDK
  * default); openai_compatible uses chat completions, the only dialect such servers share.
@@ -23,8 +29,9 @@ export function createLanguageModel(
 ): LanguageModelV4 {
   const baseURL = resolveBaseUrl(conn.kind, conn.baseUrl)
   const apiKey = conn.secret ?? undefined
+  // Always our wrapper, never the SDK's default fetch: a redirect must not carry the key elsewhere.
+  const withFetch = { fetch: noRedirectFetch(fetch) }
   // Optional settings are spread so they are absent, not undefined (exactOptionalPropertyTypes).
-  const withFetch = fetch ? { fetch } : {}
   const withKey = apiKey ? { apiKey } : {}
   // These SDKs fall back to an env var when no key is passed; never let that happen.
   if (PROVIDER_DESCRIPTORS[conn.kind].keyRequired && !apiKey) {
