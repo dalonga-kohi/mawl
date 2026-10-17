@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ID_KINDS, ID_PREFIX, ProfileId, RunId, idSchema, isId } from './ids'
+import { ID_KINDS, ID_PREFIX, idSchema, isId, ProfileId, RunId } from './ids'
 
 const ULID = '01HZX3K9V2M4N6P8Q0R2S4T6V8'
 

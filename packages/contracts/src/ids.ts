@@ -42,10 +42,7 @@ const patterns = Object.fromEntries(
 ) as Record<IdKind, RegExp>
 
 export function idSchema<K extends IdKind>(kind: K) {
-  return z
-    .string()
-    .regex(patterns[kind], `expected ${ID_PREFIX[kind]}_<ULID>`)
-    .brand<K>()
+  return z.string().regex(patterns[kind], `expected ${ID_PREFIX[kind]}_<ULID>`).brand<K>()
 }
 
 export const ProfileId = idSchema('profile')
