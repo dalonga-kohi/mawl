@@ -34,6 +34,17 @@ describe('fixedClock', () => {
     expect(clock.now().getUTCFullYear()).toBe(2026)
   })
 
+  it('hands out independent Date objects and ignores later mutation of them', () => {
+    const clock = fixedClock('2026-01-01T00:00:00.000Z')
+    const a = clock.now()
+    a.setTime(0)
+    const b = clock.now()
+    expect(b).not.toBe(a)
+    expect(b.toISOString()).toBe('2026-01-01T00:00:00.000Z')
+    clock.advance(1000)
+    expect(a.getTime()).toBe(0)
+  })
+
   it('rejects an invalid ISO string', () => {
     expect(() => fixedClock('nope')).toThrow(/invalid/i)
   })
@@ -56,6 +67,36 @@ describe('seededRandom', () => {
       const v = r()
       expect(v).toBeGreaterThanOrEqual(0)
       expect(v).toBeLessThan(1)
+    }
+  })
+
+  it('is roughly uniform: mean near 0.5 and every decile populated', () => {
+    const r = seededRandom(12345)
+    const n = 10_000
+    const buckets = new Array<number>(10).fill(0)
+    let sum = 0
+    for (let i = 0; i < n; i++) {
+      const v = r()
+      sum += v
+      buckets[Math.floor(v * 10)] = (buckets[Math.floor(v * 10)] ?? 0) + 1
+    }
+    expect(sum / n).toBeGreaterThan(0.48)
+    expect(sum / n).toBeLessThan(0.52)
+    for (const b of buckets) {
+      expect(b).toBeGreaterThan(n / 10 - 150)
+      expect(b).toBeLessThan(n / 10 + 150)
+    }
+  })
+
+  it('does not repeat values within a short run and handles edge seeds', () => {
+    for (const seed of [0, 1, -1, 2 ** 32, 2 ** 32 + 5, 1.5]) {
+      const r = seededRandom(seed)
+      const vals = Array.from({ length: 200 }, r)
+      expect(new Set(vals).size).toBe(200)
+      for (const v of vals) {
+        expect(v).toBeGreaterThanOrEqual(0)
+        expect(v).toBeLessThan(1)
+      }
     }
   })
 
