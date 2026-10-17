@@ -136,10 +136,19 @@ stateDiagram-v2
   running --> succeeded
   running --> failed
   running --> cancelled
+  queued --> cancelled
+  paused --> cancelled
+  waiting_approval --> cancelled
+  waiting_takeover --> cancelled
+  waiting_user --> cancelled
+  compacting --> cancelled
+  compacting --> failed
   succeeded --> [*]
   failed --> [*]
   cancelled --> [*]
 ```
+
+A user can cancel a run from any non-terminal state (SPEC F6). Waiting states don't time out into `failed`. An expired approval is returned to the model as a denial, and the run continues.
 
 - **Durable steps.** Each model step and tool result is persisted before the next step starts. A crash resumes from the last persisted step. Runs execute as Graphile jobs, and **waiting states release the worker**: the job ends, and a new job continues the run when the condition resolves.
 - **Context assembly per step:**

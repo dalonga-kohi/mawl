@@ -28,7 +28,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - tsconfig override: `nodenext` resolution, or bundle with tsup/esbuild. Run with tsx in dev. Decide here (review note from P0.1).
   - Hono + oRPC + health endpoint + pino.
   - Secret key bootstrapped on first boot, with libsodium encrypt/decrypt.
-- [ ] **P1.3 Provider registry.**
+- [ ] **P1.3 Provider registry.** Add the contract procedures `providers.list/create/delete/test`, with the secret only in a strictObject input (review note from P0.5).
   - Anthropic, OpenAI, OpenRouter, Ollama, and OpenAI-compatible providers, with capability flags.
   - `providers.test()` validates a key.
 - [ ] **P1.4 Run engine v1.**
