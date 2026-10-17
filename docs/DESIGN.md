@@ -33,7 +33,7 @@ All colors are CSS variables in `packages/ui/tokens`. Components never use raw h
 | `--line` | `#E1E6EC` | Hairlines (use sparingly) |
 | `--text` | `#17202B` | Primary text (15.3:1 on bg) |
 | `--text-2` | `#5A6675` | Secondary text (5.45:1 on bg) |
-| `--text-3` | `#8A95A3` | Placeholder, meta, disabled (3.0:1). Never for body text |
+| `--text-3` | `#8A95A3` | Placeholder, meta, disabled (3.0:1 on surface only; 2.8:1 on bg). Never for body text |
 
 ### Neutrals: dark ("Night river")
 | Token | Hex |
@@ -66,19 +66,20 @@ The user picks the accent in Settings → Appearance. The default is **Lake**.
 - `--accent-soft` (base at 12% alpha over surface; used for selection and tinted bubbles)
 - `--accent-softer` (6%)
 - `--accent-ring` (40% alpha)
-- `--accent-fill`: background for filled buttons and the send button. It is the base accent, darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Lake `#3D8BFD` only reaches 3.3:1 with white, so its fill is about `#2B6FE6` (4.65:1). For light accents like Amber, the engine keeps the base and switches the text to ink instead.
+- `--accent-fill`: background for filled buttons and the send button. It is the base accent, darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Lake `#3D8BFD` only reaches 3.3:1 with white, so its fill is about `#2473E3`. For light accents like Amber, the engine keeps the base and switches the text to ink instead, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press` (they are darker, and ink loses contrast as the fill darkens). Otherwise (Coral, for example) the fill is darkened until white passes. Hover and press are derived from the fill.
 - `--on-accent`: the text color on `--accent-fill`, white or `--text`, whichever passes 4.5:1
+- `--accent-ink`: the accent as small text or a link on `--surface`. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on the theme's surface.
 - `--accent` (base) is used for text links, icons, focus rings, selection and tints. When it is used as text on `--surface` it must reach 3:1 for large/UI text, or use `--accent-fill` for small text.
 
-In dark mode the base L is raised to at least 0.68 so it stays readable. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
+In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are all derived from that raised base. The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
 
 ### Semantic (fixed, never accent-driven)
-- `--ok` `#048753` light, `#2F9E68` dark
-- `--warn` `#A76700` light, `#D98A14` dark
-- `--danger` `#D1443E` light, `#E2544B` dark
+- `--ok` `#007A4A` light, `#32A16A` dark
+- `--warn` `#985D00` light, `#D98A14` dark
+- `--danger` `#C33632` light, `#EF6056` dark
 - `--info` = accent
 
-The light values are darker so they reach 4.5:1 as text on white. One hex cannot pass on both white and the dark surface, so each theme has its own.
+The light values are darker so they reach 4.5:1 as text on white and on their own `-soft` tint. One hex cannot pass on both white and the dark surface, so each theme has its own.
 
 Each has a `-soft` variant at 12% alpha.
 
