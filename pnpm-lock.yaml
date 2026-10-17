@@ -52,10 +52,13 @@ importers:
   packages/sandbox: {}
 
   packages/testkit:
-    dependencies:
+    devDependencies:
       '@testcontainers/postgresql':
         specifier: 12.2.1
         version: 12.2.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       ai:
         specifier: 7.0.143
         version: 7.0.143(zod@4.6.7)
@@ -68,10 +71,6 @@ importers:
       zod:
         specifier: 4.6.7
         version: 4.6.7
-    devDependencies:
-      '@types/pg':
-        specifier: 8.23.1
-        version: 8.23.1
 
   packages/ui:
     dependencies:
