@@ -23,8 +23,9 @@ Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothin
 ## P1 — Talk to a teammate (web + desktop)
 Goal: chat in a real UI with one profile, streaming from a real or fake model.
 
-- [ ] **P1.1 DB schema v1.** Drizzle migrations for `profiles`, `provider_credentials`, `threads`, `messages`, `runs`, `run_steps`, `artifacts`, `events`. Add pgvector/FTS extensions.
-- [ ] **P1.2 Server skeleton.**
+- [x] **P1.1 DB schema v1.** (b19c779..b1b36eb; the Testcontainers half of the shared migration suite is unverified locally, needs Docker/CI) Drizzle migrations for `profiles`, `provider_credentials`, `threads`, `messages`, `runs`, `run_steps`, `artifacts`, `events`. Add pgvector/FTS extensions.
+  - Drizzle 0.45.4, drizzle-kit 0.31.11, PGlite 0.5.10 (+ `@electric-sql/pglite-pgvector`) runs the same suite locally without Docker.
+- [~] **P1.2 Server skeleton.**
   - tsconfig override: `nodenext` resolution, or bundle with tsup/esbuild. Run with tsx in dev. Decide here (review note from P0.1).
   - Hono + oRPC + health endpoint + pino.
   - Secret key bootstrapped on first boot, with libsodium encrypt/decrypt.
@@ -35,6 +36,8 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - AI SDK v7 loop with durable steps, the run state machine (queued → running → succeeded/failed/cancelled), and budget caps.
   - Graphile Worker job.
   - *Tests:* fake model; crash/resume from the persisted step.
+  - Review note from P1.1: drizzle writes JS `null` as SQL NULL, so NOT NULL jsonb columns (`run_steps.input_json`, `events.payload_json`) need `jsonValue()` from `@faire/db`. Put `run_steps`/`events` inserts and updates behind one repository helper that always applies it, and test that a raw `null` is stored as JSON null.
+  - Thread deletion is blocked while runs reference the thread (FK, no action). Decide archive vs delete when a thread-delete path appears.
 - [ ] **P1.5 Event bus + WS hub.**
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
