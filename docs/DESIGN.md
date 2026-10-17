@@ -73,10 +73,12 @@ The user picks the accent in Settings → Appearance. The default is **Lake**.
 In dark mode the base L is raised to at least 0.68 so it stays readable. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
 
 ### Semantic (fixed, never accent-driven)
-- `--ok` `#2F9E68`
-- `--warn` `#D98A14`
-- `--danger` `#E0524A`
+- `--ok` `#048753` light, `#2F9E68` dark
+- `--warn` `#A76700` light, `#D98A14` dark
+- `--danger` `#D1443E` light, `#E2544B` dark
 - `--info` = accent
+
+The light values are darker so they reach 4.5:1 as text on white. One hex cannot pass on both white and the dark surface, so each theme has its own.
 
 Each has a `-soft` variant at 12% alpha.
 
