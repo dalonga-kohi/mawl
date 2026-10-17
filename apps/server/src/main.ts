@@ -1,6 +1,6 @@
 import { ConfigError, parseConfig } from './config.ts'
 import { describeFailure } from './failure.ts'
-import { installLifecycle } from './lifecycle.ts'
+import { installLifecycle, stopAfterBoot } from './lifecycle.ts'
 import { createLogger } from './logger.ts'
 import { startServer } from './server.ts'
 
@@ -21,7 +21,7 @@ const logger = createLogger({ level: config.logLevel })
 const booting = startServer(config, { logger })
 installLifecycle({
   logger,
-  stop: async () => (await booting).stop(),
+  stop: stopAfterBoot(booting),
   exit: (code) => process.exit(code),
   proc: process,
 })

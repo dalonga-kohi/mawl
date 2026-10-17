@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installLifecycle } from './lifecycle.ts'
+import { installLifecycle, stopAfterBoot } from './lifecycle.ts'
 import { createLogger } from './logger.ts'
 
 function setup(stop: () => Promise<void>) {
@@ -80,4 +80,43 @@ describe('installLifecycle', () => {
       expect(out).not.toContain('LEAK-ME')
     },
   )
+})
+
+describe('stopAfterBoot', () => {
+  function pending() {
+    let resolve!: (s: { stop: () => Promise<void> }) => void
+    let reject!: (e: unknown) => void
+    const booting = new Promise<{ stop: () => Promise<void> }>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    booting.catch(() => {})
+    return { booting, resolve, reject }
+  }
+
+  it('does not stop or exit on SIGTERM until boot settles, then stops and exits 0', async () => {
+    const { booting, resolve } = pending()
+    const serverStop = vi.fn(async () => {})
+    const { proc, exit } = setup(stopAfterBoot(booting))
+    proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(serverStop).not.toHaveBeenCalled()
+    expect(exit).not.toHaveBeenCalled()
+    resolve({ stop: serverStop })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serverStop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+
+  it('exits 1 when boot fails, without stopping a server that never started', async () => {
+    const { booting, reject } = pending()
+    const { proc, exit } = setup(stopAfterBoot(booting))
+    proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(exit).not.toHaveBeenCalled()
+    reject(new Error('boot failed'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(exit).toHaveBeenCalledWith(1)
+    expect(exit).not.toHaveBeenCalledWith(0)
+  })
 })

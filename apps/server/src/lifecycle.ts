@@ -67,3 +67,11 @@ export function installLifecycle({
   proc.on('unhandledRejection', onFatal('unhandledRejection'))
   proc.on('uncaughtException', onFatal('uncaughtException'))
 }
+
+/**
+ * A stop function for a server that is still booting: waits for boot to settle (never stops
+ * mid-migration), then stops it. If boot fails, this rejects, so shutdown exits 1.
+ */
+export function stopAfterBoot(booting: Promise<{ stop(): Promise<void> }>): () => Promise<void> {
+  return async () => (await booting).stop()
+}
