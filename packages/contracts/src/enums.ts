@@ -47,8 +47,26 @@ export const ProviderKind = z.enum([
   'openrouter',
   'ollama',
   'openai_compatible',
+  // Sign in with ChatGPT: plan usage through OAuth instead of an API key.
+  'openai_chatgpt',
 ])
 export type ProviderKind = z.infer<typeof ProviderKind>
+
+/**
+ * Why a provider call failed, as a closed set the run engine can store and the app can explain.
+ * Provider text is never carried: it can echo credentials.
+ */
+export const ProviderFailureReason = z.enum([
+  'plan_limit_reached',
+  'not_eligible',
+  'temporarily_unavailable',
+  'unsupported_capability',
+  'reauth_required',
+  'config_error',
+  'plan_usage_disabled',
+  'provider_error',
+])
+export type ProviderFailureReason = z.infer<typeof ProviderFailureReason>
 
 export const ThemePref = z.enum(['system', 'light', 'dark'])
 export type ThemePref = z.infer<typeof ThemePref>

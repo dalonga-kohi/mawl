@@ -2,6 +2,8 @@ import { eventIterator, oc } from '@orpc/contract'
 import { z } from 'zod'
 import {
   Approval,
+  ChatGptAttemptStatus,
+  ChatGptStartResult,
   Device,
   Message,
   PairingCode,
@@ -146,6 +148,14 @@ export const contract = {
       })
       .input(z.union([z.strictObject({ id: CredentialId }), ProviderCredentialInput]))
       .output(ProviderTestResult),
+    /** Sign in with ChatGPT. The credential appears in `list` once the browser step finishes. */
+    chatgpt: {
+      /** Starts (or restarts) the single in-flight sign-in attempt. */
+      start: base.output(ChatGptStartResult),
+      status: withNotFound
+        .input(z.strictObject({ attemptId: z.uuid() }))
+        .output(ChatGptAttemptStatus),
+    },
   },
   settings: {
     get: base.output(Settings),

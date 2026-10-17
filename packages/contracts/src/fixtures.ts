@@ -24,6 +24,9 @@ export const providerCredential = {
   provider: 'anthropic',
   label: 'Work key',
   baseUrl: null,
+  accountEmail: null,
+  planUsage: false,
+  reauthRequired: false,
   createdAt: TS,
 }
 

@@ -38,6 +38,20 @@ describe('PROVIDER_DESCRIPTORS', () => {
     }
   })
 
+  it('describes Sign in with ChatGPT: no key, a fixed OpenAI base url, tools but no caching', () => {
+    expect(PROVIDER_DESCRIPTORS.openai_chatgpt).toMatchObject({
+      keyRequired: false,
+      baseUrlRequired: false,
+      defaultBaseUrl: 'https://api.openai.com/v1',
+      capabilities: {
+        supportsTools: true,
+        supportsCaching: false,
+        supportsContextEditing: false,
+        supportsCompaction: false,
+      },
+    })
+  })
+
   it('declares which providers need a key or a base url, and the defaults', () => {
     expect(PROVIDER_DESCRIPTORS.anthropic).toMatchObject({
       keyRequired: true,

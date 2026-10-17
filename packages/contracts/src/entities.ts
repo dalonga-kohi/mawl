@@ -95,6 +95,12 @@ export const ProviderCredential = z.strictObject({
   provider: ProviderKind,
   label: z.string().min(1),
   baseUrl: z.url().nullable(),
+  /** The owner's own ChatGPT account email; null for API-key providers. */
+  accountEmail: z.string().min(1).nullable(),
+  /** ChatGPT sign-in only: false when the grant lacks plan usage, so no inference is possible. */
+  planUsage: z.boolean(),
+  /** ChatGPT sign-in only: the stored tokens were revoked or expired, so the owner must sign in again. */
+  reauthRequired: z.boolean(),
   createdAt: Timestamp,
 })
 export type ProviderCredential = z.infer<typeof ProviderCredential>
@@ -129,6 +135,13 @@ export const ProviderCredentialInput = z
     baseUrl: HttpUrl.optional(),
   })
   .superRefine((v, ctx) => {
+    if (v.provider === 'openai_chatgpt') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['provider'],
+        message: 'openai_chatgpt credentials come only from Sign in with ChatGPT',
+      })
+    }
     if (KEY_REQUIRED.has(v.provider) && v.secret === undefined) {
       ctx.addIssue({ code: 'custom', path: ['secret'], message: 'secret is required' })
     }
@@ -171,6 +184,37 @@ export const ProviderDescriptor = z.strictObject({
   capabilities: ProviderCapabilities,
 })
 export type ProviderDescriptor = z.infer<typeof ProviderDescriptor>
+
+// --- Sign in with ChatGPT ----------------------------------------------------
+
+/** Why a sign-in attempt ended without a credential. Closed set: provider text is never returned. */
+export const ChatGptSignInFailure = z.enum([
+  'access_denied',
+  'oauth_error',
+  'state_mismatch',
+  'registration_incomplete',
+  'client_mismatch',
+  'exchange_failed',
+  'invalid_id_token',
+  'expired',
+  'cancelled',
+  'listener_failed',
+])
+export type ChatGptSignInFailure = z.infer<typeof ChatGptSignInFailure>
+
+export const ChatGptStartResult = z.strictObject({
+  attemptId: z.uuid(),
+  /** Open this in a browser on the server host; the loopback callback finishes the sign-in. */
+  authorizeUrl: z.url(),
+})
+export type ChatGptStartResult = z.infer<typeof ChatGptStartResult>
+
+export const ChatGptAttemptStatus = z.discriminatedUnion('status', [
+  z.strictObject({ status: z.literal('pending') }),
+  z.strictObject({ status: z.literal('succeeded'), credentialId: CredentialId }),
+  z.strictObject({ status: z.literal('failed'), reason: ChatGptSignInFailure }),
+])
+export type ChatGptAttemptStatus = z.infer<typeof ChatGptAttemptStatus>
 
 // --- Threads & messages ---------------------------------------------------
 

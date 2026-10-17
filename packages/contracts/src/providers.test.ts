@@ -159,6 +159,6 @@ describe('providers router contract', () => {
   })
 
   it('covers every provider kind in the enum', () => {
-    expect(ProviderKind.options).toHaveLength(5)
+    expect(ProviderKind.options).toHaveLength(6)
   })
 })

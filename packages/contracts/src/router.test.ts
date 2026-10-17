@@ -36,6 +36,8 @@ describe('contract shape', () => {
         'providers.create',
         'providers.delete',
         'providers.test',
+        'providers.chatgpt.start',
+        'providers.chatgpt.status',
         'devices.pair',
         'devices.list',
         'devices.revoke',

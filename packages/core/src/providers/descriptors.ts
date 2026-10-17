@@ -58,6 +58,15 @@ export const PROVIDER_DESCRIPTORS: Record<ProviderKind, ProviderDescriptor> = {
     defaultBaseUrl: null,
     capabilities: { ...tools },
   },
+  // Credentials come from the OAuth flow, never from a form; the base url is fixed to OpenAI.
+  openai_chatgpt: {
+    kind: 'openai_chatgpt',
+    label: 'ChatGPT plan',
+    keyRequired: false,
+    baseUrlRequired: false,
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    capabilities: { ...tools },
+  },
 }
 
 /** Descriptors in the order of the ProviderKind enum. */
