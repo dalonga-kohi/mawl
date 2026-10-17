@@ -24,6 +24,36 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2))
 
+  apps/desktop: {}
+
+  apps/mobile: {}
+
+  apps/server: {}
+
+  apps/web: {}
+
+  packages/channels: {}
+
+  packages/client: {}
+
+  packages/contracts: {}
+
+  packages/core: {}
+
+  packages/db: {}
+
+  packages/mascot: {}
+
+  packages/memory: {}
+
+  packages/sandbox: {}
+
+  packages/testkit: {}
+
+  packages/ui: {}
+
+  packages/ui-native: {}
+
 packages:
 
   '@biomejs/biome@2.5.15':
