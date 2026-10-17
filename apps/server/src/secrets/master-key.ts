@@ -91,7 +91,12 @@ export async function loadOrCreateMasterKey(
   const fresh = new Uint8Array(randomBytes(MASTER_KEY_BYTES))
   try {
     const key = await createOrRead(file, tmp, fresh)
-    await checkPermissions(dir, file, onWarning)
+    try {
+      await checkPermissions(dir, file, onWarning)
+    } catch (err) {
+      key.fill(0)
+      throw err
+    }
     return key
   } finally {
     fresh.fill(0)
@@ -105,7 +110,10 @@ async function createOrRead(file: string, tmp: string, fresh: Uint8Array): Promi
     await link(tmp, file)
   } catch (e) {
     if (code(e) === 'EEXIST') return await readKey(file)
-    // Filesystem without hard links: fall back to a direct exclusive create.
+    // Filesystem without hard links: fall back to a direct exclusive create. rename() is not
+    // used: it cannot be exclusive, so two first boots could replace each other's key and end
+    // with different keys. The cost of wx is a short file if the process dies mid-write; boot
+    // then refuses it (never overwrites) and the operator removes it while no secrets exist.
     if (!['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EXDEV'].includes(code(e) ?? '')) throw e
     try {
       await writeExclusive(file, fresh)
