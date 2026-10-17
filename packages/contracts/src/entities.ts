@@ -99,13 +99,69 @@ export const ProviderCredential = z.strictObject({
 })
 export type ProviderCredential = z.infer<typeof ProviderCredential>
 
-export const ProviderCredentialInput = z.strictObject({
-  provider: ProviderKind,
-  label: z.string().min(1),
-  secret: z.string().min(1),
-  baseUrl: z.url().optional(),
-})
+/** http(s) only, no embedded user:password (it would be stored and logged in clear). */
+const HttpUrl = z
+  .url({ protocol: /^https?$/ })
+  .max(2048)
+  .refine((u) => {
+    const { username, password } = new URL(u)
+    return username === '' && password === ''
+  }, 'base url must not contain credentials')
+
+/** Providers that cannot work without an API key. */
+const KEY_REQUIRED: ReadonlySet<string> = new Set(['anthropic', 'openai', 'openrouter'])
+
+/** Write-only: the secret is encrypted on arrival and never returned. */
+export const ProviderCredentialInput = z
+  .strictObject({
+    provider: ProviderKind,
+    label: z.string().min(1).max(80),
+    secret: z.string().min(1).max(4096).optional(),
+    baseUrl: HttpUrl.optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (KEY_REQUIRED.has(v.provider) && v.secret === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['secret'], message: 'secret is required' })
+    }
+    if (v.provider === 'openai_compatible' && v.baseUrl === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'baseUrl is required' })
+    }
+  })
 export type ProviderCredentialInput = z.infer<typeof ProviderCredentialInput>
+
+/** Why a key test failed. Closed set: provider error text can echo keys, so none is ever returned. */
+export const ProviderTestFailure = z.enum([
+  'invalid_key',
+  'unreachable',
+  'rate_limited',
+  'unexpected_response',
+])
+export type ProviderTestFailure = z.infer<typeof ProviderTestFailure>
+
+export const ProviderTestResult = z.discriminatedUnion('ok', [
+  z.strictObject({ ok: z.literal(true), latencyMs: z.number().int().nonnegative() }),
+  z.strictObject({ ok: z.literal(false), reason: ProviderTestFailure }),
+])
+export type ProviderTestResult = z.infer<typeof ProviderTestResult>
+
+export const ProviderCapabilities = z.strictObject({
+  supportsTools: z.boolean(),
+  supportsCaching: z.boolean(),
+  supportsContextEditing: z.boolean(),
+  supportsCompaction: z.boolean(),
+})
+export type ProviderCapabilities = z.infer<typeof ProviderCapabilities>
+
+/** What the app needs to render an "add provider" form. Static; same for every owner. */
+export const ProviderDescriptor = z.strictObject({
+  kind: ProviderKind,
+  label: z.string().min(1),
+  keyRequired: z.boolean(),
+  baseUrlRequired: z.boolean(),
+  defaultBaseUrl: z.string().min(1).nullable(),
+  capabilities: ProviderCapabilities,
+})
+export type ProviderDescriptor = z.infer<typeof ProviderDescriptor>
 
 // --- Threads & messages ---------------------------------------------------
 

@@ -6,6 +6,10 @@ import {
   Message,
   PairingCode,
   Profile,
+  ProviderCredential,
+  ProviderCredentialInput,
+  ProviderDescriptor,
+  ProviderTestResult,
   PublicKey,
   Run,
   RunBudget,
@@ -16,7 +20,7 @@ import {
 } from './entities'
 import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
-import { ApprovalId, DeviceId, ProfileId, RunId, ThreadId } from './ids'
+import { ApprovalId, CredentialId, DeviceId, ProfileId, RunId, ThreadId } from './ids'
 
 const NotFound = { status: 404, data: z.object({ entity: z.string(), id: z.string() }) }
 const Conflict = {
@@ -128,6 +132,16 @@ export const contract = {
       ),
     list: base.output(z.array(Device)),
     revoke: withNotFound.input(Id(DeviceId)).output(Device),
+  },
+  providers: {
+    catalog: base.output(z.array(ProviderDescriptor)),
+    list: base.output(z.array(ProviderCredential)),
+    create: base.input(ProviderCredentialInput).output(ProviderCredential),
+    delete: withNotFound.input(Id(CredentialId)).output(ProviderCredential),
+    /** Tests a stored credential by id, or a not-yet-saved one (nothing is written). */
+    test: withNotFound
+      .input(z.union([z.strictObject({ id: CredentialId }), ProviderCredentialInput]))
+      .output(ProviderTestResult),
   },
   settings: {
     get: base.output(Settings),
