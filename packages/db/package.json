@@ -8,6 +8,20 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node src/bin/migrate.ts"
+  },
+  "dependencies": {
+    "@faire/contracts": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@electric-sql/pglite-pgvector": "0.0.11",
+    "@faire/testkit": "workspace:*",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11"
   }
 }
