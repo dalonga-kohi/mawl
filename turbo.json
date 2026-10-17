@@ -12,6 +12,7 @@
     "//#test:workspace": {
       "inputs": [
         "scripts/**",
+        ".github/**",
         "package.json",
         "pnpm-workspace.yaml",
         "apps/*/package.json",
