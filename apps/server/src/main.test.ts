@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { runNode } from './run-node.test-util.ts'
 
 let dir: string
 beforeEach(async () => {
@@ -12,19 +12,11 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-function runMain(env: Record<string, string>): Promise<{ code: number | null; output: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], {
-      cwd: join(import.meta.dirname, '..'),
-      env: { PATH: process.env.PATH ?? '', FAIRE_SECRETS_DIR: join(dir, 'secrets'), ...env },
-    })
-    let output = ''
-    child.stdout.on('data', (d) => void (output += d))
-    child.stderr.on('data', (d) => void (output += d))
-    child.on('error', reject)
-    child.on('close', (code) => resolve({ code, output }))
+const runMain = (env: Record<string, string>) =>
+  runNode(['--import', 'tsx', 'src/main.ts'], {
+    cwd: join(import.meta.dirname, '..'),
+    env: { FAIRE_SECRETS_DIR: join(dir, 'secrets'), ...env },
   })
-}
 
 describe('main entrypoint', () => {
   it('exits 1 naming DATABASE_URL when it is missing', async () => {

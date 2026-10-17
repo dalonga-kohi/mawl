@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildServer } from './build.ts'
+import { runNode } from './run-node.test-util.ts'
 
 describe('production bundle', () => {
   let out: string
@@ -37,23 +37,13 @@ describe('production bundle', () => {
   })
 
   it('boots standalone and fails fast on an unreachable database without leaking the password', async () => {
-    const { code, output } = await new Promise<{ code: number | null; output: string }>(
-      (resolve, reject) => {
-        const child = spawn(process.execPath, [bundle], {
-          cwd: out,
-          env: {
-            PATH: process.env.PATH ?? '',
-            DATABASE_URL: 'postgres://faire:hunter2-pw@127.0.0.1:1/faire',
-            FAIRE_SECRETS_DIR: join(out, 'secrets'),
-          },
-        })
-        let text = ''
-        child.stdout.on('data', (d) => void (text += d))
-        child.stderr.on('data', (d) => void (text += d))
-        child.on('error', reject)
-        child.on('close', (c) => resolve({ code: c, output: text }))
+    const { code, output } = await runNode([bundle], {
+      cwd: out,
+      env: {
+        DATABASE_URL: 'postgres://faire:hunter2-pw@127.0.0.1:1/faire',
+        FAIRE_SECRETS_DIR: join(out, 'secrets'),
       },
-    )
+    })
     expect(code).toBe(1)
     expect(output).toContain('boot failed')
     expect(output).not.toContain('hunter2-pw')
