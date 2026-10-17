@@ -29,9 +29,17 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Decided: keep the base `bundler` tsconfig. Dev runs `tsx watch`, and prod is an esbuild bundle (`dist/server.mjs` + `dist/drizzle`). Native Node type stripping is out because workspace packages use extensionless relative imports.
   - Hono + oRPC + health endpoint + pino.
   - Secret key bootstrapped on first boot, with libsodium encrypt/decrypt.
-- [ ] **P1.3 Provider registry.** Add the contract procedures `providers.list/create/delete/test`, with the secret only in a strictObject input (review note from P0.5).
+- [~] **P1.3 Provider registry.** Add the contract procedures `providers.list/create/delete/test`, with the secret only in a strictObject input (review note from P0.5).
   - Anthropic, OpenAI, OpenRouter, Ollama, and OpenAI-compatible providers, with capability flags.
   - `providers.test()` validates a key.
+- [ ] **P1.3b Sign in with ChatGPT (the preferred way to use Faire).** The owner signs in with a ChatGPT Plus/Pro account, and runs use that plan's limits instead of an API key. API keys stay as the alternative.
+  - Uses OpenAI's "Sign in with ChatGPT" plan-usage flow for open-source and locally run apps (developers.openai.com/siwc/token-sharing-open-source): OIDC + PKCE, `client_id=dynamic_agent_client` (OpenAI issues the client id during the first sign-in; persist it before the code exchange), a loopback callback on `127.0.0.1`, and Responses API scopes.
+  - New `ProviderKind` `openai_chatgpt`. Its credential row stores the issued client id, OAuth tokens and account info, encrypted like API keys. A persisted opaque host id (`urn:uuid:`, never user-identifying) is shared by every credential on this server.
+  - Inference goes to `https://api.openai.com/v1` Responses with the OAuth access token, `store: false`, `stream: true`. Refresh tokens before expiry, handle revocation and logout, and map plan-limit errors to a clear "plan limit reached" run failure.
+  - Where the browser runs: v1 handles the callback on the server host (the browser is on the same machine). The desktop app (P1.8) runs the loopback flow itself and transfers the credentials to the server over an authenticated call, as the SIWC self-hosted guidance describes.
+  - Follow OpenAI's SIWC UI/UX guidelines for the sign-in button, plan usage and plan selection. Onboarding (P8.1) offers "Sign in with ChatGPT" first.
+  - Eligibility: OpenAI allows plan usage for open-source projects and personal projects that run locally. A paid or remotely hosted distribution of Faire needs OpenAI's interest form first; check before P8.5.
+  - Verify every endpoint, scope and error code from OpenAI's current docs at slice start. This bullet list is a research summary, not a verified API.
 - [ ] **P1.4 Run engine v1.**
   - AI SDK v7 loop with durable steps, the run state machine (queued → running → succeeded/failed/cancelled), and budget caps.
   - Graphile Worker job.
@@ -109,6 +117,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 
 - [ ] **P6.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings.
   - Review notes from P1.2/P1.3: every `/rpc` procedure except `health.get` and `devices.pair` requires a device session (`providers.*` holds the owner's keys). Add a request body size limit on `/rpc`. Until then the server binds to `127.0.0.1` by default.
+  - `providers.test` with an inline input sends a key to any URL the caller picks (an SSRF oracle). With auth in place, also: block link-local/metadata ranges (169.254.0.0/16, fd00:ec2::/32), resolve DNS once and pin the IP (anti-rebinding), allow private ranges only through an explicit owner opt-in (Ollama on the LAN), and rate-limit `test`.
 - [ ] **P6.2 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
 - [ ] **P6.3 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
 - [ ] **P6.4 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.
