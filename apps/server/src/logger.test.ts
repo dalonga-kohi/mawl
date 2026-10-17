@@ -48,6 +48,13 @@ describe('createLogger', () => {
     expect(lines[0]).toContain('"accept":"ok"')
   })
 
+  it('scrubs a url password from a raw Error message and stack', () => {
+    const { logger, lines } = capture()
+    logger.error({ err: new Error('connect postgres://u:pw-LEAK@h/db refused') }, 'failed')
+    expect(lines.join('')).not.toContain('pw-LEAK')
+    expect(lines.join('')).toContain('refused')
+  })
+
   it('serialises errors with their message', () => {
     const { logger, parsed } = capture()
     logger.error({ err: new Error('boom') }, 'failed')

@@ -1,23 +1,83 @@
 import { describe, expect, it } from 'vitest'
-import { REDACT_KEYS, redactDeep } from './redact.ts'
+import { REDACT_KEY_ALLOW, REDACT_KEY_PARTS, redactDeep } from './redact.ts'
 
 describe('redactDeep', () => {
-  it('exposes the case-insensitive key set', () => {
-    for (const k of [
-      'secret',
-      'apikey',
-      'api_key',
-      'token',
-      'password',
-      'secretenc',
-      'secret_enc',
-      'authorization',
-      'cookie',
-      'databaseurl',
-      'database_url',
-    ]) {
-      expect(REDACT_KEYS.has(k), k).toBe(true)
+  it('exposes the normalised key fragments and the allowlist', () => {
+    for (const k of ['token', 'secret', 'password', 'apikey', 'cookie', 'dsn', 'databaseurl']) {
+      expect(REDACT_KEY_PARTS).toContain(k)
     }
+    expect(REDACT_KEY_ALLOW.has('inputtokens')).toBe(true)
+  })
+
+  it.each([
+    'accessToken',
+    'refresh_token',
+    'x-api-key',
+    'X-Api-Key',
+    'set-cookie',
+    'clientSecret',
+    'secret_enc',
+    'DATABASE_URL',
+    'connectionString',
+    'privateKey',
+    'passwd',
+    'sentryDsn',
+    'Authorization',
+  ])('redacts key %s', (key) => {
+    expect(redactDeep({ [key]: 'LEAK-ME' })).toEqual({ [key]: '[Redacted]' })
+  })
+
+  it('keeps token counters and unrelated keys', () => {
+    const usage = {
+      inputTokens: 1,
+      outputTokens: 2,
+      cachedTokens: 3,
+      reasoningTokens: 4,
+      tokenCount: 5,
+      name: 'ok',
+    }
+    expect(redactDeep({ usage })).toEqual({ usage })
+  })
+
+  it('scrubs userinfo from urls in string values', () => {
+    const out = JSON.stringify(
+      redactDeep({
+        msg: 'connect postgres://faire:pw123@db:5432/faire failed; also https://u:p2@h/x',
+      }),
+    )
+    expect(out).not.toContain('pw123')
+    expect(out).not.toContain('p2@')
+    expect(out).toContain('postgres://faire:[Redacted]@db:5432/faire')
+  })
+
+  it('scrubs bearer tokens and known api key prefixes in strings', () => {
+    const out = JSON.stringify(
+      redactDeep({
+        a: 'Authorization failed for Bearer abc.DEF-123_x',
+        b: 'key sk-ant-api03-ABCDEF123456 bad',
+        c: 'key sk-or-v1-abcdef123456 bad',
+        d: 'key sk-proj1234567890abcdef bad',
+      }),
+    )
+    for (const leak of ['abc.DEF', 'ABCDEF123456', 'abcdef123456', 'proj1234567890']) {
+      expect(out).not.toContain(leak)
+    }
+    expect(out).toContain('Bearer [Redacted]')
+  })
+
+  it('leaves ordinary text alone', () => {
+    expect(redactDeep({ m: 'run 3 finished at https://example.com/a?b=c, skill-name sk' })).toEqual(
+      {
+        m: 'run 3 finished at https://example.com/a?b=c, skill-name sk',
+      },
+    )
+  })
+
+  it('removes a raw error password from message and stack', () => {
+    const err = new Error('connect postgres://u:pw@h/db refused')
+    const out = JSON.stringify(redactDeep({ err }))
+    expect(out).not.toContain(':pw@')
+    expect(out).toContain('refused')
   })
 
   it('redacts regardless of key case', () => {
