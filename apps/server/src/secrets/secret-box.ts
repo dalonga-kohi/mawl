@@ -18,7 +18,8 @@ export interface SecretBox {
   /**
    * Blob: version byte 0x01 ‖ 24-byte random nonce ‖ XChaCha20-Poly1305 ciphertext+tag.
    * `aad` is authenticated, not stored: pass the owning row (e.g. `provider_credentials:<id>`)
-   * so a ciphertext cannot be moved to another row.
+   * so a ciphertext cannot be moved to another row. Convention: `<table>:<id>`, e.g.
+   * `provider_credentials:pcr_01H...`. The same string must be passed to decrypt.
    */
   encrypt(plaintext: string, aad: string): Uint8Array
   decrypt(blob: Uint8Array, aad: string): string

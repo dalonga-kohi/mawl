@@ -73,7 +73,9 @@ export async function startServer(
   const logger = overrides.logger ?? createLogger({ level: config.logLevel })
   const version = readVersion()
 
-  const masterKey = await loadOrCreateMasterKey(config.secretsDir)
+  const masterKey = await loadOrCreateMasterKey(config.secretsDir, {
+    onWarning: (message) => logger.warn(message),
+  })
   let secretBox: SecretBox
   try {
     secretBox = await createSecretBox(masterKey)

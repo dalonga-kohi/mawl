@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadOrCreateMasterKey } from './master-key.ts'
+import { loadOrCreateMasterKey, MasterKeyError } from './master-key.ts'
 
 let root: string
 beforeEach(async () => {
@@ -48,10 +48,40 @@ describe('loadOrCreateMasterKey', () => {
     expect((await readFile(join(root, 'master.key'))).equals(first)).toBe(true)
   })
 
+  it('throws MasterKeyError for a wrong-sized file', async () => {
+    await writeFile(join(root, 'master.key'), Buffer.alloc(3))
+    await expect(loadOrCreateMasterKey(root)).rejects.toBeInstanceOf(MasterKeyError)
+  })
+
   it.skipIf(process.platform === 'win32')('creates the file 0600 and the dir 0700', async () => {
     const dir = join(root, 'sec')
     await loadOrCreateMasterKey(dir)
     expect((await stat(join(dir, 'master.key'))).mode & 0o777).toBe(0o600)
     expect((await stat(dir)).mode & 0o777).toBe(0o700)
+  })
+
+  it.skipIf(process.platform === 'win32')('tightens an existing directory to 0700', async () => {
+    await chmod(root, 0o755)
+    await loadOrCreateMasterKey(root)
+    expect((await stat(root)).mode & 0o777).toBe(0o700)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'warns, but still returns the key, when the key file is group or world readable',
+    async () => {
+      await loadOrCreateMasterKey(root)
+      await chmod(join(root, 'master.key'), 0o644)
+      const warnings: string[] = []
+      const key = await loadOrCreateMasterKey(root, { onWarning: (m) => warnings.push(m) })
+      expect(key.length).toBe(32)
+      expect(warnings.join('')).toMatch(/0600/)
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')('does not warn for a 0600 key', async () => {
+    await loadOrCreateMasterKey(root)
+    const warnings: string[] = []
+    await loadOrCreateMasterKey(root, { onWarning: (m) => warnings.push(m) })
+    expect(warnings).toEqual([])
   })
 })
