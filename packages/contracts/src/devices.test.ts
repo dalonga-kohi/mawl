@@ -32,6 +32,11 @@ describe('PairingCode (8 Crockford chars, case-insensitive input)', () => {
     expect(PairingCode.parse('7k3m9x2q')).toBe('7K3M9X2Q')
   })
 
+  it('rejects inputs that only become valid after Unicode uppercasing', () => {
+    expect(PairingCode.safeParse('ßßßß').success).toBe(false)
+    expect(PairingCode.safeParse('ſſſſſſſſ').success).toBe(false)
+  })
+
   it.each(['7K3M9X2', '7K3M9X2QQ', '7K3M9X2I', '7K3M9X2U', '7K3M 9X2', '', '7K3M9X2-'])(
     'rejects %j',
     (c) => {

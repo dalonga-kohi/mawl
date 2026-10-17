@@ -285,8 +285,8 @@ export type PublicKey = z.infer<typeof PublicKey>
  */
 export const PairingCode = z
   .string()
+  .regex(/^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{8}$/, 'expected 8 Crockford base32 characters')
   .transform((s) => s.toUpperCase())
-  .pipe(z.string().regex(/^[0-9A-HJKMNP-TV-Z]{8}$/, 'expected 8 Crockford base32 characters'))
 export type PairingCode = z.infer<typeof PairingCode>
 
 export const Device = z.object({
