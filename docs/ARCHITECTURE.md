@@ -170,7 +170,24 @@ A user can cancel a run from any non-terminal state (SPEC F6). Waiting states do
   `system(persona + rules + tool docs)` → `core blocks (frozen per segment)` → `segment summary/handoff` → `recalled memories (as data)` → `recent turns` → `current input`.
   The stable prefix comes first so prompt caching works (Anthropic `cache_control` breakpoints are set automatically).
 - **Budget.** Each run has a token budget, a step cap (`stopWhen: stepCountIs(N)`), a wall-clock cap and a cost cap. These are configurable per profile and routine.
-- **Provider adapters** expose capabilities (`supportsContextEditing`, `supportsCompaction`, `supportsCaching`, `contextWindow`). The memory layer uses native Anthropic context editing and compaction when they are available and falls back to its own ladder otherwise.
+- **Provider adapters** expose capabilities (`supportsTools`, `supportsContextEditing`, `supportsCompaction`, `supportsCaching`). The memory layer uses native Anthropic context editing and compaction when they are available and falls back to its own ladder otherwise. `contextWindow` is a property of the model, not the provider, so it is not part of the descriptor; the run engine (P1.4) resolves it per model id.
+
+  **Provider registry (as built, `packages/core/src/providers/`).**
+  - `PROVIDER_DESCRIPTORS[kind]` holds label, `keyRequired`, `baseUrlRequired`, `defaultBaseUrl` and the capability flags. The app reads it through `providers.catalog` to render the add form.
+  - `createLanguageModel({ kind, baseUrl, secret }, modelId, { fetch? })` returns a `LanguageModelV4`. OpenAI uses the Responses API; `openai_compatible` and OpenRouter use chat completions; Ollama uses `<base>/api`. A kind that needs a key refuses to build without one, so the SDKs never fall back to an environment variable.
+  - `testCredential(conn, { fetch?, timeoutMs = 10 000 })` makes one free GET and returns `{ ok, latencyMs }` or `{ ok: false, reason }`. The reason is one of `invalid_key`, `unreachable`, `rate_limited`, `unexpected_response`. No provider text is ever returned and the response body is not read, because either can echo the key. Redirects are refused (`redirect: 'error'`) so a key is never sent to another host.
+
+  | Kind | Default base url | Caching | Context editing / compaction | Key test request |
+  |---|---|---|---|---|
+  | `anthropic` | `https://api.anthropic.com/v1` | yes | yes / yes | `GET {base}/models` with `x-api-key` and `anthropic-version: 2023-06-01` |
+  | `openai` | `https://api.openai.com/v1` | yes | no / no | `GET {base}/models` with `Authorization: Bearer` |
+  | `openrouter` | `https://openrouter.ai/api/v1` | yes | no / no | `GET {base}/key` with `Authorization: Bearer` |
+  | `ollama` | `http://localhost:11434` (in Docker use `host.docker.internal`) | no | no / no | `GET {base}/api/tags` (Bearer only if a key is set) |
+  | `openai_compatible` | none, required | no | no / no | `GET {base}/models` (Bearer only if a key is set) |
+
+  Status mapping: 2xx ok; 401/403 `invalid_key`; 429 `rate_limited`; network error, timeout or refused redirect `unreachable`; anything else `unexpected_response`.
+
+  The server (`apps/server/src/providers/`) owns persistence. `create` encrypts the secret (or an empty string when none) with AAD `provider_credentials:<id>`; reads select only `providerCredentialPublicColumns`; `resolveCredential(id)` decrypts for the run engine and is not exposed over RPC.
 
 ### Tools
 
