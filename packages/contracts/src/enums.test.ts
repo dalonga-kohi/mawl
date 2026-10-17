@@ -24,6 +24,13 @@ const ALLOWED: ReadonlyArray<[RunStatus, RunStatus]> = [
   ['running', 'succeeded'],
   ['running', 'failed'],
   ['running', 'cancelled'],
+  ['queued', 'cancelled'],
+  ['paused', 'cancelled'],
+  ['waiting_approval', 'cancelled'],
+  ['waiting_takeover', 'cancelled'],
+  ['waiting_user', 'cancelled'],
+  ['compacting', 'cancelled'],
+  ['compacting', 'failed'],
 ]
 
 const ILLEGAL: ReadonlyArray<[RunStatus, RunStatus]> = [
@@ -32,7 +39,6 @@ const ILLEGAL: ReadonlyArray<[RunStatus, RunStatus]> = [
   ['paused', 'running'],
   ['waiting_approval', 'succeeded'],
   ['waiting_user', 'paused'],
-  ['compacting', 'failed'],
   ['running', 'running'],
   ['running', 'queued'],
   ['succeeded', 'running'],

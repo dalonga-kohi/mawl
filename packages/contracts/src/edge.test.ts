@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import * as f from './fixtures'
@@ -88,24 +90,16 @@ describe('ids edge cases', () => {
 })
 
 describe('RUN_TRANSITIONS vs ARCHITECTURE section 5 diagram', () => {
-  // Every edge of the mermaid stateDiagram-v2, transcribed independently.
-  const diagram: Array<[string, string]> = [
-    ['queued', 'running'],
-    ['running', 'waiting_approval'],
-    ['waiting_approval', 'running'],
-    ['running', 'waiting_takeover'],
-    ['waiting_takeover', 'running'],
-    ['running', 'waiting_user'],
-    ['waiting_user', 'running'],
-    ['running', 'compacting'],
-    ['compacting', 'running'],
-    ['running', 'paused'],
-    ['paused', 'queued'],
-    ['running', 'succeeded'],
-    ['running', 'failed'],
-    ['running', 'cancelled'],
-  ]
+  // Parsed straight from the mermaid stateDiagram-v2 block in ARCHITECTURE section 5.
+  const doc = readFileSync(resolve(import.meta.dirname, '../../../docs/ARCHITECTURE.md'), 'utf8')
+  const block = /```mermaid\s+stateDiagram-v2([\s\S]*?)```/.exec(doc)?.[1] ?? ''
+  const diagram: Array<[string, string]> = [...block.matchAll(/^\s*(\w+)\s+-->\s+(\w+)/gm)].map(
+    (m) => [m[1] as string, m[2] as string],
+  )
 
+  it('found the diagram edges in the docs', () => {
+    expect(diagram.length).toBeGreaterThanOrEqual(20)
+  })
   it('every diagram edge is in the table and every table edge is in the diagram', () => {
     const table = Object.entries(RUN_TRANSITIONS).flatMap(([from, tos]) =>
       tos.map((to) => `${from}->${to}`),
@@ -117,25 +111,16 @@ describe('RUN_TRANSITIONS vs ARCHITECTURE section 5 diagram', () => {
     for (const s of RunStatus.options) expect(canTransition(s, s)).toBe(false)
   })
 
-  it('does not model edges the diagram omits (paused/waiting_* to cancelled/failed, paused to running)', () => {
-    // PRODUCT QUESTION: the diagram shows cancel/fail only from running. Whether a run
-    // parked in paused/waiting_* may be cancelled directly is undecided; this pins the
-    // current (diagram-faithful) behaviour so a change is deliberate.
-    for (const from of [
-      'paused',
-      'waiting_approval',
-      'waiting_takeover',
-      'waiting_user',
-      'compacting',
-    ] as const) {
-      expect(canTransition(from, 'cancelled')).toBe(false)
-      expect(canTransition(from, 'failed')).toBe(false)
+  it('allows cancel from every non-terminal state, and compacting -> failed', () => {
+    for (const from of RunStatus.options) {
+      const terminal = ['succeeded', 'failed', 'cancelled'].includes(from)
+      expect(canTransition(from, 'cancelled')).toBe(!terminal)
     }
+    expect(canTransition('compacting', 'failed')).toBe(true)
     expect(canTransition('paused', 'running')).toBe(false)
     expect(canTransition('running', 'queued')).toBe(false)
-    expect(canTransition('queued', 'cancelled')).toBe(false)
+    expect(canTransition('queued', 'failed')).toBe(false)
   })
-
   it('terminal states have no exits to any status', () => {
     for (const t of ['succeeded', 'failed', 'cancelled'] as const) {
       for (const s of RunStatus.options) expect(canTransition(t, s)).toBe(false)

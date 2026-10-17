@@ -56,9 +56,9 @@ export type ThemePref = z.infer<typeof ThemePref>
 export const MessageRole = z.enum(['user', 'assistant', 'system', 'tool'])
 export type MessageRole = z.infer<typeof MessageRole>
 
-/** Run lifecycle edges, transcribed from the ARCHITECTURE section 5 state diagram. */
+/** Run lifecycle edges, transcribed from the ARCHITECTURE section 5 state diagram (users may cancel from any non-terminal state). */
 export const RUN_TRANSITIONS = {
-  queued: ['running'],
+  queued: ['running', 'cancelled'],
   running: [
     'waiting_approval',
     'waiting_takeover',
@@ -69,11 +69,11 @@ export const RUN_TRANSITIONS = {
     'failed',
     'cancelled',
   ],
-  waiting_approval: ['running'],
-  waiting_takeover: ['running'],
-  waiting_user: ['running'],
-  compacting: ['running'],
-  paused: ['queued'],
+  waiting_approval: ['running', 'cancelled'],
+  waiting_takeover: ['running', 'cancelled'],
+  waiting_user: ['running', 'cancelled'],
+  compacting: ['running', 'failed', 'cancelled'],
+  paused: ['queued', 'cancelled'],
   succeeded: [],
   failed: [],
   cancelled: [],
