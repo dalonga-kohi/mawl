@@ -1,6 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
-  "globalDependencies": ["tsconfig.base.json", "tsconfig.json", "biome.json", ".nvmrc", "docs/ARCHITECTURE.md"],
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "tsconfig.json",
+    "biome.json",
+    ".nvmrc",
+    "docs/ARCHITECTURE.md"
+  ],
   "globalEnv": ["CI", "FAIRE_REQUIRE_DOCKER"],
   "tasks": {
     "lint": { "dependsOn": ["//#lint:root"] },
