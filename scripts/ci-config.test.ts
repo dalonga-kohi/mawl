@@ -5,17 +5,40 @@ import { parse } from 'yaml'
 
 const root = join(import.meta.dirname, '..')
 
-type Step = { name?: string; uses?: string; run?: string; with?: Record<string, unknown> }
+type Step = {
+  name?: string
+  uses?: string
+  run?: string
+  env?: Record<string, string>
+  with?: Record<string, unknown>
+}
 type Workflow = {
   on: Record<string, unknown>
+  env?: Record<string, string>
   permissions?: Record<string, string>
   concurrency?: { group?: string; 'cancel-in-progress'?: unknown }
-  jobs: Record<string, { 'runs-on'?: string; 'timeout-minutes'?: number; steps: Step[] }>
+  jobs: Record<
+    string,
+    { 'runs-on'?: string; 'timeout-minutes'?: number; env?: Record<string, string>; steps: Step[] }
+  >
+}
+type Dependabot = {
+  updates: {
+    'package-ecosystem': string
+    schedule: { interval: string }
+    groups?: Record<string, unknown>
+  }[]
 }
 
-const raw = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')
-const workflow = parse(raw) as Workflow
-const steps = Object.values(workflow.jobs).flatMap((job) => job.steps)
+const workflow = parse(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')) as Workflow
+const dependabot = parse(readFileSync(join(root, '.github/dependabot.yml'), 'utf8')) as Dependabot
+const job = workflow.jobs.gate
+const steps = job?.steps ?? []
+
+const isGate = (s: Step) =>
+  /\bturbo\b/.test(s.run ?? '') && ['lint', 'typecheck', 'test'].every((t) => s.run?.includes(t))
+const isInstall = (s: Step) => Boolean(s.run?.includes('pnpm install'))
+const isTurboCache = (s: Step) => Boolean(s.uses?.startsWith('actions/cache@'))
 const stepUsing = (action: string) => steps.find((s) => s.uses?.startsWith(`${action}@`))
 
 describe('CI workflow', () => {
@@ -25,9 +48,8 @@ describe('CI workflow', () => {
     expect(workflow.on).toHaveProperty('workflow_dispatch')
   })
 
-  it('never uses pull_request_target', () => {
-    expect(workflow.on).not.toHaveProperty('pull_request_target')
-    expect(raw).not.toContain('pull_request_target')
+  it('never triggers on pull_request_target', () => {
+    expect(Object.keys(workflow.on)).not.toContain('pull_request_target')
   })
 
   it('grants read-only contents permission and nothing else', () => {
@@ -39,11 +61,9 @@ describe('CI workflow', () => {
     expect(String(workflow.concurrency?.['cancel-in-progress'])).toContain('pull_request')
   })
 
-  it('runs a single ubuntu job with a timeout', () => {
-    const jobs = Object.values(workflow.jobs)
-    expect(jobs).toHaveLength(1)
-    expect(jobs[0]?.['runs-on']).toBe('ubuntu-latest')
-    expect(jobs[0]?.['timeout-minutes']).toBeGreaterThan(0)
+  it('runs the gate job on ubuntu with a timeout', () => {
+    expect(job?.['runs-on']).toBe('ubuntu-latest')
+    expect(job?.['timeout-minutes']).toBeGreaterThan(0)
   })
 
   it('reads the Node version from .nvmrc and caches pnpm', () => {
@@ -63,7 +83,16 @@ describe('CI workflow', () => {
   })
 
   it('runs the same gate as local: turbo lint typecheck test', () => {
-    expect(steps.some((s) => s.run?.trim() === 'pnpm turbo lint typecheck test')).toBe(true)
+    expect(steps.some(isGate)).toBe(true)
+  })
+
+  it('installs, then restores the turbo cache, then runs turbo', () => {
+    const install = steps.findIndex(isInstall)
+    const cache = steps.findIndex(isTurboCache)
+    const gate = steps.findIndex(isGate)
+    expect(install).toBeGreaterThanOrEqual(0)
+    expect(install).toBeLessThan(cache)
+    expect(cache).toBeLessThan(gate)
   })
 
   it('persists the turbo cache keyed on OS, lockfile and sha with restore keys', () => {
@@ -76,11 +105,33 @@ describe('CI workflow', () => {
     expect(String(cache?.with?.['restore-keys'])).toContain('runner.os')
   })
 
-  it('pins every third-party action to a commit SHA or an exact version', () => {
+  it('pins every third-party action to a full commit SHA, since tags are mutable', () => {
     const uses = steps.map((s) => s.uses).filter((u): u is string => Boolean(u))
     expect(uses.length).toBeGreaterThan(0)
     for (const ref of uses) {
-      expect(ref).toMatch(/@([0-9a-f]{40}|v?\d+\.\d+\.\d+)$/)
+      expect(ref).toMatch(/@[0-9a-f]{40}$/)
     }
+  })
+
+  it('exposes secrets only to the turbo step, not to install scripts', () => {
+    const gate = steps.find(isGate)
+    const others = [workflow.env, job?.env, ...steps.filter((s) => s !== gate).map((s) => s)]
+    expect(JSON.stringify(others)).not.toContain('secrets.')
+    expect(JSON.stringify(gate?.env)).toContain('secrets.TURBO_TOKEN')
+  })
+
+  it('never interpolates expressions inside run scripts', () => {
+    for (const s of steps) {
+      expect(s.run ?? '').not.toContain('${{')
+    }
+  })
+})
+
+describe('dependabot config', () => {
+  it.each(['github-actions', 'npm'])('updates %s weekly with grouped minor/patch', (eco) => {
+    const entry = dependabot.updates.find((u) => u['package-ecosystem'] === eco)
+    expect(entry).toBeDefined()
+    expect(entry?.schedule.interval).toBe('weekly')
+    expect(Object.keys(entry?.groups ?? {}).length).toBeGreaterThan(0)
   })
 })

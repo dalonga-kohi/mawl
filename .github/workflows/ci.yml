@@ -15,9 +15,6 @@ concurrency:
 
 env:
   TURBO_CACHE_DIR: .turbo/cache
-  # Optional Turborepo remote cache. Unset secrets/vars simply disable it.
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:
   gate:
@@ -52,4 +49,8 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Lint, typecheck and test
+        # Optional Turborepo remote cache; scoped to this step so install scripts never see the token.
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
         run: pnpm turbo lint typecheck test
