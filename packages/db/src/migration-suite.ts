@@ -1,5 +1,5 @@
 import { newId } from '@faire/contracts'
-import { eq, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gt, type SQL, sql } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import type * as schemaNs from './schema.ts'
@@ -50,6 +50,8 @@ async function expectPgError(p: Promise<unknown>, code: string) {
 
 const UNIQUE = '23505'
 const CHECK = '23514'
+const FK = '23503'
+const INVALID_TEXT = '22P02'
 
 /**
  * The migration integration suite. Runs against whatever Postgres `make` returns (PGlite in
@@ -291,6 +293,252 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         await m.db.insert(messages).values({ id, threadId, role: 'assistant', parts })
         const [msg] = await m.db.select().from(messages).where(eq(messages.id, id))
         expect(msg?.parts).toEqual(parts)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('round-trips unicode and large jsonb parts', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        const threadId = newId('thread')
+        await m.db.insert(threads).values({ id: threadId, profileId, channel: 'app' })
+        const text = `日本語 ünï 🎉 \\u0041 "q" \n\t${'x'.repeat(200_000)}`
+        const parts = [{ type: 'text' as const, text }]
+        const id = newId('message')
+        await m.db.insert(messages).values({ id, threadId, role: 'user', parts })
+        const [msg] = await m.db.select().from(messages).where(eq(messages.id, id))
+        expect(msg?.parts).toEqual(parts)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects negative message token_count and accepts null and zero', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        const threadId = newId('thread')
+        await m.db.insert(threads).values({ id: threadId, profileId, channel: 'app' })
+        const row = (tokenCount?: number | null) => ({
+          id: newId('message'),
+          threadId,
+          role: 'user' as const,
+          parts: [],
+          ...(tokenCount === undefined ? {} : { tokenCount }),
+        })
+        await m.db.insert(messages).values(row())
+        await m.db.insert(messages).values(row(null))
+        await m.db.insert(messages).values(row(0))
+        await expectPgError(m.db.insert(messages).values(row(-1)), CHECK)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects a negative runs.segment_no', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        await expectPgError(
+          m.db.insert(runs).values({ id: newId('run'), profileId, trigger: 'user', segmentNo: -1 }),
+          CHECK,
+        )
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects a negative artifact size_bytes', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        await expectPgError(
+          m.db.insert(artifacts).values({
+            id: newId('artifact'),
+            profileId,
+            mime: 'text/plain',
+            sizeBytes: -1,
+            preview: '',
+            tokenCount: 0,
+            path: '/p',
+          }),
+          CHECK,
+        )
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('enforces unique profile slugs', async () => {
+      const m = await fresh()
+      try {
+        const profile = (slug: string) => ({
+          id: newId('profile'),
+          name: 'A',
+          slug,
+          color: '#000000',
+          modelMain: 'm',
+        })
+        await m.db.insert(profiles).values(profile('ada'))
+        await expectPgError(m.db.insert(profiles).values(profile('ada')), UNIQUE)
+        await m.db.insert(profiles).values(profile('bob'))
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects an invalid enum value', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        await expectPgError(
+          m.db.insert(runs).values({
+            id: newId('run'),
+            profileId,
+            trigger: 'bogus' as unknown as 'user',
+          }),
+          INVALID_TEXT,
+        )
+        await expectPgError(
+          m.db.insert(runs).values({
+            id: newId('run'),
+            profileId,
+            trigger: 'user',
+            status: 'bogus' as unknown as 'queued',
+          }),
+          INVALID_TEXT,
+        )
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects a message whose thread does not exist', async () => {
+      const m = await fresh()
+      try {
+        await expectPgError(
+          m.db.insert(messages).values({
+            id: newId('message'),
+            threadId: newId('thread'),
+            role: 'user',
+            parts: [],
+          }),
+          FK,
+        )
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('rejects a run, artifact or event pointing at an unknown parent', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        await expectPgError(
+          m.db.insert(runs).values({
+            id: newId('run'),
+            profileId,
+            threadId: newId('thread'),
+            trigger: 'user',
+          }),
+          FK,
+        )
+        await expectPgError(
+          m.db.insert(runSteps).values({
+            id: newId('step'),
+            runId: newId('run'),
+            idx: 0,
+            kind: 'model',
+            input: {},
+          }),
+          FK,
+        )
+        await expectPgError(
+          m.db.insert(events).values({ profileId, runId: newId('run'), type: 't', payload: {} }),
+          FK,
+        )
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('blocks deleting a profile that still has threads, runs or artifacts', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        await m.db.insert(threads).values({ id: newId('thread'), profileId, channel: 'app' })
+        await expectPgError(m.db.delete(profiles).where(eq(profiles.id, profileId)), FK)
+        expect(await m.db.select().from(threads)).toHaveLength(1)
+
+        const other = await seedRun(m.db)
+        await expectPgError(m.db.delete(profiles).where(eq(profiles.id, other.profileId)), FK)
+
+        const lone = await seedProfile(m.db)
+        await m.db.delete(profiles).where(eq(profiles.id, lone))
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('orders events by id within a profile, interleaved with another profile', async () => {
+      const m = await fresh()
+      try {
+        const a = await seedProfile(m.db)
+        const b = await seedProfile(m.db)
+        for (let i = 0; i < 6; i++) {
+          await m.db
+            .insert(events)
+            .values({ profileId: i % 2 ? a : b, type: `t${i}`, payload: { i } })
+        }
+        const rows = await m.db
+          .select()
+          .from(events)
+          .where(eq(events.profileId, a))
+          .orderBy(events.id)
+        expect(rows.map((r) => r.type)).toEqual(['t1', 't3', 't5'])
+        const ids = rows.map((r) => r.id)
+        expect(ids).toEqual([...ids].sort((x, y) => x - y))
+        const since = rows[0]?.id as number
+        const after = await m.db
+          .select()
+          .from(events)
+          .where(and(eq(events.profileId, a), gt(events.id, since)))
+          .orderBy(events.id)
+        expect(after.map((r) => r.type)).toEqual(['t3', 't5'])
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('stores timestamps as timestamptz and round-trips UTC instants', async () => {
+      const m = await fresh()
+      try {
+        const cols = await rowsOf<{ table_name: string; column_name: string; data_type: string }>(
+          m.db,
+          sql`select table_name, column_name, data_type from information_schema.columns
+              where table_schema = 'public' and column_name in
+              ('created_at','archived_at','last_event_at','started_at','ended_at')`,
+        )
+        expect(cols.length).toBeGreaterThanOrEqual(10)
+        for (const c of cols) {
+          expect(c.data_type, `${c.table_name}.${c.column_name}`).toBe('timestamp with time zone')
+        }
+
+        const profileId = await seedProfile(m.db)
+        const instant = new Date('2026-03-29T00:30:00.123Z')
+        const threadId = newId('thread')
+        await m.db.insert(threads).values({
+          id: threadId,
+          profileId,
+          channel: 'app',
+          createdAt: instant,
+          lastEventAt: instant,
+        })
+        const [row] = await m.db.select().from(threads).where(eq(threads.id, threadId))
+        expect(row?.createdAt.toISOString()).toBe('2026-03-29T00:30:00.123Z')
+        expect(row?.lastEventAt?.toISOString()).toBe('2026-03-29T00:30:00.123Z')
       } finally {
         await m.close()
       }
