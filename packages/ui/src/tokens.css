@@ -2,6 +2,18 @@
 
 :root {
   color-scheme: light;
+  --accent-light-accent: #3d8bfd;
+  --accent-light-hover: #1466d5;
+  --accent-light-press: #005ac7;
+  --accent-light-fill: #2473e3;
+  --accent-light-on: #ffffff;
+  --accent-light-ink: #2473e3;
+  --accent-dark-accent: #5197ff;
+  --accent-dark-hover: #2268cb;
+  --accent-dark-press: #135bbe;
+  --accent-dark-fill: #2f74d9;
+  --accent-dark-on: #ffffff;
+  --accent-dark-ink: #5197ff;
   --bg: #F5F7FA;
   --surface: #FFFFFF;
   --surface-2: #EEF2F6;
@@ -9,15 +21,15 @@
   --text: #17202B;
   --text-2: #5A6675;
   --text-3: #8A95A3;
-  --ok: #048753;
-  --warn: #A76700;
-  --danger: #D1443E;
-  --accent: #3d8bfd;
-  --accent-hover: #1466d5;
-  --accent-press: #005ac7;
-  --accent-fill: #2473e3;
-  --on-accent: #ffffff;
-  --accent-ink: #2473e3;
+  --ok: #007A4A;
+  --warn: #985D00;
+  --danger: #C33632;
+  --accent: var(--accent-light-accent);
+  --accent-hover: var(--accent-light-hover);
+  --accent-press: var(--accent-light-press);
+  --accent-fill: var(--accent-light-fill);
+  --on-accent: var(--accent-light-on);
+  --accent-ink: var(--accent-light-ink);
   --shadow-1: 0 1px 2px rgb(16 24 40 / .05);
   --shadow-2: 0 8px 24px -8px rgb(16 24 40 / .12);
   --accent-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
@@ -84,15 +96,15 @@
     --text: #E8EDF3;
     --text-2: #A3AEBB;
     --text-3: #6E7A88;
-    --ok: #2F9E68;
+    --ok: #32A16A;
     --warn: #D98A14;
-    --danger: #E2544B;
-    --accent: #5197ff;
-    --accent-hover: #1466d5;
-    --accent-press: #005ac7;
-    --accent-fill: #2473e3;
-    --on-accent: #ffffff;
-    --accent-ink: #3d8bfd;
+    --danger: #EF6056;
+    --accent: var(--accent-dark-accent);
+    --accent-hover: var(--accent-dark-hover);
+    --accent-press: var(--accent-dark-press);
+    --accent-fill: var(--accent-dark-fill);
+    --on-accent: var(--accent-dark-on);
+    --accent-ink: var(--accent-dark-ink);
     --shadow-1: 0 0 0 1px var(--line);
     --shadow-2: 0 0 0 1px var(--line);
     color-scheme: dark;
@@ -107,20 +119,21 @@
   --text: #E8EDF3;
   --text-2: #A3AEBB;
   --text-3: #6E7A88;
-  --ok: #2F9E68;
+  --ok: #32A16A;
   --warn: #D98A14;
-  --danger: #E2544B;
-  --accent: #5197ff;
-  --accent-hover: #1466d5;
-  --accent-press: #005ac7;
-  --accent-fill: #2473e3;
-  --on-accent: #ffffff;
-  --accent-ink: #3d8bfd;
+  --danger: #EF6056;
+  --accent: var(--accent-dark-accent);
+  --accent-hover: var(--accent-dark-hover);
+  --accent-press: var(--accent-dark-press);
+  --accent-fill: var(--accent-dark-fill);
+  --on-accent: var(--accent-dark-on);
+  --accent-ink: var(--accent-dark-ink);
   --shadow-1: 0 0 0 1px var(--line);
   --shadow-2: 0 0 0 1px var(--line);
   color-scheme: dark;
 }
 
+/* --ease-out stays a literal: `--ease-out: var(--ease-out)` would resolve to itself. */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

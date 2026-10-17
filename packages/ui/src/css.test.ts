@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { deriveAccent } from './accent.ts'
+import { accentScaleKeys, accentVarName, deriveAccent } from './accent.ts'
 import { generateTokensCss } from './css.ts'
 import { dur } from './motion.ts'
 import { accentPresets, mascot, neutrals, semantic } from './palette.ts'
@@ -41,6 +41,15 @@ const root = declarations(rootBlock)
 const darkMedia = declarations(mediaDark)
 const darkAttr = declarations(attrDark)
 
+const publicAccentVars = [
+  ['--accent', 'accent'],
+  ['--accent-hover', 'accentHover'],
+  ['--accent-press', 'accentPress'],
+  ['--accent-fill', 'accentFill'],
+  ['--on-accent', 'onAccent'],
+  ['--accent-ink', 'accentInk'],
+] as const
+
 const kebab = (s: string) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase()
 
 describe('generateTokensCss', () => {
@@ -54,16 +63,17 @@ describe('generateTokensCss', () => {
     for (const [k, v] of Object.entries(mascot)) expect(root.get(`--${kebab(k)}`)).toBe(v)
   })
 
-  it('derives the default Lake accent vars in :root', () => {
-    const lake = deriveAccent(accentPresets[0].hex, 'light')
-    expect(root.get('--accent')).toBe(lake.accent)
-    expect(root.get('--accent-fill')).toBe(lake.accentFill)
-    expect(root.get('--on-accent')).toBe(lake.onAccent)
-    expect(root.get('--accent-ink')).toBe(lake.accentInk)
-    expect(root.get('--accent-hover')).toBe(lake.accentHover)
-    expect(root.get('--accent-press')).toBe(lake.accentPress)
+  it('emits the default Lake light and dark scales and maps the public vars to the light one', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      const lake = deriveAccent(accentPresets[0].hex, theme)
+      for (const key of accentScaleKeys) {
+        expect(root.get(accentVarName(theme, key)), `${theme} ${key}`).toBe(lake[key])
+      }
+    }
+    for (const [pub, key] of publicAccentVars) {
+      expect(root.get(pub)).toBe(`var(${accentVarName('light', key)})`)
+    }
   })
-
   it('expresses soft, softer and ring as color-mix over the live accent', () => {
     expect(root.get('--accent-soft')).toMatch(
       /^color-mix\(in oklab, var\(--accent\) 12%, var\(--surface\)\)$/,
@@ -97,9 +107,9 @@ describe('generateTokensCss', () => {
     for (const block of [darkMedia, darkAttr]) {
       for (const [k, v] of Object.entries(neutrals.dark)) expect(block.get(`--${kebab(k)}`)).toBe(v)
       for (const [k, v] of Object.entries(semantic.dark)) expect(block.get(`--${kebab(k)}`)).toBe(v)
-      const lakeDark = deriveAccent(accentPresets[0].hex, 'dark')
-      expect(block.get('--accent')).toBe(lakeDark.accent)
-      expect(block.get('--accent-ink')).toBe(lakeDark.accentInk)
+      for (const [pub, key] of publicAccentVars) {
+        expect(block.get(pub)).toBe(`var(${accentVarName('dark', key)})`)
+      }
       expect(block.get('--shadow-1')).toBe('0 0 0 1px var(--line)')
       expect(block.get('color-scheme')).toBe('dark')
     }
