@@ -39,7 +39,7 @@ export const ID_PREFIX = {
 /** Crockford base32 ULID body (no I, L, O, U). */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 /** First char 0-7: the 48-bit millisecond timestamp occupies 10 chars. */
-const ULID_BODY = '[0-7][0-9A-HJKMNP-TV-Z]{25}'
+export const ULID_BODY = '[0-7][0-9A-HJKMNP-TV-Z]{25}'
 
 const patterns = Object.fromEntries(
   ID_KINDS.map((k) => [k, new RegExp(`^${ID_PREFIX[k]}_${ULID_BODY}$`)]),
@@ -100,6 +100,12 @@ const cryptoRandom = () => {
 let lastTime = -1
 let lastRandom: number[] = []
 
+/** @internal Test-only: forget monotonic state so tests are order-independent. */
+export function __resetIdState(): void {
+  lastTime = -1
+  lastRandom = []
+}
+
 /**
  * Mint a fresh `<prefix>_<ULID>`. Ids are lexicographically time-ordered and strictly
  * monotonic within a process: within the same millisecond (or if the clock steps back)
@@ -111,7 +117,15 @@ export function newId<K extends IdKind>(
 ): z.infer<ReturnType<typeof idSchema<K>>> {
   const now = opts.now ?? Date.now
   const random = opts.random ?? cryptoRandom
-  let time = Math.floor(now())
+  const rawNow = now()
+  if (!Number.isFinite(rawNow)) throw new RangeError('newId: clock returned a non-finite value')
+  let time = Math.floor(rawNow)
+  const draw = () => {
+    const r = random()
+    if (!(r >= 0 && r < 1))
+      throw new RangeError('newId: random() must return a finite number in [0, 1)')
+    return Math.floor(r * 32)
+  }
   if (time <= lastTime && lastRandom.length === 16) {
     time = lastTime
     let i = 15
@@ -121,9 +135,9 @@ export function newId<K extends IdKind>(
     }
     if (i >= 0) lastRandom[i] = (lastRandom[i] as number) + 1
     else time += 1 // random part exhausted: borrow from the timestamp
-    if (i < 0) lastRandom = Array.from({ length: 16 }, () => Math.floor(random() * 32))
+    if (i < 0) lastRandom = Array.from({ length: 16 }, draw)
   } else {
-    lastRandom = Array.from({ length: 16 }, () => Math.floor(random() * 32))
+    lastRandom = Array.from({ length: 16 }, draw)
   }
   lastTime = time
   let ts = ''

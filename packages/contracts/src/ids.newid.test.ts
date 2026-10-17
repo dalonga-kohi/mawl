@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { ID_KINDS, ID_PREFIX, idSchema, isId, newId } from './ids'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { __resetIdState, ID_KINDS, ID_PREFIX, idSchema, isId, newId } from './ids'
 
 const seq = (values: number[]) => {
   let i = 0
@@ -7,6 +7,8 @@ const seq = (values: number[]) => {
 }
 
 describe('newId', () => {
+  beforeEach(() => __resetIdState())
+
   it.each(ID_KINDS)('%s: produces an id that matches idSchema', (kind) => {
     const id = newId(kind, { now: () => 1_700_000_000_000 + ID_KINDS.indexOf(kind) * 10_000 })
     expect(id.startsWith(`${ID_PREFIX[kind]}_`)).toBe(true)
@@ -45,5 +47,30 @@ describe('idSchema ULID timestamp', () => {
   it('rejects a first timestamp char above 7 (overflow of 48 bits)', () => {
     expect(isId('run', 'run_8ZZZZZZZZZZZZZZZZZZZZZZZZZ')).toBe(false)
     expect(isId('run', 'run_7ZZZZZZZZZZZZZZZZZZZZZZZZZ')).toBe(true)
+  })
+})
+
+describe('newId input guards', () => {
+  beforeEach(() => __resetIdState())
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -Infinity])(
+    'throws on a non-finite clock (%s)',
+    (v) => {
+      expect(() => newId('run', { now: () => v })).toThrow(/clock/i)
+    },
+  )
+
+  it.each([Number.NaN, 1, 1.5, -0.1, Number.POSITIVE_INFINITY])(
+    'throws on entropy outside [0,1) (%s)',
+    (v) => {
+      expect(() => newId('run', { now: () => 1_700_000_000_000, random: () => v })).toThrow(
+        /random/i,
+      )
+    },
+  )
+
+  it('does not corrupt state after a rejected call', () => {
+    expect(() => newId('run', { now: () => Number.NaN })).toThrow()
+    expect(isId('run', newId('run', { now: () => 1_700_000_000_000 }))).toBe(true)
   })
 })
