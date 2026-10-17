@@ -35,7 +35,9 @@ export const ID_PREFIX = {
 } as const satisfies Record<IdKind, string>
 
 /** Crockford base32 ULID body (no I, L, O, U). */
-const ULID_BODY = '[0-9A-HJKMNP-TV-Z]{26}'
+const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+/** First char 0-7: the 48-bit millisecond timestamp occupies 10 chars. */
+const ULID_BODY = '[0-7][0-9A-HJKMNP-TV-Z]{25}'
 
 const patterns = Object.fromEntries(
   ID_KINDS.map((k) => [k, new RegExp(`^${ID_PREFIX[k]}_${ULID_BODY}$`)]),
@@ -76,4 +78,49 @@ export type RuleId = z.infer<typeof RuleId>
 /** True when `value` is a well-formed id of the given kind. */
 export function isId(kind: IdKind, value: unknown): boolean {
   return typeof value === 'string' && patterns[kind].test(value)
+}
+
+export interface NewIdOptions {
+  /** Clock in epoch milliseconds. Defaults to `Date.now`. */
+  now?: () => number
+  /** Entropy source returning a float in [0, 1). Defaults to `crypto.getRandomValues`. */
+  random?: () => number
+}
+
+const cryptoRandom = () => {
+  const buf = new Uint32Array(1)
+  crypto.getRandomValues(buf)
+  return (buf[0] as number) / 2 ** 32
+}
+
+let lastTime = -1
+let lastRandom: number[] = []
+
+/**
+ * Mint a fresh `<prefix>_<ULID>`. Ids are lexicographically time-ordered and strictly
+ * monotonic within a process: within the same millisecond (or if the clock steps back)
+ * the previous random part is incremented instead of redrawn.
+ */
+export function newId<K extends IdKind>(kind: K, opts: NewIdOptions = {}): z.infer<ReturnType<typeof idSchema<K>>> {
+  const now = opts.now ?? Date.now
+  const random = opts.random ?? cryptoRandom
+  let time = Math.floor(now())
+  if (time <= lastTime && lastRandom.length === 16) {
+    time = lastTime
+    let i = 15
+    while (i >= 0 && lastRandom[i] === 31) {
+      lastRandom[i] = 0
+      i--
+    }
+    if (i >= 0) lastRandom[i] = (lastRandom[i] as number) + 1
+    else time += 1 // random part exhausted: borrow from the timestamp
+    if (i < 0) lastRandom = Array.from({ length: 16 }, () => Math.floor(random() * 32))
+  } else {
+    lastRandom = Array.from({ length: 16 }, () => Math.floor(random() * 32))
+  }
+  lastTime = time
+  let ts = ''
+  for (let t = time, n = 0; n < 10; n++, t = Math.floor(t / 32)) ts = ALPHABET[t % 32] + ts
+  const body = lastRandom.map((d) => ALPHABET[d]).join('')
+  return `${ID_PREFIX[kind]}_${ts}${body}` as z.infer<ReturnType<typeof idSchema<K>>>
 }
