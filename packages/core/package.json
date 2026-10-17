@@ -9,5 +9,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.82",
+    "@ai-sdk/openai": "4.0.96",
+    "@ai-sdk/openai-compatible": "3.0.71",
+    "@ai-sdk/provider": "4.0.29",
+    "@faire/contracts": "workspace:*",
+    "@openrouter/ai-sdk-provider": "3.1.0",
+    "ai": "7.0.143",
+    "ollama-ai-provider-v2": "4.0.1",
+    "zod": "4.6.7"
   }
 }
