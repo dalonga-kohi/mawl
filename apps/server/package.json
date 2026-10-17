@@ -7,6 +7,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "node src/build.ts",
+    "start": "node dist/server.mjs",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
   },

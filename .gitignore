@@ -24,3 +24,6 @@ playwright-report/
 
 # Claude local
 .claude/settings.local.json
+
+# Faire local runtime state (master key, etc.)
+.faire/

@@ -29,6 +29,7 @@
         "vitest.config.ts"
       ]
     },
+    "build": { "outputs": ["dist/**"] },
     "dev": { "persistent": true, "cache": false }
   }
 }
