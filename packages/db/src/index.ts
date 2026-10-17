@@ -8,7 +8,7 @@ export const packageName = '@faire/db'
 
 export { migrate, migrationsFolder, schema }
 
-export type Db = NodePgDatabase<typeof schema>
+export type Db = NodePgDatabase<typeof schema> & { $client: pg.Pool }
 
 export interface DbHandle {
   db: Db

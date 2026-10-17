@@ -1,6 +1,7 @@
 import {
   ChannelKind,
   MessageRole,
+  ProviderCredential,
   ProviderKind,
   RunStatus,
   RunTrigger,
@@ -68,5 +69,14 @@ describe('table columns (ARCHITECTURE section 9)', () => {
 
   it('has no plaintext secret column', () => {
     expect(columnsOf(schema.providerCredentials)).not.toContain('secret')
+  })
+})
+
+describe('providerCredentialPublicColumns', () => {
+  it('projects exactly the public ProviderCredential keys, never secretEnc', () => {
+    expect(Object.keys(schema.providerCredentialPublicColumns).sort()).toEqual(
+      Object.keys(ProviderCredential.shape).sort(),
+    )
+    expect(Object.keys(schema.providerCredentialPublicColumns)).not.toContain('secretEnc')
   })
 })

@@ -1,6 +1,7 @@
 import type {
   ArtifactId,
   CredentialId,
+  Json,
   MessageId,
   MessagePart,
   ProfileId,
@@ -18,7 +19,7 @@ import {
   RunTrigger,
   StepKind,
 } from '@faire/contracts'
-import { sql } from 'drizzle-orm'
+import { type SQL, sql } from 'drizzle-orm'
 import {
   bigserial,
   check,
@@ -51,8 +52,28 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType: () => 'bytea',
 })
 
+/**
+ * jsonb holding an arbitrary JSON value. Not drizzle's built-in jsonb: that one JSON.parses string
+ * results a second time (the driver already parsed), corrupting a JSON string like the string "null".
+ */
+const jsonbValue = customType<{ data: Json; driverData: string }>({
+  dataType: () => 'jsonb',
+  toDriver: (v) => JSON.stringify(v),
+  fromDriver: (v) => v as unknown as Json,
+})
+
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 const ts = (name: string) => timestamp(name, { withTimezone: true })
+
+/**
+ * Write wrapper for NOT NULL jsonb columns typed Json (run_steps.input_json, events.payload_json).
+ * Drizzle maps a JS null to SQL NULL before any column mapper runs, so a JSON null must be
+ * written as the jsonb value 'null'. Always pass those columns through this.
+ * Reads need nothing: jsonb 'null' comes back as null.
+ */
+export function jsonValue(value: Json): Json | SQL {
+  return value === null ? sql`'null'::jsonb` : value
+}
 
 // --- Tables ---
 
@@ -99,7 +120,7 @@ export const threads = pgTable(
       'threads_channel_check',
       sql`${t.channel} in (${sql.raw(ORIGINS.map((o) => `'${o}'`).join(', '))})`,
     ),
-    index('threads_profile_last_event_idx').on(t.profileId, sql`${t.lastEventAt} desc`),
+    index('threads_profile_last_event_idx').on(t.profileId, t.lastEventAt.desc().nullsLast()),
   ],
 )
 
@@ -166,7 +187,7 @@ export const runSteps = pgTable(
       .references(() => runs.id, { onDelete: 'cascade' }),
     idx: integer('idx').notNull(),
     kind: stepKind('kind').notNull(),
-    input: jsonb('input_json').$type<unknown>().notNull(),
+    input: jsonbValue('input_json').notNull(),
     outputRef: text('output_ref'),
     usage: jsonb('usage_json').$type<Usage>(),
     createdAt: createdAt(),
@@ -224,7 +245,7 @@ export const events = pgTable(
       .$type<RunId>()
       .references(() => runs.id, { onDelete: 'set null' }),
     type: text('type').notNull(),
-    payload: jsonb('payload_json').$type<unknown>().notNull(),
+    payload: jsonbValue('payload_json').notNull(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -232,3 +253,15 @@ export const events = pgTable(
     index('events_run_id_idx').on(t.runId, t.id),
   ],
 )
+
+/**
+ * The only columns a repository may select for public (API) reads of credentials. Maps 1:1 onto
+ * contracts ProviderCredential. Never select secretEnc outside the server's decrypt path.
+ */
+export const providerCredentialPublicColumns = {
+  id: providerCredentials.id,
+  provider: providerCredentials.provider,
+  label: providerCredentials.label,
+  baseUrl: providerCredentials.baseUrl,
+  createdAt: providerCredentials.createdAt,
+}

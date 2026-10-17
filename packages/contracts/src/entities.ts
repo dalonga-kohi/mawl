@@ -37,7 +37,10 @@ export const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected #rrggbb'
 export const Origin = z.union([ChannelKind, z.literal('app')])
 export type Origin = z.infer<typeof Origin>
 
-const Json = z.json()
+/** Any JSON value, including 
+ull. */
+export const Json = z.json()
+export type Json = z.infer<typeof Json>
 
 // --- Policy ---------------------------------------------------------------
 

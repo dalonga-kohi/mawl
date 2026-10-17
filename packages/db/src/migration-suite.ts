@@ -1,18 +1,44 @@
-import { newId } from '@faire/contracts'
+import { type Json, newId } from '@faire/contracts'
 import { and, eq, gt, type SQL, sql } from 'drizzle-orm'
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import {
+  type AnyPgColumn,
+  getTableConfig,
+  type PgDatabase,
+  type PgQueryResultHKT,
+} from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import type * as schemaNs from './schema.ts'
 import {
   artifacts,
   events,
+  jsonValue,
+  messageRole,
   messages,
   profiles,
   providerCredentials,
+  providerKind,
+  runStatus,
   runSteps,
   runs,
+  runTrigger,
+  stepKind,
   threads,
 } from './schema.ts'
+
+const enumNames = new Set(
+  [runStatus, runTrigger, stepKind, messageRole, providerKind].map((e) => e.enumName),
+)
+
+const schemaTables = {
+  profiles,
+  providerCredentials,
+  threads,
+  messages,
+  runs,
+  runSteps,
+  artifacts,
+  events,
+}
 
 export type TestDb = PgDatabase<PgQueryResultHKT, typeof schemaNs>
 
@@ -304,7 +330,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         const profileId = await seedProfile(m.db)
         const threadId = newId('thread')
         await m.db.insert(threads).values({ id: threadId, profileId, channel: 'app' })
-        const text = `日本語 ünï 🎉 \\u0041 "q" \n\t${'x'.repeat(200_000)}`
+        const text = `日本語 ünï 🎉 \\u0041 "q" 
+\t${'x'.repeat(200_000)}`
         const parts = [{ type: 'text' as const, text }]
         const id = newId('message')
         await m.db.insert(messages).values({ id, threadId, role: 'user', parts })
@@ -539,6 +566,107 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         const [row] = await m.db.select().from(threads).where(eq(threads.id, threadId))
         expect(row?.createdAt.toISOString()).toBe('2026-03-29T00:30:00.123Z')
         expect(row?.lastEventAt?.toISOString()).toBe('2026-03-29T00:30:00.123Z')
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('round-trips JSON null, 0, false, "", [] and {} in NOT NULL jsonb columns', async () => {
+      const m = await fresh()
+      try {
+        const { id: runId, profileId } = await seedRun(m.db)
+        const values: Json[] = [null, 0, false, '', [], {}, 'null', [null]]
+        for (const [idx, v] of values.entries()) {
+          await m.db
+            .insert(runSteps)
+            .values({ id: newId('step'), runId, idx, kind: 'tool', input: jsonValue(v) })
+          await m.db
+            .insert(events)
+            .values({ profileId, runId, type: String(idx), payload: jsonValue(v) })
+        }
+        const steps = await m.db.select().from(runSteps).orderBy(runSteps.idx)
+        expect(steps.map((s) => s.input)).toEqual(values)
+        const evs = await m.db.select().from(events).orderBy(events.id)
+        expect(evs.map((e) => e.payload)).toEqual(values)
+        const [k] = await rowsOf<{ t: string }>(
+          m.db,
+          sql`select jsonb_typeof(input_json) as t from run_steps where idx = 0`,
+        )
+        expect(k?.t).toBe('null')
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('creates the expected indexes', async () => {
+      const m = await fresh()
+      try {
+        const rows = await rowsOf<{ indexname: string; indexdef: string }>(
+          m.db,
+          sql`select indexname, indexdef from pg_indexes where schemaname = 'public'`,
+        )
+        const def = (name: string) => rows.find((r) => r.indexname === name)?.indexdef ?? ''
+        const expected: Record<string, string> = {
+          threads_profile_last_event_idx: '(profile_id, last_event_at DESC NULLS LAST)',
+          messages_thread_created_idx: '(thread_id, created_at)',
+          runs_profile_status_idx: '(profile_id, status)',
+          runs_thread_idx: '(thread_id)',
+          artifacts_run_idx: '(run_id)',
+          events_profile_id_idx: '(profile_id, id)',
+          events_run_id_idx: '(run_id, id)',
+          run_steps_run_idx_unique: '(run_id, idx)',
+        }
+        for (const [name, cols] of Object.entries(expected)) {
+          expect(def(name), name).toContain(cols)
+        }
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('blocks deleting a thread that still has runs', async () => {
+      const m = await fresh()
+      try {
+        const profileId = await seedProfile(m.db)
+        const threadId = newId('thread')
+        await m.db.insert(threads).values({ id: threadId, profileId, channel: 'app' })
+        await m.db.insert(runs).values({ id: newId('run'), profileId, threadId, trigger: 'user' })
+        await expectPgError(m.db.delete(threads).where(eq(threads.id, threadId)), FK)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('live columns match the drizzle schema (table, column, type, nullability)', async () => {
+      const m = await fresh()
+      try {
+        const live = await rowsOf<{
+          table_name: string
+          column_name: string
+          data_type: string
+          is_nullable: string
+        }>(
+          m.db,
+          sql`select table_name, column_name, data_type, is_nullable from information_schema.columns where table_schema = 'public'`,
+        )
+        const liveSet = live.map(
+          (c) => `${c.table_name}.${c.column_name}:${c.data_type}:${c.is_nullable === 'YES'}`,
+        )
+        const pgType = (col: AnyPgColumn): string => {
+          const t = col.getSQLType()
+          if (enumNames.has(t)) return 'USER-DEFINED'
+          if (t.startsWith('timestamp')) return 'timestamp with time zone'
+          if (t === 'bigserial') return 'bigint'
+          return t
+        }
+        const want: string[] = []
+        for (const table of Object.values(schemaTables)) {
+          const cfg = getTableConfig(table)
+          for (const col of cfg.columns) {
+            want.push(`${cfg.name}.${col.name}:${pgType(col)}:${!col.notNull}`)
+          }
+        }
+        expect(liveSet.sort()).toEqual(want.sort())
       } finally {
         await m.close()
       }
