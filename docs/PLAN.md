@@ -18,7 +18,7 @@ Goal: an empty but real monorepo with CI, tokens and test infrastructure. Nothin
   - Includes the accent engine: input hex → OKLCH scale → `--accent-*`.
   - *Tests:* contrast ratios ≥ 4.5 for text-on-accent across all presets in light and dark.
 - [x] **P0.4 testkit.** (abc0d7f..860fc19; Postgres smoke test unverified locally, needs Docker) A scripted fake `LanguageModelV2` (deterministic text, tool calls, streaming), fixture builders, and a Testcontainers Postgres helper.
-- [~] **P0.5 Contracts.** zod schemas for the core entities and the event union, plus an oRPC router skeleton.
+- [x] **P0.5 Contracts.** (3ed19c5..e43365d) zod schemas for the core entities and the event union, plus an oRPC router skeleton.
 
 ## P1 — Talk to a teammate (web + desktop)
 Goal: chat in a real UI with one profile, streaming from a real or fake model.
