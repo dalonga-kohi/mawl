@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createLanguageModel } from './create-model.ts'
 import { testCredential } from './test-credential.ts'
 
@@ -23,6 +23,45 @@ describe('testCredential edge cases', () => {
       new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 500)),
     ])
     expect(outcome).toEqual({ ok: false, reason: 'unreachable' })
+  })
+
+  it('cancels the body of a response that arrives after the deadline', async () => {
+    let cancelled = false
+    const late = (() =>
+      new Promise<Response>((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              status: 200,
+              body: {
+                cancel: async () => {
+                  cancelled = true
+                },
+              },
+            } as unknown as Response),
+          40,
+        ),
+      )) as typeof globalThis.fetch
+    const result = await testCredential(openai, { fetch: late, timeoutMs: 10 })
+    expect(result).toEqual({ ok: false, reason: 'unreachable' })
+    await vi.waitFor(() => expect(cancelled).toBe(true))
+  })
+
+  it('swallows a rejection that arrives after the deadline', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      const late = (() =>
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error('late')), 40),
+        )) as typeof globalThis.fetch
+      const result = await testCredential(openai, { fetch: late, timeoutMs: 10 })
+      expect(result).toEqual({ ok: false, reason: 'unreachable' })
+      await new Promise((r) => setTimeout(r, 80))
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('maps a non-Error rejection to unreachable', async () => {

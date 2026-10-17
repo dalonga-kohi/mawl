@@ -60,16 +60,21 @@ export async function testCredential(
     const deadline = new Promise<null>((resolve) => {
       timer = setTimeout(() => resolve(null), timeoutMs)
     })
-    const outcome = await Promise.race([
-      fetch(target.url, {
-        method: 'GET',
-        headers: target.headers,
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs),
-      }),
-      deadline,
-    ])
-    if (!outcome) return { ok: false, reason: 'unreachable' }
+    const pending = fetch(target.url, {
+      method: 'GET',
+      headers: target.headers,
+      redirect: 'error',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const outcome = await Promise.race([pending, deadline])
+    if (!outcome) {
+      // The deadline won: free a response that still arrives later, and swallow a late failure.
+      pending.then(
+        (late) => void late.body?.cancel().catch(() => {}),
+        () => {},
+      )
+      return { ok: false, reason: 'unreachable' }
+    }
     res = outcome
   } catch {
     return { ok: false, reason: 'unreachable' }
