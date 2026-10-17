@@ -36,8 +36,8 @@ export const ink = '#17202B'
  * used as text on that theme's surface (a single value cannot do that on both white and Night river).
  */
 export const semantic = {
-  light: { ok: '#048753', warn: '#A76700', danger: '#D1443E' },
-  dark: { ok: '#2F9E68', warn: '#D98A14', danger: '#E2544B' },
+  light: { ok: '#007A4A', warn: '#985D00', danger: '#C33632' },
+  dark: { ok: '#32A16A', warn: '#D98A14', danger: '#EF6056' },
 } as const
 
 export const mascot = {

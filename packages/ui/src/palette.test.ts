@@ -1,4 +1,4 @@
-import { wcagContrast } from 'culori'
+import { formatHex, interpolate, wcagContrast } from 'culori'
 import { describe, expect, it } from 'vitest'
 import { accentPresets, mascot, neutrals, semantic, type ThemeName } from './palette.ts'
 
@@ -36,6 +36,22 @@ describe('semantic colors', () => {
         expect(wcagContrast(semantic[theme][name], neutrals[theme].surface)).toBeGreaterThanOrEqual(
           4.5,
         )
+      })
+    }
+  }
+})
+
+describe('semantic text on its own soft tint', () => {
+  // Mirrors `color-mix(in oklab, var(--x) 12%, var(--surface))` from tokens.css.
+  const softTint = (fg: string, surface: string) =>
+    formatHex(interpolate([surface, fg], 'oklab')(0.12))
+
+  for (const theme of themes) {
+    for (const name of ['ok', 'warn', 'danger'] as const) {
+      it(`${theme}: ${name} text on ${name}-soft reaches 4.5:1`, () => {
+        const fg = semantic[theme][name]
+        const tint = softTint(fg, neutrals[theme].surface)
+        expect(wcagContrast(fg, tint)).toBeGreaterThanOrEqual(4.5)
       })
     }
   }
