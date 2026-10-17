@@ -77,6 +77,12 @@ export function dockerPolicy(
 
 let defaultAvailability: Promise<boolean> | undefined
 
+function probeDocker(probe?: () => Promise<unknown>): Promise<boolean> {
+  if (probe) return isDockerAvailable(probe)
+  defaultAvailability ??= isDockerAvailable()
+  return defaultAvailability
+}
+
 export interface WithPostgresOptions {
   image?: string
   /** Injectable for tests. */
@@ -104,9 +110,7 @@ export function withPostgres(opts: WithPostgresOptions = {}): () => string {
   let skipNote: string | undefined
 
   beforeAll(async () => {
-    const available = await (opts.probe
-      ? isDockerAvailable(opts.probe)
-      : (defaultAvailability ??= isDockerAvailable()))
+    const available = await probeDocker(opts.probe)
     const policy = dockerPolicy(available, opts.env)
     if (policy === 'fail') {
       throw new Error(
