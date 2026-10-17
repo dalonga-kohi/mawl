@@ -6,6 +6,7 @@ import { createDb, migrate, migrationsFolder } from '@faire/db'
 import { serve } from '@hono/node-server'
 import { createApp } from './app.ts'
 import type { Config } from './config.ts'
+import { probeDb } from './db-probe.ts'
 import { createLogger, type Logger } from './logger.ts'
 import { createSecretBox, loadOrCreateMasterKey, type SecretBox } from './secrets/index.ts'
 import { readVersion } from './version.ts'
@@ -26,6 +27,8 @@ export interface RunningServer {
 }
 
 const CONNECTION_GRACE_MS = 5000
+/** Server-side cap for the health query, below the 2 s probe deadline. */
+const HEALTH_QUERY_TIMEOUT_MS = 1500
 
 /** In the production bundle the SQL is copied next to the bundle (dist/drizzle). */
 function resolveMigrationsFolder(): string {
@@ -71,10 +74,21 @@ export async function startServer(
   const version = readVersion()
 
   const masterKey = await loadOrCreateMasterKey(config.secretsDir)
-  const secretBox = await createSecretBox(masterKey)
-  masterKey.fill(0)
+  let secretBox: SecretBox
+  try {
+    secretBox = await createSecretBox(masterKey)
+  } finally {
+    masterKey.fill(0)
+  }
 
-  const handle = (overrides.createDb ?? createDb)(config.databaseUrl)
+  const handle = (overrides.createDb ?? createDb)(config.databaseUrl, {
+    // Idle client errors must not crash the process. Name and code only: messages can hold the url.
+    onError: (err) =>
+      logger.error(
+        { errName: err.name, code: (err as { code?: unknown }).code },
+        'database pool error',
+      ),
+  })
   let server: Server
   let url: string
   try {
@@ -84,7 +98,7 @@ export async function startServer(
       logger,
       version,
       checkDb: async () => {
-        await handle.pool.query('select 1')
+        await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
     })
     ;({ server, url } = await listen(app, config))

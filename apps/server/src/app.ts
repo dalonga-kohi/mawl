@@ -22,10 +22,13 @@ async function isHealthy(checkDb: () => Promise<void>, timeoutMs: number): Promi
   })
   try {
     return await Promise.race([
-      checkDb().then(
-        () => true as const,
-        () => false as const,
-      ),
+      // then(): a synchronous throw from checkDb becomes a rejection, not a 500.
+      Promise.resolve()
+        .then(checkDb)
+        .then(
+          () => true as const,
+          () => false as const,
+        ),
       deadline,
     ])
   } finally {

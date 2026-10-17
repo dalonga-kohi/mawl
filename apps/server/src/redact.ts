@@ -25,7 +25,7 @@ function walk(value: unknown, depth: number, ancestors: WeakSet<object>): unknow
     if (Array.isArray(value)) return value.map((item) => walk(item, depth + 1, ancestors))
     const source: Record<string, unknown> =
       value instanceof Error
-        ? { type: value.name, message: value.message, stack: value.stack, ...value }
+        ? { ...value, type: value.name, message: value.message, stack: value.stack }
         : (value as Record<string, unknown>)
     const out: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(source)) {

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DbHandle } from '@faire/db'
+import type { CreateDbOptions, DbHandle } from '@faire/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
 import { createLogger } from './logger.ts'
@@ -15,15 +15,20 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-function fakes(opts: { query?: () => Promise<unknown>; migrate?: () => Promise<void> } = {}) {
+function fakes(
+  opts: { query?: (...args: unknown[]) => Promise<unknown>; migrate?: () => Promise<void> } = {},
+) {
   const close = vi.fn(async () => {})
   const handle = {
     db: {},
-    pool: { query: opts.query ?? (async () => ({ rows: [] })) },
+    pool: {
+      connect: async () => ({ query: opts.query ?? (async () => ({ rows: [] })), release() {} }),
+    },
     close,
   } as unknown as DbHandle
   const migrate = vi.fn(opts.migrate ?? (async () => {}))
-  return { close, migrate, createDb: vi.fn(() => handle) }
+  const createDb = vi.fn((_url: string, _options?: CreateDbOptions) => handle)
+  return { close, migrate, createDb }
 }
 
 const config = (): Config => ({
@@ -111,6 +116,43 @@ describe('startServer', () => {
     try {
       const { readFile } = await import('node:fs/promises')
       expect((await readFile(join(dir, 'secrets', 'master.key'))).length).toBe(32)
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('logs idle pool errors with name and code only', async () => {
+    const lines: string[] = []
+    const log = createLogger({
+      level: 'info',
+      stream: { write: (c: string) => void lines.push(c) },
+    })
+    const f = fakes()
+    const server = await startServer(config(), { logger: log, ...f })
+    try {
+      const onError = f.createDb.mock.calls[0]?.[1]?.onError
+      expect(onError).toBeTypeOf('function')
+      onError?.(Object.assign(new Error('postgres://u:LEAK-ME@h/d'), { code: '57P01' }))
+      const out = lines.join('')
+      expect(out).toContain('57P01')
+      expect(out).not.toContain('LEAK-ME')
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('probes health through a bounded transaction, not a bare query', async () => {
+    const queries: string[] = []
+    const f = fakes({
+      query: async (...args: unknown[]) => {
+        queries.push(String(args[0]))
+        return {}
+      },
+    })
+    const server = await startServer(config(), { logger: logger(), ...f })
+    try {
+      expect((await fetch(`${server.url}/healthz`)).status).toBe(200)
+      expect(queries).toContain('set local statement_timeout = 1500')
     } finally {
       await server.stop()
     }
