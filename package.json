@@ -22,6 +22,7 @@
     "@types/node": "24.19.2",
     "turbo": "2.11.9",
     "typescript": "7.0.2",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "yaml": "2.9.1"
   }
 }
