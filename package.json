@@ -8,12 +8,14 @@
   },
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build",
-    "lint": "biome check .",
+    "lint": "turbo lint",
+    "lint:root": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "turbo typecheck",
-    "test": "turbo test && vitest run --project workspace"
+    "typecheck:root": "tsc --noEmit -p .",
+    "test": "turbo test",
+    "test:workspace": "vitest run --project workspace"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
