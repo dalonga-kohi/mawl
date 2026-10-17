@@ -142,7 +142,8 @@ corepack pnpm i                                  # install (or `pnpm i` once cor
 pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl. root tasks
 pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
 pnpm --filter @faire/ui generate                 # regenerate tokens.css
-pnpm dev / pnpm test:e2e / pnpm db:migrate       # arrive in P1
+pnpm --filter @faire/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
+pnpm test:e2e / pnpm db:migrate                # arrive in P1
 ```
 
 ## Platform (Windows 11, PowerShell, Node 24)

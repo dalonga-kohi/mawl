@@ -113,6 +113,21 @@ flowchart TB
 ```
 
 - A single Node process runs everything for v1: API, WS, worker, gateways. Its entrypoint can start them as separate roles later (`--role=api|worker|gateway`) for scaling or crash isolation. In compose, `restart: unless-stopped` plus a healthcheck supervises it.
+- **Runtime and config.**
+  - Dev runs `tsx watch src/main.ts`. Production is one esbuild bundle, `apps/server/dist/server.mjs` (`pnpm --filter @faire/server build`), with `@faire/*` sources and npm deps inlined (only `pg-native` is external) and the SQL migrations copied to `dist/drizzle`. Native Node type stripping is not used because workspace packages use extensionless imports. Start with `pnpm --filter @faire/server start`.
+  - Boot order: parse env, open logger, load or create the master key, open Postgres, run migrations (advisory-locked), listen, log `listening`. SIGINT and SIGTERM stop the listener, close the database and exit 0. Any boot failure logs one `boot failed` line (error name, code, message; never the connection string) and exits 1.
+  - Env is validated with zod at boot; errors list variable names only, never values.
+
+    | Variable | Default | Meaning |
+    |---|---|---|
+    | `DATABASE_URL` | required | `postgres://` or `postgresql://` URL |
+    | `FAIRE_HOST` | `127.0.0.1` | bind address (compose sets `0.0.0.0`) |
+    | `FAIRE_PORT` | `7420` | HTTP port |
+    | `FAIRE_SECRETS_DIR` | `.faire/secrets` | holds `master.key` (compose: `/secrets`) |
+    | `LOG_LEVEL` | `info` | pino level |
+
+  - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED`.
+  - Logging: pino JSON with redaction of secret-like fields and auth headers. Each request logs method, path without query, status, duration and a request id (also returned as `x-request-id`). The RPC error hook logs procedure path and error code only, never inputs or outputs.
 - **Event bus.** Every state change becomes an `Event` row and a `NOTIFY`, which the WS hub fans out to subscribed clients. Clients resume from `lastEventId`.
 
 ## 5. Agent run engine (`packages/core`)
@@ -292,6 +307,8 @@ All event types are defined as zod schemas in `packages/contracts`.
   - server ↔ providers/MCP: TLS
 - The sandbox can never reach Postgres or the Docker proxy. These networks are kept separate.
 - Secrets are encrypted at rest with a key from the `faire-secrets` volume, generated on first boot. Secrets are never logged and never sent to the model.
+  - `master.key` is 32 random bytes, mode 0600 in a 0700 directory. It is created atomically (temp file then hard link, so concurrent first boots end with one key and readers never see a partial file). An existing file is never overwritten or repaired: a wrong-sized file aborts boot, because a new key would orphan every stored secret.
+  - Blob format: `0x01` (version) ‖ 24-byte random nonce ‖ XChaCha20-Poly1305 (IETF AEAD, libsodium) ciphertext+tag. The AAD is not stored; callers pass the owning row (for example `provider_credentials:<id>`), so a ciphertext copied to another row fails to decrypt. Every decrypt failure (tamper, wrong AAD, wrong key, unknown version, short blob) raises one `SecretDecryptError` with a fixed message and no detail.
 - Tool output and web content are treated as **data**. They are wrapped in `<untrusted>` tags in context, scanned for injection before a memory write, and their instructions are never followed blindly (mirrored in the system prompt).
 - Rate limits and caps per run; global kill switch "Pause all teammates".
 - Supply chain: pinned image digests, lockfile, Renovate.
