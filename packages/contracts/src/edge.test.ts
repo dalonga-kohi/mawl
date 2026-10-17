@@ -244,16 +244,17 @@ describe('event payload validation', () => {
   const invalid: Record<(typeof EVENT_TYPES)[number], unknown> = {
     'run.status': { status: 'exploded' },
     'run.delta': { text: 5 },
-    'run.tool_call': { toolCallId: '', tool: 'x', args: {}, actionClass: 'read' },
+    'run.tool_call': { toolCallId: '', tool: 'x', argsRedacted: {}, actionClass: 'read' },
     'run.tool_result': { toolCallId: 'c', preview: 'x' }, // missing isError
     'run.step': { stepId: f.id('run'), idx: 0, kind: 'model' }, // wrong id kind
     'approval.created': { approval: { ...f.approval, status: 'maybe' } },
     'approval.resolved': { approvalId: f.id('appr'), status: 'pending-ish' },
-    'takeover.requested': {},
-    'takeover.lease': { state: 'borrowed' },
+    'takeover.requested': { reason: 'x' }, // missing leaseId
+    'takeover.lease': { leaseId: f.id('lease'), state: 'borrowed' },
     'memory.updated': { scope: 'block', ref: '' },
     'routine.fired': { routineId: f.id('rtn') }, // missing runId
     'sandbox.status': { status: 'on fire' },
+    'memory.recalled': { refs: [{ kind: 'x', id: 'y' }] },
     notify: { title: 't', body: 'b', level: 'fatal' },
   }
 

@@ -15,6 +15,7 @@ export const ID_KINDS = [
   'channel',
   'device',
   'rule',
+  'lease',
 ] as const
 export type IdKind = (typeof ID_KINDS)[number]
 
@@ -32,6 +33,7 @@ export const ID_PREFIX = {
   channel: 'chan',
   device: 'dev',
   rule: 'rule',
+  lease: 'lease',
 } as const satisfies Record<IdKind, string>
 
 /** Crockford base32 ULID body (no I, L, O, U). */
@@ -60,6 +62,7 @@ export const McpServerId = idSchema('mcpServer')
 export const ChannelId = idSchema('channel')
 export const DeviceId = idSchema('device')
 export const RuleId = idSchema('rule')
+export const LeaseId = idSchema('lease')
 
 export type ProfileId = z.infer<typeof ProfileId>
 export type CredentialId = z.infer<typeof CredentialId>
@@ -74,6 +77,7 @@ export type McpServerId = z.infer<typeof McpServerId>
 export type ChannelId = z.infer<typeof ChannelId>
 export type DeviceId = z.infer<typeof DeviceId>
 export type RuleId = z.infer<typeof RuleId>
+export type LeaseId = z.infer<typeof LeaseId>
 
 /** True when `value` is a well-formed id of the given kind. */
 export function isId(kind: IdKind, value: unknown): boolean {

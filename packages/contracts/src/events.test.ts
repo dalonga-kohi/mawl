@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { ClientMessage, Envelope, EVENT_TYPES, type EventType, Topic } from './events'
+import {
+  ClientMessage,
+  Envelope,
+  EVENT_TYPES,
+  type EventType,
+  profileTopic,
+  runTopic,
+  Topic,
+} from './events'
+import { ProfileId, RunId } from './ids'
 import * as f from './fixtures'
 
 const base = { id: '9007199254740993', profileId: f.id('prof'), ts: f.TS }
@@ -10,15 +19,22 @@ const payloads: Record<EventType, unknown> = {
   'run.tool_call': {
     toolCallId: 'c1',
     tool: 'shell',
-    args: { cmd: 'ls' },
+    argsRedacted: { cmd: 'ls' },
     actionClass: 'shell_exec',
   },
-  'run.tool_result': { toolCallId: 'c1', preview: 'ok', isError: false },
+  'run.tool_result': { toolCallId: 'c1', preview: 'ok', artifactId: f.id('art'), isError: false },
   'run.step': { stepId: f.id('step'), idx: 1, kind: 'tool' },
   'approval.created': { approval: f.approval },
   'approval.resolved': { approvalId: f.id('appr'), status: 'approved' },
-  'takeover.requested': { reason: 'captcha' },
-  'takeover.lease': { state: 'granted', deviceId: f.id('dev'), expiresAt: f.TS },
+  'takeover.requested': { leaseId: f.id('lease'), reason: 'captcha' },
+  'takeover.lease': { leaseId: f.id('lease'), state: 'granted', deviceId: f.id('dev'), expiresAt: f.TS },
+  'memory.recalled': {
+    messageId: f.id('msg'),
+    refs: [
+      { kind: 'fact', id: 'f1', score: 0.9 },
+      { kind: 'block', id: 'persona' },
+    ],
+  },
   'memory.updated': { scope: 'block', ref: 'persona' },
   'routine.fired': { routineId: f.id('rtn'), runId: f.id('run') },
   'sandbox.status': { status: 'running' },
@@ -72,6 +88,7 @@ describe('Envelope', () => {
         case 'takeover.lease':
           return 'takeover'
         case 'memory.updated':
+        case 'memory.recalled':
         case 'routine.fired':
         case 'sandbox.status':
         case 'notify':
@@ -116,5 +133,31 @@ describe('Topic and ClientMessage', () => {
     )
     expect(ClientMessage.safeParse({ type: 'ping' }).success).toBe(false)
     expect(ClientMessage.safeParse({ type: 'subscribe', topics: [] }).success).toBe(false)
+  })
+})
+
+describe('payload specifics', () => {
+  const ev = (type: string, payload: unknown) => ({ ...base, type, payload })
+
+  it('rejects a non-artifact id on run.tool_result.artifactId', () => {
+    const p = { toolCallId: 'c', preview: '', artifactId: f.id('run'), isError: false }
+    expect(Envelope.safeParse(ev('run.tool_result', p)).success).toBe(false)
+  })
+
+  it('requires leaseId on takeover events', () => {
+    expect(Envelope.safeParse(ev('takeover.requested', { reason: 'x' })).success).toBe(false)
+    expect(Envelope.safeParse(ev('takeover.lease', { state: 'granted' })).success).toBe(false)
+  })
+
+  it('validates memory.recalled refs', () => {
+    const bad = { refs: [{ kind: 'dream', id: 'x' }] }
+    expect(Envelope.safeParse(ev('memory.recalled', bad)).success).toBe(false)
+    expect(Envelope.safeParse(ev('memory.recalled', { refs: [] })).success).toBe(true)
+  })
+
+  it('builds topics with typed helpers', () => {
+    expect(profileTopic(ProfileId.parse(f.id('prof')))).toBe(`profile:${f.id('prof')}`)
+    expect(runTopic(RunId.parse(f.id('run')))).toBe(`run:${f.id('run')}`)
+    expect(Topic.safeParse(runTopic(RunId.parse(f.id('run')))).success).toBe(true)
   })
 })

@@ -1,7 +1,17 @@
 import { z } from 'zod'
 import { Approval, Origin, Timestamp, Usage } from './entities'
 import { ActionClass, ApprovalStatus, RunStatus, StepKind } from './enums'
-import { ApprovalId, DeviceId, ProfileId, RoutineId, RunId, StepId } from './ids'
+import {
+  ApprovalId,
+  ArtifactId,
+  DeviceId,
+  LeaseId,
+  MessageId,
+  ProfileId,
+  RoutineId,
+  RunId,
+  StepId,
+} from './ids'
 
 const Json = z.json()
 
@@ -16,15 +26,15 @@ export const EVENT_PAYLOADS = {
   'run.tool_call': z.object({
     toolCallId: z.string().min(1),
     tool: z.string().min(1),
-    /** Redacted arguments. */
-    args: Json,
+    /** Arguments with secrets and personal data already redacted (same naming as Approval). */
+    argsRedacted: Json,
     actionClass: ActionClass,
   }),
   'run.tool_result': z.object({
     toolCallId: z.string().min(1),
     /** Truncated preview; large outputs live in an artifact. */
     preview: z.string(),
-    artifactId: z.string().optional(),
+    artifactId: ArtifactId.optional(),
     isError: z.boolean(),
   }),
   'run.step': z.object({
@@ -39,11 +49,23 @@ export const EVENT_PAYLOADS = {
     status: ApprovalStatus,
     via: Origin.optional(),
   }),
-  'takeover.requested': z.object({ reason: z.string() }),
+  'takeover.requested': z.object({ leaseId: LeaseId, reason: z.string() }),
   'takeover.lease': z.object({
+    leaseId: LeaseId,
     state: z.enum(['granted', 'released', 'expired']),
     deviceId: DeviceId.optional(),
     expiresAt: Timestamp.optional(),
+  }),
+  /** Memories injected into context for a step (powers the used-memories affordance). */
+  'memory.recalled': z.object({
+    messageId: MessageId.optional(),
+    refs: z.array(
+      z.object({
+        kind: z.enum(['fact', 'block', 'episode', 'skill']),
+        id: z.string().min(1),
+        score: z.number().optional(),
+      }),
+    ),
   }),
   'memory.updated': z.object({
     scope: z.enum(['block', 'archival', 'skill']),
@@ -91,6 +113,7 @@ export const Envelope = z.discriminatedUnion('type', [
   envelopeFor('approval.resolved'),
   envelopeFor('takeover.requested'),
   envelopeFor('takeover.lease'),
+  envelopeFor('memory.recalled'),
   envelopeFor('memory.updated'),
   envelopeFor('routine.fired'),
   envelopeFor('sandbox.status'),
@@ -98,12 +121,13 @@ export const Envelope = z.discriminatedUnion('type', [
 ])
 export type Envelope = z.infer<typeof Envelope>
 
-export type Topic = 'profile:*' | `profile:${string}` | `run:${string}`
-const TOPIC_RE = /^(?:profile:(?:\*|prof_[0-9A-HJKMNP-TV-Z]{26})|run:run_[0-9A-HJKMNP-TV-Z]{26})$/
-export const Topic = z.custom<Topic>(
-  (v) => typeof v === 'string' && TOPIC_RE.test(v),
-  'invalid topic',
-)
+export type Topic = 'profile:*' | `profile:${ProfileId}` | `run:${RunId}`
+const TOPIC_RE = /^(?:profile:(?:\*|prof_[0-7][0-9A-HJKMNP-TV-Z]{25})|run:run_[0-7][0-9A-HJKMNP-TV-Z]{25})$/
+export const Topic = z.custom<Topic>((v) => typeof v === 'string' && TOPIC_RE.test(v), 'invalid topic')
+
+/** Typed topic builders: the branded id type keeps arbitrary strings out of `Topic`. */
+export const profileTopic = (id: ProfileId): Topic => `profile:${id}`
+export const runTopic = (id: RunId): Topic => `run:${id}`
 
 const Topics = z.array(Topic).min(1)
 
