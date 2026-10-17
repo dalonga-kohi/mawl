@@ -130,4 +130,22 @@ describe('redactDeep', () => {
     const out = redactDeep({ err }) as { err: Record<string, unknown> }
     expect(out.err).toMatchObject({ message: 'boom', code: 'E1', password: '[Redacted]' })
   })
+  it('scrubs a password that contains slashes and colons, up to the last @', () => {
+    const out = JSON.stringify(redactDeep({ m: 'x postgres://u:pa/ss:w@host/db y' }))
+    expect(out).not.toContain('pa/ss')
+    expect(out).not.toContain(':w@')
+    expect(out).toContain('postgres://u:[Redacted]@host/db y')
+  })
+
+  it('keeps urls whose @ is only in the path', () => {
+    const text = 'see https://example.com/users/@me now'
+    expect(redactDeep({ m: text })).toEqual({ m: text })
+  })
+
+  it('scrubs a long alphanumeric string without :// in linear time', () => {
+    const big = 'a'.repeat(1_000_000)
+    const started = performance.now()
+    expect(redactDeep({ big })).toEqual({ big })
+    expect(performance.now() - started).toBeLessThan(50)
+  })
 })

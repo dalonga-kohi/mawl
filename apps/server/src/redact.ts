@@ -39,10 +39,38 @@ function isSensitiveKey(key: string): boolean {
   return REDACT_KEY_PARTS.some((part) => k.includes(part))
 }
 
+const WHITESPACE = /\s/
+
+/**
+ * Replaces the password in `scheme://user:password@host` with a censor. Anchored on "://" (found
+ * with indexOf, so cost is linear) and takes userinfo up to the LAST "@" before the next
+ * whitespace, because a password may itself contain "/", ":" or "@".
+ */
+function scrubUrlPasswords(value: string): string {
+  let from = value.indexOf('://')
+  if (from === -1) return value
+  let out = ''
+  let cursor = 0
+  while (from !== -1) {
+    const start = from + 3
+    let end = start
+    while (end < value.length && !WHITESPACE.test(value[end] as string)) end++
+    const at = value.lastIndexOf('@', end - 1)
+    if (at >= start) {
+      const colon = value.indexOf(':', start)
+      if (colon !== -1 && colon < at) {
+        out += `${value.slice(cursor, colon + 1)}${CENSOR}`
+        cursor = at
+      }
+    }
+    from = value.indexOf('://', end)
+  }
+  return out + value.slice(cursor)
+}
+
 /** Value patterns: url userinfo, bearer tokens, and well-known provider key prefixes. */
 function scrubString(value: string): string {
-  return value
-    .replace(/([a-z][a-z0-9+.-]*:\/\/[^\s:/@]*):[^\s@/]*@/gi, `$1:${CENSOR}@`)
+  return scrubUrlPasswords(value)
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${CENSOR}`)
     .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, CENSOR)
 }
