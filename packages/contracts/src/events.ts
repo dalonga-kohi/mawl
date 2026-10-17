@@ -5,12 +5,14 @@ import {
   ApprovalId,
   ArtifactId,
   DeviceId,
+  ID_PREFIX,
   LeaseId,
   MessageId,
   ProfileId,
   RoutineId,
   RunId,
   StepId,
+  ULID_BODY,
 } from './ids'
 
 const Json = z.json()
@@ -178,8 +180,9 @@ export function parseEnvelope(raw: unknown): ParsedEnvelope {
 }
 
 export type Topic = 'profile:*' | `profile:${ProfileId}` | `run:${RunId}`
-const TOPIC_RE =
-  /^(?:profile:(?:\*|prof_[0-7][0-9A-HJKMNP-TV-Z]{25})|run:run_[0-7][0-9A-HJKMNP-TV-Z]{25})$/
+const TOPIC_RE = new RegExp(
+  `^(?:profile:(?:\\*|${ID_PREFIX.profile}_${ULID_BODY})|run:${ID_PREFIX.run}_${ULID_BODY})$`,
+)
 export const Topic = z.custom<Topic>(
   (v) => typeof v === 'string' && TOPIC_RE.test(v),
   'invalid topic',
