@@ -120,3 +120,47 @@ describe('stopAfterBoot', () => {
     expect(exit).not.toHaveBeenCalledWith(0)
   })
 })
+
+describe('shutdown deadline vs boot', () => {
+  it('does not start the 10 s deadline until boot has settled', async () => {
+    let boot!: () => void
+    const booted = new Promise<void>((resolve) => {
+      boot = resolve
+    })
+    const logger = createLogger({ level: 'silent' })
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    installLifecycle({
+      logger,
+      stop: () => new Promise(() => {}),
+      exit,
+      proc,
+      booted,
+      deadlineMs: 10_000,
+    })
+    proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(exit).not.toHaveBeenCalled()
+    boot()
+    await vi.advanceTimersByTimeAsync(9_999)
+    expect(exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
+  it('still exits immediately on a second signal while boot is pending', async () => {
+    const logger = createLogger({ level: 'silent' })
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    installLifecycle({
+      logger,
+      stop: () => new Promise(() => {}),
+      exit,
+      proc,
+      booted: new Promise(() => {}),
+    })
+    proc.emit('SIGTERM')
+    proc.emit('SIGTERM')
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+})

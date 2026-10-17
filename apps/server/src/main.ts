@@ -22,6 +22,7 @@ const booting = startServer(config, { logger })
 installLifecycle({
   logger,
   stop: stopAfterBoot(booting),
+  booted: booting,
   exit: (code) => process.exit(code),
   proc: process,
 })

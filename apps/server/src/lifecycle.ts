@@ -7,7 +7,12 @@ export interface LifecycleDeps {
   stop: () => Promise<void>
   exit: (code: number) => void
   proc: { on(event: string, listener: (...args: unknown[]) => void): unknown }
-  /** Hard shutdown deadline. Defaults to 10 s. */
+  /**
+   * Settles when boot has finished (either way). The shutdown deadline only starts then, so a
+   * slow migration is never cut off. Omit when the server is already running.
+   */
+  booted?: Promise<unknown>
+  /** Hard shutdown deadline, counted from when boot settles. Defaults to 10 s. */
   deadlineMs?: number
 }
 
@@ -24,6 +29,7 @@ export function installLifecycle({
   stop,
   exit,
   proc,
+  booted = Promise.resolve(),
   deadlineMs = DEFAULT_DEADLINE_MS,
 }: LifecycleDeps): void {
   let shuttingDown = false
@@ -36,17 +42,28 @@ export function installLifecycle({
     }
     shuttingDown = true
     logger.info({ signal }, 'shutting down')
-    const deadline = setTimeout(() => {
-      logger.error('shutdown deadline exceeded')
-      exit(1)
-    }, deadlineMs)
-    deadline.unref()
+    let deadline: ReturnType<typeof setTimeout> | undefined
+    let done = false
+    booted.then(
+      () => startDeadline(),
+      () => startDeadline(),
+    )
+    function startDeadline() {
+      if (done) return
+      deadline = setTimeout(() => {
+        logger.error('shutdown deadline exceeded')
+        exit(1)
+      }, deadlineMs)
+      deadline.unref()
+    }
     stop().then(
       () => {
+        done = true
         clearTimeout(deadline)
         exit(0)
       },
       (err: unknown) => {
+        done = true
         clearTimeout(deadline)
         logger.error(describeFailure(err), 'shutdown failed')
         exit(1)
