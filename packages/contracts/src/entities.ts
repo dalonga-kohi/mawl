@@ -99,7 +99,11 @@ export const ProviderCredential = z.strictObject({
 })
 export type ProviderCredential = z.infer<typeof ProviderCredential>
 
-/** http(s) only, no embedded user:password (it would be stored and logged in clear). */
+/**
+ * http(s) only. No embedded user:password (it would be stored and logged in clear) and no
+ * query or fragment (a base url gets paths appended, and a query could carry a key).
+ * Trailing slashes are stripped, matching `resolveBaseUrl` in core.
+ */
 const HttpUrl = z
   .url({ protocol: /^https?$/ })
   .max(2048)
@@ -107,6 +111,11 @@ const HttpUrl = z
     const { username, password } = new URL(u)
     return username === '' && password === ''
   }, 'base url must not contain credentials')
+  .refine(
+    (u) => !u.includes('?') && !u.includes('#'),
+    'base url must not contain a query or fragment',
+  )
+  .transform((u) => u.replace(/\/+$/, ''))
 
 /** Providers that cannot work without an API key. */
 const KEY_REQUIRED: ReadonlySet<string> = new Set(['anthropic', 'openai', 'openrouter'])

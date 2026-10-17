@@ -52,6 +52,25 @@ describe('ProviderCredentialInput', () => {
     expect(r.success).toBe(false)
   })
 
+  it.each([
+    'https://example.com/v1?api_key=abc',
+    'https://example.com/v1?',
+    'https://example.com/v1#frag',
+    'https://example.com/v1#',
+  ])('rejects a base url with a query or fragment: %s', (baseUrl) => {
+    expect(parse({ provider: 'openai_compatible', label: 'k', baseUrl }).success).toBe(false)
+  })
+
+  it.each([
+    ['https://example.com/v1/', 'https://example.com/v1'],
+    ['https://example.com/v1///', 'https://example.com/v1'],
+    ['https://example.com/', 'https://example.com'],
+    ['https://example.com/v1', 'https://example.com/v1'],
+  ])('normalises the trailing slash of %s to %s', (baseUrl, expected) => {
+    const r = parse({ provider: 'openai_compatible', label: 'k', baseUrl })
+    expect(r.success && r.data.baseUrl).toBe(expected)
+  })
+
   it('caps label at 80 and secret at 4096 characters', () => {
     const base = { provider: 'openai', label: 'k', secret: 'x' }
     expect(parse({ ...base, label: 'a'.repeat(80) }).success).toBe(true)
