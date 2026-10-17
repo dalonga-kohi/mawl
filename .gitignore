@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Tauri / Rust
+apps/desktop/src-tauri/target/
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Claude local
+.claude/settings.local.json

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(npx vitest *)",
+      "Bash(npx playwright *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(docker compose *)",
+      "Bash(docker ps*)",
+      "Bash(docker logs *)",
+      "PowerShell(pnpm *)",
+      "PowerShell(npx vitest *)",
+      "PowerShell(npx playwright *)",
+      "PowerShell(git status*)",
+      "PowerShell(git diff*)",
+      "PowerShell(git log*)",
+      "PowerShell(git show*)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(docker compose *)",
+      "PowerShell(docker ps*)",
+      "PowerShell(docker logs *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "PowerShell(git push --force*)",
+      "Read(./.env)",
+      "Read(./**/.env)"
+    ]
+  }
+}
