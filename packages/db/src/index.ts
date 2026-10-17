@@ -17,9 +17,25 @@ export interface DbHandle {
   close(): Promise<void>
 }
 
-/** Opens a node-postgres pool for `url` and wraps it in a typed drizzle instance. */
-export function createDb(url: string): DbHandle {
-  const pool = new pg.Pool({ connectionString: url })
+export interface CreateDbOptions {
+  /** Called when an idle pooled client errors (e.g. the server restarted). Keep it free of secrets. */
+  onError?: (err: Error) => void
+}
+
+/** Max wait for a free or new connection, so a dead database fails callers instead of hanging them. */
+export const CONNECTION_TIMEOUT_MS = 5000
+
+/**
+ * Opens a node-postgres pool for `url` and wraps it in a typed drizzle instance. A pool
+ * 'error' listener is always attached: without one, an idle client error is an uncaught
+ * exception that kills the process.
+ */
+export function createDb(url: string, options: CreateDbOptions = {}): DbHandle {
+  const pool = new pg.Pool({
+    connectionString: url,
+    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+  })
+  pool.on('error', (err) => options.onError?.(err))
   const db = drizzle(pool, { schema })
   return { db, pool, close: () => pool.end() }
 }
