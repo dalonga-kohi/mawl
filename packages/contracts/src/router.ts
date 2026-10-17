@@ -4,15 +4,18 @@ import {
   Approval,
   Device,
   Message,
+  PairingCode,
   Profile,
+  PublicKey,
   Run,
   RunBudget,
   Settings,
   SettingsUpdate,
   Thread,
+  Timestamp,
 } from './entities'
 import { ApprovalStatus, RunStatus } from './enums'
-import { Envelope, EventId, Topic } from './events'
+import { EventId, LenientEnvelope, Topic } from './events'
 import { ApprovalId, DeviceId, ProfileId, RunId, ThreadId } from './ids'
 
 const NotFound = { status: 404, data: z.object({ entity: z.string(), id: z.string() }) }
@@ -21,9 +24,17 @@ const Conflict = {
   data: z.object({ from: RunStatus, to: RunStatus }),
 }
 
-const base = oc
-const withNotFound = oc.errors({ NOT_FOUND: NotFound })
-const runTransition = oc.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
+/** Errors every procedure may raise (auth and input validation are enforced by the server). */
+const base = oc.errors({
+  UNAUTHORIZED: { status: 401 },
+  FORBIDDEN: { status: 403 },
+  VALIDATION: {
+    status: 422,
+    data: z.object({ issues: z.array(z.object({ path: z.string(), message: z.string() })) }),
+  },
+})
+const withNotFound = base.errors({ NOT_FOUND: NotFound })
+const runTransition = base.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
 
 const Id = <T extends z.ZodType>(schema: T) => z.object({ id: schema })
 
@@ -87,7 +98,7 @@ export const contract = {
         z.object({ profileId: ProfileId.optional(), status: ApprovalStatus.optional() }).optional(),
       )
       .output(z.array(Approval)),
-    decide: oc
+    decide: base
       .errors({
         NOT_FOUND: NotFound,
         CONFLICT: { status: 409, data: z.object({ status: ApprovalStatus }) },
@@ -96,13 +107,25 @@ export const contract = {
       .output(Approval),
   },
   devices: {
+    /**
+     * Pair a new device with a one-time code. TODO(P6): replace the code-only proof with the
+     * Ed25519 challenge/response auth flow (ARCHITECTURE section 8).
+     */
     pair: base
       .input(
-        Device.pick({ name: true, pubkey: true, platform: true }).extend({
-          pairingCode: z.string().min(1),
+        z.strictObject({
+          name: Device.shape.name,
+          pubkey: PublicKey,
+          platform: Device.shape.platform,
+          pairingCode: PairingCode,
         }),
       )
-      .output(Device),
+      .output(
+        z.object({
+          device: Device,
+          session: z.object({ token: z.string().min(1), expiresAt: Timestamp }),
+        }),
+      ),
     list: base.output(z.array(Device)),
     revoke: withNotFound.input(Id(DeviceId)).output(Device),
   },
@@ -111,9 +134,15 @@ export const contract = {
     update: base.input(SettingsUpdate).output(Settings),
   },
   events: {
+    /**
+     * Streams events over WebSocket. Items are lenient envelopes (any type or version, opaque
+     * payload) so old clients survive newer servers: clients MUST run each item through
+     * parseEnvelope, skip anything that is not ok, and still advance their since cursor
+     * with the item's id.
+     */
     subscribe: base
       .input(z.object({ topics: z.array(Topic).min(1), since: EventId.optional() }))
-      .output(eventIterator(Envelope)),
+      .output(eventIterator(LenientEnvelope)),
   },
 }
 

@@ -171,6 +171,8 @@ describe('secret leakage', () => {
       'cachedTokens',
       'maxTokens',
     ])
+    // The one response that deliberately returns a freshly minted session token.
+    const ALLOWED_PATHS = new Set(['contract.devices.pair:out.session.token'])
     // The only schema allowed to carry a secret: the write-only input.
     const WRITE_ONLY = new Set<unknown>([ProviderCredentialInput])
 
@@ -185,7 +187,8 @@ describe('secret leakage', () => {
       switch (def.type) {
         case 'object':
           for (const [k, v] of Object.entries(s.shape)) {
-            if (SECRET_NAME.test(k) && !ALLOWED.has(k)) offenders.push(`${path}.${k}`)
+            if (SECRET_NAME.test(k) && !ALLOWED.has(k) && !ALLOWED_PATHS.has(`${path}.${k}`))
+              offenders.push(`${path}.${k}`)
             walk(v, `${path}.${k}`)
           }
           break
@@ -240,7 +243,7 @@ describe('secret leakage', () => {
 })
 
 describe('event payload validation', () => {
-  const base = { id: '1', profileId: f.id('prof'), ts: f.TS }
+  const base = { v: 1, id: '1', profileId: f.id('prof'), ts: f.TS }
   const invalid: Record<(typeof EVENT_TYPES)[number], unknown> = {
     'run.status': { status: 'exploded' },
     'run.delta': { text: 5 },

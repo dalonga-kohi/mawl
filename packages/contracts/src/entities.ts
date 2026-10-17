@@ -270,10 +270,29 @@ export const ChannelBinding = z.strictObject({
 })
 export type ChannelBinding = z.infer<typeof ChannelBinding>
 
+/**
+ * Ed25519 public key: unpadded base64url of exactly 32 bytes (43 chars; the last char's low
+ * two bits must be zero so the encoding is canonical).
+ */
+export const PublicKey = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/, 'expected base64url of 32 bytes')
+export type PublicKey = z.infer<typeof PublicKey>
+
+/**
+ * One-time pairing code shown by the server: 8 Crockford base32 chars (no I, L, O, U).
+ * Input is case-insensitive and normalised to uppercase.
+ */
+export const PairingCode = z
+  .string()
+  .transform((s) => s.toUpperCase())
+  .pipe(z.string().regex(/^[0-9A-HJKMNP-TV-Z]{8}$/, 'expected 8 Crockford base32 characters'))
+export type PairingCode = z.infer<typeof PairingCode>
+
 export const Device = z.object({
   id: DeviceId,
   name: z.string().min(1),
-  pubkey: z.string().min(1),
+  pubkey: PublicKey,
   platform: z.enum(['desktop', 'ios', 'android', 'web']),
   lastSeenAt: Timestamp.nullable(),
   revokedAt: Timestamp.nullable(),

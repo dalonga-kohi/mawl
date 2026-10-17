@@ -3,7 +3,7 @@ import { isContractProcedure } from '@orpc/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
 import type { Approval, Device, Profile, Run, Settings } from './entities'
-import type { Envelope } from './events'
+import type { LenientEnvelope } from './events'
 import { contract } from './router'
 
 function procedurePaths(node: unknown, prefix: string[] = []): string[] {
@@ -50,6 +50,19 @@ describe('contract shape', () => {
   })
 })
 
+describe('base errors', () => {
+  it('every procedure declares UNAUTHORIZED, FORBIDDEN and VALIDATION', () => {
+    const walk = (n: unknown): void => {
+      if (isContractProcedure(n)) {
+        expect(Object.keys(n['~orpc'].errorMap)).toEqual(
+          expect.arrayContaining(['UNAUTHORIZED', 'FORBIDDEN', 'VALIDATION']),
+        )
+      } else if (typeof n === 'object' && n !== null) Object.values(n).forEach(walk)
+    }
+    walk(contract)
+  })
+})
+
 describe('contract validation', () => {
   it('validates accent as #rrggbb on settings.update', () => {
     const schema = contract.settings.update['~orpc'].inputSchema
@@ -75,7 +88,8 @@ describe('contract types', () => {
     expectTypeOf<Out['profiles']['get']>().toEqualTypeOf<z.infer<typeof Profile>>()
     expectTypeOf<Out['profiles']['list']>().toEqualTypeOf<z.infer<typeof Profile>[]>()
     expectTypeOf<Out['approvals']['decide']>().toEqualTypeOf<z.infer<typeof Approval>>()
-    expectTypeOf<Out['devices']['pair']>().toEqualTypeOf<z.infer<typeof Device>>()
+    expectTypeOf<Out['devices']['pair']['device']>().toEqualTypeOf<z.infer<typeof Device>>()
+    expectTypeOf<Out['devices']['pair']['session']['token']>().toEqualTypeOf<string>()
     expectTypeOf<Out['settings']['get']>().toEqualTypeOf<Settings>()
   })
 
@@ -84,10 +98,10 @@ describe('contract types', () => {
     expectTypeOf<In['settings']['update']['accent']>().toEqualTypeOf<string | undefined>()
   })
 
-  it('types the event stream as an iterator of Envelope', () => {
+  it('types the event stream as an iterator of LenientEnvelope', () => {
     type Stream = Out['events']['subscribe']
     expectTypeOf<Stream extends AsyncIterable<infer E> ? E : never>().toEqualTypeOf<
-      z.infer<typeof Envelope>
+      z.infer<typeof LenientEnvelope>
     >()
   })
 })

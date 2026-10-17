@@ -133,7 +133,7 @@ export const channelBinding = {
 export const device = {
   id: id('dev'),
   name: 'Laptop',
-  pubkey: 'AAAA',
+  pubkey: 'A'.repeat(43),
   platform: 'desktop',
   lastSeenAt: TS,
   revokedAt: null,

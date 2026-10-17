@@ -105,7 +105,10 @@ let lastRandom: number[] = []
  * monotonic within a process: within the same millisecond (or if the clock steps back)
  * the previous random part is incremented instead of redrawn.
  */
-export function newId<K extends IdKind>(kind: K, opts: NewIdOptions = {}): z.infer<ReturnType<typeof idSchema<K>>> {
+export function newId<K extends IdKind>(
+  kind: K,
+  opts: NewIdOptions = {},
+): z.infer<ReturnType<typeof idSchema<K>>> {
   const now = opts.now ?? Date.now
   const random = opts.random ?? cryptoRandom
   let time = Math.floor(now())
