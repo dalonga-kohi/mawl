@@ -88,7 +88,7 @@ docker compose -f infra/compose/docker-compose.yml up -d
 Platform: the dev machine is Windows 11 (PowerShell) with Node 24.
 - pnpm is **not** installed globally, so run it as `corepack pnpm …` (set `$env:COREPACK_ENABLE_DOWNLOAD_PROMPT='0'` first).
 - Turbo needs a `pnpm` binary on PATH. Until the user runs `corepack enable` once (it may need an admin shell), agents create a session shim with `corepack enable --install-directory <scratchpad>\shims` and prepend that folder to `$env:PATH`.
-- The root `test` script is `turbo test && vitest run --project workspace`. A bare `turbo test` skips the root workspace test.
+- `pnpm test` is just `turbo test`: the root workspace test (`test:workspace`) is a turbo root task that every `test` run depends on. Likewise `pnpm lint` and `pnpm typecheck` pull in the root tasks `lint:root` and `typecheck:root`; packages have no `lint` script.
 - Docker is not installed yet; it is needed from P0.4 (Testcontainers) onward.
 - Prefer cross-platform scripts (node/tsx) over bash in `package.json`.
 - Subagents: custom agents in `.claude/agents/` load at session start. If one isn't registered, run the built-in type with the same model and tell it to read its `.claude/agents/<role>.md` first.
