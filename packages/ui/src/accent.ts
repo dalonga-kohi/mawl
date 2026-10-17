@@ -139,7 +139,8 @@ export const accentVarName = (theme: ThemeName, key: keyof AccentScale) =>
 /**
  * Applies the accent to any style-like target (e.g. `document.documentElement.style`). Both the
  * light and dark scales are written; the generated CSS picks one per theme, so a theme flip needs
- * no JavaScript.
+ * no JavaScript. Pass the root element's style only: the public `--accent*` vars are mapped on
+ * `:root`, so scales set on a descendant are never read.
  */
 export function applyAccent(hex: string, target: StyleTarget): AccentScales {
   const scales: AccentScales = {

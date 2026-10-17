@@ -22,7 +22,7 @@ A beaver builds a lodge in a quiet river. Faire's teammates work in their lodge,
 
 ## 3. Color
 
-All colors are CSS variables in `packages/ui/tokens`. Components never use raw hex.
+All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @faire/ui generate`. Components never use raw hex.
 
 ### Neutrals: light ("Mist")
 | Token | Hex | Use |
@@ -69,7 +69,7 @@ The user picks the accent in Settings → Appearance. The default is **Lake**.
 - `--accent-fill`: background for filled buttons and the send button. It is the base accent, darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Lake `#3D8BFD` only reaches 3.3:1 with white, so its fill is about `#2473E3`. For light accents like Amber, the engine keeps the base and switches the text to ink instead, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press` (they are darker, and ink loses contrast as the fill darkens). Otherwise (Coral, for example) the fill is darkened until white passes. Hover and press are derived from the fill.
 - `--on-accent`: the text color on `--accent-fill`, white or `--text`, whichever passes 4.5:1
 - `--accent-ink`: the accent as small text or a link on `--surface`. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on the theme's surface.
-- `--accent` (base) is used for text links, icons, focus rings, selection and tints. When it is used as text on `--surface` it must reach 3:1 for large/UI text, or use `--accent-fill` for small text.
+- `--accent` (base) is used for text links, icons, focus rings, selection and tints. When it is used as text on `--surface` it must reach 3:1 for large/UI text. For small text, use `--accent-ink`.
 
 In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are all derived from that raised base. The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
 
