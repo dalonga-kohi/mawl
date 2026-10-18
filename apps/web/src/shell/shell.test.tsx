@@ -44,7 +44,7 @@ describe('app shell', () => {
 describe('teammates view', () => {
   it('points a fresh install to connecting a model', async () => {
     const { user, router } = await renderApp('/t')
-    expect(screen.getByRole('heading', { name: 'No teammates yet' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'No teammates yet' })).toBeTruthy()
     await user.click(screen.getByRole('link', { name: 'Connect a model' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings'))
   })

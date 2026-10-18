@@ -1,4 +1,4 @@
-import { createFaireClient } from '@faire/client'
+import { createEventStore, createFaireClient } from '@faire/client'
 import type { Api } from './ApiProvider.tsx'
 
 /** The server's WebSocket endpoint on the same host as `origin`: `ws://` for http, `wss://` for https. */
@@ -10,9 +10,10 @@ export function socketUrl(origin: string): string {
 /**
  * The live API for the browser, over the shared @faire/client WebSocket. The web app is served by
  * faire-server (or proxied to it by the Vite dev server), so `/ws` on the page's own host reaches it.
+ * Queries, mutations and the event stream all share that one socket.
  */
 export function createApi(origin: string = window.location.origin): Api {
-  const { client: rpc } = createFaireClient({ url: socketUrl(origin) })
+  const { client: rpc, utils } = createFaireClient({ url: socketUrl(origin) })
   return {
     providers: {
       catalog: () => rpc.providers.catalog(),
@@ -23,5 +24,19 @@ export function createApi(origin: string = window.location.origin): Api {
       chatgptStart: () => rpc.providers.chatgpt.start(),
       chatgptStatus: (attemptId) => rpc.providers.chatgpt.status({ attemptId }),
     },
+    profiles: {
+      list: () => rpc.profiles.list(),
+      create: (input) => rpc.profiles.create(input),
+    },
+    threads: {
+      list: (profileId) => rpc.threads.list({ profileId }),
+      messages: (input) => rpc.threads.messages(input),
+    },
+    runs: {
+      start: (input) => rpc.runs.start(input),
+      get: (id) => rpc.runs.get({ id }),
+      cancel: (id) => rpc.runs.cancel({ id }),
+    },
+    live: (queryClient) => createEventStore({ events: rpc.events, queryClient, utils }),
   }
 }

@@ -133,6 +133,24 @@
       color var(--dur-slow) var(--ease-out),
       box-shadow var(--dur-fast) var(--ease-out);
   }
+  /* A tool still working: a thin accent light runs along the card (DESIGN.md §7). */
+  .tool-shimmer {
+    background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
+    background-size: 40% 100%;
+    animation: faire-shimmer 1.3s linear infinite;
+  }
+  /* The soft caret at the end of streaming text. */
+  .stream-caret > div > :last-child::after {
+    content: "";
+    display: inline-block;
+    width: 0.5em;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    border-radius: 2px;
+    background: var(--accent);
+    animation: faire-breathe 1s ease-in-out infinite;
+  }
   .live-dot {
     width: 7px;
     height: 7px;
@@ -237,6 +255,14 @@
   transform: translateY(1.5px);
 }
 
+@keyframes faire-shimmer {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
 @keyframes faire-breathe {
   50% {
     opacity: 0.35;

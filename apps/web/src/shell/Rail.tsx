@@ -51,6 +51,7 @@ function SearchButton() {
  * aside, since the screen belongs to the conversation.
  */
 export function Rail() {
+  const { mascot } = useShell()
   return (
     <nav
       aria-label="Main"
@@ -60,7 +61,7 @@ export function Rail() {
       )}
     >
       <div className="mb-2.5 hidden size-12 place-items-center rounded-md bg-accent-softer md:grid">
-        <Beaver size={40} state="idle" />
+        <Beaver size={40} state={mascot} />
       </div>
       {MAIN_NAV.map((item) => (
         <RailLink key={item.to} item={item} />

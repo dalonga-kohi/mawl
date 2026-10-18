@@ -19,6 +19,9 @@ export function Shell() {
       <CommandPalette />
       <Toaster
         position="bottom-center"
+        // Above the composer and the phone tab bar, so a toast never covers what you type.
+        offset={96}
+        mobileOffset={136}
         toastOptions={{
           unstyled: true,
           classNames: {
