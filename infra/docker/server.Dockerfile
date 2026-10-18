@@ -27,7 +27,7 @@ WORKDIR /app
 # install exactly that package for this image's architecture. npm picks the matching glibc
 # `@anthropic-ai/claude-agent-sdk-linux-<arch>` binary package; `claude` on PATH is the same binary,
 # which makes `docker compose exec server claude auth login` work.
-RUN npm install --omit=dev --no-save --no-package-lock --no-audit --no-fund \
+RUN npm install --omit=dev --no-save --no-package-lock --no-audit --no-fund --ignore-scripts \
       @anthropic-ai/claude-agent-sdk@0.3.302 \
  && bin="$(find /app/node_modules/@anthropic-ai -maxdepth 2 -type f -name claude | head -n 1)" \
  && test -n "$bin" \

@@ -126,6 +126,10 @@ describe('infra/docker/server.Dockerfile', () => {
     expect(dockerfile).toContain('/usr/local/bin/claude')
   })
 
+  it('installs the runtime SDK without running lifecycle scripts', () => {
+    expect(dockerfile).toMatch(/npm install [^&]*--ignore-scripts/)
+  })
+
   it('keeps secrets and local state out of the build context', () => {
     const ignore = read('.dockerignore')
     for (const entry of ['.git', '.faire', '.env', '**/node_modules', '**/dist']) {
