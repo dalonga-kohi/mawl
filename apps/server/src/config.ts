@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 import { z } from 'zod'
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const
@@ -16,6 +17,10 @@ function isPostgresUrl(value: string): boolean {
     return false
   }
 }
+
+/** A path that does not depend on the server's working directory. */
+const absolutePath = () =>
+  z.string().min(1).refine(isAbsolute, { error: 'must be an absolute path' })
 
 /** A TCP port from a string env value. */
 const port = (defaultPort: number) =>
@@ -47,8 +52,8 @@ const EnvSchema = z.object({
   FAIRE_SIWC_BIND_HOST: optional(z.string().min(1).default('127.0.0.1')),
   // Claude subscription via the Claude Code binary. The config dir holds the owner's own
   // `claude auth login` (Faire never reads it); the path overrides the binary the SDK bundles.
-  FAIRE_CLAUDE_CONFIG_DIR: optional(z.string().min(1).optional()),
-  FAIRE_CLAUDE_CODE_PATH: optional(z.string().min(1).optional()),
+  FAIRE_CLAUDE_CONFIG_DIR: optional(absolutePath().optional()),
+  FAIRE_CLAUDE_CODE_PATH: optional(absolutePath().optional()),
   LOG_LEVEL: optional(
     z.enum(LOG_LEVELS, { error: `must be one of ${LOG_LEVELS.join(', ')}` }).default('info'),
   ),

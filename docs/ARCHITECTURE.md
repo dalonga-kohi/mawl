@@ -126,8 +126,8 @@ flowchart TB
     | `FAIRE_SECRETS_DIR` | `.faire/secrets` | holds `master.key` and `siwc-host-id` (compose: `/secrets`) |
     | `FAIRE_SIWC_PORT` | `1455` | loopback port of the Sign in with ChatGPT callback |
     | `FAIRE_SIWC_BIND_HOST` | `127.0.0.1` | bind address of that callback listener |
-    | `FAIRE_CLAUDE_CONFIG_DIR` | unset | optional; passed to the Claude Code binary as `CLAUDE_CONFIG_DIR`, where the owner's own `claude auth login` keeps its login (compose: a named volume) |
-    | `FAIRE_CLAUDE_CODE_PATH` | unset | optional; path of a Claude Code binary to use instead of the one the SDK bundles |
+    | `FAIRE_CLAUDE_CONFIG_DIR` | unset | optional, must be an absolute path; passed to the Claude Code binary as `CLAUDE_CONFIG_DIR`, where the owner's own `claude auth login` keeps its login (compose: a named volume) |
+    | `FAIRE_CLAUDE_CODE_PATH` | unset | optional, must be an absolute path; path of a Claude Code binary to use instead of the one the SDK bundles |
     | `LOG_LEVEL` | `info` | pino level |
 
   - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED`.

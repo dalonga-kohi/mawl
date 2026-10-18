@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
@@ -58,6 +59,30 @@ describe('parseConfig', () => {
     })
     expect(cfg.claudeConfigDir).toBeUndefined()
     expect(cfg.claudeCodePath).toBeUndefined()
+  })
+
+  it.each(['FAIRE_CLAUDE_CONFIG_DIR', 'FAIRE_CLAUDE_CODE_PATH'])(
+    'rejects a relative %s, names it and does not echo the value',
+    (name) => {
+      const run = () => parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, [name]: 'rel/secret-dir' })
+      expect(run).toThrow(ConfigError)
+      expect(run).toThrow(new RegExp(`${name}: must be an absolute path`))
+      expect(run).not.toThrow(/secret-dir/)
+    },
+  )
+
+  it('accepts absolute Claude paths and leaves them unset when absent', () => {
+    const abs = resolve('claude-abs')
+    const cfg = parseConfig({
+      DATABASE_URL: URL_WITH_PASSWORD,
+      FAIRE_CLAUDE_CONFIG_DIR: abs,
+      FAIRE_CLAUDE_CODE_PATH: abs,
+    })
+    expect(cfg.claudeConfigDir).toBe(abs)
+    expect(cfg.claudeCodePath).toBe(abs)
+    const none = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD })
+    expect(none.claudeConfigDir).toBeUndefined()
+    expect(none.claudeCodePath).toBeUndefined()
   })
 
   it('names the missing DATABASE_URL', () => {
