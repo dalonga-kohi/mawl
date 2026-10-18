@@ -169,6 +169,39 @@ describe('run engine end to end (real Postgres, Graphile Worker)', () => {
     await handle.close()
   }, 90_000)
 
+  it('runs.pause stops the job and runs.resume continues the run to success', async () => {
+    const { url, handle, profileId } = await seededDatabase()
+    const slow = fake([{ text: 'z'.repeat(400) }], 25)
+    const quick = fake([{ text: 'resumed and done' }])
+    let current = slow.resolved
+    const { client } = await boot(url, () => current)
+
+    const started = await client.runs.start({ profileId, prompt: 'pause me' })
+    await vi.waitFor(
+      async () => {
+        expect((await client.runs.get({ id: started.id })).status).toBe('running')
+        expect(slow.model.calls).toHaveLength(1)
+      },
+      { timeout: 30_000, interval: 50 },
+    )
+
+    expect((await client.runs.pause({ id: started.id })).status).toBe('paused')
+    current = quick.resolved
+    expect((await client.runs.resume({ id: started.id })).status).toBe('queued')
+
+    await vi.waitFor(
+      async () => {
+        expect((await client.runs.get({ id: started.id })).status).toBe('succeeded')
+      },
+      { timeout: 30_000, interval: 100 },
+    )
+    expect(quick.model.calls).toHaveLength(1)
+    const msgs = await client.threads.messages({ threadId: started.threadId as never })
+    expect(msgs.map((m) => m.role)).toEqual(['user', 'assistant'])
+    expect(msgs[1]?.parts).toEqual([{ type: 'text', text: 'resumed and done' }])
+    await handle.close()
+  }, 90_000)
+
   it('shutdown leaves a running run resumable and the next boot finishes it from its steps', async () => {
     const { url, handle, profileId } = await seededDatabase()
     const slow = fake([{ text: 'y'.repeat(400) }], 25)
