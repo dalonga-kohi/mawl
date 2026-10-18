@@ -1,28 +1,6 @@
-import { fakeModel, fixedClock } from '@faire/testkit'
 import { describe, expect, it } from 'vitest'
 import { executeRun } from './execute.ts'
-import { MemoryRunStore } from './test-util.ts'
-import type { ExecuteRunDeps, TextDelta } from './types.ts'
-
-const NOW = '2026-01-02T03:04:05.000Z'
-
-function setup(script: Parameters<typeof fakeModel>[0], over: Partial<ExecuteRunDeps> = {}) {
-  const store = new MemoryRunStore()
-  const runId = store.addRun()
-  const model = fakeModel(script, { chunkSize: 3 })
-  const clock = fixedClock(NOW)
-  const deltas: TextDelta[] = []
-  const deps: ExecuteRunDeps = {
-    runId,
-    store,
-    resolveModel: async () => model,
-    clock,
-    signal: new AbortController().signal,
-    onDelta: (d) => deltas.push(d),
-    ...over,
-  }
-  return { store, runId, model, clock, deltas, deps }
-}
+import { NOW, setup } from './test-util.ts'
 
 describe('executeRun: single step', () => {
   it('runs queued to succeeded, stores one assistant message and sums usage', async () => {

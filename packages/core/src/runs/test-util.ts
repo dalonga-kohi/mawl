@@ -7,14 +7,17 @@ import {
   type RunStatus,
   type Usage,
 } from '@faire/contracts'
+import { fakeModel, fixedClock } from '@faire/testkit'
 import type { ModelMessage } from 'ai'
 import type {
+  ExecuteRunDeps,
   NewStep,
   PersistedStep,
   ProfileRecord,
   RunContext,
   RunRecord,
   RunStore,
+  TextDelta,
   TransitionPatch,
 } from './types.ts'
 
@@ -139,4 +142,24 @@ export class MemoryRunStore implements RunStore {
     if (ok) this.thread.push({ role: 'assistant', text: result.text, runId })
     return ok
   }
+}
+
+export const NOW = '2026-01-02T03:04:05.000Z'
+
+export function setup(script: Parameters<typeof fakeModel>[0], over: Partial<ExecuteRunDeps> = {}) {
+  const store = new MemoryRunStore()
+  const runId = store.addRun()
+  const model = fakeModel(script, { chunkSize: 3 })
+  const clock = fixedClock(NOW)
+  const deltas: TextDelta[] = []
+  const deps: ExecuteRunDeps = {
+    runId,
+    store,
+    resolveModel: async () => model,
+    clock,
+    signal: new AbortController().signal,
+    onDelta: (d) => deltas.push(d),
+    ...over,
+  }
+  return { store, runId, model, clock, deltas, deps }
 }
