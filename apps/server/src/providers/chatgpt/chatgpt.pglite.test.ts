@@ -4,10 +4,9 @@ import { vector } from '@electric-sql/pglite-pgvector'
 import { ChatGptAttemptStatus, ProviderCredential } from '@faire/contracts'
 import { parseStoredCredential } from '@faire/core'
 import { migrationsFolder, schema } from '@faire/db'
-import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../../logger.ts'
 import { createSecretBox } from '../../secrets/index.ts'
 import { createProviderService, type ProviderService } from '../service.ts'
@@ -67,7 +66,7 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
     makeIdToken({
       iss: 'https://auth.openai.com',
       aud: CLIENT_ID,
-      exp: NOW / 1000 + 3600,
+      exp: NOW / 1000 + 7200,
       nonce,
       sub: 'sub-1',
       email: EMAIL,
@@ -292,6 +291,38 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
     expect(listeners.made[1]?.closed).toBe(false)
   })
 
+  it('does not cancel an attempt whose code exchange is running: a new start waits for it', async () => {
+    const { service } = await setup()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    respond = async (call) => {
+      if (call.url !== TOKEN_URL) return new Response('', { status: 200 })
+      await gate
+      return json(tokenBody({ id_token: idTokenFor(call) }))
+    }
+    const first = await service.startChatGptSignIn()
+    const q = new URL(first.authorizeUrl).searchParams
+    nonce = q.get('nonce') ?? ''
+    const delivered = listeners.last()?.callback({
+      code: 'the-code',
+      state: q.get('state') ?? '',
+      scope: ALL_SCOPES,
+      client_id: CLIENT_ID,
+    })
+    await vi.waitFor(() => expect(calls.some((c) => c.url === TOKEN_URL)).toBe(true))
+    const secondStart = service.startChatGptSignIn()
+    release()
+    await delivered
+    const second = await secondStart
+    // What the app is told matches what happened: the sign-in succeeded and is stored.
+    expect(service.chatGptSignInStatus(first.attemptId).status).toBe('succeeded')
+    expect(await service.list()).toHaveLength(1)
+    expect(service.chatGptSignInStatus(second.attemptId)).toEqual({ status: 'pending' })
+    expect(new URL(second.authorizeUrl).searchParams.get('client_id')).toBe(CLIENT_ID)
+  })
+
   it('expires an attempt after 10 minutes and closes its listener', async () => {
     const { service } = await setup()
     const { attemptId } = await service.startChatGptSignIn()
@@ -424,6 +455,46 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
       expect((await db.select().from(oauthClients)).map((c) => c.clientId)).toEqual([CLIENT_ID])
     })
 
+    it('a late terminal refresh error cannot wipe the tokens of a newer sign-in', async () => {
+      const { service, box, id } = await signedIn()
+      clock = NOW + 3600 * 1000
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const isRefresh = (c: Call) =>
+        c.url === TOKEN_URL && new URLSearchParams(c.body).get('grant_type') === 'refresh_token'
+      respond = async (call) => {
+        if (isRefresh(call)) {
+          await gate
+          return json({ error: 'invalid_grant' }, 400)
+        }
+        if (call.url === TOKEN_URL) {
+          return json(
+            tokenBody({
+              access_token: 'access-new',
+              refresh_token: 'refresh-new',
+              id_token: idTokenFor(call),
+            }),
+          )
+        }
+        return new Response('', { status: 200 })
+      }
+      const stale = service.test({ id })
+      await vi.waitFor(() => expect(calls.some(isRefresh)).toBe(true))
+      const reSignIn = signIn(service)
+      // Give a lock-less persist the chance to run first; the fixed code makes it wait.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      release()
+      await Promise.all([stale, reSignIn])
+      const [row] = await db.select().from(providerCredentials)
+      const blob = parseStoredCredential(
+        box.decrypt(row?.secretEnc as Uint8Array, `provider_credentials:${id}`),
+      )
+      expect(blob).toMatchObject({ accessToken: 'access-new', refreshToken: 'refresh-new' })
+      expect(row?.reauthRequired).toBe(false)
+    })
+
     it('createModel builds a Responses model that sends the stored bearer with store:false', async () => {
       const { service, id } = await signedIn()
       respond = () =>
@@ -503,7 +574,6 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
       for (const secret of ['access-token-AAAA', 'refresh-token-RRRR', EMAIL]) {
         expect(text).not.toContain(secret)
       }
-      void eq
     })
   })
 })

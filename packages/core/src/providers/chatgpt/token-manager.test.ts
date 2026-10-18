@@ -177,7 +177,7 @@ describe('token manager failures', () => {
     const err = await tokens.getAccessToken().catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ProviderFailureError)
     expect((err as ProviderFailureError).reason).toBe('reauth_required')
-    expect(store.log).toEqual(['clear'])
+    expect(store.log).toEqual([`clear:${REFRESH}`])
     expect(store.current).toMatchObject({
       clientId: CLIENT_ID,
       accessToken: null,

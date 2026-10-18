@@ -112,8 +112,9 @@ export function memoryStore(initial: StoredChatGptCredential) {
       log.push(`save:${next.refreshToken}`)
       current = next
     },
-    async clearTokens() {
-      log.push('clear')
+    async clearTokens(failedRefreshToken: string) {
+      log.push(`clear:${failedRefreshToken}`)
+      if (current.refreshToken !== failedRefreshToken) return
       current = { ...current, accessToken: null, refreshToken: null, idToken: null, expiresAt: 0 }
     },
   }

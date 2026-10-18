@@ -7,8 +7,11 @@ import { hasPlanUsage, type StoredChatGptCredential } from './stored.ts'
 export interface TokenStore {
   load(): Promise<StoredChatGptCredential>
   save(next: StoredChatGptCredential): Promise<void>
-  /** Drops access, refresh and id tokens; keeps the client id. */
-  clearTokens(): Promise<void>
+  /**
+   * Drops access, refresh and id tokens; keeps the client id. Only when the stored refresh token
+   * is still ailedRefreshToken: a newer sign-in must not be wiped by a late failure.
+   */
+  clearTokens(failedRefreshToken: string): Promise<void>
 }
 
 export interface TokenManagerOptions {
@@ -49,6 +52,16 @@ const queues = new Map<string, Promise<unknown>>()
  */
 const pending = new Map<string, StoredChatGptCredential>()
 const SAVE_ATTEMPTS = 3
+
+/** Runs job after every earlier job for this credential id (refreshes, sign-in writes). */
+export function withCredentialLock<T>(key: string, job: () => Promise<T>): Promise<T> {
+  return serialised(key, job)
+}
+
+/** Forgets an unsaved rotated credential, e.g. when the credential row is replaced or deleted. */
+export function discardPendingCredential(key: string): void {
+  pending.delete(key)
+}
 
 async function serialised<T>(key: string, job: () => Promise<T>): Promise<T> {
   const prev = queues.get(key) ?? Promise.resolve()
@@ -104,7 +117,7 @@ export function createTokenManager({
       if (!(err instanceof OAuthTokenError)) throw err
       if (TERMINAL.has(err.code)) {
         pending.delete(credentialId)
-        await store.clearTokens()
+        await store.clearTokens(current.refreshToken)
         throw new ProviderFailureError('reauth_required')
       }
       if (err.code === 'invalid_client') throw new ProviderFailureError('config_error')

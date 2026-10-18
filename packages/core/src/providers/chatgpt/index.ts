@@ -21,7 +21,9 @@ export {
 } from './stored.ts'
 export {
   createTokenManager,
+  discardPendingCredential,
   type TokenManager,
   type TokenManagerOptions,
   type TokenStore,
+  withCredentialLock,
 } from './token-manager.ts'

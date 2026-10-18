@@ -9,6 +9,7 @@ import {
   beginSignIn,
   completeSignIn,
   createTokenManager,
+  discardPendingCredential,
   hasPlanUsage,
   type IdTokenKeys,
   parseStoredCredential,
@@ -22,6 +23,7 @@ import {
   systemRandom,
   type TokenManager,
   type TokenStore,
+  withCredentialLock,
 } from '@faire/core'
 import { schema } from '@faire/db'
 import { and, desc, eq } from 'drizzle-orm'
@@ -90,6 +92,8 @@ interface Attempt {
   listener?: LoopbackListener
   cancelTimer?: () => void
   handled: boolean
+  /** Resolves when a handled callback has fully finished (exchange and save). */
+  settled?: Promise<void>
 }
 
 export function createChatGptAuth({
@@ -165,15 +169,19 @@ export function createChatGptAuth({
       .from(providerCredentials)
       .where(eq(providerCredentials.oauthClientId, result.clientId))
     if (existing) {
-      await db
-        .update(providerCredentials)
-        .set({
-          secretEnc: secretFor(existing.id),
-          accountEmail: result.accountEmail,
-          planUsage: result.planUsage,
-          reauthRequired: false,
-        })
-        .where(eq(providerCredentials.id, existing.id))
+      // Same queue as token refreshes, so a late refresh failure cannot overwrite these tokens.
+      await withCredentialLock(existing.id, async () => {
+        discardPendingCredential(existing.id)
+        await db
+          .update(providerCredentials)
+          .set({
+            secretEnc: secretFor(existing.id),
+            accountEmail: result.accountEmail,
+            planUsage: result.planUsage,
+            reauthRequired: false,
+          })
+          .where(eq(providerCredentials.id, existing.id))
+      })
       managers.delete(existing.id)
       return existing.id
     }
@@ -194,6 +202,10 @@ export function createChatGptAuth({
     if (attempt.handled || results.get(attempt.id)?.status !== 'pending') return
     attempt.handled = true
     attempt.cancelTimer?.()
+    let settle!: () => void
+    attempt.settled = new Promise<void>((resolve) => {
+      settle = resolve
+    })
     try {
       const result = await completeSignIn(attempt.sign, params, {
         fetch,
@@ -211,11 +223,15 @@ export function createChatGptAuth({
         'chatgpt sign-in crashed',
       )
       await finish(attempt, { status: 'failed', reason: 'exchange_failed' })
+    } finally {
+      settle()
     }
   }
 
   async function startNow(): Promise<ChatGptStartResult> {
     if (!options.hostId) throw new SignInUnavailableError('not_configured')
+    // An attempt that is already exchanging its code is not cancelled: it would still be saved.
+    if (current?.handled) await current.settled
     if (current) await finish(current, { status: 'failed', reason: 'cancelled' })
     const sign = beginSignIn({
       clientId: await savedClientId(),
@@ -288,8 +304,10 @@ export function createChatGptAuth({
     return {
       load: () => load(id),
       save: (next) => write(id, next, false),
-      async clearTokens() {
+      async clearTokens(failedRefreshToken) {
         const current = await load(id)
+        // A newer sign-in or refresh already replaced the token that failed: leave it alone.
+        if (current.refreshToken !== failedRefreshToken) return
         await write(
           id,
           { ...current, accessToken: null, refreshToken: null, idToken: null, expiresAt: 0 },
