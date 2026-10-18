@@ -495,6 +495,43 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
       expect(row?.reauthRequired).toBe(false)
     })
 
+    it('a rotated credential whose save failed is dropped when the owner signs in again', async () => {
+      const { service, box, id } = await signedIn()
+      clock = NOW + 3600 * 1000
+      respond = (call) => {
+        if (call.url !== TOKEN_URL) return new Response('', { status: 200 })
+        const grant = new URLSearchParams(call.body).get('grant_type')
+        return grant === 'refresh_token'
+          ? json(tokenBody({ access_token: 'access-2', refresh_token: 'refresh-2' }))
+          : json(
+              tokenBody({
+                access_token: 'access-new',
+                refresh_token: 'refresh-new',
+                id_token: idTokenFor(call),
+              }),
+            )
+      }
+      // The refresh succeeds at OpenAI but every save of the rotated tokens fails.
+      const realUpdate = db.update.bind(db)
+      let failing = true
+      db.update = ((table: Parameters<typeof realUpdate>[0]) => {
+        if (failing) throw new Error('db down')
+        return realUpdate(table)
+      }) as typeof db.update
+      await service.test({ id }).catch(() => {})
+      failing = false
+      await signIn(service)
+      calls.length = 0
+      expect((await service.test({ id })).ok).toBe(true)
+      // The stale rotation must not overwrite the newer sign-in, nor be used as the bearer.
+      expect(calls.map((c) => c.headers.get('authorization'))).toEqual(['Bearer access-new'])
+      const [row] = await db.select().from(providerCredentials)
+      const blob = parseStoredCredential(
+        box.decrypt(row?.secretEnc as Uint8Array, `provider_credentials:${id}`),
+      )
+      expect(blob).toMatchObject({ accessToken: 'access-new', refreshToken: 'refresh-new' })
+    })
+
     it('createModel builds a Responses model that sends the stored bearer with store:false', async () => {
       const { service, id } = await signedIn()
       respond = () =>
