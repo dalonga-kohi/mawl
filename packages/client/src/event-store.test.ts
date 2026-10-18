@@ -56,7 +56,7 @@ describe('event store', () => {
     store.stop()
   })
 
-  it('doubles the wait for each failed attempt and resets once a stream opens', async () => {
+  it('doubles the wait for each failed attempt and resets once an event arrives', async () => {
     const { store, streams, failNextSubscribe } = setup()
     store.start()
     await tick()
@@ -69,7 +69,9 @@ describe('event store', () => {
     expect(streams).toHaveLength(1)
     await tick(1)
     expect(streams).toHaveLength(2)
-    // The stream opened, so the next drop starts again at the base wait.
+    // An event arrived, so the next drop starts again at the base wait.
+    streams[1]?.push(wire('notify', { title: 't', body: 'b', level: 'info' }))
+    await tick()
     streams[1]?.end()
     await tick(1000)
     expect(streams).toHaveLength(3)
@@ -233,6 +235,58 @@ describe('event store', () => {
     store.start()
     await tick()
     expect(streams[1]?.input).toEqual({ topics: ['profile:*'], since: '5' })
+    store.stop()
+  })
+  it('keeps growing the wait while streams open and fail at once, without an event in between', async () => {
+    const { store, streams } = setup()
+    store.start()
+    await tick()
+    streams[0]?.fail(new Error('closed'))
+    await tick(1000)
+    expect(streams).toHaveLength(2)
+    streams[1]?.fail(new Error('closed'))
+    await tick(1999)
+    expect(streams).toHaveLength(2)
+    await tick(1)
+    expect(streams).toHaveLength(3)
+    streams[2]?.fail(new Error('closed'))
+    await tick(3999)
+    expect(streams).toHaveLength(3)
+    await tick(1)
+    expect(streams).toHaveLength(4)
+    store.stop()
+  })
+
+  it('invalidates after the new stream is attached, so nothing between refetch and attach is lost', async () => {
+    const { store, streams, queryClient } = setup()
+    const attachedAtInvalidate: number[] = []
+    vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(async () => {
+      attachedAtInvalidate.push(streams.length)
+    })
+    store.start()
+    await tick()
+    streams[0]?.fail(new ORPCError('RESYNC_REQUIRED', { status: 409 }))
+    await tick()
+    expect(streams).toHaveLength(2)
+    expect(attachedAtInvalidate).toEqual([2])
+    store.stop()
+  })
+
+  it('drops every run text buffer on RESYNC_REQUIRED and tells the subscribers', async () => {
+    const { store, streams } = setup()
+    let calls = 0
+    store.subscribeRunText(runId, () => void calls++)
+    store.start()
+    await tick()
+    streams[0]?.push(wire('run.delta', { text: 'half a reply', stepIdx: 0 }, { runId }))
+    streams[0]?.push(wire('run.delta', { text: 'x', stepIdx: 0 }, { runId: otherRun }))
+    await tick()
+    expect(calls).toBe(1)
+    streams[0]?.fail(new ORPCError('RESYNC_REQUIRED', { status: 409 }))
+    await tick()
+    expect(store.getRunText(runId)).toBe('')
+    expect(store.getRunText(otherRun)).toBe('')
+    expect(calls).toBe(2)
     store.stop()
   })
 })

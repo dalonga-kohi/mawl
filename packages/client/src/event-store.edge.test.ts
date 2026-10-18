@@ -130,10 +130,11 @@ describe('event store edge cases', () => {
     await tick()
     failNextSubscribe(new ORPCError('RESYNC_REQUIRED', { status: 409 }))
     await tick(1000)
-    expect(invalidate).toHaveBeenCalledWith()
     expect(store.cursor).toBeUndefined()
     await tick(1000)
     expect(streams).toHaveLength(2)
+    // The refetch waits for the stream that replaces the failed one (see the ordering test).
+    expect(invalidate).toHaveBeenCalledWith()
     expect(streams[1]?.input).toEqual({ topics: ['profile:*'] })
     store.stop()
   })

@@ -198,15 +198,22 @@ export function createEventStore(options: EventStoreOptions): EventStore {
   async function run(signal: AbortSignal): Promise<void> {
     let attempt = 0
     let resyncs = 0
+    let refetchOnOpen = false
     while (!signal.aborted) {
       let delay: number | undefined
       try {
         await readStream(signal, {
           open() {
-            attempt = 0
             setStatus('live')
+            // Only now can no event slip between the refetch and the stream.
+            if (refetchOnOpen) {
+              refetchOnOpen = false
+              void queryClient.invalidateQueries()
+            }
           },
           item: () => {
+            // The stream proved healthy by delivering something, not by opening.
+            attempt = 0
             resyncs = 0
           },
         })
@@ -215,7 +222,11 @@ export function createEventStore(options: EventStoreOptions): EventStore {
         if (isResync(err)) {
           // Missed events cannot be replayed: refetch everything and follow the stream from now.
           cursor = undefined
-          void queryClient.invalidateQueries()
+          refetchOnOpen = true
+          // Text from before the gap cannot be continued.
+          const ids = [...runText.keys()]
+          runText.clear()
+          for (const id of ids) notifyText(id)
           const n = resyncs++
           delay = n === 0 ? 0 : backoff(n - 1, random)
         } else {
