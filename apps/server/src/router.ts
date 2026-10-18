@@ -22,7 +22,7 @@ export interface RouterDeps {
   version: string
   providers: ProviderService
   runs: RunService
-  /** Without it vents.subscribe stays a 501 stub (unit tests that never stream). */
+  /** Without it events.subscribe stays a 501 stub (unit tests that never stream). */
   events?: EventsService
 }
 

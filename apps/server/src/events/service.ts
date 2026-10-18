@@ -6,10 +6,10 @@ export const DEFAULT_MAX_QUEUE = 1000
 export const DEFAULT_MAX_PER_CONNECTION = 20
 export const DEFAULT_REPLAY_PAGE_SIZE = 500
 
-/** The subscriber fell too far behind. The client resubscribes from its last `since`. */
+/** The subscriber fell too far behind. The client invalidates its caches and resubscribes without `since`. */
 export class ResyncRequiredError extends Error {
   constructor() {
-    super('Event stream overflowed; resubscribe with since')
+    super('Event stream overflowed; invalidate caches and resubscribe without since')
     this.name = 'ResyncRequiredError'
   }
 }

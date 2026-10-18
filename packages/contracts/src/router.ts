@@ -25,7 +25,7 @@ import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
 import { ApprovalId, CredentialId, DeviceId, MessageId, ProfileId, RunId, ThreadId } from './ids'
 
-/** Most topics one vents.subscribe call may name. */
+/** Most topics one events.subscribe call may name. */
 export const MAX_TOPICS = 50
 
 const NotFound = { status: 404, data: z.object({ entity: z.string(), id: z.string() }) }
@@ -175,7 +175,7 @@ export const contract = {
      */
     subscribe: base
       .errors({
-        /** The stream cannot continue (a slow consumer overflowed): subscribe again from your last since. */
+        /** The stream cannot continue (a slow consumer overflowed): invalidate cached data and subscribe again without `since` (live only). */
         RESYNC_REQUIRED: { status: 409 },
         /** One connection already holds the maximum number of concurrent subscriptions. */
         TOO_MANY_SUBSCRIPTIONS: { status: 429 },
