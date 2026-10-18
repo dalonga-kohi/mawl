@@ -10,22 +10,23 @@ Faire runs as two containers: the server (which also serves the web app) and Pos
 
 ## First start
 
-All commands run from the repo root. In PowerShell use the same commands.
+All commands run from the repo root. The `docker compose` commands are the same in bash and PowerShell; only the password step differs.
 
-1. Create the settings file and set a database password:
-
-   ```bash
-   cp infra/compose/.env.example infra/compose/.env
-   ```
-
-   Open `infra/compose/.env` and put a random value after `FAIRE_DB_PASSWORD=`. Use letters and digits only, because it becomes part of a URL.
+1. Create `infra/compose/.env` with a random database password. One command per shell:
 
    ```bash
-   openssl rand -hex 24                                                        # bash
-   [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower()   # PowerShell
+   # bash (macOS, Linux, Git Bash, WSL)
+   printf 'FAIRE_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > infra/compose/.env
    ```
 
-   `.env` is ignored by git. Compose refuses to start without the password.
+   ```powershell
+   # PowerShell 7 or Windows PowerShell 5.1: 48 hex characters, UTF-8 without a byte-order mark
+   $pw = [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower(); [System.IO.File]::WriteAllText((Join-Path $PWD 'infra/compose/.env'), "FAIRE_DB_PASSWORD=$pw`n", [System.Text.UTF8Encoding]::new($false))
+   ```
+
+   Hex keeps the password to letters and digits, which matters because it becomes part of a URL. `.env` is ignored by git, and compose refuses to start without the password.
+
+   These commands overwrite an existing `.env`. If the database already exists, keep its old password (see Data and reset). To add optional settings, edit the file by hand; `infra/compose/.env.example` lists every setting.
 
 2. Build and start:
 
@@ -98,6 +99,7 @@ To wipe everything and start from nothing, run `docker compose -f infra/compose/
 
 ## Troubleshooting
 
+- Port 7420 or 1455 is already in use (compose reports `ports are not available` or `address already in use`): stop the program that holds the port, then run `up -d` again. To find it, run `lsof -i :7420` in bash, or in PowerShell `Get-NetTCPConnection -LocalPort 7420,1455 -State Listen | Select-Object LocalPort, OwningProcess` and then `Get-Process -Id <OwningProcess>`. Do not move the ports in the compose file: the ChatGPT sign-in redirect only works on 1455.
 - `set FAIRE_DB_PASSWORD in infra/compose/.env`: step 1 was skipped, or the file is not in `infra/compose/`.
 - The page does not load: run `docker compose -f infra/compose/docker-compose.yml ps` and `logs server`. A server that keeps restarting prints one `boot failed` line with the reason.
 - "Host not allowed" or a blocked WebSocket from another address: add that address to `FAIRE_ALLOWED_ORIGINS`. Reaching the server from other computers is not supported yet, because there is no device sign-in (planned in P6.1).
