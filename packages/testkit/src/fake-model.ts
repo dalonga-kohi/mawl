@@ -159,6 +159,37 @@ function partsStream(
 }
 
 /**
+ * A model whose every call is answered by `respond(callOptions)`, so it never runs out of turns
+ * (unlike `fakeModel`, which has a fixed script). Each call is delegated to a one-turn
+ * `fakeModel`, so streaming, chunking and abort handling are identical. For dev servers and
+ * browser e2e, where the number of calls is not known up front.
+ */
+export function fakeModelFrom(
+  respond: (options: CallOptions) => Turn,
+  opts: FakeModelOptions = {},
+): FakeModel {
+  const calls: RecordedCall[] = []
+  const record = (kind: RecordedCall['kind'], options: CallOptions) =>
+    calls.push({ kind, prompt: options.prompt, tools: options.tools, options })
+  const model = new MockLanguageModelV4({
+    provider: opts.provider ?? 'faire-fake',
+    modelId: opts.modelId ?? 'fake-model',
+    doGenerate: async (options) => {
+      record('generate', options)
+      return fakeModel([respond(options)], opts).doGenerate(options)
+    },
+    doStream: async (options) => {
+      record('stream', options)
+      return fakeModel([respond(options)], opts).doStream(options)
+    },
+  })
+  return Object.defineProperties(model, {
+    calls: { value: calls, enumerable: true },
+    remaining: { value: Number.POSITIVE_INFINITY, enumerable: true },
+  }) as FakeModel
+}
+
+/**
  * A deterministic, scripted language model for the AI SDK (spec v4).
  * Each `Turn` answers exactly one model call, from either `doGenerate` or `doStream`,
  * in order. Tool call ids are `call_1`, `call_2`, ... across the whole script.

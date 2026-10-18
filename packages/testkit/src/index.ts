@@ -7,7 +7,7 @@ export type {
   Turn,
   TurnUsage,
 } from './fake-model'
-export { fakeModel } from './fake-model'
+export { fakeModel, fakeModelFrom } from './fake-model'
 export type { FixedClock } from './fixtures'
 export { fixedClock, seededRandom, seq } from './fixtures'
 export type { PostgresHandle, WithPostgresOptions } from './postgres'
