@@ -1,10 +1,14 @@
-/** Typography tokens from docs/DESIGN.md §4. Font files are loaded by the apps, not here. */
+/**
+ * Typography tokens from docs/DESIGN.md §4. Font files are loaded by the apps, not here: the web app
+ * self-hosts them through @fontsource-variable, which registers each face as "<Family> Variable".
+ */
 
 export const fontFamilies = {
-  ui: "'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif",
+  ui: "'Figtree Variable', 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif",
   /** Onboarding headlines, empty-state lines and the wordmark only. */
-  display: "'Bricolage Grotesque', 'Figtree', system-ui, sans-serif",
-  mono: "'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace",
+  display:
+    "'Bricolage Grotesque Variable', 'Bricolage Grotesque', 'Figtree Variable', system-ui, sans-serif",
+  mono: "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace",
 } as const
 
 /** size in rem (16 px base), unitless line-height, numeric font-weight. */

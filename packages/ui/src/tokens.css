@@ -78,9 +78,9 @@
   --fs-micro: 0.75rem;
   --lh-micro: 1.35;
   --fw-micro: 550;
-  --ff-ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --ff-display: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
-  --ff-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --ff-ui: 'Figtree Variable', 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ff-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', 'Figtree Variable', system-ui, sans-serif;
+  --ff-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
