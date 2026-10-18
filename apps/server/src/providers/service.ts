@@ -57,6 +57,8 @@ export interface ClaudeCodeOptions
     'configDir' | 'pathToClaudeCodeExecutable' | 'run' | 'resolveBinary'
   > {
   query?: ClaudeQueryFn
+  /** The login check the model runs before a query. Tests inject it so the binary never spawns. */
+  checkLogin?: () => Promise<ProviderTestResult>
 }
 
 export type TestTarget = { id: CredentialId } | ProviderCredentialInput

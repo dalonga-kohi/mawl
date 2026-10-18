@@ -110,7 +110,7 @@ describe('Claude subscription provider on the server (PGlite)', () => {
     const service = await makeService({
       configDir: '/data/claude',
       pathToClaudeCodeExecutable: '/opt/claude',
-      run: async () => ({ stdout: status() }),
+      checkLogin: async () => ({ ok: true, latencyMs: 1 }),
       query: (params) => {
         seen.push({ prompt: params.prompt, env: params.options.env })
         return (async function* () {
