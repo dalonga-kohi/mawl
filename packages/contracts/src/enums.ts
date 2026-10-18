@@ -70,6 +70,20 @@ export const ProviderFailureReason = z.enum([
 ])
 export type ProviderFailureReason = z.infer<typeof ProviderFailureReason>
 
+/**
+ * Why a run ended `failed`, as a closed set the app can explain. Every provider failure reason
+ * plus the engine's own. Exception and provider text is never stored: it can echo credentials.
+ */
+export const RunErrorCode = z.enum([
+  ...ProviderFailureReason.options,
+  'model_not_configured',
+  'budget_steps',
+  'budget_tokens',
+  'budget_wall_clock',
+  'internal_error',
+])
+export type RunErrorCode = z.infer<typeof RunErrorCode>
+
 export const ThemePref = z.enum(['system', 'light', 'dark'])
 export type ThemePref = z.infer<typeof ThemePref>
 

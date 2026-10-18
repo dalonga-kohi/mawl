@@ -6,6 +6,7 @@ import {
   MessageRole,
   PolicyLevel,
   ProviderKind,
+  RunErrorCode,
   RunStatus,
   RunTrigger,
   StepKind,
@@ -316,7 +317,7 @@ export const Run = z.object({
   segmentNo: z.number().int().nonnegative(),
   startedAt: Timestamp.nullable(),
   endedAt: Timestamp.nullable(),
-  error: z.string().nullable(),
+  error: RunErrorCode.nullable(),
 })
 export type Run = z.infer<typeof Run>
 

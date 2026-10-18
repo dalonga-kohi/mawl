@@ -12,7 +12,7 @@ export const profile = {
   slug: 'ada',
   color: '#3b82f6',
   personaMd: 'You are Ada.',
-  modelMain: 'anthropic:claude-sonnet',
+  modelMain: `${id('cred')}:claude-sonnet`,
   modelHelper: null,
   heartbeatCron: null,
   createdAt: TS,

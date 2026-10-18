@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Approval, Origin, Timestamp, Usage } from './entities'
-import { ActionClass, ApprovalStatus, RunStatus, StepKind } from './enums'
+import { ActionClass, ApprovalStatus, RunErrorCode, RunStatus, StepKind } from './enums'
 import {
   ApprovalId,
   ArtifactId,
@@ -22,7 +22,7 @@ export const EVENT_PAYLOADS = {
   'run.status': z.object({
     status: RunStatus,
     prevStatus: RunStatus.optional(),
-    error: z.string().optional(),
+    error: RunErrorCode.optional(),
   }),
   'run.delta': z.object({ text: z.string(), stepIdx: z.number().int().nonnegative().optional() }),
   'run.tool_call': z.object({
