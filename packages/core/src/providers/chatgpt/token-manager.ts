@@ -42,6 +42,14 @@ const TERMINAL = new Set([
 /** Per credential id, so every manager for one credential shares a single queue. */
 const queues = new Map<string, Promise<unknown>>()
 
+/**
+ * Rotated credentials whose save failed. The old refresh token is already spent at OpenAI, so
+ * this copy is the only valid one: it is used and re-saved first. A hard crash while an entry is
+ * here loses the rotation, and the owner has to sign in again.
+ */
+const pending = new Map<string, StoredChatGptCredential>()
+const SAVE_ATTEMPTS = 3
+
 async function serialised<T>(key: string, job: () => Promise<T>): Promise<T> {
   const prev = queues.get(key) ?? Promise.resolve()
   const run = prev.then(job)
@@ -63,6 +71,26 @@ export function createTokenManager({
   fetch,
   now,
 }: TokenManagerOptions): TokenManager {
+  /** The freshest credential: a rotated one still waiting to be saved wins over the store. */
+  async function latest(): Promise<StoredChatGptCredential> {
+    const waiting = pending.get(credentialId)
+    if (!waiting) return store.load()
+    if (await trySave(waiting)) pending.delete(credentialId)
+    return waiting
+  }
+
+  async function trySave(next: StoredChatGptCredential, attempts = 1): Promise<boolean> {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await store.save(next)
+        return true
+      } catch {
+        // Retried now and again before the next use.
+      }
+    }
+    return false
+  }
+
   async function refresh(current: StoredChatGptCredential): Promise<string> {
     if (!current.refreshToken) throw new ProviderFailureError('reauth_required')
     let grant: Awaited<ReturnType<typeof refreshGrant>>
@@ -75,6 +103,7 @@ export function createTokenManager({
     } catch (err) {
       if (!(err instanceof OAuthTokenError)) throw err
       if (TERMINAL.has(err.code)) {
+        pending.delete(credentialId)
         await store.clearTokens()
         throw new ProviderFailureError('reauth_required')
       }
@@ -92,7 +121,8 @@ export function createTokenManager({
       expiresAt: now() + grant.expiresIn * 1000,
       scope: grant.scope ?? current.scope,
     }
-    await store.save(next)
+    pending.set(credentialId, next)
+    if (await trySave(next, SAVE_ATTEMPTS)) pending.delete(credentialId)
     if (!hasPlanUsage(next.scope)) throw new ProviderFailureError('plan_usage_disabled')
     return grant.accessToken
   }
@@ -100,7 +130,7 @@ export function createTokenManager({
   return {
     getAccessToken() {
       return serialised(credentialId, async () => {
-        const current = await store.load()
+        const current = await latest()
         if (!current.refreshToken && !current.accessToken) {
           throw new ProviderFailureError('reauth_required')
         }
@@ -114,7 +144,7 @@ export function createTokenManager({
 
     refreshAfterRejection(rejected) {
       return serialised(credentialId, async () => {
-        const current = await store.load()
+        const current = await latest()
         if (current.accessToken && current.accessToken !== rejected) return current.accessToken
         return refresh(current)
       })

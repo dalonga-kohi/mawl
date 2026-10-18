@@ -125,6 +125,45 @@ describe('token manager rotation', () => {
   })
 })
 
+describe('token manager when saving the rotated token fails', () => {
+  function failingSaves(failures: number, id: string) {
+    const made = setup({ expiresAt: NOW }, undefined, id)
+    const realSave = made.store.save.bind(made.store)
+    let attempts = 0
+    made.store.save = async (next) => {
+      attempts++
+      if (attempts <= failures) throw new Error('db down')
+      await realSave(next)
+    }
+    return { ...made, attempts: () => attempts }
+  }
+
+  it('retries the save immediately and still hands out the new access token', async () => {
+    const { tokens, store, attempts } = failingSaves(2, 'cred_retry')
+    expect(await tokens.getAccessToken()).toBe('new-access')
+    expect(attempts()).toBe(3)
+    expect(store.current.refreshToken).toBe('new-refresh')
+  })
+
+  it('keeps the rotated credential in memory and saves it before the next use, without a second refresh', async () => {
+    const { tokens, store, net, attempts } = failingSaves(3, 'cred_pending')
+    expect(await tokens.getAccessToken()).toBe('new-access')
+    expect(attempts()).toBe(3)
+    expect(store.current.refreshToken).toBe(REFRESH)
+    expect(await tokens.getAccessToken()).toBe('new-access')
+    expect(attempts()).toBe(4)
+    expect(store.current.refreshToken).toBe('new-refresh')
+    expect(net.calls).toHaveLength(1)
+  })
+
+  it('refreshes with the rotated token, not the stale stored one, while the save keeps failing', async () => {
+    const { tokens, net } = failingSaves(100, 'cred_stale')
+    await tokens.getAccessToken()
+    await tokens.refreshAfterRejection('new-access')
+    expect(new URLSearchParams(net.calls[1]?.body).get('refresh_token')).toBe('new-refresh')
+  })
+})
+
 describe('token manager failures', () => {
   it.each([
     'invalid_grant',
