@@ -1,5 +1,7 @@
 pub mod deep_link;
 
+use std::sync::Mutex;
+
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -10,6 +12,16 @@ use tauri_plugin_deep_link::DeepLinkExt;
 const MAIN_WINDOW: &str = "main";
 /// The web app listens for this event and routes to the path in the payload.
 const NAVIGATE_EVENT: &str = "faire://navigate";
+
+/// The in-app path of a link that launched the app. The window cannot listen yet at that point,
+/// so the web app asks for it once after it has registered its listener.
+#[derive(Default)]
+struct PendingNavigation(Mutex<Option<String>>);
+
+#[tauri::command]
+fn take_pending_navigation(state: tauri::State<PendingNavigation>) -> Option<String> {
+    state.0.lock().ok()?.take()
+}
 
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
@@ -38,10 +50,23 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(PendingNavigation::default())
+        .invoke_handler(tauri::generate_handler![take_pending_navigation])
         .setup(|app| {
             // Registers the scheme at runtime, so links work from `tauri dev` without an installer.
             #[cfg(any(windows, target_os = "linux"))]
             app.deep_link().register_all()?;
+
+            if let Some(urls) = app.deep_link().get_current()? {
+                let launch_path = urls
+                    .iter()
+                    .find_map(|u| deep_link::parse_deep_link(u.as_str()));
+                if let (Some(path), Ok(mut slot)) =
+                    (launch_path, app.state::<PendingNavigation>().0.lock())
+                {
+                    *slot = Some(path);
+                }
+            }
 
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
