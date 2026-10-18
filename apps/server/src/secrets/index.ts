@@ -1,3 +1,4 @@
+export { HOST_ID_FILE, HostIdError, loadOrCreateHostId } from './host-id.ts'
 export type { MasterKeyOptions } from './master-key.ts'
 export { loadOrCreateMasterKey, MASTER_KEY_FILE, MasterKeyError } from './master-key.ts'
 export type { SecretBox } from './secret-box.ts'

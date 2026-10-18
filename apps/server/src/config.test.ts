@@ -10,6 +10,8 @@ describe('parseConfig', () => {
       host: '127.0.0.1',
       port: 7420,
       secretsDir: '.faire/secrets',
+      siwcPort: 1455,
+      siwcHost: '127.0.0.1',
       logLevel: 'info',
     })
   })
@@ -21,6 +23,8 @@ describe('parseConfig', () => {
         FAIRE_HOST: '0.0.0.0',
         FAIRE_PORT: '8080',
         FAIRE_SECRETS_DIR: '/secrets',
+        FAIRE_SIWC_PORT: '1456',
+        FAIRE_SIWC_BIND_HOST: '0.0.0.0',
         LOG_LEVEL: 'debug',
       }),
     ).toEqual({
@@ -28,6 +32,8 @@ describe('parseConfig', () => {
       host: '0.0.0.0',
       port: 8080,
       secretsDir: '/secrets',
+      siwcPort: 1456,
+      siwcHost: '0.0.0.0',
       logLevel: 'debug',
     })
   })
@@ -47,6 +53,9 @@ describe('parseConfig', () => {
     ['FAIRE_PORT', '99999'],
     ['FAIRE_PORT', 'abc'],
     ['FAIRE_PORT', '0'],
+    ['FAIRE_SIWC_PORT', '0'],
+    ['FAIRE_SIWC_PORT', '70000'],
+    ['FAIRE_SIWC_PORT', 'abc'],
     ['LOG_LEVEL', 'loud'],
   ])('rejects %s=%s and names the variable', (name, value) => {
     expect(() => parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, [name]: value })).toThrow(
