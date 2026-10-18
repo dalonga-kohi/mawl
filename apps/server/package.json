@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "e2e:serve": "tsx src/e2e/serve.ts",
     "build": "node src/build.ts",
     "start": "node dist/server.mjs",
     "typecheck": "tsc --noEmit -p .",
