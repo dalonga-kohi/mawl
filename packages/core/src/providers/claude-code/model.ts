@@ -212,7 +212,9 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
   async function requireLogin(signal: AbortSignal | undefined): Promise<void> {
     const loginKey = loginKeyNow()
     const okAt = loginOk.get(loginKey)
-    if (okAt !== undefined && now() - okAt < LOGIN_CHECK_TTL_MS) return
+    // Fresh only inside the window; a clock that stepped back is not trusted.
+    const age = okAt === undefined ? undefined : now() - okAt
+    if (age !== undefined && age >= 0 && age < LOGIN_CHECK_TTL_MS) return
     let pending = loginInFlight.get(loginKey)
     if (!pending) {
       // `then` also catches a check that throws before it returns a promise.

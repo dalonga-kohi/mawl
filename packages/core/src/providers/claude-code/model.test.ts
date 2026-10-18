@@ -546,6 +546,16 @@ describe('Claude Code language model: login check', () => {
     expect(checkLogin).toHaveBeenCalledTimes(2)
   })
 
+  it('checks again when the clock steps backwards past the cached time', async () => {
+    let t = 10_000_000
+    const checkLogin = vi.fn(okLogin)
+    const make = () => model(fakeQuery(happy()), { checkLogin, now: () => t })
+    await make().doGenerate(userPrompt('hi'))
+    t -= 1
+    await make().doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+  })
+
   it('does not cache a failure', async () => {
     const checkLogin = vi
       .fn<() => Promise<ProviderTestResult>>()
