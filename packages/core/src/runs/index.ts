@@ -1,3 +1,5 @@
+import type { ModelMessage } from 'ai'
+
 export { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'
 export { addUsage, executeRun, finalText } from './execute.ts'
 export type {
@@ -16,3 +18,5 @@ export type {
   TransitionPatch,
 } from './types.ts'
 export { ABORT_SHUTDOWN, DEFAULT_RUN_BUDGET } from './types.ts'
+
+export type { ModelMessage }

@@ -6,6 +6,7 @@ import type {
   MessagePart,
   ProfileId,
   RunBudget,
+  RunErrorCode,
   RunId,
   StepId,
   ThreadId,
@@ -172,7 +173,7 @@ export const runs = pgTable(
     createdAt: createdAt(),
     startedAt: ts('started_at'),
     endedAt: ts('ended_at'),
-    error: text('error'),
+    error: text('error').$type<RunErrorCode>(),
   },
   (t) => [
     check('runs_segment_no_check', sql`${t.segmentNo} >= 0`),
