@@ -43,7 +43,11 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
       return u.toString()
     }
 
-    async function boot(databaseUrl: string, model: () => ResolvedModel) {
+    async function boot(
+      databaseUrl: string,
+      model: () => ResolvedModel | Promise<ResolvedModel>,
+      logger = createLogger({ level: 'silent' }),
+    ) {
       const server = await startServer(
         {
           databaseUrl,
@@ -54,7 +58,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
           siwcHost: '127.0.0.1',
           logLevel: 'silent',
         },
-        { logger: createLogger({ level: 'silent' }), resolveModel: async () => model() },
+        { logger, resolveModel: async () => model() },
       )
       servers.push(server)
       const client: Client = createORPCClient(new RPCLink({ url: `${server.url}/rpc` }))
@@ -199,6 +203,62 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
       const msgs = await client.threads.messages({ threadId: started.threadId as never })
       expect(msgs.map((m) => m.role)).toEqual(['user', 'assistant'])
       expect(msgs[1]?.parts).toEqual([{ type: 'text', text: 'resumed and done' }])
+      await handle.close()
+    }, 90_000)
+
+    it('a quick pause then resume still finishes: the new job waits for the old execution to unwind', async () => {
+      const { url, handle, profileId } = await seededDatabase()
+      const slow = fake([{ text: 'never used' }])
+      const quick = fake([{ text: 'finished after the quick resume' }])
+      // The first execution is parked inside model lookup, so pause cannot unwind it until the
+      // gate opens. That is the window in which resume's new job meets the old registration.
+      let open!: () => void
+      const gate = new Promise<void>((resolve) => {
+        open = resolve
+      })
+      let lookups = 0
+      const lines: string[] = []
+      const logger = createLogger({
+        level: 'debug',
+        stream: { write: (chunk: string) => void lines.push(chunk) },
+      })
+      const { client } = await boot(
+        url,
+        async () => {
+          if (++lookups > 1) return quick.resolved
+          await gate
+          return slow.resolved
+        },
+        logger,
+      )
+
+      const started = await client.runs.start({ profileId, prompt: 'pause and resume fast' })
+      await vi.waitFor(
+        async () => {
+          expect((await client.runs.get({ id: started.id })).status).toBe('running')
+          expect(lookups).toBe(1)
+        },
+        { timeout: 30_000, interval: 50 },
+      )
+
+      await client.runs.pause({ id: started.id })
+      await client.runs.resume({ id: started.id })
+
+      // The second job finds the first still registered and asks for a later retry.
+      await vi.waitFor(() => expect(lines.join('')).toContain('still unwinding'), {
+        timeout: 30_000,
+        interval: 50,
+      })
+      open()
+
+      await vi.waitFor(
+        async () => {
+          expect((await client.runs.get({ id: started.id })).status).toBe('succeeded')
+        },
+        { timeout: 30_000, interval: 100 },
+      )
+      expect(quick.model.calls).toHaveLength(1)
+      expect(slow.model.calls).toHaveLength(0)
       await handle.close()
     }, 90_000)
 

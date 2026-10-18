@@ -21,8 +21,73 @@ const { runs } = schema
 export const RUN_TASK = 'run.execute'
 const JOB_MAX_ATTEMPTS = 5
 const CONCURRENCY = 4
+/** A job that finds its run still unwinding in this process tries again this long after. */
+const REQUEUE_DELAY_MS = 1000
+/** Bound on those retries (about 30 s); after that boot recovery is the safety net. */
+export const MAX_REQUEUES = 30
 
-const Payload = z.strictObject({ runId: RunId })
+/** `retry` counts how often this job was re-queued because the previous execution was still unwinding. */
+const Payload = z.strictObject({ runId: RunId, retry: z.number().int().nonnegative().optional() })
+
+export interface RunTaskDeps {
+  db: ProvidersDb
+  logger: Logger
+  registry: RunRegistry
+  resolveModel(run: RunRecord, profile: ProfileRecord): Promise<ResolvedModel>
+  clock?: Clock
+  /** Queues the job again for later (see MAX_REQUEUES). */
+  requeue(runId: RunId, retry: number): Promise<void>
+}
+
+/** The `run.execute` job handler. Throws only on infrastructure errors, so Graphile retries those. */
+export function createRunTask(deps: RunTaskDeps) {
+  const { logger, registry } = deps
+  const clock = deps.clock ?? { now: () => new Date() }
+  const store = createRunStore(deps.db)
+
+  return async (payload: unknown, helpers: { abortSignal: AbortSignal }): Promise<void> => {
+    const parsed = Payload.safeParse(payload)
+    if (!parsed.success) {
+      // A malformed job can never succeed: log and drop it instead of retrying it.
+      logger.error({ task: RUN_TASK }, 'run job has an invalid payload')
+      return
+    }
+    const { runId, retry = 0 } = parsed.data
+    const controller = registry.register(runId)
+    if (!controller) {
+      // The previous execution is still winding down (pause, then a quick resume). Dropping this
+      // job would strand the run in `queued`, so ask for another one a moment later.
+      if (retry >= MAX_REQUEUES) {
+        logger.warn(
+          { runId },
+          'run still unwinding after the requeue limit; boot recovery will pick it up',
+        )
+        return
+      }
+      logger.debug({ runId, retry }, 'run is still unwinding in this process, requeueing')
+      await deps.requeue(runId, retry + 1)
+      return
+    }
+    const onAbort = () => controller.abort(ABORT_SHUTDOWN)
+    helpers.abortSignal.addEventListener('abort', onAbort, { once: true })
+    // The abort may have fired before the listener existed.
+    if (helpers.abortSignal.aborted) onAbort()
+    try {
+      const result = await executeRun({
+        runId,
+        store,
+        clock,
+        signal: controller.signal,
+        resolveModel: deps.resolveModel,
+        onFailure: ({ code, errName }) => logger.warn({ runId, code, errName }, 'run failed'),
+      })
+      logger.info({ runId, outcome: result.outcome }, 'run job finished')
+    } finally {
+      helpers.abortSignal.removeEventListener('abort', onAbort)
+      registry.release(runId, controller)
+    }
+  }
+}
 
 export interface RunWorkerDeps {
   pool: DbHandle['pool']
@@ -32,6 +97,8 @@ export interface RunWorkerDeps {
   resolveModel(run: RunRecord, profile: ProfileRecord): Promise<ResolvedModel>
   clock?: Clock
   concurrency?: number
+  /** Delay before a requeued job runs again. Tests shorten it. */
+  requeueDelayMs?: number
 }
 
 export interface RunWorker {
@@ -57,11 +124,15 @@ function graphileLogger(logger: Logger): GraphileLogger {
  */
 export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
   const { pool, db, logger, registry } = deps
-  const clock = deps.clock ?? { now: () => new Date() }
-  const store = createRunStore(db)
   const log = graphileLogger(logger)
 
   await runMigrations({ pgPool: pool, logger: log })
+
+  // Assigned right after `run()` returns; the task only runs after that.
+  let addJob: (payload: { runId: RunId; retry?: number }, runAt?: Date) => Promise<void> =
+    async () => {
+      throw new Error('run worker is not started')
+    }
 
   const runner = await run({
     pgPool: pool,
@@ -69,42 +140,28 @@ export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
     concurrency: deps.concurrency ?? CONCURRENCY,
     noHandleSignals: true,
     taskList: {
-      [RUN_TASK]: async (payload, helpers) => {
-        const parsed = Payload.safeParse(payload)
-        if (!parsed.success) {
-          // A malformed job can never succeed: log and drop it instead of retrying it.
-          logger.error({ task: RUN_TASK }, 'run job has an invalid payload')
-          return
-        }
-        const { runId } = parsed.data
-        const controller = registry.register(runId)
-        if (!controller) {
-          logger.debug({ runId }, 'run is already executing in this process')
-          return
-        }
-        const onAbort = () => controller.abort(ABORT_SHUTDOWN)
-        helpers.abortSignal.addEventListener('abort', onAbort, { once: true })
-        try {
-          const result = await executeRun({
-            runId,
-            store,
-            clock,
-            signal: controller.signal,
-            resolveModel: deps.resolveModel,
-            onFailure: ({ code, errName }) => logger.warn({ runId, code, errName }, 'run failed'),
-          })
-          logger.info({ runId, outcome: result.outcome }, 'run job finished')
-        } finally {
-          helpers.abortSignal.removeEventListener('abort', onAbort)
-          registry.release(runId, controller)
-        }
-      },
+      [RUN_TASK]: createRunTask({
+        db,
+        logger,
+        registry,
+        resolveModel: deps.resolveModel,
+        ...(deps.clock ? { clock: deps.clock } : {}),
+        requeue: (runId, retry) =>
+          addJob(
+            { runId, retry },
+            new Date(Date.now() + (deps.requeueDelayMs ?? REQUEUE_DELAY_MS)),
+          ),
+      }),
     },
   })
-
-  const enqueue = async (runId: RunId) => {
-    await runner.addJob(RUN_TASK, { runId }, { maxAttempts: JOB_MAX_ATTEMPTS })
+  addJob = async (payload, runAt) => {
+    await runner.addJob(RUN_TASK, payload, {
+      maxAttempts: JOB_MAX_ATTEMPTS,
+      ...(runAt ? { runAt } : {}),
+    })
   }
+
+  const enqueue = (runId: RunId) => addJob({ runId })
 
   return {
     enqueue,

@@ -114,13 +114,13 @@ export async function startServer(
   })
   let server: Server
   let url: string
-  let providers: ReturnType<typeof createProviderService>
+  let providers: ReturnType<typeof createProviderService> | undefined
   let worker: RunWorker | undefined
   const registry = new RunRegistry()
   try {
     await (overrides.migrate ?? migrate)(handle.db, resolveMigrationsFolder())
     logger.info('migrations applied')
-    providers = createProviderService({
+    const providerService = createProviderService({
       db: handle.db,
       secretBox,
       logger,
@@ -130,13 +130,15 @@ export async function startServer(
         pathToClaudeCodeExecutable: config.claudeCodePath,
       },
     })
+    // Set before anything else can fail, so the catch below can close it.
+    providers = providerService
     if (overrides.worker !== false) {
       worker = await startRunWorker({
         pool: handle.pool,
         db: handle.db,
         logger,
         registry,
-        resolveModel: overrides.resolveModel ?? createModelResolver(providers),
+        resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
       })
       logger.info('run worker started')
       // Runs a previous process left queued or running: their jobs may be lost or locked.
@@ -152,7 +154,7 @@ export async function startServer(
     const app = createApp({
       logger,
       version,
-      providers,
+      providers: providerService,
       runs,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
@@ -162,6 +164,7 @@ export async function startServer(
   } catch (err) {
     registry.abortAll(ABORT_SHUTDOWN)
     await worker?.stop().catch(() => {})
+    await providers?.close().catch(() => {})
     await handle.close().catch(() => {})
     throw err
   }
@@ -178,7 +181,7 @@ export async function startServer(
         // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
         registry.abortAll(ABORT_SHUTDOWN)
         await worker?.stop()
-        await providers.close()
+        await providers?.close()
         await handle.close()
         logger.info('stopped')
       })()
