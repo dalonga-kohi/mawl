@@ -88,6 +88,17 @@ describe('parseConfig', () => {
     expect(none.claudeCodePath).toBeUndefined()
   })
 
+  it('reads FAIRE_WEB_DIR as an absolute path, unset when empty or absent', () => {
+    const abs = resolve('web-build')
+    const base = { DATABASE_URL: URL_WITH_PASSWORD }
+    expect(parseConfig({ ...base, FAIRE_WEB_DIR: abs }).webDir).toBe(abs)
+    expect(parseConfig({ ...base, FAIRE_WEB_DIR: '' }).webDir).toBeUndefined()
+    expect(parseConfig(base).webDir).toBeUndefined()
+    const run = () => parseConfig({ ...base, FAIRE_WEB_DIR: 'rel/web' })
+    expect(run).toThrow(/FAIRE_WEB_DIR: must be an absolute path/)
+    expect(run).not.toThrow(/rel\/web/)
+  })
+
   it('parses FAIRE_ALLOWED_ORIGINS as a trimmed list and treats empty as none', () => {
     const base = { DATABASE_URL: URL_WITH_PASSWORD }
     expect(parseConfig({ ...base, FAIRE_ALLOWED_ORIGINS: '' }).allowedOrigins).toEqual([])
