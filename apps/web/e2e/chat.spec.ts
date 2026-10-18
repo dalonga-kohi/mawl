@@ -44,7 +44,7 @@ test('stop a long reply', async ({ page }) => {
   await expect(page.getByRole('article', { name: `${name} is replying` })).toContainText('quick')
   await page.getByRole('button', { name: 'Stop' }).click()
   // With or without the partial text still on screen (the event store drops it soon after).
-  await expect(page.getByText(/^Stopped\./)).toBeVisible()
+  await expect(page.getByText(/^Stopped\. (The partial|Nothing more)/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
 })
 
