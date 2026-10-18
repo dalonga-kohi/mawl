@@ -9,7 +9,7 @@ import { RunRegistry } from './registry.ts'
 import { createRunService } from './service.ts'
 import { seedMessage, seedProfile, seedRun, seedThread } from './test-util.ts'
 
-const { events, messages, threads } = schema
+const { events, messages, profiles, threads } = schema
 
 /** One database per suite: every test seeds its own profile, so tests never collide. */
 export function describeRunService(name: string, make: () => Promise<MadeServiceDb>): void {
@@ -122,6 +122,18 @@ export function describeRunService(name: string, make: () => Promise<MadeService
           id: unknown,
         })
         expect(enqueued).toEqual([])
+      })
+
+      it('rejects an archived profile like an unknown one and writes nothing', async () => {
+        const profileId = await seedProfile(db)
+        await db.update(profiles).set({ archivedAt: new Date() }).where(eq(profiles.id, profileId))
+        await expect(service().start({ profileId, prompt: 'hi' })).rejects.toMatchObject({
+          name: 'EntityNotFoundError',
+          entity: 'profile',
+          id: profileId,
+        })
+        expect(enqueued).toEqual([])
+        expect(await db.select().from(threads).where(eq(threads.profileId, profileId))).toEqual([])
       })
 
       it('rejects an unknown thread and a thread that belongs to another profile', async () => {

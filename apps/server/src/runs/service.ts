@@ -13,7 +13,7 @@ import {
 } from '@faire/contracts'
 import type { RunStore } from '@faire/core'
 import { schema } from '@faire/db'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 import { EntityNotFoundError, RunConflictError } from './errors.ts'
@@ -135,7 +135,7 @@ export function createRunService({ db, registry, enqueue, logger }: RunServiceDe
         const [profile] = await tx
           .select({ id: profiles.id })
           .from(profiles)
-          .where(eq(profiles.id, input.profileId))
+          .where(and(eq(profiles.id, input.profileId), isNull(profiles.archivedAt)))
         if (!profile) throw new EntityNotFoundError('profile', input.profileId)
 
         let threadId = input.threadId

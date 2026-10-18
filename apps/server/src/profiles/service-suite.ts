@@ -191,6 +191,15 @@ export function describeProfileService(name: string, make: () => Promise<MadeSer
         expect((await service().get(created.id)).modelMain).toBe(model())
       })
 
+      it('treats an archived profile as not found', async () => {
+        const created = await service().create({ name: 'Ada', modelMain: model() })
+        await service().archive(created.id)
+        await expect(service().update(created.id, { name: 'New' })).rejects.toBeInstanceOf(
+          EntityNotFoundError,
+        )
+        expect((await service().get(created.id)).name).toBe('Ada')
+      })
+
       it('throws EntityNotFoundError for an unknown id', async () => {
         await expect(service().update(newId('profile'), { name: 'x' })).rejects.toBeInstanceOf(
           EntityNotFoundError,

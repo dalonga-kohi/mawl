@@ -170,6 +170,8 @@ export function createProfileService({ db }: ProfileServiceDeps): ProfileService
 
     async update(id, patch) {
       const current = await row(id)
+      // An archived teammate is gone from the app's view: editing it is a not-found, like start.
+      if (current.archivedAt) throw new EntityNotFoundError('profile', id)
       await checkCredentials([patch.modelMain, patch.modelHelper])
       if (patch.slug !== undefined && patch.slug !== current.slug) {
         const [other] = await db
