@@ -14,6 +14,10 @@ export const WS_PATH = '/ws'
 /** Client frames are small oRPC requests; anything larger is a mistake or an attack. */
 export const WS_MAX_PAYLOAD = 64 * 1024
 const CLOSE_GRACE_MS = 1000
+/** A socket gets a ping this often and is dropped when the previous ping went unanswered. */
+export const WS_PING_INTERVAL_MS = 30_000
+/** Most sockets at once; further upgrades get 503. */
+export const WS_MAX_CONNECTIONS = 64
 
 export interface WsHubOptions {
   server: Server
@@ -24,6 +28,8 @@ export interface WsHubOptions {
   bindHost?: string | undefined
   /** How long close() waits for clients to answer the close frame before dropping them. */
   closeGraceMs?: number
+  pingIntervalMs?: number
+  maxConnections?: number
 }
 
 export interface WsHub {
@@ -58,6 +64,20 @@ export function attachWsHub(options: WsHubOptions): WsHub {
     ],
   })
   let closed = false
+  const maxConnections = options.maxConnections ?? WS_MAX_CONNECTIONS
+  /** Sockets that answered the last ping. A half-open TCP connection never does. */
+  const alive = new WeakSet<WebSocket>()
+  const pinger = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.has(ws)) {
+        ws.terminate()
+        continue
+      }
+      alive.delete(ws)
+      ws.ping()
+    }
+  }, options.pingIntervalMs ?? WS_PING_INTERVAL_MS)
+  pinger.unref()
 
   function onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     // A socket error before the handshake finishes would otherwise be an uncaught exception.
@@ -94,7 +114,17 @@ export function attachWsHub(options: WsHubOptions): WsHub {
       return void reject(socket, 403, 'Forbidden')
     }
 
+    if (wss.clients.size >= maxConnections) {
+      logger.warn(
+        { reason: 'connection_cap', max: maxConnections },
+        'upgrade rejected: connection cap',
+      )
+      return void reject(socket, 503, 'Service Unavailable')
+    }
+
     wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+      alive.add(ws)
+      ws.on('pong', () => alive.add(ws))
       ws.on('error', (err) => logger.debug({ errName: err.name }, 'websocket error'))
       void handler.upgrade(ws, { context: { connection: newConnectionState() } })
     })
@@ -107,6 +137,7 @@ export function attachWsHub(options: WsHubOptions): WsHub {
     },
     async close() {
       closed = true
+      clearInterval(pinger)
       // The listener stays: once closed it destroys late upgrades instead of letting HTTP answer them.
       const clients = [...wss.clients]
       await new Promise<void>((resolve) => {

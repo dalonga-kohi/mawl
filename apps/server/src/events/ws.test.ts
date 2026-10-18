@@ -5,13 +5,13 @@ import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/websocket'
 import type { ContractRouterClient } from '@orpc/contract'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import WebSocket from 'ws'
+import WebSocket, { type ClientOptions } from 'ws'
 import { createLogger } from '../logger.ts'
 import { unusedProviders } from '../providers/test-util.ts'
 import { createRouter } from '../router.ts'
 import { unusedRuns } from '../runs/test-util.ts'
 import type { ConnectionState, EventsService } from './service.ts'
-import { attachWsHub, type WsHub } from './ws.ts'
+import { attachWsHub, type WsHub, type WsHubOptions } from './ws.ts'
 
 const profileId = newId('profile')
 const envelope = (id: string): LenientEnvelope => ({
@@ -29,7 +29,7 @@ describe('WebSocket hub', () => {
     for (const fn of cleanup.splice(0).reverse()) await fn()
   })
 
-  async function setup(allowedOrigins: string[] = []) {
+  async function setup(allowedOrigins: string[] = [], hubOptions: Partial<WsHubOptions> = {}) {
     const connections: ConnectionState[] = []
     const aborted: boolean[] = []
     const events: EventsService = {
@@ -61,6 +61,7 @@ describe('WebSocket hub', () => {
       logger: createLogger({ level: 'silent' }),
       allowedOrigins,
       closeGraceMs: 200,
+      ...hubOptions,
     })
     cleanup.push(async () => {
       await hub.close()
@@ -69,8 +70,9 @@ describe('WebSocket hub', () => {
         server.closeAllConnections()
       })
     })
-    const open = (path = '/ws', origin?: string, host?: string) =>
+    const open = (path = '/ws', origin?: string, host?: string, extra: ClientOptions = {}) =>
       new WebSocket(`ws://127.0.0.1:${port}${path}`, {
+        ...extra,
         ...(origin ? { origin } : {}),
         ...(host ? { headers: { host } } : {}),
       })
@@ -188,5 +190,71 @@ describe('WebSocket hub', () => {
     expect(hub.connections).toBe(0)
     await vi.waitFor(() => expect(aborted).toEqual([true]))
     expect(await outcome(open())).toMatch(/^error/)
+  })
+
+  describe('liveness and the connection cap', () => {
+    afterEach(() => void vi.useRealTimers())
+    const closed = (ws: WebSocket) =>
+      new Promise<void>((resolve) => ws.once('close', () => resolve()))
+    const opened = (ws: WebSocket) =>
+      new Promise<void>((resolve) => ws.once('open', () => resolve()))
+
+    it('terminates a socket that missed the last pong', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      const { open, hub } = await setup()
+      const ws = open('/ws', undefined, undefined, { autoPong: false })
+      cleanup.push(async () => ws.terminate())
+      await opened(ws)
+      expect(hub.connections).toBe(1)
+      const gone = closed(ws)
+      vi.advanceTimersByTime(30_000) // ping sent, no pong comes back
+      expect(hub.connections).toBe(1)
+      vi.advanceTimersByTime(30_000) // still silent: dropped
+      await gone
+      await vi.waitFor(() => expect(hub.connections).toBe(0), { timeout: 2000 })
+    })
+
+    it('keeps a socket that answers every ping', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      const { open, hub } = await setup()
+      const ws = open()
+      cleanup.push(async () => ws.terminate())
+      await opened(ws)
+      for (let round = 0; round < 3; round++) {
+        const pinged = new Promise<void>((resolve) => ws.once('ping', () => resolve()))
+        vi.advanceTimersByTime(30_000)
+        await pinged
+        // Let the automatic pong travel back before the next tick.
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        await new Promise<void>((resolve) => setImmediate(resolve))
+      }
+      expect(ws.readyState).toBe(WebSocket.OPEN)
+      expect(hub.connections).toBe(1)
+    })
+
+    it('answers 503 and logs once the connection cap is reached, and accepts again after one leaves', async () => {
+      const lines: string[] = []
+      const { open, hub } = await setup([], {
+        maxConnections: 2,
+        logger: createLogger({
+          level: 'warn',
+          stream: { write: (chunk: string) => void lines.push(chunk) },
+        }),
+      })
+      const a = open()
+      const b = open()
+      cleanup.push(async () => {
+        a.terminate()
+        b.terminate()
+      })
+      await Promise.all([opened(a), opened(b)])
+      expect(await outcome(open())).toBe('http 503')
+      expect(lines.join('')).toContain('connection cap')
+      a.close()
+      await vi.waitFor(() => expect(hub.connections).toBe(1))
+      const c = open()
+      cleanup.push(async () => c.terminate())
+      expect(await outcome(c)).toBe('open')
+    })
   })
 })
