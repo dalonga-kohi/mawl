@@ -252,6 +252,57 @@ describe('chat', () => {
     expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
   })
 
+  it('offers Stop only once the run exists', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    let release = () => {}
+    fake.chat.startGate = new Promise<void>((r) => {
+      release = r
+    })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'hi{Enter}')
+    const stop = await screen.findByRole('button', { name: 'Stop' })
+    expect((stop as HTMLButtonElement).disabled).toBe(true)
+    release()
+    await waitFor(() => expect((stop as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('a send that answers after the owner switched conversation stays out of the way', async () => {
+    const p = sweeper()
+    const fake = fakeApi({ profiles: [p] })
+    const older = thread(p.id, { title: 'Older chat' })
+    fake.chat.threads.push(older)
+    fake.chat.messages.push(message(older.id, 'user', 'from the older chat'))
+    let release = () => {}
+    fake.chat.startGate = new Promise<void>((r) => {
+      release = r
+    })
+    const { user, router } = await renderApp('/t/inbox-sweeper?thread=new', fake.api)
+    await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'brand new{Enter}')
+    expect(await screen.findByText('Sending…')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: /Conversation: New chat/ }))
+    await user.click(await screen.findByRole('menuitem', { name: /Older chat/ }))
+    expect(await screen.findByText('from the older chat')).toBeTruthy()
+    release()
+    await waitFor(() => expect(fake.chat.started).toHaveLength(1))
+    await waitFor(() => expect(router.state.location.search).toEqual({ thread: older.id }))
+    expect(screen.queryByText('brand new', { selector: 'div' })).toBeNull()
+    expect(screen.queryByText('Sending…')).toBeNull()
+  })
+
+  it('shows a retry when the conversations cannot load, instead of a blank new chat', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    fake.chat.threadsError = new Error('down')
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    expect(
+      await screen.findByRole('heading', { name: "Couldn't load your conversations" }),
+    ).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeNull()
+    fake.chat.threadsError = null
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
+  })
+
   it('says so when the teammate does not exist', async () => {
     const fake = fakeApi({ profiles: [sweeper()] })
     await renderApp('/t/nobody', fake.api)

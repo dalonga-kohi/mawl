@@ -1,4 +1,9 @@
-import { formatModelRef, type ProviderCredential, type ProviderKind } from '@faire/contracts'
+import {
+  type CredentialId,
+  formatModelRef,
+  type ProviderCredential,
+  type ProviderKind,
+} from '@faire/contracts'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -54,7 +59,10 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
     create.mutate(
       {
         name: name.trim(),
-        modelMain: formatModelRef({ credentialId: credentialId as never, modelId: model.trim() }),
+        modelMain: formatModelRef({
+          credentialId: credentialId as CredentialId,
+          modelId: model.trim(),
+        }),
         ...(job.trim() ? { personaMd: job.trim() } : {}),
       },
       {

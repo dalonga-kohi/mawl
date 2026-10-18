@@ -107,6 +107,9 @@ export function fakeChatApi(initial: { profiles?: Profile[] } = {}) {
     startError: null as Error | null,
     messagesError: null as Error | null,
     profilesError: null as Error | null,
+    threadsError: null as Error | null,
+    /** When set, runs.start waits for it before answering (a send in flight). */
+    startGate: null as Promise<void> | null,
   }
   let queryClient: QueryClient | undefined
   const text = new Map<RunId, string>()
@@ -151,10 +154,12 @@ export function fakeChatApi(initial: { profiles?: Profile[] } = {}) {
   }
 
   const threads: ThreadsApi = {
-    list: async (profileId) =>
-      state.threads
+    list: async (profileId) => {
+      if (state.threadsError) throw state.threadsError
+      return state.threads
         .filter((t) => t.profileId === profileId)
-        .sort((a, b) => (b.lastEventAt ?? '').localeCompare(a.lastEventAt ?? '')),
+        .sort((a, b) => (b.lastEventAt ?? '').localeCompare(a.lastEventAt ?? ''))
+    },
     messages: async ({ threadId, limit = 50, before }) => {
       if (state.messagesError) throw state.messagesError
       const all = state.messages.filter((m) => m.threadId === threadId)
@@ -166,6 +171,7 @@ export function fakeChatApi(initial: { profiles?: Profile[] } = {}) {
 
   const runs: RunsApi = {
     start: async (input) => {
+      if (state.startGate) await state.startGate
       if (state.startError) throw state.startError
       state.started.push(input)
       let threadId = input.threadId

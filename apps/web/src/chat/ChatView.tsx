@@ -125,9 +125,13 @@ function Conversation({
   const [sendError, setSendError] = useState<string | null>(null)
   const composer = useRef<ComposerHandle>(null)
 
+  // Counts conversation switches: a send that resolves after the owner moved on must not pull the
+  // view back or re-show its bubble here.
+  const viewSeq = useRef(0)
   // Leaving for another conversation drops a pending send that belongs elsewhere.
   useEffect(() => {
-    setPending((p) => (p && p.threadId !== undefined && p.threadId !== threadId ? null : p))
+    viewSeq.current++
+    setPending((p) => (p && p.threadId !== threadId ? null : p))
     setSendError(null)
   }, [threadId])
 
@@ -158,12 +162,14 @@ function Conversation({
       const trimmed = prompt.trim()
       if (!trimmed) return
       setSendError(null)
+      const seq = viewSeq.current
       setPending({ prompt: trimmed, ...(threadId ? { threadId } : {}) })
       setDraft('')
       start.mutate(
         { profileId: profile.id, prompt: trimmed, ...(threadId ? { threadId } : {}) },
         {
           onSuccess: (started) => {
+            if (viewSeq.current !== seq) return
             const tid = started.threadId ?? undefined
             setPending({
               prompt: trimmed,
@@ -180,6 +186,7 @@ function Conversation({
             }
           },
           onError: (err) => {
+            if (viewSeq.current !== seq) return
             setPending(null)
             setDraft(trimmed)
             setSendError(
@@ -258,7 +265,15 @@ function Conversation({
         aria-label={`Chat with ${profile.name}`}
       >
         {header}
-        {loading ? (
+        {threadParam === undefined && threads.isError ? (
+          <EmptyState
+            title="Couldn't load your conversations"
+            mascot="error"
+            action={<Button onClick={() => void threads.refetch()}>Try again</Button>}
+          >
+            The Faire server didn't send this teammate's conversations. Check that it's running.
+          </EmptyState>
+        ) : loading ? (
           <MessagesSkeleton />
         ) : messagesQuery.isError ? (
           <EmptyState
@@ -316,7 +331,8 @@ function Conversation({
           onStop={stop}
           busy={active}
           sending={start.isPending}
-          stopping={cancel.isPending}
+          // Stop needs the run's id, which arrives with the send's answer.
+          stopping={cancel.isPending || runId === undefined}
           label={`Message ${profile.name}`}
           placeholder={`Ask ${profile.name} to do something`}
           model={model}
