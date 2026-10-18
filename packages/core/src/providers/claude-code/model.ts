@@ -184,7 +184,9 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
     if (okAt !== undefined && now() - okAt < LOGIN_CHECK_TTL_MS) return
     let pending = loginInFlight.get(loginKey)
     if (!pending) {
-      pending = checkLogin()
+      // `then` also catches a check that throws before it returns a promise.
+      pending = Promise.resolve()
+        .then(checkLogin)
         .catch((): ProviderTestResult => ({ ok: false, reason: 'unreachable' }))
         .then((result) => {
           if (result.ok) loginOk.set(loginKey, now())

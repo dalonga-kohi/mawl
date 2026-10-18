@@ -557,6 +557,28 @@ describe('Claude Code language model: login check', () => {
     expect(checkLogin).toHaveBeenCalledTimes(2)
   })
 
+  it('treats a login check that throws synchronously as provider_error', async () => {
+    const fq = fakeQuery(happy())
+    const checkLogin = vi.fn((): Promise<ProviderTestResult> => {
+      throw new Error('sync boom sk-ant-LEAK')
+    })
+    const m = model(fq, { checkLogin })
+    const err = await m.doGenerate(userPrompt('hi')).then(
+      () => undefined,
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(ProviderFailureError)
+    expect((err as ProviderFailureError).reason).toBe('provider_error')
+    expect(JSON.stringify(err)).not.toContain('LEAK')
+    expect(fq.calls).toHaveLength(0)
+    // Not left in flight: the next call asks again.
+    await m.doGenerate(userPrompt('hi')).then(
+      () => {},
+      () => {},
+    )
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+  })
+
   it('shares one in-flight check between concurrent calls', async () => {
     let release: (r: ProviderTestResult) => void = () => {}
     const checkLogin = vi.fn(
