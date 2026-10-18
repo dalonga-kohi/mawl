@@ -6,6 +6,7 @@ import {
   DEFAULT_RUN_BUDGET,
   type ExecuteRunDeps,
   type PersistedStep,
+  type ResolvedModel,
   type RunOutcome,
 } from './types.ts'
 
@@ -94,9 +95,9 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   const persisted = await store.steps(runId)
   let usage = sumUsage(persisted)
 
-  let model: Awaited<ReturnType<typeof deps.resolveModel>>
+  let resolved: ResolvedModel
   try {
-    model = await deps.resolveModel(run, profile)
+    resolved = await deps.resolveModel(run, profile)
   } catch (err) {
     deps.onFailure?.({ runId, code: toRunErrorCode(err), errName: errName(err) })
     return fail(toRunErrorCode(err), usage)
@@ -104,7 +105,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
 
   const history = await store.history(run)
   const steps: PersistedStep[] = [...persisted]
-  const tools = deps.supportsTools === false || !hasTools(deps.tools) ? undefined : deps.tools
+  const tools = resolved.supportsTools === false || !hasTools(deps.tools) ? undefined : deps.tools
 
   for (;;) {
     // The last persisted step is a model step without tool calls: only the finish was missed.
@@ -130,7 +131,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
     let streamError: unknown
     let hadError = false
     const result = streamText({
-      model,
+      model: resolved.model,
       instructions: profile.personaMd,
       messages: [...history, ...steps.flatMap((s) => s.messages)],
       ...(tools ? { tools } : {}),

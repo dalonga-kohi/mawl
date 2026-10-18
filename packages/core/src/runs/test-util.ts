@@ -155,7 +155,7 @@ export function setup(script: Parameters<typeof fakeModel>[0], over: Partial<Exe
   const deps: ExecuteRunDeps = {
     runId,
     store,
-    resolveModel: async () => model,
+    resolveModel: async () => ({ model }),
     clock,
     signal: new AbortController().signal,
     onDelta: (d) => deltas.push(d),

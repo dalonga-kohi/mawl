@@ -53,10 +53,10 @@ describe('executeRun: tool loop', () => {
   })
 
   it('does not pass tools to a model that cannot use them', async () => {
-    const { deps, model } = setup([{ text: 'plain' }], {
-      tools: { lookup },
-      supportsTools: false,
-    })
+    const h = setup([{ text: 'plain' }])
+    const { deps, model } = h
+    deps.tools = { lookup }
+    deps.resolveModel = async () => ({ model, supportsTools: false })
     await executeRun(deps)
     expect(model.calls[0]?.tools ?? []).toHaveLength(0)
   })

@@ -118,14 +118,18 @@ export interface TextDelta {
 /** Abort reasons the host uses on the run's signal. */
 export const ABORT_SHUTDOWN = 'shutdown'
 
+export interface ResolvedModel {
+  model: LanguageModel
+  /** Provider capability: false means tools are never passed to this model. Default true. */
+  supportsTools?: boolean
+}
+
 export interface ExecuteRunDeps {
   runId: RunId
   store: RunStore
   /** Builds the model for the profile's `modelMain`. Throws `ModelNotConfiguredError` or a `ProviderFailureError`. */
-  resolveModel(run: RunRecord, profile: ProfileRecord): Promise<LanguageModel>
+  resolveModel(run: RunRecord, profile: ProfileRecord): Promise<ResolvedModel>
   tools?: ToolSet
-  /** Whether the model accepts tools (provider descriptor capability). Default true. */
-  supportsTools?: boolean
   clock: Clock
   /**
    * Aborted by the host: reason `ABORT_SHUTDOWN` leaves the run `running` so a later job resumes it;

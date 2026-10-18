@@ -136,7 +136,11 @@ describe('executeRun: crash and resume', () => {
     // A new job picks the run up with a fresh model that holds only the remaining turn.
     vi.restoreAllMocks()
     const resumed = fakeModel([{ text: 'three' }])
-    const out = await executeRun({ ...h.deps, resolveModel: async () => resumed, tools: { noop } })
+    const out = await executeRun({
+      ...h.deps,
+      resolveModel: async () => ({ model: resumed }),
+      tools: { noop },
+    })
 
     expect(out).toEqual({ outcome: 'succeeded' })
     expect(resumed.calls).toHaveLength(1)
@@ -162,7 +166,7 @@ describe('executeRun: crash and resume', () => {
     succeed.mockRestore()
 
     const again = fakeModel([{ text: 'must not be called' }])
-    const out = await executeRun({ ...h.deps, resolveModel: async () => again })
+    const out = await executeRun({ ...h.deps, resolveModel: async () => ({ model: again }) })
     expect(out).toEqual({ outcome: 'succeeded' })
     expect(again.calls).toHaveLength(0)
     expect(h.store.thread.at(-1)?.text).toBe('answer')

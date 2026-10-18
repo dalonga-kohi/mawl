@@ -128,7 +128,7 @@ describe('executeRun: budgets', () => {
     const run = store.runs.get(runId)
     if (run) run.budget = { maxWallClockMs: 2500 }
 
-    const done = executeRun({ ...deps, resolveModel: async () => slowModel })
+    const done = executeRun({ ...deps, resolveModel: async () => ({ model: slowModel }) })
     await vi.advanceTimersByTimeAsync(5000)
 
     expect(await done).toEqual({ outcome: 'failed', error: 'budget_wall_clock' })

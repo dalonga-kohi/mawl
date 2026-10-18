@@ -6,6 +6,7 @@ export type {
   NewStep,
   PersistedStep,
   ProfileRecord,
+  ResolvedModel,
   RunContext,
   RunDefaults,
   RunOutcome,
