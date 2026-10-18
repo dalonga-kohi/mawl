@@ -4,6 +4,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from '@tanstack/react-router'
 import {
@@ -14,9 +15,12 @@ import {
   NotFoundPage,
   RoutinesPage,
 } from './pages/placeholders.tsx'
-import { SettingsPage } from './settings/SettingsPage.tsx'
 import { Shell } from './shell/Shell.tsx'
 import { TeammatesView } from './teammates/TeammatesView.tsx'
+
+// Teammates is the landing page and stays in the main chunk; Settings (dialogs, forms, the
+// provider flows) loads when first opened.
+const SettingsPage = lazyRouteComponent(() => import('./settings/SettingsPage.tsx'), 'SettingsPage')
 
 const rootRoute = createRootRoute({ component: Shell, notFoundComponent: NotFoundPage })
 
