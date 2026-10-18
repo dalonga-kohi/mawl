@@ -375,13 +375,31 @@ describe('Claude Code language model: abort', () => {
     expect(fq.closed()).toBeGreaterThanOrEqual(1)
   })
 
-  it('starts aborted when the signal was already aborted', async () => {
+  it('rejects with the abort reason, checking no login and starting no query, when already aborted', async () => {
     const fq = fakeQuery(happy())
+    const checkLogin = vi.fn(okLogin)
+    const controller = new AbortController()
+    const reason = new Error('stopped before start')
+    controller.abort(reason)
+    const call = { ...userPrompt('hi'), abortSignal: controller.signal }
+    const m = model(fq, { checkLogin })
+    await expect(m.doGenerate(call)).rejects.toBe(reason)
+    await expect(m.doStream(call)).rejects.toBe(reason)
+    expect(checkLogin).not.toHaveBeenCalled()
+    expect(fq.calls).toHaveLength(0)
+  })
+
+  it('rejects with an AbortError when already aborted without a reason', async () => {
     const controller = new AbortController()
     controller.abort()
-    const res = model(fq).doGenerate({ ...userPrompt('hi'), abortSignal: controller.signal })
-    await expect(res).rejects.toBeDefined()
-    expect(fq.calls[0]?.options.abortController?.signal.aborted).toBe(true)
+    const err = await model(fakeQuery(happy()))
+      .doGenerate({ ...userPrompt('hi'), abortSignal: controller.signal })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+    expect(err).toBeDefined()
+    expect(err).not.toBeInstanceOf(ProviderFailureError)
   })
 })
 

@@ -117,7 +117,7 @@ const previousFailed = (p: Promise<string>) =>
 /**
  * Waits for `pending`, but rejects with the signal's reason (or an AbortError) if the caller
  * aborts first. `pending` itself is left running: other callers may share it and it never rejects.
- * A signal that is already aborted is not raced: the run then starts aborted, as before.
+ * An already-aborted signal never gets here: `start` rejects before any check.
  */
 function untilAborted<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (!signal || signal.aborted) return pending
@@ -234,6 +234,10 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
 
   /** Validates the call, then starts the query. Everything unsupported fails before a spawn. */
   async function start(call: LanguageModelV4CallOptions) {
+    // Already aborted: nothing to check or spawn.
+    if (call.abortSignal?.aborted) {
+      throw call.abortSignal.reason ?? new DOMException('aborted', 'AbortError')
+    }
     if (call.tools && call.tools.length > 0) {
       throw new UnsupportedFunctionalityError({
         functionality: 'tools',
