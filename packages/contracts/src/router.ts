@@ -23,7 +23,7 @@ import {
 } from './entities'
 import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
-import { ApprovalId, CredentialId, DeviceId, ProfileId, RunId, ThreadId } from './ids'
+import { ApprovalId, CredentialId, DeviceId, MessageId, ProfileId, RunId, ThreadId } from './ids'
 
 const NotFound = { status: 404, data: z.object({ entity: z.string(), id: z.string() }) }
 const Conflict = {
@@ -78,7 +78,8 @@ export const contract = {
         z.object({
           threadId: ThreadId,
           limit: z.number().int().min(1).max(200).optional(),
-          before: z.iso.datetime().optional(),
+          /** Opaque cursor: the id of the oldest message the client already has. */
+          before: MessageId.optional(),
         }),
       )
       .output(z.array(Message)),
@@ -89,7 +90,7 @@ export const contract = {
         z.object({
           profileId: ProfileId,
           threadId: ThreadId.optional(),
-          prompt: z.string().min(1),
+          prompt: z.string().trim().min(1),
           budget: RunBudget.optional(),
         }),
       )

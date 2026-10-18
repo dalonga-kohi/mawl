@@ -170,6 +170,8 @@ export const runs = pgTable(
       .notNull()
       .default({ inputTokens: 0, outputTokens: 0 }),
     segmentNo: integer('segment_no').notNull().default(0),
+    /** Milliseconds spent working: the wall-clock budget counts this, not paused time or downtime. */
+    activeMs: integer('active_ms').notNull().default(0),
     createdAt: createdAt(),
     startedAt: ts('started_at'),
     endedAt: ts('ended_at'),
@@ -177,6 +179,7 @@ export const runs = pgTable(
   },
   (t) => [
     check('runs_segment_no_check', sql`${t.segmentNo} >= 0`),
+    check('runs_active_ms_check', sql`${t.activeMs} >= 0`),
     index('runs_profile_status_idx').on(t.profileId, t.status),
     index('runs_thread_idx').on(t.threadId),
   ],

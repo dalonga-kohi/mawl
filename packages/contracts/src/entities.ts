@@ -315,6 +315,8 @@ export const Run = z.object({
   budget: RunBudget,
   usage: Usage,
   segmentNo: z.number().int().nonnegative(),
+  /** Milliseconds the run was actually working (paused time and downtime excluded). The wall-clock budget counts this. */
+  activeMs: z.number().int().nonnegative(),
   startedAt: Timestamp.nullable(),
   endedAt: Timestamp.nullable(),
   error: RunErrorCode.nullable(),

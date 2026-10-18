@@ -65,6 +65,7 @@ export const run = {
   budget: { maxTokens: 100000, maxSteps: 50 },
   usage: { inputTokens: 10, outputTokens: 5 },
   segmentNo: 0,
+  activeMs: 0,
   startedAt: TS,
   endedAt: null,
   error: null,

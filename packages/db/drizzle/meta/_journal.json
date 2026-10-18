@@ -36,6 +36,13 @@
       "when": 1792283007787,
       "tag": "0004_claude_code_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792323038802,
+      "tag": "0005_run_active_ms",
+      "breakpoints": true
     }
   ]
 }

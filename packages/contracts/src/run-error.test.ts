@@ -3,6 +3,7 @@ import { Run, RunBudget } from './entities'
 import { ProviderFailureReason, RunErrorCode } from './enums'
 import { EVENT_PAYLOADS } from './events'
 import { run } from './fixtures'
+import { contract } from './router'
 
 describe('RunErrorCode', () => {
   it('covers every provider failure reason', () => {
@@ -47,5 +48,33 @@ describe('run.status event', () => {
 describe('RunBudget', () => {
   it('stays unchanged: cost cap is accepted but not enforced yet', () => {
     expect(RunBudget.safeParse({ maxCostUsd: 1 }).success).toBe(true)
+  })
+})
+
+describe('Run.activeMs', () => {
+  it('is a non-negative integer of milliseconds the run was actually working', () => {
+    expect(Run.safeParse({ ...run, activeMs: 1500 }).success).toBe(true)
+    expect(Run.safeParse({ ...run, activeMs: -1 }).success).toBe(false)
+    expect(Run.safeParse({ ...run, activeMs: 1.5 }).success).toBe(false)
+  })
+})
+
+describe('runs.start and threads.messages input', () => {
+  it('trims the prompt and rejects whitespace only', () => {
+    const input = contract.runs.start['~orpc'].inputSchema as unknown as {
+      safeParse: (v: unknown) => { success: boolean; data?: { prompt: string } }
+    }
+    const base = { profileId: 'prof_01HZX3K9V2M4N6P8Q0R2S4T6V8' }
+    expect(input.safeParse({ ...base, prompt: '  \n\t ' }).success).toBe(false)
+    expect(input.safeParse({ ...base, prompt: '  hi  ' }).data?.prompt).toBe('hi')
+  })
+
+  it('takes a message id as the before cursor, not a timestamp', () => {
+    const input = contract.threads.messages['~orpc'].inputSchema as unknown as {
+      safeParse: (v: unknown) => { success: boolean }
+    }
+    const threadId = 'thr_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    expect(input.safeParse({ threadId, before: 'msg_01HZX3K9V2M4N6P8Q0R2S4T6V8' }).success).toBe(true)
+    expect(input.safeParse({ threadId, before: '2026-01-01T00:00:00.000Z' }).success).toBe(false)
   })
 })

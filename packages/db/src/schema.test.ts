@@ -50,7 +50,7 @@ describe('table columns (ARCHITECTURE section 9)', () => {
     [
       'runs',
       schema.runs,
-      'budget_json created_at ended_at error id profile_id segment_no started_at status thread_id trigger usage_json',
+      'active_ms budget_json created_at ended_at error id profile_id segment_no started_at status thread_id trigger usage_json',
     ],
     [
       'run_steps',
