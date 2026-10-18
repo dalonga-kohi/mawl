@@ -71,7 +71,7 @@ describe('executeRun: tool loop', () => {
     const broken = tool({
       description: 'always fails',
       inputSchema: z.object({}),
-      execute: async () => {
+      execute: async (): Promise<string> => {
         throw new Error('disk exploded with secret hunter2')
       },
     })
