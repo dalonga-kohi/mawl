@@ -25,13 +25,18 @@
     "graphile-worker": "0.18.0",
     "hono": "4.13.13",
     "libsodium-wrappers": "0.8.4",
+    "pg": "8.23.1",
     "pino": "10.4.0",
+    "ws": "8.22.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.10",
     "@electric-sql/pglite-pgvector": "0.0.11",
+    "@faire/client": "workspace:*",
     "@faire/testkit": "workspace:*",
+    "@types/pg": "8.23.1",
+    "@types/ws": "8.18.2",
     "esbuild": "0.28.2",
     "jose": "6.2.12",
     "tsx": "4.23.15"

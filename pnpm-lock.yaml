@@ -53,7 +53,7 @@ importers:
         version: 1.15.7(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 1.15.7
-        version: 1.15.7(@opentelemetry/api@1.9.1)
+        version: 1.15.7(@opentelemetry/api@1.9.1)(ws@8.22.0)
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.10)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
@@ -66,9 +66,15 @@ importers:
       libsodium-wrappers:
         specifier: 0.8.4
         version: 0.8.4
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       pino:
         specifier: 10.4.0
         version: 10.4.0
+      ws:
+        specifier: 8.22.0
+        version: 8.22.0
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -79,9 +85,18 @@ importers:
       '@electric-sql/pglite-pgvector':
         specifier: 0.0.11
         version: 0.0.11(@electric-sql/pglite@0.5.10)
+      '@faire/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@faire/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -96,7 +111,27 @@ importers:
 
   packages/channels: {}
 
-  packages/client: {}
+  packages/client:
+    dependencies:
+      '@faire/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@orpc/client':
+        specifier: 1.15.7
+        version: 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract':
+        specifier: 1.15.7
+        version: 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/tanstack-query':
+        specifier: 1.15.7
+        version: 1.15.7(@opentelemetry/api@1.9.1)(@orpc/client@1.15.7(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.104.4)
+      '@tanstack/query-core':
+        specifier: 5.104.4
+        version: 5.104.4
+    devDependencies:
+      '@faire/testkit':
+        specifier: workspace:*
+        version: link:../testkit
 
   packages/contracts:
     dependencies:
@@ -959,6 +994,12 @@ packages:
   '@orpc/standard-server@1.15.7':
     resolution: {integrity: sha512-iKfg90hyYhbS06C7adQxPAx+M/NLsWFjsQ7JGD6NFdmxOPhSueKrQUuQPQrDjwY482ivjxNbUFrLiOg44P97vA==}
 
+  '@orpc/tanstack-query@1.15.7':
+    resolution: {integrity: sha512-NniiZWVwPKYxnpBQoUlkwpDoS6ELDEd4zdOxRd2HTAKFgyt/5Lw95DvRuXDnqcxEPufz4SUZY7405rNIsWTQ1A==}
+    peerDependencies:
+      '@orpc/client': 1.15.7
+      '@tanstack/query-core': '>=5.80.2'
+
   '@oxc-project/types@0.154.0':
     resolution: {integrity: sha512-KYOUGQFlLWR+s4QMV2Q9ko38TZm7EdO87Qm7rvZLqk/webse/cDjtyxKhg/47l0byCbs/k46LT8qc4PKjAikzA==}
 
@@ -1095,6 +1136,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@tanstack/query-core@5.104.4':
+    resolution: {integrity: sha512-nU4Yrb8Sjn0DeVb7PKG9uiepNavys3yoxy1FX0hViY4/P6Ng/mBje2SMl7i9812rtyHKtHyqiaC/td6GkI8StA==}
+
   '@testcontainers/postgresql@12.2.1':
     resolution: {integrity: sha512-MIbI5KjZ9M4SY4+xzxg/w4ZLBeV+Jd6ognXoWn7dh/mhIhBbn7ss0MiZHNg2XbCbu03BW9YQ9+H9xW8PFkJWaA==}
 
@@ -1178,6 +1222,9 @@ packages:
 
   '@types/ssh2@1.15.6':
     resolution: {integrity: sha512-oGdxhBqcRTwSTKFm+9EiKzkNVYRLEFkcW44lhguvBalGJbWfGnDt/ezwSUZc+SF9m9bMc3VyklNAtp7zICjS5w==}
+
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -2725,6 +2772,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -3232,7 +3291,7 @@ snapshots:
 
   '@orpc/interop@1.15.7': {}
 
-  '@orpc/server@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/server@1.15.7(@opentelemetry/api@1.9.1)(ws@8.22.0)':
     dependencies:
       '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
       '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
@@ -3245,6 +3304,8 @@ snapshots:
       '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.9.1)
       '@orpc/standard-server-peer': 1.15.7(@opentelemetry/api@1.9.1)
       cookie: 1.1.1
+    optionalDependencies:
+      ws: 8.22.0
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - fastify
@@ -3298,6 +3359,14 @@ snapshots:
   '@orpc/standard-server@1.15.7(@opentelemetry/api@1.9.1)':
     dependencies:
       '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
+  '@orpc/tanstack-query@1.15.7(@opentelemetry/api@1.9.1)(@orpc/client@1.15.7(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.104.4)':
+    dependencies:
+      '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+      '@tanstack/query-core': 5.104.4
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -3378,6 +3447,8 @@ snapshots:
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@tanstack/query-core@5.104.4': {}
 
   '@testcontainers/postgresql@12.2.1':
     dependencies:
@@ -3470,6 +3541,10 @@ snapshots:
   '@types/ssh2@1.15.6':
     dependencies:
       '@types/node': 18.19.130
+
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 24.19.2
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -4957,6 +5032,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   wrappy@1.0.2: {}
+
+  ws@8.22.0: {}
 
   xtend@4.0.2: {}
 

@@ -9,5 +9,15 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@faire/contracts": "workspace:*",
+    "@orpc/client": "1.15.7",
+    "@orpc/contract": "1.15.7",
+    "@orpc/tanstack-query": "1.15.7",
+    "@tanstack/query-core": "5.104.4"
+  },
+  "devDependencies": {
+    "@faire/testkit": "workspace:*"
   }
 }
