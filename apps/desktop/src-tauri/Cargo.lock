@@ -980,6 +980,7 @@ dependencies = [
 name = "faire-desktop"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
