@@ -2,6 +2,13 @@ import { contract, type RunStatus } from '@faire/contracts'
 import { listProviderDescriptors } from '@faire/core'
 import { implement, ORPCError } from '@orpc/server'
 import {
+  type ConnectionState,
+  type EventsService,
+  newConnectionState,
+  ResyncRequiredError,
+  TooManySubscriptionsError,
+} from './events/service.ts'
+import {
   CredentialNotFoundError,
   CredentialUnreadableError,
   type ProviderService,
@@ -15,6 +22,16 @@ export interface RouterDeps {
   version: string
   providers: ProviderService
   runs: RunService
+  /** Without it vents.subscribe stays a 501 stub (unit tests that never stream). */
+  events?: EventsService
+}
+
+/**
+ * Per-request context. A WebSocket connection passes its own connection, so the subscription cap
+ * counts per socket; an HTTP request has none and gets a fresh state.
+ */
+export interface RouterContext {
+  connection?: ConnectionState
 }
 
 /**
@@ -63,8 +80,8 @@ const runErrors =
  * contract, so adding a procedure to `@faire/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version, providers, runs }: RouterDeps) {
-  const os = implement(contract)
+export function createRouter({ version, providers, runs, events }: RouterDeps) {
+  const os = implement(contract).$context<RouterContext>()
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
     profiles: {
@@ -147,8 +164,22 @@ export function createRouter({ version, providers, runs }: RouterDeps) {
       get: stub(os.settings.get),
       update: stub(os.settings.update),
     },
-    // WebSocket transport arrives in P1.5.
-    events: { subscribe: stub(os.events.subscribe) },
+    events: {
+      subscribe: events
+        ? os.events.subscribe.handler(async function* ({ input, context, signal, errors }) {
+            try {
+              yield* events.subscribe(input, {
+                connection: context.connection ?? newConnectionState(),
+                ...(signal ? { signal } : {}),
+              })
+            } catch (err) {
+              if (err instanceof ResyncRequiredError) throw errors.RESYNC_REQUIRED()
+              if (err instanceof TooManySubscriptionsError) throw errors.TOO_MANY_SUBSCRIPTIONS()
+              throw err
+            }
+          })
+        : stub(os.events.subscribe),
+    },
   })
 }
 
