@@ -67,15 +67,17 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Three-pane layout, theme (light/dark/system), and accent switcher wired to tokens.
   - Command palette and Motion presets.
   - Review note from P1.3b: provider settings follow OpenAI's SIWC UI guidelines: a "Continue with ChatGPT" button, a "Using ChatGPT plan" tag, "Manage usage" linking to https://chatgpt.com/settings/usage, and a "Usage limit reached" state. Show `reauthRequired` as a sign-in-again prompt. When `providers.delete` returns `revoked: false`, tell the owner to revoke access in ChatGPT settings. Same rules apply in onboarding (P8.1).
-- [ ] **P1.7 Chat UI.**
+- [x] **P1.7 Chat UI.** (11e3832..d9ed15b; tester mutation-checked 18 behaviours, e2e 5/5; full parallel gate flaked on machine load, suites green alone)
+  - Decided at slice start: chat needs a teammate, so the server implements `profiles.list/get/create/update/archive` now (plain CRUD, typed `SLUG_TAKEN` and `UNKNOWN_CREDENTIAL` errors) and the app gets a minimal "New teammate" dialog (name + model). The persona editor, color and avatar, clone and the teammate management UI stay in P2.1.
+  - e2e: Playwright drives the Vite app against a dev-only server entry (`apps/server/src/e2e/serve.ts`, refuses to start without `FAIRE_E2E=1`, never bundled) that boots its own Postgres container and answers every run with a scripted fake model. Locally Playwright uses the installed Edge (`channel: 'msedge'`); CI installs Chromium.
   - Streaming message list, composer (attachments later), and tool-activity cards (collapsed summaries).
   - Mascot state hook (SVG fallback) and empty states.
   - *e2e:* send a message → streamed reply (fake provider).
   - Note from P1.6: the web main chunk is 691 kB (225 kB gzip) after Settings was split off. Split the chat view and heavy vendors (Motion, cmdk) here if it grows.
   - Review note from P1.6: `createApi` (apps/web `src/api/create-api.ts`) drops the `createFaireClient` handle. Expose it through `Api` (or one module-level client) so the event store shares the same socket, start `createEventStore` with the app's `QueryClient`, and stop it on unmount.
-- [ ] **P1.8 Desktop shell.** Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `faire://`.
+- [~] **P1.8 Desktop shell.** Paused mid-slice 2026-10-18: Tauri scaffold in apps/desktop (uncommitted or partly committed; check `git log` and `git status`), deep-link parser tests started. Decided: Sign in with ChatGPT desktop handoff moves to P6.1 (needs the authenticated device call). The UI half (server URL setting, notifications, deep-link navigation, external links) is not started. Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `faire://`.
   - Review note from P1.3b: the desktop app owns the SIWC loopback flow and transfers the credentials to the server over an authenticated call. The VM or host keeps its own `ext_agent_host_id`.
-- [ ] **P1.9 Compose v1.** `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
+- [x] **P1.9 Compose v1.** (895f4e3..adf5a49, merged in 0068726; stack verified booting at :7420. Note: the compose smoke test builds the image inside the default gate, about 1 min; move it to its own task if CI time bites) `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
   - Review notes from P1.3b:
     - Publish `127.0.0.1:1455:1455` and set `FAIRE_SIWC_BIND_HOST=0.0.0.0` inside the container, so the SIWC callback reaches the server.
     - Install `@anthropic-ai/claude-agent-sdk` as a production dependency for the image's libc (the native binary is about 290 MB). Keep it external to the esbuild bundle, and add a `claude` symlink so `docker compose exec server claude auth login` works.
