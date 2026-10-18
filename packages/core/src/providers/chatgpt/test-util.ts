@@ -21,7 +21,7 @@ export interface FetchCall {
   method: string
   headers: Headers
   body: string
-  redirect: RequestRedirect | undefined
+  redirect: RequestInit['redirect']
 }
 
 export type Responder = (call: FetchCall, index: number) => Response | Promise<Response>

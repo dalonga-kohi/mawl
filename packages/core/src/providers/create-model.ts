@@ -4,17 +4,17 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { createOllama } from 'ollama-ai-provider-v2'
+import { PLACEHOLDER_API_KEY } from './chatgpt/constants.ts'
+import { createChatGptFetch } from './chatgpt/fetch.ts'
+import type { TokenManager } from './chatgpt/token-manager.ts'
 import { PROVIDER_DESCRIPTORS, type ProviderConnection, resolveBaseUrl } from './descriptors.ts'
+import { noRedirectFetch } from './no-redirect-fetch.ts'
 
 export interface CreateLanguageModelOptions {
   /** Injected in tests; defaults to the global fetch. */
   fetch?: typeof globalThis.fetch
-}
-
-/** Sends every request with `redirect: 'error'`. The global is read per call so stubs apply. */
-function noRedirectFetch(inner?: typeof globalThis.fetch): typeof globalThis.fetch {
-  return ((input: string | URL | Request, init?: RequestInit) =>
-    (inner ?? globalThis.fetch)(input, { ...init, redirect: 'error' })) as typeof globalThis.fetch
+  /** Required for openai_chatgpt: supplies a fresh bearer per request. Never a stored secret. */
+  chatgpt?: { tokens: TokenManager }
 }
 
 /**
@@ -25,8 +25,18 @@ function noRedirectFetch(inner?: typeof globalThis.fetch): typeof globalThis.fet
 export function createLanguageModel(
   conn: ProviderConnection,
   modelId: string,
-  { fetch }: CreateLanguageModelOptions = {},
+  { fetch, chatgpt }: CreateLanguageModelOptions = {},
 ): LanguageModelV4 {
+  if (conn.kind === 'openai_chatgpt') {
+    if (!chatgpt) throw new Error('openai_chatgpt needs Sign in with ChatGPT tokens')
+    // The base url is fixed: a stored one must never redirect plan tokens to another host.
+    return createOpenAI({
+      baseURL: resolveBaseUrl(conn.kind, null),
+      // The SDK insists on a key; the wrapper replaces the header on every call.
+      apiKey: PLACEHOLDER_API_KEY,
+      fetch: createChatGptFetch({ tokens: chatgpt.tokens, ...(fetch ? { fetch } : {}) }),
+    }).responses(modelId)
+  }
   const baseURL = resolveBaseUrl(conn.kind, conn.baseUrl)
   const apiKey = conn.secret ?? undefined
   // Always our wrapper, never the SDK's default fetch: a redirect must not carry the key elsewhere.

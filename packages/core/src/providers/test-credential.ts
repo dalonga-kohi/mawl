@@ -22,6 +22,7 @@ function request(conn: ProviderConnection): { url: string; headers: Record<strin
         headers: { 'x-api-key': conn.secret ?? '', 'anthropic-version': '2023-06-01' },
       }
     case 'openai':
+    case 'openai_chatgpt':
     case 'openai_compatible':
       return { url: `${base}/models`, headers: bearer }
     case 'openrouter':

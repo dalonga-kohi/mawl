@@ -83,7 +83,11 @@ export interface ProviderConnection {
 
 /** The credential's base url, or the kind's default, without trailing slashes. */
 export function resolveBaseUrl(kind: ProviderKind, baseUrl: string | null): string {
-  const base = baseUrl ?? PROVIDER_DESCRIPTORS[kind].defaultBaseUrl
+  // The ChatGPT plan endpoint is fixed: a stored url must never receive plan tokens.
+  const base =
+    kind === 'openai_chatgpt'
+      ? PROVIDER_DESCRIPTORS[kind].defaultBaseUrl
+      : (baseUrl ?? PROVIDER_DESCRIPTORS[kind].defaultBaseUrl)
   if (base === null) throw new Error(`${kind} needs a base url`)
   return base.replace(/\/+$/, '')
 }

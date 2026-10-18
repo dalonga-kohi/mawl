@@ -1,6 +1,8 @@
+export * from './chatgpt/index.ts'
 export type { CreateLanguageModelOptions } from './create-model.ts'
 export { createLanguageModel } from './create-model.ts'
 export type { ProviderConnection } from './descriptors.ts'
 export { listProviderDescriptors, PROVIDER_DESCRIPTORS, resolveBaseUrl } from './descriptors.ts'
+export { ProviderFailureError } from './failure.ts'
 export type { TestCredentialOptions } from './test-credential.ts'
 export { testCredential } from './test-credential.ts'
