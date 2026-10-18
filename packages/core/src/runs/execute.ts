@@ -159,7 +159,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       abortSignal: AbortSignal.any([signal, wall.signal]),
       onChunk: ({ chunk }) => {
         if (chunk.type === 'text-delta') {
-          deps.onDelta?.({ runId, stepIdx: idx, text: chunk.text })
+          deps.onDelta?.({ runId, profileId: profile.id, stepIdx: idx, text: chunk.text })
         }
       },
       onError: ({ error }) => {
@@ -213,7 +213,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       }
     } finally {
       clearTimeout(timer)
-      deps.onStepEnd?.({ runId, stepIdx: idx })
+      deps.onStepEnd?.({ runId, profileId: profile.id, stepIdx: idx })
     }
 
     const assistantMessages = responseMessages.filter((m) => m.role === 'assistant')

@@ -123,6 +123,7 @@ export const DEFAULT_RUN_BUDGET: RunDefaults = {
 
 export interface TextDelta {
   runId: RunId
+  profileId: ProfileId
   stepIdx: number
   text: string
 }
@@ -151,7 +152,7 @@ export interface ExecuteRunDeps {
   /** Ephemeral text tokens. Never persisted per token. */
   onDelta?: (delta: TextDelta) => void
   /** The model step's stream is over (finished, failed or aborted), so no more deltas follow for it. */
-  onStepEnd?: (info: { runId: RunId; stepIdx: number }) => void
+  onStepEnd?: (info: { runId: RunId; profileId: ProfileId; stepIdx: number }) => void
   defaults?: RunDefaults
   /**
    * Called when the engine fails the run. Carries the closed code and the exception NAME only,

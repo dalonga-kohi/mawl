@@ -23,4 +23,16 @@ describe('executeRun: onStepEnd', () => {
     await executeRun(deps)
     expect(ends).toEqual([0])
   })
+  it('names the run profile on delta and step-end payloads, so hosts need no lookup', async () => {
+    const seen: (string | undefined)[] = []
+    const { deps, store, runId } = setup([{ text: 'hi' }], {
+      onDelta: (d) => void seen.push(d.profileId),
+      onStepEnd: (e) => void seen.push(e.profileId),
+    })
+    await executeRun(deps)
+    const profileId = store.runs.get(runId)?.profileId
+    expect(profileId).toBeDefined()
+    expect(seen.length).toBeGreaterThan(1)
+    expect(seen.every((p) => p === profileId)).toBe(true)
+  })
 })

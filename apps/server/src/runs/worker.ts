@@ -76,8 +76,6 @@ export function createRunTask(deps: RunTaskDeps) {
     // The abort may have fired before the listener existed.
     if (helpers.abortSignal.aborted) onAbort()
     try {
-      // The run's profile routes its deltas; one lookup per job, only when someone listens.
-      const profileId = deps.deltas ? (await store.load(runId))?.run.profileId : undefined
       const sink = deps.deltas
       const result = await executeRun({
         runId,
@@ -85,12 +83,8 @@ export function createRunTask(deps: RunTaskDeps) {
         clock,
         signal: controller.signal,
         resolveModel: deps.resolveModel,
-        ...(sink && profileId
-          ? {
-              onDelta: ({ runId: id, stepIdx, text }) =>
-                sink.add({ profileId, runId: id, stepIdx, text }),
-              onStepEnd: ({ runId: id }) => sink.flush(id),
-            }
+        ...(sink
+          ? { onDelta: (delta) => sink.add(delta), onStepEnd: ({ runId: id }) => sink.flush(id) }
           : {}),
         onFailure: ({ code, errName }) => logger.warn({ runId, code, errName }, 'run failed'),
       })
