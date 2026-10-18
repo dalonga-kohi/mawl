@@ -1,8 +1,10 @@
 import { Link } from '@tanstack/react-router'
+import { Search } from 'lucide-react'
 import { Beaver } from '../mascot/Beaver.tsx'
 import { cx } from '../ui/cx.ts'
 import { Tooltip } from '../ui/Tooltip.tsx'
 import { MAIN_NAV, type NavItem, SETTINGS_NAV } from './nav.ts'
+import { useShell } from './ShellContext.tsx'
 
 function RailLink({ item }: { item: NavItem }) {
   const Icon = item.icon
@@ -19,6 +21,26 @@ function RailLink({ item }: { item: NavItem }) {
       >
         <Icon className="size-5" aria-hidden="true" />
       </Link>
+    </Tooltip>
+  )
+}
+
+/** Opens the command palette from any page; phones have no keyboard shortcut. */
+function SearchButton() {
+  const { setPaletteOpen } = useShell()
+  return (
+    <Tooltip label="Search or jump to (Ctrl K)" side="right">
+      <button
+        type="button"
+        aria-label="Search or jump to"
+        onClick={() => setPaletteOpen(true)}
+        className={cx(
+          'grid size-11 place-items-center rounded-sm text-text-2',
+          'hover:bg-surface-2 hover:text-text active:scale-[.94]',
+        )}
+      >
+        <Search className="size-5" aria-hidden="true" />
+      </button>
     </Tooltip>
   )
 }
@@ -42,6 +64,7 @@ export function Rail() {
       {MAIN_NAV.map((item) => (
         <RailLink key={item.to} item={item} />
       ))}
+      <SearchButton />
       <span className="hidden flex-1 md:block" />
       <RailLink item={SETTINGS_NAV} />
     </nav>

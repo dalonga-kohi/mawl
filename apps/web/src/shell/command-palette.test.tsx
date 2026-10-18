@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { renderApp, stubViewport } from '../test/render-app.tsx'
 
@@ -16,7 +16,15 @@ describe('command palette', () => {
     )
   })
 
-  it('opens with Cmd+K on macOS', async () => {
+  it('opens from the rail on any page, including phone widths', async () => {
+    stubViewport(390)
+    const { user } = await renderApp('/settings')
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    await user.click(within(nav).getByRole('button', { name: 'Search or jump to' }))
+    expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
+  })
+
+  it('also opens with the Meta key (Cmd on macOS)', async () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Meta>}k{/Meta}')
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
@@ -24,7 +32,8 @@ describe('command palette', () => {
 
   it('opens from the search button in the teammate list', async () => {
     const { user } = await renderApp('/t')
-    await user.click(screen.getByRole('button', { name: /Search or jump to/ }))
+    const list = screen.getByRole('complementary', { name: 'Teammates' })
+    await user.click(within(list).getByRole('button', { name: /Search or jump to/ }))
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
   })
 
