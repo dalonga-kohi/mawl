@@ -1,0 +1,305 @@
+@import "tailwindcss";
+@import "@faire/ui/tokens.css";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/jetbrains-mono";
+
+/*
+ * Tailwind sees only Faire tokens: the default palette, fonts and radii are cleared so a raw
+ * color can't sneak into a component. Every value points at a CSS variable from tokens.css, which
+ * already switches per theme and per accent.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-press: var(--accent-press);
+  --color-accent-fill: var(--accent-fill);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-softer: var(--accent-softer);
+  --color-accent-ring: var(--accent-ring);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-*: initial;
+  --font-ui: var(--ff-ui);
+  --font-display: var(--ff-display);
+  --font-mono: var(--ff-mono);
+
+  --radius-*: initial;
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-pill: var(--r-pill);
+
+  --shadow-*: initial;
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+
+  --text-*: initial;
+  --text-display: var(--fs-display);
+  --text-display--line-height: var(--lh-display);
+  --text-display--font-weight: var(--fw-display);
+  --text-title: var(--fs-title);
+  --text-title--line-height: var(--lh-title);
+  --text-title--font-weight: var(--fw-title);
+  --text-heading: var(--fs-heading);
+  --text-heading--line-height: var(--lh-heading);
+  --text-heading--font-weight: var(--fw-heading);
+  --text-body: var(--fs-body);
+  --text-body--line-height: var(--lh-body);
+  --text-body--font-weight: var(--fw-body);
+  --text-small: var(--fs-small);
+  --text-small--line-height: var(--lh-small);
+  --text-small--font-weight: var(--fw-small);
+  --text-micro: var(--fs-micro);
+  --text-micro--line-height: var(--lh-micro);
+  --text-micro--font-weight: var(--fw-micro);
+
+  --ease-out: var(--ease-out);
+  --breakpoint-*: initial;
+  /* DESIGN.md §5: below 760 the layout is single-column; below 1100 the context panel is a sheet. */
+  --breakpoint-md: 760px;
+  --breakpoint-lg: 1100px;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ff-ui);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: var(--fw-body);
+    transition:
+      background-color var(--dur-slow) var(--ease-out),
+      color var(--dur-slow) var(--ease-out);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  /* DESIGN.md §11: a 2 px accent ring with a 2 px offset, never removed. */
+  :focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--accent-soft);
+  }
+  /* DESIGN.md §6: Lucide at 1.75 stroke. */
+  svg.lucide {
+    stroke-width: 1.75;
+  }
+}
+
+@layer components {
+  /* Accent swaps tween over 320 ms (DESIGN.md §3). Only accent-bearing surfaces get the transition. */
+  .accent-tween {
+    transition:
+      background-color var(--dur-slow) var(--ease-out),
+      color var(--dur-slow) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--ok);
+    animation: faire-breathe 2s ease-in-out infinite;
+  }
+}
+
+/* Pip, placeholder art (see src/mascot/Beaver.tsx). Ambient motion belongs only to the mascot. */
+.beaver {
+  overflow: visible;
+}
+.beaver .bob {
+  animation: faire-bob 3.6s ease-in-out infinite;
+  transform-origin: 60px 100px;
+}
+.beaver .eyes-open {
+  animation: faire-blink 5.5s infinite;
+  transform-origin: 60px 46px;
+}
+.beaver :is(.eyes-closed, .zz, .logbits, .sign, .think, .sweat, .sparkle) {
+  opacity: 0;
+  transition: opacity var(--dur-base);
+}
+.beaver .pupils {
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.beaver .tailg {
+  transform-origin: 84px 98px;
+}
+.beaver .ears {
+  transition: transform var(--dur-slow) var(--ease-out);
+  transform-origin: 60px 40px;
+}
+.beaver .head {
+  transition: transform var(--dur-slow) var(--ease-out);
+  transform-origin: 60px 70px;
+}
+.beaver[data-state="listening"] .ears {
+  transform: translateY(-2px) scale(1.04);
+}
+.beaver[data-state="listening"] .head {
+  transform: rotate(-6deg);
+}
+.beaver[data-state="thinking"] .pupils {
+  transform: translate(1.5px, -2.2px);
+}
+.beaver[data-state="thinking"] .think {
+  opacity: 1;
+  animation: faire-breathe 1.2s infinite;
+}
+.beaver[data-state="working"] .logbits {
+  opacity: 1;
+}
+.beaver[data-state="working"] .head {
+  animation: faire-gnaw 0.32s ease-in-out infinite;
+}
+.beaver[data-state="working"] .chipbit {
+  animation: faire-chip 1s ease-out infinite;
+}
+.beaver .chip-a {
+  --dx: -8px;
+}
+.beaver .chip-b {
+  --dx: 7px;
+  animation-delay: 0.33s;
+}
+.beaver .chip-c {
+  --dx: -3px;
+  animation-delay: 0.66s;
+}
+.beaver[data-state="waiting"] .sign {
+  opacity: 1;
+}
+.beaver[data-state="waiting"] .head {
+  animation: faire-tilt 2.4s ease-in-out infinite;
+}
+.beaver[data-state="done"] .tailg {
+  animation: faire-slap 0.7s var(--ease-out) 2;
+}
+.beaver[data-state="done"] .sparkle {
+  opacity: 1;
+}
+.beaver[data-state="sleeping"] .eyes-open {
+  opacity: 0;
+  animation: none;
+}
+.beaver[data-state="sleeping"] :is(.eyes-closed, .zz) {
+  opacity: 1;
+}
+.beaver[data-state="sleeping"] .bob {
+  animation-duration: 5s;
+}
+.beaver[data-state="error"] .ears {
+  transform: translateY(3px);
+}
+.beaver[data-state="error"] .sweat {
+  opacity: 1;
+}
+.beaver[data-state="error"] .pupils {
+  transform: translateY(1.5px);
+}
+
+@keyframes faire-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes faire-bob {
+  50% {
+    transform: translateY(-1.6px);
+  }
+}
+@keyframes faire-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  96.5% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes faire-gnaw {
+  50% {
+    transform: translateY(1.5px) rotate(1deg);
+  }
+}
+@keyframes faire-chip {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), -10px);
+    opacity: 0;
+  }
+}
+@keyframes faire-tilt {
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes faire-slap {
+  40% {
+    transform: rotate(-28deg);
+  }
+}
+
+/* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
+   MotionConfig; this freezes CSS animation, including the mascot on its pose frame. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
