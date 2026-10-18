@@ -213,6 +213,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       }
     } finally {
       clearTimeout(timer)
+      deps.onStepEnd?.({ runId, stepIdx: idx })
     }
 
     const assistantMessages = responseMessages.filter((m) => m.role === 'assistant')
