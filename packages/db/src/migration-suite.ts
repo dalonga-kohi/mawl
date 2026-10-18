@@ -297,6 +297,31 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
       }
     })
 
+    it('stores an anthropic_claude_code credential as a label with no secret or oauth client', async () => {
+      const m = await fresh()
+      try {
+        const id = newId('credential')
+        await m.db.insert(providerCredentials).values({
+          id,
+          provider: 'anthropic_claude_code',
+          label: 'My Claude plan',
+          secretEnc: new Uint8Array([]),
+        })
+        const [row] = await m.db
+          .select()
+          .from(providerCredentials)
+          .where(eq(providerCredentials.id, id))
+        expect(row).toMatchObject({
+          provider: 'anthropic_claude_code',
+          baseUrl: null,
+          oauthClientId: null,
+          accountEmail: null,
+        })
+      } finally {
+        await m.close()
+      }
+    })
+
     it('stores an openai_chatgpt credential tied to an issued oauth client', async () => {
       const m = await fresh()
       try {
