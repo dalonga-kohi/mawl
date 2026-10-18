@@ -112,6 +112,10 @@ export async function startServer(
       secretBox,
       logger,
       chatgpt: { hostId, port: config.siwcPort, bindHost: config.siwcHost },
+      claudeCode: {
+        configDir: config.claudeConfigDir,
+        pathToClaudeCodeExecutable: config.claudeCodePath,
+      },
     })
     const app = createApp({
       logger,

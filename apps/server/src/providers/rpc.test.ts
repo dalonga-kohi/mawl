@@ -128,6 +128,7 @@ describe('providers over RPC (app + PGlite)', () => {
       'ollama',
       'openai_compatible',
       'openai_chatgpt',
+      'anthropic_claude_code',
     ])
   })
 })

@@ -12,6 +12,8 @@ describe('parseConfig', () => {
       secretsDir: '.faire/secrets',
       siwcPort: 1455,
       siwcHost: '127.0.0.1',
+      claudeConfigDir: undefined,
+      claudeCodePath: undefined,
       logLevel: 'info',
     })
   })
@@ -25,6 +27,8 @@ describe('parseConfig', () => {
         FAIRE_SECRETS_DIR: '/secrets',
         FAIRE_SIWC_PORT: '1456',
         FAIRE_SIWC_BIND_HOST: '0.0.0.0',
+        FAIRE_CLAUDE_CONFIG_DIR: '/data/claude',
+        FAIRE_CLAUDE_CODE_PATH: '/opt/claude',
         LOG_LEVEL: 'debug',
       }),
     ).toEqual({
@@ -34,6 +38,8 @@ describe('parseConfig', () => {
       secretsDir: '/secrets',
       siwcPort: 1456,
       siwcHost: '0.0.0.0',
+      claudeConfigDir: '/data/claude',
+      claudeCodePath: '/opt/claude',
       logLevel: 'debug',
     })
   })
@@ -42,6 +48,16 @@ describe('parseConfig', () => {
     const cfg = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, FAIRE_PORT: '', LOG_LEVEL: '' })
     expect(cfg.port).toBe(7420)
     expect(cfg.logLevel).toBe('info')
+  })
+
+  it('treats empty Claude variables as unset', () => {
+    const cfg = parseConfig({
+      DATABASE_URL: URL_WITH_PASSWORD,
+      FAIRE_CLAUDE_CONFIG_DIR: '',
+      FAIRE_CLAUDE_CODE_PATH: '',
+    })
+    expect(cfg.claudeConfigDir).toBeUndefined()
+    expect(cfg.claudeCodePath).toBeUndefined()
   })
 
   it('names the missing DATABASE_URL', () => {

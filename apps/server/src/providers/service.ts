@@ -9,6 +9,8 @@ import {
   type ProviderTestResult,
 } from '@faire/contracts'
 import {
+  type ClaudeLoginTestOptions,
+  type ClaudeQueryFn,
   createLanguageModel,
   type ProviderConnection,
   ProviderFailureError,
@@ -41,6 +43,19 @@ export interface ProviderServiceDeps {
   fetch?: typeof globalThis.fetch
   /** Sign in with ChatGPT. Without a host id the sign-in cannot start. */
   chatgpt?: ChatGptOptions
+  /**
+   * Claude subscription via the Claude Code binary: where its login and the binary live. Neither
+   * is a secret. The test seams (query, un, esolveBinary) keep tests from spawning it.
+   */
+  claudeCode?: ClaudeCodeOptions
+}
+
+export interface ClaudeCodeOptions
+  extends Pick<
+    ClaudeLoginTestOptions,
+    'configDir' | 'pathToClaudeCodeExecutable' | 'run' | 'resolveBinary'
+  > {
+  query?: ClaudeQueryFn
 }
 
 export type TestTarget = { id: CredentialId } | ProviderCredentialInput
@@ -107,6 +122,7 @@ export function createProviderService({
   logger,
   fetch,
   chatgpt: chatgptOptions,
+  claudeCode,
 }: ProviderServiceDeps): ProviderService {
   const chatgpt = createChatGptAuth({
     db,
@@ -225,7 +241,10 @@ export function createProviderService({
           secret: target.secret ?? null,
         }
       }
-      const result = await testCredential(conn, fetch ? { fetch } : {})
+      const result = await testCredential(conn, {
+        ...(fetch ? { fetch } : {}),
+        ...(claudeCode ? { claudeCode } : {}),
+      })
       logger.info(
         { provider: conn.kind, ok: result.ok, ...(result.ok ? {} : { reason: result.reason }) },
         'provider credential tested',
@@ -239,6 +258,7 @@ export function createProviderService({
       const conn = await resolveCredential(id)
       return createLanguageModel(conn, modelId, {
         ...(fetch ? { fetch } : {}),
+        ...(claudeCode ? { claudeCode } : {}),
         ...(conn.kind === 'openai_chatgpt' ? { chatgpt: { tokens: chatgpt.tokens(id) } } : {}),
       })
     },

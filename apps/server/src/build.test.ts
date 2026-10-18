@@ -27,6 +27,14 @@ describe('production bundle', () => {
     expect(source).not.toMatch(/import\(["']@faire\//)
   })
 
+  it('keeps the Claude Agent SDK external: it finds its native binary from its own install path', () => {
+    const source = readFileSync(bundle, 'utf8')
+    expect(source).toMatch(/import\(["']@anthropic-ai\/claude-agent-sdk["']\)/)
+    // Bundled, the SDK would add ~1 MB and resolve the binary relative to server.mjs.
+    expect(source.length).toBeLessThan(5_000_000)
+    expect(source).not.toContain('Native CLI binary for')
+  })
+
   it('bakes in the package version', () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
     expect(readFileSync(bundle, 'utf8')).toContain(JSON.stringify(pkg.version))

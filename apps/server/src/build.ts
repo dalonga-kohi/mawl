@@ -31,7 +31,9 @@ export async function buildServer({
     format: 'esm',
     target: 'node24',
     // pg tries to load the optional native binding and falls back to JS when absent.
-    external: ['pg-native'],
+    // The Claude Agent SDK locates its native binary beside itself in node_modules, so it must
+    // stay a real install next to the bundle (P1.9 ships node_modules for it), never inlined.
+    external: ['pg-native', '@anthropic-ai/claude-agent-sdk'],
     define: { __FAIRE_VERSION__: JSON.stringify(pkg.version) },
     // CommonJS dependencies (pg, pino) call require() on node builtins.
     banner: {

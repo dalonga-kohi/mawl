@@ -45,6 +45,10 @@ const EnvSchema = z.object({
   // inside the container and publish it on the host as 127.0.0.1:<port>:<port> only.
   FAIRE_SIWC_PORT: port(1455),
   FAIRE_SIWC_BIND_HOST: optional(z.string().min(1).default('127.0.0.1')),
+  // Claude subscription via the Claude Code binary. The config dir holds the owner's own
+  // `claude auth login` (Faire never reads it); the path overrides the binary the SDK bundles.
+  FAIRE_CLAUDE_CONFIG_DIR: optional(z.string().min(1).optional()),
+  FAIRE_CLAUDE_CODE_PATH: optional(z.string().min(1).optional()),
   LOG_LEVEL: optional(
     z.enum(LOG_LEVELS, { error: `must be one of ${LOG_LEVELS.join(', ')}` }).default('info'),
   ),
@@ -57,6 +61,8 @@ export interface Config {
   secretsDir: string
   siwcPort: number
   siwcHost: string
+  claudeConfigDir?: string | undefined
+  claudeCodePath?: string | undefined
   logLevel: LogLevel
 }
 
@@ -86,6 +92,8 @@ export function parseConfig(env: Record<string, string | undefined> = process.en
     secretsDir: v.FAIRE_SECRETS_DIR,
     siwcPort: v.FAIRE_SIWC_PORT,
     siwcHost: v.FAIRE_SIWC_BIND_HOST,
+    claudeConfigDir: v.FAIRE_CLAUDE_CONFIG_DIR,
+    claudeCodePath: v.FAIRE_CLAUDE_CODE_PATH,
     logLevel: v.LOG_LEVEL,
   }
 }
