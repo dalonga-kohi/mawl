@@ -218,13 +218,17 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
         ? { pathToClaudeCodeExecutable: opts.pathToClaudeCodeExecutable }
         : {}),
     }
-    const handle = query({ prompt, options })
-    return {
-      handle,
-      controller,
-      call,
-      cleanup: () => abortSignal?.removeEventListener('abort', onAbort),
+    const cleanup = () => abortSignal?.removeEventListener('abort', onAbort)
+    let handle: ClaudeQueryHandle
+    try {
+      handle = query({ prompt, options })
+    } catch {
+      // Nothing will run `cleanup` for a query that never started. The error text can carry
+      // paths or tokens, so it is dropped, as in `run`.
+      cleanup()
+      throw new ProviderFailureError('provider_error')
     }
+    return { handle, controller, call, cleanup }
   }
 
   type Started = Awaited<ReturnType<typeof start>>

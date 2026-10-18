@@ -385,6 +385,36 @@ describe('Claude Code language model: abort', () => {
   })
 })
 
+describe('Claude Code language model: query throws synchronously', () => {
+  const throwing = () => {
+    throw new Error('spawn failed: token sk-ant-LEAK in /home/owner/.claude')
+  }
+
+  it('removes the abort listener and reports provider_error without the raw text', async () => {
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    const m = createClaudeCodeModel({ modelId: 'sonnet', query: throwing, checkLogin: okLogin })
+    const err = await m.doGenerate({ ...userPrompt('hi'), abortSignal: controller.signal }).then(
+      () => undefined,
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(ProviderFailureError)
+    expect((err as ProviderFailureError).reason).toBe('provider_error')
+    expect(JSON.stringify(err)).not.toContain('LEAK')
+    expect((err as Error).message).not.toContain('LEAK')
+    expect(String((err as Error).cause ?? '')).not.toContain('LEAK')
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function))
+  })
+
+  it('reports it as an error part in a stream', async () => {
+    const m = createClaudeCodeModel({ modelId: 'sonnet', query: throwing, checkLogin: okLogin })
+    const parts = await readAll((await m.doStream(userPrompt('hi'))).stream)
+    expect(parts.map((p) => p.type)).toEqual(['stream-start', 'error', 'finish'])
+    expect(parts.find((p) => p.type === 'error')?.error).toMatchObject({ reason: 'provider_error' })
+    expect(JSON.stringify(parts)).not.toContain('LEAK')
+  })
+})
+
 describe('Claude Code language model: failures', () => {
   async function failureOf(messages: unknown[], opts?: { throwAfter?: unknown }) {
     const fq = fakeQuery(messages, opts)
