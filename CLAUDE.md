@@ -146,6 +146,7 @@ pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl.
 pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
 pnpm --filter @faire/ui generate                 # regenerate tokens.css
 pnpm --filter @faire/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
+docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack at :7420; needs infra/compose/.env (docs/RUNNING.md)
 pnpm test:e2e / pnpm db:migrate                # arrive in P1
 ```
 
