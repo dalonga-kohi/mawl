@@ -20,7 +20,8 @@ export function ContextPanelBody() {
           <Tabs.Trigger
             key={t.id}
             value={t.id}
-            className="h-[34px] flex-1 rounded-sm text-small font-semibold text-text-2 transition-colors duration-[120ms] hover:bg-surface-2 data-[state=active]:bg-surface-2 data-[state=active]:text-text"
+            // Inset ring: the panel clips anything drawn outside the tab.
+            className="h-[34px] pointer-coarse:h-11 flex-1 rounded-sm focus-visible:outline-offset-[-2px] text-small font-semibold text-text-2 transition-colors duration-[120ms] hover:bg-surface-2 data-[state=active]:bg-surface-2 data-[state=active]:text-text"
           >
             {t.label}
           </Tabs.Trigger>

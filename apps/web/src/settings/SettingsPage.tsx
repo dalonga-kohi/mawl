@@ -60,7 +60,7 @@ function ThemeControl() {
           key={t.value}
           value={t.value}
           aria-label={t.label}
-          className="relative inline-flex h-9 items-center gap-1.5 rounded-pill px-3.5 text-small font-semibold text-text-2 transition-colors duration-[200ms] data-[state=checked]:text-text [&_svg]:size-4"
+          className="relative inline-flex h-9 pointer-coarse:h-11 items-center gap-1.5 rounded-pill px-3.5 text-small font-semibold text-text-2 transition-colors duration-[200ms] data-[state=checked]:text-text [&_svg]:size-4"
         >
           {appearance.theme === t.value ? (
             <motion.span
@@ -99,7 +99,7 @@ function AccentControl() {
             key={p.id}
             value={p.hex}
             aria-label={p.name}
-            className="relative size-8 rounded-pill transition-transform duration-[200ms] hover:scale-110 active:scale-90 data-[state=checked]:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--c)]"
+            className="relative size-8 pointer-coarse:size-11 rounded-pill transition-transform duration-[200ms] hover:scale-110 active:scale-90 data-[state=checked]:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--c)]"
             style={{ background: p.hex, ['--c' as string]: p.hex }}
           >
             {/* A single ripple from the chosen swatch (DESIGN.md §7). */}
@@ -124,7 +124,7 @@ function AccentControl() {
       </RadioGroup.Root>
       <label
         className={cx(
-          'relative size-8 cursor-pointer rounded-pill transition-transform duration-[200ms] hover:scale-110 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-ring',
+          'relative size-8 pointer-coarse:size-11 cursor-pointer rounded-pill transition-transform duration-[200ms] hover:scale-110 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-ring',
           isCustom && 'shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--accent)]',
         )}
         style={{
@@ -150,7 +150,8 @@ function ReduceMotionControl() {
       id="reduce-motion"
       checked={appearance.reduceMotion}
       onCheckedChange={setReduceMotion}
-      className="relative h-[26px] w-[42px] shrink-0 rounded-pill bg-line transition-colors duration-[200ms] data-[state=checked]:bg-accent-fill"
+      // The pseudo-element widens the hit area to 44 px without changing how the switch looks.
+      className="relative h-[26px] w-[42px] shrink-0 rounded-pill before:absolute before:-inset-[9px] before:content-[''] bg-line transition-colors duration-[200ms] data-[state=checked]:bg-accent-fill"
     >
       <Switch.Thumb className="block size-5 translate-x-[3px] rounded-pill bg-surface shadow-1 transition-transform duration-[320ms] data-[state=checked]:translate-x-[19px]" />
     </Switch.Root>

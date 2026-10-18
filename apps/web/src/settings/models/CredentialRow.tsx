@@ -59,11 +59,13 @@ export function CredentialRow({
   descriptor,
   onSignInAgain,
   onSignedOutUnconfirmed,
+  onRemoved,
 }: {
   credential: ProviderCredential
   descriptor: ProviderDescriptor | undefined
   onSignInAgain: () => void
   onSignedOutUnconfirmed: () => void
+  onRemoved: () => void
 }) {
   const { providers } = useApi()
   const refresh = useRefreshCredentials()
@@ -76,6 +78,8 @@ export function CredentialRow({
     mutationFn: () => providers.remove(credential.id),
     onSuccess: async (removed) => {
       await refresh()
+      // The row and its buttons are gone; hand focus back before it falls to <body>.
+      onRemoved()
       if (!removed.revoked) onSignedOutUnconfirmed()
       else toast(isChatGpt ? 'Signed out of ChatGPT' : `${credential.label} removed`)
     },

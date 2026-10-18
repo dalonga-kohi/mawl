@@ -4,18 +4,21 @@ import { press } from '../motion/presets.ts'
 import { cx } from './cx.ts'
 import { Tooltip } from './Tooltip.tsx'
 
-type Variant = 'primary' | 'soft' | 'ghost'
+type Variant = 'primary' | 'soft' | 'ghost' | 'contrast'
 type Size = 'sm' | 'md'
 
 const variants: Record<Variant, string> = {
   primary: 'bg-accent-fill text-on-accent hover:bg-accent-hover active:bg-accent-press',
   soft: 'bg-surface-2 text-text hover:bg-line',
   ghost: 'text-text-2 hover:bg-surface-2 hover:text-text',
+  /** Third-party sign-in ("Continue with ChatGPT"): neutral, never the accent, so it reads as theirs. */
+  contrast: 'bg-text text-bg hover:bg-text-2 active:bg-text',
 }
 
+// Touch screens get 44 px tall targets; mouse users keep the denser sizes.
 const sizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-small gap-1.5',
-  md: 'h-10 px-4 text-body gap-2 font-semibold',
+  sm: 'h-8 px-3 text-small gap-1.5 pointer-coarse:h-11',
+  md: 'h-10 px-4 text-body gap-2 font-semibold pointer-coarse:h-11',
 }
 
 export const buttonClass = (variant: Variant = 'soft', size: Size = 'md') =>
@@ -59,7 +62,7 @@ export function IconButton({ label, tooltipSide = 'bottom', className, ...rest }
         type="button"
         aria-label={label}
         className={cx(
-          'grid size-9 place-items-center rounded-sm text-text-2 transition-colors duration-[120ms]',
+          'grid size-9 pointer-coarse:size-11 place-items-center rounded-sm text-text-2 transition-colors duration-[120ms]',
           'hover:bg-surface-2 hover:text-text disabled:opacity-50 [&_svg]:size-[18px]',
           className,
         )}

@@ -2,7 +2,7 @@ import type { ProviderCredential } from '@faire/contracts'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { useApi } from '../../api/ApiProvider.tsx'
 import { enter } from '../../motion/presets.ts'
 import { Button, IconButton } from '../../ui/Button.tsx'
@@ -25,8 +25,7 @@ function ChatGptButton({
 }) {
   return (
     <Button
-      variant="primary"
-      className="bg-text text-bg hover:bg-text-2 active:bg-text"
+      variant="contrast"
       disabled={signIn.starting || signIn.attempt !== null}
       onClick={signIn.start}
     >
@@ -144,6 +143,7 @@ export function ModelsSection() {
   const [claudeOpen, setClaudeOpen] = useState(false)
   const [keyOpen, setKeyOpen] = useState(false)
   const [revokeNotice, setRevokeNotice] = useState(false)
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   const list: ProviderCredential[] = credentials.data ?? []
   const hasChatGpt = list.some((c) => c.provider === 'openai_chatgpt')
@@ -178,6 +178,7 @@ export function ModelsSection() {
                 descriptor={descriptorOf(c)}
                 onSignInAgain={signIn.start}
                 onSignedOutUnconfirmed={() => setRevokeNotice(true)}
+                onRemoved={() => headingRef.current?.focus()}
               />
             ))}
           </ul>
@@ -228,7 +229,12 @@ export function ModelsSection() {
 
   return (
     <section aria-labelledby="models" className="flex max-w-[860px] flex-col gap-2.5">
-      <h2 id="models" className="scroll-mt-6 text-small font-semibold text-text-2">
+      <h2
+        id="models"
+        ref={headingRef}
+        tabIndex={-1}
+        className="scroll-mt-6 text-small font-semibold text-text-2 outline-none"
+      >
         Models
       </h2>
       {revokeNotice ? (

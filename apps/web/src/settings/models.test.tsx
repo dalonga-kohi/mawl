@@ -50,9 +50,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
       'noopener,noreferrer',
     )
     expect(await within(models()).findByText(/Finish signing in/)).toBeTruthy()
-    expect(
-      await within(models()).findByText('Using ChatGPT plan'),
-    ).toBeTruthy()
+    expect(await within(models()).findByText('Using ChatGPT plan')).toBeTruthy()
     const manage = within(models()).getByRole('link', { name: 'Manage usage' })
     expect(manage.getAttribute('href')).toBe('https://chatgpt.com/settings/usage')
   })
@@ -62,9 +60,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
     fake.state.statuses = [{ status: 'failed', reason: 'access_denied' }]
     const { user } = await renderApp('/settings', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
-    expect(
-      await within(models()).findByText('Sign-in was cancelled in ChatGPT.'),
-    ).toBeTruthy()
+    expect(await within(models()).findByText('Sign-in was cancelled in ChatGPT.')).toBeTruthy()
   })
 
   it('stops polling and says so when the status check fails', async () => {
@@ -88,7 +84,9 @@ describe('settings, models: Sign in with ChatGPT', () => {
     await new Promise((r) => setTimeout(r, 120))
     expect(fake.state.statusCalls).toBe(calls)
     expect(
-      within(models()).getByRole('button', { name: 'Continue with ChatGPT' }).hasAttribute('disabled'),
+      within(models())
+        .getByRole('button', { name: 'Continue with ChatGPT' })
+        .hasAttribute('disabled'),
     ).toBe(false)
   })
 
@@ -136,6 +134,19 @@ describe('settings, models: Sign in with ChatGPT', () => {
     expect(notice.textContent).toMatch(/Revoke it in ChatGPT settings/)
     expect(within(notice).getByRole('link', { name: 'ChatGPT settings' })).toBeTruthy()
     expect(fake.state.removed).toEqual([row.id])
+  })
+
+  it('moves focus to the Models heading after a removal, not to the page body', async () => {
+    const row = credential({ provider: 'anthropic', label: 'Work key' })
+    const fake = fakeProvidersApi([row])
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Remove Work key' }))
+    const confirm = await screen.findByRole('alertdialog')
+    await user.click(within(confirm).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(within(models()).queryByText('Work key')).toBeNull())
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Models' })),
+    )
   })
 })
 
