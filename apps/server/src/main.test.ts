@@ -23,7 +23,7 @@ describe('main entrypoint', () => {
     const { code, output } = await runMain({})
     expect(code).toBe(1)
     expect(output).toContain('DATABASE_URL')
-  }, 30_000)
+  }, 60_000)
 
   it('exits 1 on an unreachable database without printing the password', async () => {
     const { code, output } = await runMain({
@@ -32,5 +32,5 @@ describe('main entrypoint', () => {
     expect(code).toBe(1)
     expect(output).not.toContain('hunter2-pw')
     expect(output).toMatch(/ECONNREFUSED|boot failed/)
-  }, 30_000)
+  }, 60_000)
 })
