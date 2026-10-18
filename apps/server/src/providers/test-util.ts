@@ -7,4 +7,10 @@ export const unusedProviders: ProviderService = {
   delete: () => Promise.reject(new Error('providers.delete not stubbed')),
   test: () => Promise.reject(new Error('providers.test not stubbed')),
   resolveCredential: () => Promise.reject(new Error('providers.resolveCredential not stubbed')),
+  createModel: () => Promise.reject(new Error('providers.createModel not stubbed')),
+  startChatGptSignIn: () => Promise.reject(new Error('providers.startChatGptSignIn not stubbed')),
+  chatGptSignInStatus: () => {
+    throw new Error('providers.chatGptSignInStatus not stubbed')
+  },
+  close: () => Promise.resolve(),
 }

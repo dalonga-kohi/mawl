@@ -62,7 +62,16 @@ describe('providers over RPC (app + PGlite)', () => {
       label: 'Work',
       secret: SECRET,
     })
-    expect(Object.keys(created).sort()).toEqual(['baseUrl', 'createdAt', 'id', 'label', 'provider'])
+    expect(Object.keys(created).sort()).toEqual([
+      'accountEmail',
+      'baseUrl',
+      'createdAt',
+      'id',
+      'label',
+      'planUsage',
+      'provider',
+      'reauthRequired',
+    ])
     expect(await rpc.providers.list()).toEqual([created])
 
     expect(await rpc.providers.test({ id: created.id })).toMatchObject({ ok: true })
@@ -118,6 +127,7 @@ describe('providers over RPC (app + PGlite)', () => {
       'openrouter',
       'ollama',
       'openai_compatible',
+      'openai_chatgpt',
     ])
   })
 })

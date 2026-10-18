@@ -17,6 +17,9 @@ const publicRow = {
   provider: 'openai' as const,
   label: 'Work',
   baseUrl: null,
+  accountEmail: null,
+  planUsage: false,
+  reauthRequired: false,
   createdAt: '2026-01-02T03:04:05.000Z',
 }
 

@@ -101,7 +101,16 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
       const listed = await service.list()
       expect(listed.map((c) => c.id)).toEqual([a.id, b.id])
       for (const row of listed) {
-        expect(Object.keys(row).sort()).toEqual(['baseUrl', 'createdAt', 'id', 'label', 'provider'])
+        expect(Object.keys(row).sort()).toEqual([
+          'accountEmail',
+          'baseUrl',
+          'createdAt',
+          'id',
+          'label',
+          'planUsage',
+          'provider',
+          'reauthRequired',
+        ])
       }
       expect(JSON.stringify(listed)).not.toContain(SECRET)
     })

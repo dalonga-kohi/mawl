@@ -21,6 +21,8 @@ describe('server against real Postgres', () => {
         host: '127.0.0.1',
         port: 0,
         secretsDir: join(dir, 'secrets'),
+        siwcPort: 1455,
+        siwcHost: '127.0.0.1',
         logLevel: 'silent',
       },
       { logger: createLogger({ level: 'silent' }) },

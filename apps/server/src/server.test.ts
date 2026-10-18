@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CreateDbOptions, DbHandle } from '@faire/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
 import { createLogger } from './logger.ts'
+import { HOST_ID_FILE } from './secrets/index.ts'
 import { startServer } from './server.ts'
 
 let dir: string
@@ -36,6 +37,8 @@ const config = (): Config => ({
   host: '127.0.0.1',
   port: 0,
   secretsDir: join(dir, 'secrets'),
+  siwcPort: 1455,
+  siwcHost: '127.0.0.1',
   logLevel: 'silent',
 })
 
@@ -54,6 +57,25 @@ describe('startServer', () => {
     } finally {
       await server.stop()
     }
+  })
+
+  it('creates the ChatGPT host id next to the master key on first boot and keeps it', async () => {
+    const first = await startServer(config(), { logger: logger(), ...fakes() })
+    await first.stop()
+    const file = join(dir, 'secrets', HOST_ID_FILE)
+    const id = await readFile(file, 'utf8')
+    expect(id).toMatch(/^urn:uuid:/)
+    const second = await startServer(config(), { logger: logger(), ...fakes() })
+    await second.stop()
+    expect(await readFile(file, 'utf8')).toBe(id)
+  })
+
+  it('does not open the database when the host id file is unusable', async () => {
+    const f = fakes()
+    await mkdir(join(dir, 'secrets'), { recursive: true })
+    await writeFile(join(dir, 'secrets', HOST_ID_FILE), 'garbage')
+    await expect(startServer(config(), { logger: logger(), ...f })).rejects.toThrow(/host id/i)
+    expect(f.createDb).not.toHaveBeenCalled()
   })
 
   it('reports 503 on /healthz when the database query fails', async () => {

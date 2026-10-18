@@ -330,6 +330,8 @@ describe('startServer edge cases', () => {
     host: '127.0.0.1',
     port: 0,
     secretsDir: join(dir, 'secrets'),
+    siwcPort: 1455,
+    siwcHost: '127.0.0.1',
     logLevel: 'silent' as const,
     ...over,
   })

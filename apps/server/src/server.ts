@@ -9,7 +9,12 @@ import type { Config } from './config.ts'
 import { probeDb } from './db-probe.ts'
 import { createLogger, type Logger } from './logger.ts'
 import { createProviderService } from './providers/service.ts'
-import { createSecretBox, loadOrCreateMasterKey, type SecretBox } from './secrets/index.ts'
+import {
+  createSecretBox,
+  loadOrCreateHostId,
+  loadOrCreateMasterKey,
+  type SecretBox,
+} from './secrets/index.ts'
 import { readVersion } from './version.ts'
 
 /** Replaceable pieces, so tests can boot without a database. */
@@ -84,6 +89,10 @@ export async function startServer(
     masterKey.fill(0)
   }
 
+  // The opaque id every Sign in with ChatGPT credential on this server shares. Read before the
+  // database opens, so a bad file leaves nothing to close.
+  const hostId = await loadOrCreateHostId(config.secretsDir)
+
   const handle = (overrides.createDb ?? createDb)(config.databaseUrl, {
     // Idle client errors must not crash the process. Name and code only: messages can hold the url.
     onError: (err) =>
@@ -94,13 +103,20 @@ export async function startServer(
   })
   let server: Server
   let url: string
+  let providers: ReturnType<typeof createProviderService>
   try {
     await (overrides.migrate ?? migrate)(handle.db, resolveMigrationsFolder())
     logger.info('migrations applied')
+    providers = createProviderService({
+      db: handle.db,
+      secretBox,
+      logger,
+      chatgpt: { hostId, port: config.siwcPort, bindHost: config.siwcHost },
+    })
     const app = createApp({
       logger,
       version,
-      providers: createProviderService({ db: handle.db, secretBox, logger }),
+      providers,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
@@ -120,6 +136,7 @@ export async function startServer(
     stop() {
       stopping ??= (async () => {
         await closeServer(server)
+        await providers.close()
         await handle.close()
         logger.info('stopped')
       })()

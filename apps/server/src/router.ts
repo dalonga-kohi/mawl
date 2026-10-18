@@ -5,6 +5,8 @@ import {
   CredentialNotFoundError,
   CredentialUnreadableError,
   type ProviderService,
+  SignInAttemptNotFoundError,
+  SignInUnavailableError,
 } from './providers/service.ts'
 
 export interface RouterDeps {
@@ -78,6 +80,27 @@ export function createRouter({ version, providers }: RouterDeps) {
       delete: os.providers.delete.handler(({ input, errors }) =>
         providers.delete(input.id).catch(notFound(errors)),
       ),
+      chatgpt: {
+        start: os.providers.chatgpt.start.handler(() =>
+          providers.startChatGptSignIn().catch((err: unknown) => {
+            // 503: the owner can fix it (set a free port, or the host id file) and retry.
+            if (err instanceof SignInUnavailableError) {
+              throw new ORPCError('SIGN_IN_UNAVAILABLE', { status: 503, data: { why: err.why } })
+            }
+            throw err
+          }),
+        ),
+        status: os.providers.chatgpt.status.handler(({ input, errors }) => {
+          try {
+            return providers.chatGptSignInStatus(input.attemptId)
+          } catch (err) {
+            if (err instanceof SignInAttemptNotFoundError) {
+              throw errors.NOT_FOUND({ data: { entity: 'sign_in_attempt', id: err.id } })
+            }
+            throw err
+          }
+        }),
+      },
       test: os.providers.test.handler(({ input, errors }) =>
         providers.test(input).catch((err: unknown) => {
           if (err instanceof CredentialUnreadableError) {
