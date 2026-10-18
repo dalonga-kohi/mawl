@@ -7,6 +7,8 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { PLACEHOLDER_API_KEY } from './chatgpt/constants.ts'
 import { createChatGptFetch } from './chatgpt/fetch.ts'
 import type { TokenManager } from './chatgpt/token-manager.ts'
+import { createClaudeCodeModel } from './claude-code/model.ts'
+import type { ClaudeQueryFn } from './claude-code/types.ts'
 import { PROVIDER_DESCRIPTORS, type ProviderConnection, resolveBaseUrl } from './descriptors.ts'
 import { noRedirectFetch } from './no-redirect-fetch.ts'
 
@@ -15,6 +17,13 @@ export interface CreateLanguageModelOptions {
   fetch?: typeof globalThis.fetch
   /** Required for openai_chatgpt: supplies a fresh bearer per request. Never a stored secret. */
   chatgpt?: { tokens: TokenManager }
+  /** anthropic_claude_code: where the binary and its login live. Neither is a secret. */
+  claudeCode?: {
+    configDir?: string | undefined
+    pathToClaudeCodeExecutable?: string | undefined
+    /** Injected in tests so the binary is never spawned. */
+    query?: ClaudeQueryFn
+  }
 }
 
 /**
@@ -25,7 +34,7 @@ export interface CreateLanguageModelOptions {
 export function createLanguageModel(
   conn: ProviderConnection,
   modelId: string,
-  { fetch, chatgpt }: CreateLanguageModelOptions = {},
+  { fetch, chatgpt, claudeCode }: CreateLanguageModelOptions = {},
 ): LanguageModelV4 {
   if (conn.kind === 'openai_chatgpt') {
     if (!chatgpt) throw new Error('openai_chatgpt needs Sign in with ChatGPT tokens')
@@ -36,6 +45,10 @@ export function createLanguageModel(
       apiKey: PLACEHOLDER_API_KEY,
       fetch: createChatGptFetch({ tokens: chatgpt.tokens, ...(fetch ? { fetch } : {}) }),
     }).responses(modelId)
+  }
+  if (conn.kind === 'anthropic_claude_code') {
+    // The login lives in the binary's own config dir. A stored secret or base url is ignored.
+    return createClaudeCodeModel({ modelId, ...claudeCode })
   }
   const baseURL = resolveBaseUrl(conn.kind, conn.baseUrl)
   const apiKey = conn.secret ?? undefined

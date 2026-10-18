@@ -1,4 +1,5 @@
 import type { ProviderTestResult } from '@faire/contracts'
+import { type ClaudeLoginTestOptions, testClaudeCodeLogin } from './claude-code/auth-status.ts'
 import { type ProviderConnection, resolveBaseUrl } from './descriptors.ts'
 
 export interface TestCredentialOptions {
@@ -7,6 +8,8 @@ export interface TestCredentialOptions {
   timeoutMs?: number
   /** Monotonic clock in ms. Defaults to `performance.now`. */
   now?: () => number
+  /** anthropic_claude_code only: where the binary and its login live, plus test seams. */
+  claudeCode?: ClaudeLoginTestOptions
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -29,6 +32,9 @@ function request(conn: ProviderConnection): { url: string; headers: Record<strin
       return { url: `${base}/key`, headers: bearer }
     case 'ollama':
       return { url: `${base}/api/tags`, headers: bearer }
+    case 'anthropic_claude_code':
+      // Unreachable: testCredential checks this kind with the binary before building a request.
+      throw new Error('anthropic_claude_code has no HTTP key test')
   }
 }
 
@@ -43,8 +49,13 @@ export async function testCredential(
     fetch = globalThis.fetch,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     now = () => performance.now(),
+    claudeCode,
   }: TestCredentialOptions = {},
 ): Promise<ProviderTestResult> {
+  // The Claude plan has no key to send: ask the binary how it is signed in.
+  if (conn.kind === 'anthropic_claude_code') {
+    return testClaudeCodeLogin({ timeoutMs, now, ...claudeCode })
+  }
   let target: ReturnType<typeof request>
   try {
     target = request(conn)

@@ -1,4 +1,5 @@
 export * from './chatgpt/index.ts'
+export * from './claude-code/index.ts'
 export type { CreateLanguageModelOptions } from './create-model.ts'
 export { createLanguageModel } from './create-model.ts'
 export type { ProviderConnection } from './descriptors.ts'
