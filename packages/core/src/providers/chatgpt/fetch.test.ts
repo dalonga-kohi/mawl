@@ -176,6 +176,28 @@ describe('chatgpt fetch wrapper: errors', () => {
     expect(err.message).not.toContain('SECRET')
   })
 
+  it('reads at most 64 KiB of an error body, then cancels the rest', async () => {
+    let pulled = 0
+    let cancelled = false
+    const chunk = new TextEncoder().encode('x'.repeat(16 * 1024))
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.length
+        controller.enqueue(chunk)
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    const net = scriptedFetch(() => new Response(endless, { status: 429 }))
+    const f = createChatGptFetch({ tokens: tokensOf().tokens, fetch: net.fetch })
+    await expect(f(URL_RESPONSES, post(body()))).rejects.toMatchObject({
+      reason: 'plan_limit_reached',
+    })
+    expect(cancelled).toBe(true)
+    expect(pulled).toBeLessThanOrEqual(64 * 1024 + 2 * 16 * 1024)
+  })
+
   it('falls back to the status for a body without a code (pre-stream admission)', async () => {
     const net = scriptedFetch([json({ detail: 'nope' }, 403)])
     const f = createChatGptFetch({ tokens: tokensOf().tokens, fetch: net.fetch })

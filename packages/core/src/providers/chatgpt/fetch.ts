@@ -71,11 +71,29 @@ function retryAfterSeconds(res: Response): number | undefined {
   return Number(raw)
 }
 
+/** At most MAX_ERROR_BODY bytes of the body as text; the rest is cancelled, never buffered. */
+async function readBounded(res: Response): Promise<string> {
+  if (!res.body) return ''
+  const reader = res.body.getReader()
+  const parts: Uint8Array[] = []
+  let size = 0
+  try {
+    while (size < MAX_ERROR_BODY) {
+      const { done, value } = await reader.read()
+      if (done) break
+      parts.push(value)
+      size += value.length
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+  }
+  return new TextDecoder().decode(Buffer.concat(parts).subarray(0, MAX_ERROR_BODY))
+}
+
 async function failureFrom(res: Response): Promise<ProviderFailureError> {
   let code: string | undefined
   try {
-    const text = (await res.text()).slice(0, MAX_ERROR_BODY)
-    code = extractErrorCode(JSON.parse(text))
+    code = extractErrorCode(JSON.parse(await readBounded(res)))
   } catch {
     // A non-JSON body only means the status decides.
   }
