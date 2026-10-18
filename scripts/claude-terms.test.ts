@@ -38,18 +38,35 @@ const rules: Array<{ term: string; allowedIn: string[] }> = [
  * access), any file read or open, the home-directory credential location, and the OS keychains.
  * Returns the names of the patterns that match; empty means clean.
  */
-function forbiddenIn(text: string): string[] {
+function forbiddenIn(rawText: string, file = ''): string[] {
+  // Comments may name what the code must not do; only code is scanned.
+  const text = rawText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
   const patterns: Array<[string, RegExp]> = [
     ['env token (dot access)', /process\.env\.(ANTHROPIC|CLAUDE_CODE)_/],
     ['env token (bracket access)', /process\.env\[\s*['"`](ANTHROPIC|CLAUDE_CODE)_/],
+    // An alias, a destructure or the whole object passed on hides which variables are read.
+    ['whole process.env', /process\.env\b(?!\.\w|\s*\[)/],
     ['readFile', /readFile(Sync)?\(/],
     ['createReadStream', /createReadStream\b/],
     ['open', /\b(fs\.)?open(Sync)?\(/],
-    ['home .claude directory', /homedir\(\)[^\n]*\.claude/],
-    ['macOS keychain', /security\s+find-generic-password/],
-    ['libsecret', /secret-tool/],
+    ['copy or list files', /\b(copyFile|readdir|cp)(Sync)?\(/],
+    ['macOS keychain', /find-generic-password/],
+    ['OS credential stores', /\bkeytar\b|cmdkey|CredRead|secret-tool/],
   ]
-  return patterns.filter(([, re]) => re.test(text)).map(([name]) => name)
+  const hits = patterns
+    .filter(([name, re]) => re.test(text) && !EXEMPT[file]?.includes(name))
+    .map(([name]) => name)
+  // File-level, so the two can be on different lines: the home dir plus the .claude directory.
+  if (/homedir/.test(text) && /\.claude/.test(text)) hits.push('home .claude directory')
+  return hits
+}
+
+/**
+ * The one legitimate use: env.ts defaults its allowlist input to `process.env` and copies only
+ * the allowed names out of it. Exempt by exact file and pattern, never globally.
+ */
+const EXEMPT: Record<string, string[]> = {
+  [`${CLAUDE_CODE_DIR}env.ts`]: ['whole process.env'],
 }
 
 describe('Claude account terms guard', () => {
@@ -71,7 +88,7 @@ describe('Claude account terms guard', () => {
     const sources = files.filter((f) => f.startsWith(CLAUDE_CODE_DIR) && !f.endsWith('.test.ts'))
     expect(sources.length).toBeGreaterThan(0)
     for (const f of sources) {
-      expect(forbiddenIn(readFileSync(join(root, f), 'utf8')), f).toEqual([])
+      expect(forbiddenIn(readFileSync(join(root, f), 'utf8'), f), f).toEqual([])
     }
   })
 
@@ -92,8 +109,33 @@ describe('Claude account terms guard', () => {
       ['os.homedir with .claude', "path.join(os.homedir(), '.claude', 'x')"],
       ['macOS keychain read', "execFile('security find-generic-password -s x')"],
       ['libsecret read', "execFile('secret-tool', ['lookup'])"],
+      ['keychain via execFile args', "execFile('security', ['find-generic-password', '-s', 'x'])"],
+      ['keytar', "import keytar from 'keytar'"],
+      ['cmdkey', "execFile('cmdkey', ['/list'])"],
+      ['CredRead', 'CredReadW(target)'],
+      ['env alias', 'const env = process.env'],
+      ['env destructure', 'const { HOME, ANTHROPIC_API_KEY } = process.env'],
+      ['env passed whole', 'spawn(cmd, { env: process.env })'],
+      ['env spread', 'const e = { ...process.env }'],
+      ['copyFile', "await copyFile('/a', '/b')"],
+      ['readdir', "await readdir('/x')"],
+      ['cp', "await cp('/a', '/b', { recursive: true })"],
+      ['homedir and .claude on different lines', "const h = homedir()\nconst d = '.claude'"],
     ])('flags %s', (_name, snippet) => {
       expect(forbiddenIn(snippet)).not.toEqual([])
+    })
+
+    it('exempts only the env allowlist builder, and only for the whole-env pattern', () => {
+      const dflt = '{ env = process.env }'
+      const envFile = `${CLAUDE_CODE_DIR}env.ts`
+      expect(forbiddenIn(dflt, envFile)).toEqual([])
+      expect(forbiddenIn(dflt, `${CLAUDE_CODE_DIR}model.ts`)).not.toEqual([])
+      expect(forbiddenIn("process.env['ANTHROPIC_API_KEY']", envFile)).not.toEqual([])
+    })
+
+    it('ignores comments', () => {
+      expect(forbiddenIn('// uses process.env and readFile( and homedir .claude')).toEqual([])
+      expect(forbiddenIn('/** Defaults to `process.env`. */\nconst x = 1')).toEqual([])
     })
 
     it.each([
