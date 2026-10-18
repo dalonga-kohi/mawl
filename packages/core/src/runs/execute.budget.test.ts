@@ -92,7 +92,7 @@ describe('executeRun: budgets', () => {
     if (run) {
       run.budget = { maxWallClockMs: 60_000 }
       run.status = 'running'
-      run.startedAt = new Date(clock.now().getTime() - 61_000)
+      run.activeMs = 61_000
     }
     const out = await executeRun(deps)
     expect(out).toEqual({ outcome: 'failed', error: 'budget_wall_clock' })

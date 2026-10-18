@@ -18,6 +18,8 @@ export interface RunRecord {
   status: RunStatus
   budget: RunBudget
   usage: Usage
+  /** Milliseconds the run was actually working. The wall-clock budget counts this, not paused time or downtime. */
+  activeMs: number
   startedAt: Date | null
 }
 
@@ -46,6 +48,8 @@ export interface NewStep {
   assistantMessages: ModelMessage[]
   toolMessages: ModelMessage[] | null
   usage: Usage
+  /** Active time since the previous checkpoint, added to the run's ctiveMs in the same transaction. */
+  activeMsDelta: number
 }
 
 export interface TransitionPatch {
@@ -53,6 +57,8 @@ export interface TransitionPatch {
   endedAt?: Date
   error?: RunErrorCode
   usage?: Usage
+  /** Added to the run's ctiveMs. */
+  activeMsDelta?: number
 }
 
 export interface RunContext {
@@ -82,16 +88,24 @@ export interface RunStore {
   ): Promise<boolean>
   /**
    * Writes the model row (and tool row) plus one `run.step` event per row, and the run's
-   * running usage total, atomically. Returns false when a row with that idx already exists
-   * (another execution of the same run got there first); nothing is written then.
+   * running usage total, atomically, but only while the run is still 
+unning (the run row is
+   * locked for the check). Nothing is written for duplicate (a row with that idx exists: another
+   * execution of the same run got there first) or 
+ot_running (cancel or pause won).
    */
-  appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<boolean>
+  appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<AppendResult>
   /**
    * Inserts the assistant message and moves running to succeeded in one transaction.
    * False when the CAS was lost (nothing is written).
    */
-  succeed(runId: RunId, result: { text: string; usage: Usage; endedAt: Date }): Promise<boolean>
+  succeed(
+    runId: RunId,
+    result: { text: string; usage: Usage; endedAt: Date; activeMsDelta: number },
+  ): Promise<boolean>
 }
+
+export type AppendResult = 'written' | 'duplicate' | 'not_running'
 
 export interface Clock {
   now(): Date

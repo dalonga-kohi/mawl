@@ -1,6 +1,7 @@
 import type { RunErrorCode, Usage } from '@faire/contracts'
 import { type ModelMessage, stepCountIs, streamText } from 'ai'
-import { toRunErrorCode } from './errors.ts'
+import { ProviderFailureError } from '../providers/failure.ts'
+import { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'
 import {
   ABORT_SHUTDOWN,
   DEFAULT_RUN_BUDGET,
@@ -62,17 +63,30 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   const { profile } = ctx
   let run = ctx.run
 
+  // This execution's time zero. Time before it (paused, queued again, or a crash gap) is not counted.
+  const segmentStart = clock.now().getTime()
   if (run.status === 'queued') {
-    const startedAt = clock.now()
-    if (!(await store.transition(runId, 'queued', 'running', { startedAt }))) {
+    // A resumed run keeps the start time of its first execution.
+    const startedAt = run.startedAt ?? clock.now()
+    if (!(await store.transition(runId, 'queued', 'running', run.startedAt ? {} : { startedAt }))) {
       return { outcome: 'superseded' }
     }
     run = { ...run, status: 'running', startedAt }
   } else if (run.status !== 'running') {
     return { outcome: 'skipped' }
   }
-  // A run already `running` here is a crash resume: carry on from the persisted steps.
-  const startedAt = run.startedAt ?? clock.now()
+  // A run already running here is a crash resume: carry on from the persisted steps.
+  // Active time: what earlier executions persisted, plus this one so far, up to the last checkpoint.
+  const activeBefore = run.activeMs
+  let checkpoint = segmentStart
+  const activeNow = () => activeBefore + (clock.now().getTime() - segmentStart)
+  /** Active time since the last checkpoint; moves the checkpoint. */
+  const takeDelta = () => {
+    const now = clock.now().getTime()
+    const delta = Math.max(0, now - checkpoint)
+    checkpoint = now
+    return delta
+  }
 
   const budget = {
     maxSteps: run.budget.maxSteps ?? defaults.maxSteps,
@@ -88,6 +102,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       error: code,
       endedAt: clock.now(),
       usage,
+      activeMsDelta: takeDelta(),
     })
     return ok ? { outcome: 'failed', error: code } : { outcome: 'superseded' }
   }
@@ -99,6 +114,10 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   try {
     resolved = await deps.resolveModel(run, profile)
   } catch (err) {
+    // Only errors with a closed code fail the run. Anything else is infrastructure (a database or
+    // network hiccup while looking the model up): rethrow so the job retries.
+    if (!(err instanceof ModelNotConfiguredError) && !(err instanceof ProviderFailureError))
+      throw err
     deps.onFailure?.({ runId, code: toRunErrorCode(err), errName: errName(err) })
     return fail(toRunErrorCode(err), usage)
   }
@@ -121,7 +140,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
     if (usage.inputTokens + usage.outputTokens >= budget.maxTokens) {
       return fail('budget_tokens', usage)
     }
-    const remainingMs = budget.maxWallClockMs - (clock.now().getTime() - startedAt.getTime())
+    const remainingMs = budget.maxWallClockMs - activeNow()
     if (remainingMs <= 0) return fail('budget_wall_clock', usage)
 
     const idx = last ? last.idx + 1 : 0
@@ -206,11 +225,14 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
         assistantMessages: [...assistantMessages],
         toolMessages: toolMessages.length > 0 ? [...toolMessages] : null,
         usage: stepUsage,
+        activeMsDelta: takeDelta(),
       },
       usage,
     )
     // Another execution of this run already wrote this step: leave the run to it.
-    if (!written) return { outcome: 'interrupted' }
+    if (written === 'duplicate') return { outcome: 'interrupted' }
+    // Cancel or pause won while the step ran: nothing was written, stop quietly.
+    if (written === 'not_running') return { outcome: 'superseded' }
 
     steps.push({ idx, kind: 'model', messages: [...assistantMessages], usage: stepUsage })
     if (toolMessages.length > 0) {
@@ -220,7 +242,12 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
     if (!(finishReason === 'tool-calls' && toolMessages.length > 0)) break
   }
 
-  const ok = await store.succeed(runId, { text: finalText(steps), usage, endedAt: clock.now() })
+  const ok = await store.succeed(runId, {
+    text: finalText(steps),
+    usage,
+    endedAt: clock.now(),
+    activeMsDelta: takeDelta(),
+  })
   return ok ? { outcome: 'succeeded' } : { outcome: 'superseded' }
 }
 

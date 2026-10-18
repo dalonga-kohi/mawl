@@ -174,7 +174,7 @@ describe('executeRun: crash and resume', () => {
 
   it('ends a duplicate execution quietly when the step already exists', async () => {
     const h = setup([{ text: 'x' }])
-    vi.spyOn(h.store, 'appendStep').mockResolvedValue(false)
+    vi.spyOn(h.store, 'appendStep').mockResolvedValue('duplicate')
     const out = await executeRun(h.deps)
     expect(out).toEqual({ outcome: 'interrupted' })
     expect(h.store.runs.get(h.runId)?.status).toBe('running')

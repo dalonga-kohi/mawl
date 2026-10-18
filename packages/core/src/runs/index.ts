@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai'
 export { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'
 export { addUsage, executeRun, finalText } from './execute.ts'
 export type {
+  AppendResult,
   Clock,
   ExecuteRunDeps,
   NewStep,

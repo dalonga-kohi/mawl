@@ -10,6 +10,7 @@ import {
 import { fakeModel, fixedClock } from '@faire/testkit'
 import type { ModelMessage } from 'ai'
 import type {
+  AppendResult,
   ExecuteRunDeps,
   NewStep,
   PersistedStep,
@@ -58,6 +59,7 @@ export class MemoryRunStore implements RunStore {
       status: over.status ?? 'queued',
       budget: over.budget ?? {},
       usage: over.usage ?? { inputTokens: 0, outputTokens: 0 },
+      activeMs: over.activeMs ?? 0,
       startedAt: over.startedAt ?? null,
       error: null,
       endedAt: null,
@@ -107,6 +109,7 @@ export class MemoryRunStore implements RunStore {
     if (patch.endedAt) run.endedAt = patch.endedAt
     if (patch.error) run.error = patch.error
     if (patch.usage) run.usage = patch.usage
+    run.activeMs += patch.activeMsDelta ?? 0
     this.events.push({
       type: 'run.status',
       runId,
@@ -115,10 +118,11 @@ export class MemoryRunStore implements RunStore {
     return true
   }
 
-  async appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<boolean> {
+  async appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<AppendResult> {
+    if (this.runs.get(runId)?.status !== 'running') return 'not_running'
     const rows = this.stepRows.get(runId) ?? []
     const idxs = [step.idx, ...(step.toolMessages ? [step.idx + 1] : [])]
-    if (rows.some((r) => idxs.includes(r.idx))) return false
+    if (rows.some((r) => idxs.includes(r.idx))) return 'duplicate'
     rows.push({ idx: step.idx, kind: 'model', messages: step.assistantMessages, usage: step.usage })
     this.events.push({ type: 'run.step', runId, payload: { idx: step.idx, kind: 'model' } })
     if (step.toolMessages) {
@@ -127,17 +131,21 @@ export class MemoryRunStore implements RunStore {
     }
     this.stepRows.set(runId, rows)
     const run = this.runs.get(runId)
-    if (run) run.usage = runUsage
-    return true
+    if (run) {
+      run.usage = runUsage
+      run.activeMs += step.activeMsDelta
+    }
+    return 'written'
   }
 
   async succeed(
     runId: RunId,
-    result: { text: string; usage: Usage; endedAt: Date },
+    result: { text: string; usage: Usage; endedAt: Date; activeMsDelta: number },
   ): Promise<boolean> {
     const ok = await this.transition(runId, 'running', 'succeeded', {
       endedAt: result.endedAt,
       usage: result.usage,
+      activeMsDelta: result.activeMsDelta,
     })
     if (ok) this.thread.push({ role: 'assistant', text: result.text, runId })
     return ok

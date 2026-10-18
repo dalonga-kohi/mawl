@@ -37,7 +37,7 @@ describe('executeRun: budget boundaries', () => {
     if (run) {
       run.budget = { maxWallClockMs: 60_000 }
       run.status = 'running'
-      run.startedAt = new Date(h.clock.now().getTime() - 60_000)
+      run.activeMs = 60_000
     }
     expect(await executeRun(h.deps)).toEqual({ outcome: 'failed', error: 'budget_wall_clock' })
     expect(h.model.calls).toHaveLength(0)
@@ -49,7 +49,7 @@ describe('executeRun: budget boundaries', () => {
     if (run) {
       run.budget = { maxWallClockMs: 60_000 }
       run.status = 'running'
-      run.startedAt = new Date(h.clock.now().getTime() - 59_999)
+      run.activeMs = 59_999
     }
     expect(await executeRun(h.deps)).toEqual({ outcome: 'succeeded' })
   })
