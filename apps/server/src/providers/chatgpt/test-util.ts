@@ -43,19 +43,23 @@ export interface FakeListener {
   port: number
   closed: boolean
   /** What the browser redirect would deliver. Resolves when the server finished handling it. */
-  callback(params: Record<string, string>): Promise<void>
+  /** Mimics the real listener: a callback failing ccept is dropped and the attempt lives on. */
+  callback(params: Record<string, string>): Promise<boolean>
 }
 
 /** A listener that binds nothing: tests deliver the callback by hand. */
 export function fakeListeners() {
   const made: FakeListener[] = []
-  const start: StartListener = async ({ host, port, onCallback }) => {
+  const start: StartListener = async ({ host, port, accept, onCallback }) => {
     const listener: FakeListener = {
       host,
       port,
       closed: false,
       callback: async (params) => {
-        await onCallback(new URLSearchParams(params))
+        const query = new URLSearchParams(params)
+        if (accept && !accept(query)) return false
+        await onCallback(query)
+        return true
       },
     }
     made.push(listener)

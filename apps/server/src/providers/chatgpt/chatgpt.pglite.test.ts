@@ -246,7 +246,6 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
   })
 
   it.each([
-    ['a state mismatch', { state: 'forged' }, 'state_mismatch'],
     ['access_denied', { error: 'access_denied' }, 'access_denied'],
     ['an incomplete registration', { client_id: null }, 'registration_incomplete'],
   ])('fails the attempt on %s and stores nothing', async (_n, over, reason) => {
@@ -256,6 +255,25 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
     expect(await service.list()).toEqual([])
     expect(listeners.last()?.closed).toBe(true)
     expect(calls.filter((c) => c.url === TOKEN_URL)).toHaveLength(0)
+  })
+
+  it('ignores a forged-state callback and still completes with the real one', async () => {
+    const { service } = await setup()
+    const { attemptId, authorizeUrl } = await service.startChatGptSignIn()
+    const q = new URL(authorizeUrl).searchParams
+    nonce = q.get('nonce') ?? ''
+    const real = {
+      code: 'the-code',
+      state: q.get('state') ?? '',
+      scope: ALL_SCOPES,
+      client_id: CLIENT_ID,
+    }
+    expect(await listeners.last()?.callback({ ...real, state: 'forged' })).toBe(false)
+    expect(await listeners.last()?.callback({ code: 'x' })).toBe(false)
+    expect(service.chatGptSignInStatus(attemptId)).toEqual({ status: 'pending' })
+    expect(listeners.last()?.closed).toBe(false)
+    expect(await listeners.last()?.callback(real)).toBe(true)
+    expect(service.chatGptSignInStatus(attemptId).status).toBe('succeeded')
   })
 
   it('a second start cancels the first attempt and closes its listener', async () => {

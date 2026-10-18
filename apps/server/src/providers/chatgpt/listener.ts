@@ -11,6 +11,11 @@ export interface LoopbackListener {
 export interface LoopbackListenerOptions {
   host: string
   port: number
+  /**
+   * Checked before the attempt is used up. A callback that fails it (a forged or missing state,
+   * from any web page that can reach this port) gets a 400 and the listener keeps waiting.
+   */
+  accept?(params: URLSearchParams): boolean
   /** Called once with the callback's query. A throw or rejection is swallowed: the page is already sent. */
   onCallback(params: URLSearchParams): void | Promise<void>
 }
@@ -50,6 +55,7 @@ function reply(res: ServerResponse, status: number, body: string, type = 'text/p
 export function startLoopbackListener({
   host,
   port,
+  accept,
   onCallback,
 }: LoopbackListenerOptions): Promise<LoopbackListener> {
   return new Promise((resolve, reject) => {
@@ -63,6 +69,7 @@ export function startLoopbackListener({
       if (url.pathname !== CALLBACK_PATH) return reply(res, 404, 'Not found')
       if (req.method !== 'GET') return reply(res, 405, 'Method not allowed')
       if (done) return reply(res, 410, 'Gone')
+      if (accept && !accept(url.searchParams)) return reply(res, 400, 'Bad request')
       done = true
       reply(res, 200, PAGE, 'text/html')
       res.once('close', () => {

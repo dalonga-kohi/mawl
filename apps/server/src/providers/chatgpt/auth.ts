@@ -17,6 +17,7 @@ import {
   type SignInResult,
   type StoredChatGptCredential,
   serializeStoredCredential,
+  stateMatches,
   systemRandom,
   type TokenManager,
   type TokenStore,
@@ -221,6 +222,8 @@ export function createChatGptAuth({
       attempt.listener = await startListener({
         host: options.bindHost,
         port: options.port,
+        // A forged callback must not use up the attempt.
+        accept: (params) => stateMatches(sign, params),
         onCallback: (params) => onCallback(attempt, params),
       })
     } catch (err) {

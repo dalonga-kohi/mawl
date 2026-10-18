@@ -76,6 +76,22 @@ describe('loopback listener', () => {
     expect(calls).toBe(0)
   })
 
+  it('answers 400 to a callback that fails the accept check and keeps listening for the real one', async () => {
+    const seen: string[] = []
+    const l = await startLoopbackListener({
+      host: '127.0.0.1',
+      port: 0,
+      accept: (p) => p.get('state') === 'right',
+      onCallback: (p) => void seen.push(p.get('code') ?? ''),
+    })
+    open.push(l)
+    expect((await get(l.port, '/auth/callback?code=x&state=wrong')).status).toBe(400)
+    expect((await get(l.port, '/auth/callback?code=x')).status).toBe(400)
+    expect(seen).toEqual([])
+    expect((await get(l.port, '/auth/callback?code=real&state=right')).status).toBe(200)
+    expect(seen).toEqual(['real'])
+  })
+
   it('rejects when the port is already taken', async () => {
     const l = await listen()
     await expect(

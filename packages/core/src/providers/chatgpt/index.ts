@@ -11,6 +11,7 @@ export {
   completeSignIn,
   type SignInAttempt,
   type SignInResult,
+  stateMatches,
 } from './sign-in.ts'
 export {
   hasPlanUsage,

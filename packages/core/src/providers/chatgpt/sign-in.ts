@@ -80,6 +80,12 @@ function sameSecret(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y)
 }
 
+/** Constant-time check that a callback carries this attempt's state. */
+export function stateMatches(attempt: SignInAttempt, params: URLSearchParams): boolean {
+  const state = params.get('state')
+  return state !== null && sameSecret(state, attempt.state)
+}
+
 /** Finishes a sign-in from the callback's query parameters. Never returns provider text. */
 export async function completeSignIn(
   attempt: SignInAttempt,
