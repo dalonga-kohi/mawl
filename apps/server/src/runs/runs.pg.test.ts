@@ -1,10 +1,14 @@
 import { createDb, migrate } from '@faire/db'
 import { withPostgres } from '@faire/testkit'
 import { describe } from 'vitest'
+import { describeBundleOnPostgres } from './bundle-suite.ts'
+import { describeRunEngineE2e } from './e2e-suite.ts'
+import { describeRunService } from './service-suite.ts'
 import { describeRunStore } from './store-suite.ts'
 
-// Real Postgres via Testcontainers. Skips locally without Docker, fails in CI.
-describe('run store on real Postgres', () => {
+// One container for everything in this slice that needs real Postgres: Docker Desktop starts
+// each container slowly, and several in parallel starved the rest of the gate.
+describe('runs on real Postgres', () => {
   const url = withPostgres()
 
   async function freshDatabaseUrl() {
@@ -17,12 +21,17 @@ describe('run store on real Postgres', () => {
     return u.toString()
   }
 
-  describeRunStore('node-postgres', async () => {
+  const nodePg = async () => {
     const handle = createDb(await freshDatabaseUrl())
     return {
       db: handle.db,
       migrate: () => migrate(handle.db),
       close: () => handle.close(),
     }
-  })
+  }
+
+  describeRunStore('run store (node-postgres)', nodePg)
+  describeRunService('run service (node-postgres)', nodePg)
+  describeRunEngineE2e(url)
+  describeBundleOnPostgres(url)
 })
