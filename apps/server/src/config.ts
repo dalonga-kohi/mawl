@@ -39,6 +39,24 @@ const port = (defaultPort: number) =>
       .default(defaultPort),
   )
 
+/** A bare origin, scheme and host with an optional port: no path, query or wildcard. */
+const BARE_ORIGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/?#\s*]+$/i
+
+/** Comma-separated origins, trimmed, trailing slashes dropped. The message never echoes the value. */
+const originList = () =>
+  z
+    .string()
+    .transform((v) =>
+      v
+        .split(',')
+        .map((o) => o.trim().replace(/\/+$/, ''))
+        .filter((o) => o !== ''),
+    )
+    .refine((list) => list.every((o) => BARE_ORIGIN.test(o)), {
+      error: 'must be a comma-separated list of origins like https://host[:port]',
+    })
+    .default([])
+
 const EnvSchema = z.object({
   DATABASE_URL: z.string({ error: 'is required' }).refine(isPostgresUrl, {
     error: 'must be a valid postgres:// or postgresql:// URL',
@@ -54,6 +72,8 @@ const EnvSchema = z.object({
   // `claude auth login` (Faire never reads it); the path overrides the binary the SDK bundles.
   FAIRE_CLAUDE_CONFIG_DIR: optional(absolutePath().optional()),
   FAIRE_CLAUDE_CODE_PATH: optional(absolutePath().optional()),
+  // Extra browser origins allowed to open the WebSocket (same-host, loopback and Tauri always are).
+  FAIRE_ALLOWED_ORIGINS: optional(originList()),
   LOG_LEVEL: optional(
     z.enum(LOG_LEVELS, { error: `must be one of ${LOG_LEVELS.join(', ')}` }).default('info'),
   ),
@@ -68,6 +88,8 @@ export interface Config {
   siwcHost: string
   claudeConfigDir?: string | undefined
   claudeCodePath?: string | undefined
+  /** Origins besides same-host, loopback and Tauri that may open the WebSocket. */
+  allowedOrigins?: string[] | undefined
   logLevel: LogLevel
 }
 
@@ -99,6 +121,7 @@ export function parseConfig(env: Record<string, string | undefined> = process.en
     siwcHost: v.FAIRE_SIWC_BIND_HOST,
     claudeConfigDir: v.FAIRE_CLAUDE_CONFIG_DIR,
     claudeCodePath: v.FAIRE_CLAUDE_CODE_PATH,
+    allowedOrigins: v.FAIRE_ALLOWED_ORIGINS,
     logLevel: v.LOG_LEVEL,
   }
 }

@@ -15,6 +15,7 @@ describe('parseConfig', () => {
       siwcHost: '127.0.0.1',
       claudeConfigDir: undefined,
       claudeCodePath: undefined,
+      allowedOrigins: [],
       logLevel: 'info',
     })
   })
@@ -30,6 +31,7 @@ describe('parseConfig', () => {
         FAIRE_SIWC_BIND_HOST: '0.0.0.0',
         FAIRE_CLAUDE_CONFIG_DIR: '/data/claude',
         FAIRE_CLAUDE_CODE_PATH: '/opt/claude',
+        FAIRE_ALLOWED_ORIGINS: 'https://faire.example.com, http://192.168.1.5:5173',
         LOG_LEVEL: 'debug',
       }),
     ).toEqual({
@@ -41,6 +43,7 @@ describe('parseConfig', () => {
       siwcHost: '0.0.0.0',
       claudeConfigDir: '/data/claude',
       claudeCodePath: '/opt/claude',
+      allowedOrigins: ['https://faire.example.com', 'http://192.168.1.5:5173'],
       logLevel: 'debug',
     })
   })
@@ -83,6 +86,33 @@ describe('parseConfig', () => {
     const none = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD })
     expect(none.claudeConfigDir).toBeUndefined()
     expect(none.claudeCodePath).toBeUndefined()
+  })
+
+  it('parses FAIRE_ALLOWED_ORIGINS as a trimmed list and treats empty as none', () => {
+    const base = { DATABASE_URL: URL_WITH_PASSWORD }
+    expect(parseConfig({ ...base, FAIRE_ALLOWED_ORIGINS: '' }).allowedOrigins).toEqual([])
+    expect(
+      parseConfig({ ...base, FAIRE_ALLOWED_ORIGINS: ' https://a.example/ ,,tauri://localhost' })
+        .allowedOrigins,
+    ).toEqual(['https://a.example', 'tauri://localhost'])
+  })
+
+  it('rejects an allowed origin that is not a bare origin, naming the variable but not the value', () => {
+    for (const bad of [
+      '*',
+      'faire.example.com',
+      'https://a.example/path',
+      'https://a.example?x=1',
+    ]) {
+      let message = ''
+      try {
+        parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, FAIRE_ALLOWED_ORIGINS: bad })
+      } catch (err) {
+        message = (err as Error).message
+      }
+      expect(message).toContain('FAIRE_ALLOWED_ORIGINS')
+      expect(message).not.toContain(bad)
+    }
   })
 
   it('names the missing DATABASE_URL', () => {
