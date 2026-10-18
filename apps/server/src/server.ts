@@ -187,6 +187,7 @@ export async function startServer(
       enqueue: (runId) => (worker ? worker.enqueue(runId) : Promise.resolve()),
     })
     const app = createApp({
+      hosts: { bindHost: config.host, allowedOrigins: config.allowedOrigins ?? [] },
       logger,
       version,
       providers: providerService,
@@ -207,6 +208,7 @@ export async function startServer(
         }),
         logger,
         allowedOrigins: config.allowedOrigins,
+        bindHost: config.host,
       })
     }
   } catch (err) {

@@ -5,6 +5,7 @@ import { RPCHandler } from '@orpc/server/ws'
 import { type WebSocket, WebSocketServer } from 'ws'
 import type { Logger } from '../logger.ts'
 import type { createRouter, RouterContext } from '../router.ts'
+import { checkHost } from './host.ts'
 import { checkOrigin } from './origin.ts'
 import { newConnectionState } from './service.ts'
 
@@ -19,6 +20,8 @@ export interface WsHubOptions {
   router: ReturnType<typeof createRouter>
   logger: Logger
   allowedOrigins?: readonly string[] | undefined
+  /** The address the server listens on; its name is an accepted Host. Defaults to 127.0.0.1. */
+  bindHost?: string | undefined
   /** How long close() waits for clients to answer the close frame before dropping them. */
   closeGraceMs?: number
 }
@@ -71,6 +74,18 @@ export function attachWsHub(options: WsHubOptions): WsHub {
     if (pathname !== WS_PATH) {
       logger.warn({ reason: 'unknown_path', path: pathname.slice(0, 100) }, 'upgrade rejected')
       return void socket.destroy()
+    }
+    // Before the Origin check: a rebound name makes Origin and Host agree, and a non-browser client sends no Origin.
+    const hostVerdict = checkHost(req.headers.host, {
+      bindHost: options.bindHost ?? '127.0.0.1',
+      allowedOrigins: allowed,
+    })
+    if (!hostVerdict.ok) {
+      logger.warn(
+        { reason: hostVerdict.reason, host: req.headers.host?.slice(0, 200) },
+        'upgrade rejected',
+      )
+      return void reject(socket, 403, 'Forbidden')
     }
     const origin = req.headers.origin
     const verdict = checkOrigin({ origin, host: req.headers.host, allowed })

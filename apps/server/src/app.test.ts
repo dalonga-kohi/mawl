@@ -132,3 +132,33 @@ describe('deps', () => {
     expect(checkDb).not.toHaveBeenCalled()
   })
 })
+
+describe('Host check on /rpc (DNS rebinding)', () => {
+  const hosts = { bindHost: '127.0.0.1', allowedOrigins: ['https://faire.example.com'] }
+  const call = (app: ReturnType<typeof setup>['app'], url: string) =>
+    app.request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
+
+  it('answers 403 to a Host that is not ours', async () => {
+    const { app } = setup({ hosts })
+    const res = await call(app, 'http://evil.example:7420/rpc/health/get')
+    expect(res.status).toBe(403)
+  })
+
+  it.each(['http://localhost:7420', 'http://127.0.0.1:7420', 'https://faire.example.com'])(
+    'lets %s through',
+    async (base) => {
+      const { app } = setup({ hosts })
+      const res = await call(app, `${base}/rpc/health/get`)
+      expect(res.status).toBe(200)
+    },
+  )
+
+  it('leaves /healthz open to any Host so probes keep working', async () => {
+    const { app } = setup({ hosts })
+    expect((await app.request('http://evil.example/healthz')).status).toBe(200)
+  })
+})

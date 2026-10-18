@@ -1,6 +1,7 @@
 import { ORPCError, onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
 import { Hono } from 'hono'
+import { checkHost, type HostPolicy } from './events/host.ts'
 import type { Logger } from './logger.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
@@ -15,6 +16,8 @@ export interface AppDeps {
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
   healthTimeoutMs?: number
+  /** Accepted Host headers on /rpc (DNS rebinding guard). Boot always sets it; unit tests may omit it. */
+  hosts?: HostPolicy
 }
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 2000
@@ -47,6 +50,7 @@ export function createApp({
   runs,
   checkDb,
   healthTimeoutMs,
+  hosts,
 }: AppDeps): Hono {
   const app = new Hono()
 
@@ -90,6 +94,14 @@ export function createApp({
   })
 
   app.all('/rpc/*', async (c) => {
+    if (hosts) {
+      const host = c.req.header('host') ?? new URL(c.req.url).host
+      const verdict = checkHost(host, hosts)
+      if (!verdict.ok) {
+        logger.warn({ reason: verdict.reason, host: host.slice(0, 200) }, 'rpc request rejected')
+        return c.json({ ok: false }, 403)
+      }
+    }
     const { matched, response } = await rpc.handle(c.req.raw, { prefix: '/rpc', context: {} })
     return matched ? response : c.notFound()
   })

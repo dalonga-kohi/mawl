@@ -69,8 +69,11 @@ describe('WebSocket hub', () => {
         server.closeAllConnections()
       })
     })
-    const open = (path = '/ws', origin?: string) =>
-      new WebSocket(`ws://127.0.0.1:${port}${path}`, origin ? { origin } : {})
+    const open = (path = '/ws', origin?: string, host?: string) =>
+      new WebSocket(`ws://127.0.0.1:${port}${path}`, {
+        ...(origin ? { origin } : {}),
+        ...(host ? { headers: { host } } : {}),
+      })
     const client = (ws: WebSocket) => {
       cleanup.push(async () => ws.terminate())
       return createORPCClient(new RPCLink({ websocket: ws as never })) as ContractRouterClient<
@@ -119,6 +122,23 @@ describe('WebSocket hub', () => {
     expect(await outcome(ws)).toBe('open')
   })
 
+  it('answers 403 to a Host that is not ours, even from a non-browser client (DNS rebinding)', async () => {
+    const { open } = await setup()
+    expect(await outcome(open('/ws', undefined, 'evil.example:7420'))).toBe('http 403')
+    expect(await outcome(open('/ws', 'http://evil.example:7420', 'evil.example:7420'))).toBe(
+      'http 403',
+    )
+  })
+
+  it.each(['localhost:7420', 'dev.localhost', '[::1]:7420', 'faire.example.com:7420'])(
+    'accepts the Host %s',
+    async (host) => {
+      const { open } = await setup(['https://faire.example.com'])
+      const ws = open('/ws', undefined, host)
+      cleanup.push(async () => ws.terminate())
+      expect(await outcome(ws)).toBe('open')
+    },
+  )
   it('drops upgrades on any other path', async () => {
     const { open } = await setup()
     expect(await outcome(open('/rpc'))).toMatch(/^error/)
