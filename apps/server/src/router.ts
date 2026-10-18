@@ -1,4 +1,4 @@
-import { contract, type RunStatus } from '@faire/contracts'
+import { type CredentialId, contract, type RunStatus } from '@faire/contracts'
 import { listProviderDescriptors } from '@faire/core'
 import { implement, ORPCError } from '@orpc/server'
 import {
@@ -8,6 +8,8 @@ import {
   ResyncRequiredError,
   TooManySubscriptionsError,
 } from './events/service.ts'
+import { SlugTakenError, UnknownCredentialError } from './profiles/errors.ts'
+import type { ProfileService } from './profiles/service.ts'
 import {
   CredentialNotFoundError,
   CredentialUnreadableError,
@@ -22,6 +24,8 @@ export interface RouterDeps {
   version: string
   providers: ProviderService
   runs: RunService
+  /** Without it the profiles procedures stay 501 stubs (unit tests that never touch them). */
+  profiles?: ProfileService
   /** Without it events.subscribe stays a 501 stub (unit tests that never stream). */
   events?: EventsService
 }
@@ -75,22 +79,60 @@ const runErrors =
     throw err
   }
 
+type ProfileErrors = {
+  NOT_FOUND?: (options: { data: { entity: string; id: string } }) => Error
+  SLUG_TAKEN?: (options: { data: { slug: string } }) => Error
+  UNKNOWN_CREDENTIAL?: (options: { data: { credentialId: CredentialId } }) => Error
+}
+
+/** Maps the profile service's domain errors to the contract's typed errors. */
+const profileErrors =
+  (errors: ProfileErrors) =>
+  (err: unknown): never => {
+    if (err instanceof EntityNotFoundError && errors.NOT_FOUND) {
+      throw errors.NOT_FOUND({ data: { entity: err.entity, id: err.id } })
+    }
+    if (err instanceof SlugTakenError && errors.SLUG_TAKEN) {
+      throw errors.SLUG_TAKEN({ data: { slug: err.slug } })
+    }
+    if (err instanceof UnknownCredentialError && errors.UNKNOWN_CREDENTIAL) {
+      throw errors.UNKNOWN_CREDENTIAL({ data: { credentialId: err.credentialId } })
+    }
+    throw err
+  }
+
 /**
  * Every procedure in the contract must appear here: this object is type-checked against the
  * contract, so adding a procedure to `@faire/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version, providers, runs, events }: RouterDeps) {
+export function createRouter({ version, providers, runs, events, profiles }: RouterDeps) {
   const os = implement(contract).$context<RouterContext>()
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
-    profiles: {
-      list: stub(os.profiles.list),
-      get: stub(os.profiles.get),
-      create: stub(os.profiles.create),
-      update: stub(os.profiles.update),
-      archive: stub(os.profiles.archive),
-    },
+    profiles: profiles
+      ? {
+          list: os.profiles.list.handler(({ input }) => profiles.list(input)),
+          get: os.profiles.get.handler(({ input, errors }) =>
+            profiles.get(input.id).catch(profileErrors(errors)),
+          ),
+          create: os.profiles.create.handler(({ input, errors }) =>
+            profiles.create(input).catch(profileErrors(errors)),
+          ),
+          update: os.profiles.update.handler(({ input, errors }) =>
+            profiles.update(input.id, input.patch).catch(profileErrors(errors)),
+          ),
+          archive: os.profiles.archive.handler(({ input, errors }) =>
+            profiles.archive(input.id).catch(profileErrors(errors)),
+          ),
+        }
+      : {
+          list: stub(os.profiles.list),
+          get: stub(os.profiles.get),
+          create: stub(os.profiles.create),
+          update: stub(os.profiles.update),
+          archive: stub(os.profiles.archive),
+        },
     threads: {
       list: os.threads.list.handler(({ input, errors }) =>
         runs.listThreads(input.profileId).catch(runErrors(errors)),

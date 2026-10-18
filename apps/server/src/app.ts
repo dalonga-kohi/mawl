@@ -3,6 +3,7 @@ import { RPCHandler } from '@orpc/server/fetch'
 import { Hono } from 'hono'
 import { checkHost, type HostPolicy } from './events/host.ts'
 import type { Logger } from './logger.ts'
+import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
 import type { RunService } from './runs/service.ts'
@@ -12,6 +13,7 @@ export interface AppDeps {
   version: string
   providers: ProviderService
   runs: RunService
+  profiles?: ProfileService
   /** Resolves when the database answers; rejects otherwise. */
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
@@ -48,6 +50,7 @@ export function createApp({
   version,
   providers,
   runs,
+  profiles,
   checkDb,
   healthTimeoutMs,
   hosts,
@@ -83,15 +86,18 @@ export function createApp({
     return c.json({ ok }, ok ? 200 : 503)
   })
 
-  const rpc = new RPCHandler(createRouter({ version, providers, runs }), {
-    // Procedure path and error code only. Inputs and outputs may hold credentials.
-    clientInterceptors: [
-      onError((error, { path }) => {
-        const code = error instanceof ORPCError ? error.code : 'INTERNAL_SERVER_ERROR'
-        logger.warn({ procedure: path.join('.'), code }, 'rpc error')
-      }),
-    ],
-  })
+  const rpc = new RPCHandler(
+    createRouter({ version, providers, runs, ...(profiles ? { profiles } : {}) }),
+    {
+      // Procedure path and error code only. Inputs and outputs may hold credentials.
+      clientInterceptors: [
+        onError((error, { path }) => {
+          const code = error instanceof ORPCError ? error.code : 'INTERNAL_SERVER_ERROR'
+          logger.warn({ procedure: path.join('.'), code }, 'rpc error')
+        }),
+      ],
+    },
+  )
 
   app.all('/rpc/*', async (c) => {
     if (hosts) {

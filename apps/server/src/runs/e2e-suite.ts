@@ -109,6 +109,34 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
       expect(done.endedAt).not.toBeNull()
     }, 60_000)
 
+    it('a teammate created over RPC answers a run, and profiles errors are typed', async () => {
+      const url = await freshDatabaseUrl()
+      const { model, resolved } = fake([{ text: 'Hi from Ada' }])
+      const { client } = await boot(url, () => resolved)
+      const cred = await client.providers.create({
+        provider: 'openai_compatible',
+        label: 'Fake',
+        baseUrl: 'http://127.0.0.1:9',
+      } as never)
+      const ada = await client.profiles.create({ name: 'Ada', modelMain: `${cred.id}:fake-echo` })
+      expect(ada).toMatchObject({ slug: 'ada', archivedAt: null })
+      expect((await client.profiles.list()).map((p) => p.id)).toEqual([ada.id])
+      await expect(
+        client.profiles.create({ name: 'Other', slug: 'ada', modelMain: ada.modelMain }),
+      ).rejects.toMatchObject({ code: 'SLUG_TAKEN', data: { slug: 'ada' } })
+
+      const started = await client.runs.start({ profileId: ada.id, prompt: 'hello' })
+      await vi.waitFor(
+        async () => {
+          expect((await client.runs.get({ id: started.id })).status).toBe('succeeded')
+        },
+        { timeout: 30_000, interval: 100 },
+      )
+      expect(model.calls).toHaveLength(1)
+      await client.profiles.archive({ id: ada.id })
+      expect(await client.profiles.list()).toEqual([])
+    }, 60_000)
+
     it('a /ws subscriber sees the reply as run.delta events before the run.step and run.status that follow', async () => {
       const { url, handle, profileId } = await seededDatabase()
       await handle.close()

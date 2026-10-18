@@ -13,6 +13,7 @@ import { createEventsService } from './events/service.ts'
 import { createPgSource } from './events/source.ts'
 import { attachWsHub, type WsHub } from './events/ws.ts'
 import { createLogger, type Logger } from './logger.ts'
+import { createProfileService } from './profiles/service.ts'
 import { createProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
 import { RunRegistry } from './runs/registry.ts'
@@ -170,12 +171,14 @@ export async function startServer(
       logger,
       enqueue: (runId) => (worker ? worker.enqueue(runId) : Promise.resolve()),
     })
+    const profileService = createProfileService({ db: handle.db })
     const app = createApp({
       hosts: { bindHost: config.host, allowedOrigins: config.allowedOrigins ?? [] },
       logger,
       version,
       providers: providerService,
       runs,
+      profiles: profileService,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
@@ -188,6 +191,7 @@ export async function startServer(
           version,
           providers: providerService,
           runs,
+          profiles: profileService,
           events: createEventsService({ bus: live.bus }),
         }),
         logger,

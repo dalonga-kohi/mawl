@@ -1,6 +1,7 @@
 import { createDb, migrate } from '@faire/db'
 import { withPostgres } from '@faire/testkit'
 import { describe } from 'vitest'
+import { describeProfileService } from '../profiles/service-suite.ts'
 import { describeBundleOnPostgres } from './bundle-suite.ts'
 import { describeRunEngineE2e } from './e2e-suite.ts'
 import { describeRunService } from './service-suite.ts'
@@ -30,6 +31,7 @@ describe('runs on real Postgres', () => {
     }
   }
 
+  describeProfileService('profile service (node-postgres)', nodePg)
   describeRunStore('run store (node-postgres)', nodePg)
   describeRunService('run service (node-postgres)', nodePg)
   describeRunEngineE2e(url)
