@@ -90,6 +90,7 @@ Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`cavema
 | Provider SDKs | `@ai-sdk/anthropic` 4.0.82, `@ai-sdk/openai` 4.0.96, `@openrouter/ai-sdk-provider` 3.1.0, `ollama-ai-provider-v2` 4.0.1, `@ai-sdk/openai-compatible` 3.0.71, `@ai-sdk/provider` 4.0.29 | All Apache-2.0, all spec V4. Live in `@faire/core` `src/providers/`; keys never leave the server |
 | Drizzle | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 (1.0 is still beta) | `@faire/db`. JS `null` into NOT NULL jsonb needs `jsonValue()`. Migrations in `packages/db/drizzle/`; never edit an applied one, add a new one |
 | PGlite | `@electric-sql/pglite` 0.5.10 + `@electric-sql/pglite-pgvector` 0.0.11 | In-process Postgres so DB suites run locally without Docker; the same suite also runs on Testcontainers |
+| graphile-worker | 0.18.0 (MIT) | Run jobs in `apps/server`. Needs a real `pg` Pool (not PGlite); bundles into `dist/server.mjs` (migrations are embedded). Task `run.execute` |
 | testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
 | GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0 | Pinned by full SHA (a test enforces it) |
 
@@ -118,6 +119,7 @@ Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`cavema
   - Prefixed ULID ids with `newId(kind)` (monotonic; `__resetIdState()` in tests).
   - Enums, and `RUN_TRANSITIONS`, which is tested against the ARCHITECTURE §5 mermaid diagram. Change both together.
   - Entities and the event union.
+  - `parseModelRef`/`formatModelRef` (`<credentialId>:<modelId>`, split at the first colon) and the closed `RunErrorCode` set stored on failed runs.
   - Versioned envelope `v: 1`. Clients use `parseEnvelope()`, which never throws, skips unknown types and keeps advancing `since`.
   - oRPC `contract`, with base errors UNAUTHORIZED, FORBIDDEN, VALIDATION, NOT_FOUND, CONFLICT.
 
