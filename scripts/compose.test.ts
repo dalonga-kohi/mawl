@@ -15,6 +15,8 @@ type Service = {
   healthcheck?: { test: string[] }
   depends_on?: Record<string, { condition: string }>
   restart?: string
+  init?: boolean
+  stop_grace_period?: string
 }
 type Compose = { name: string; services: Record<string, Service>; volumes: Record<string, unknown> }
 
@@ -70,6 +72,13 @@ describe('infra/compose/docker-compose.yml', () => {
     expect(server.restart).toBe('unless-stopped')
     // biome-ignore lint/suspicious/noTemplateCurlyInString: compose interpolation, not a JS template
     expect(server.environment?.FAIRE_ALLOWED_ORIGINS).toBe('${FAIRE_ALLOWED_ORIGINS:-}')
+  })
+})
+
+describe('server process lifecycle', () => {
+  it('runs under an init process and gets 30 s to stop cleanly', () => {
+    expect(server.init).toBe(true)
+    expect(server.stop_grace_period).toBe('30s')
   })
 })
 

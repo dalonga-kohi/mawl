@@ -41,6 +41,9 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # A real PID 1 reaps the processes Claude Code spawns and forwards SIGTERM; 30 s lets runs wind down.
+    init: true
+    stop_grace_period: 30s
 
 volumes:
   faire-db:
