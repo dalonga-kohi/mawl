@@ -32,7 +32,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 - [x] **P1.3 Provider registry.** (8da5da9..2db16a4; all suites green with `FAIRE_REQUIRE_DOCKER=1`) Add the contract procedures `providers.list/create/delete/test`, with the secret only in a strictObject input (review note from P0.5).
   - Anthropic, OpenAI, OpenRouter, Ollama, and OpenAI-compatible providers, with capability flags.
   - `providers.test()` validates a key.
-- [~] **P1.3b Sign in with ChatGPT (the preferred way to use Faire).** The owner signs in with a ChatGPT Plus/Pro account, and runs use that plan's limits instead of an API key. API keys stay as the alternative.
+- [x] **P1.3b Sign in with ChatGPT (the preferred way to use Faire).** (ef3c6c4..535f1a9; all suites green with `FAIRE_REQUIRE_DOCKER=1`; security properties mutation-checked) The owner signs in with a ChatGPT Plus/Pro account, and runs use that plan's limits instead of an API key. API keys stay as the alternative.
   - Uses OpenAI's "Sign in with ChatGPT" plan-usage flow for open-source and locally run apps (developers.openai.com/siwc/token-sharing-open-source): OIDC + PKCE, `client_id=dynamic_agent_client` (OpenAI issues the client id during the first sign-in; persist it before the code exchange), a loopback callback on `127.0.0.1`, and Responses API scopes.
   - New `ProviderKind` `openai_chatgpt`. Its credential row stores the issued client id, OAuth tokens and account info, encrypted like API keys. A persisted opaque host id (`urn:uuid:`, never user-identifying) is shared by every credential on this server.
   - Inference goes to `https://api.openai.com/v1` Responses with the OAuth access token, `store: false`, `stream: true`. Refresh tokens before expiry, handle revocation and logout, and map plan-limit errors to a clear "plan limit reached" run failure.
@@ -53,6 +53,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - `anthropic_claude_code` is text-only. Bridge Faire tools to it through an in-process MCP server (the SDK's `createSdkMcpServer`), still through the policy engine.
     - A Claude `rate_limit_event` with status `rejected` is a hard failure today, even when overage may be allowed. Revisit when overage info is reliable.
     - `ProviderFailureReason` (contracts) from `ProviderFailureError` (core) feeds the run failure reason and the app's explanation.
+    - `@faire/server#test` failed once under the full parallel gate even after `hookTimeout` went to 60 s (PGlite suites), and passed on rerun. Find the cause when the run engine adds more PGlite suites.
 - [ ] **P1.5 Event bus + WS hub.**
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
