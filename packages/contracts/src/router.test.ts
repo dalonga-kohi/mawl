@@ -128,6 +128,43 @@ describe('contract validation', () => {
       expect(clear.issues).toBeUndefined()
     })
 
+    it('caps persona at 8000 characters on create and update', async () => {
+      const base = { name: 'Ada', modelMain: `${CRED}:m` }
+      expect(
+        (await check(contract.profiles.create, { ...base, personaMd: 'x'.repeat(8000) })).issues,
+      ).toBeUndefined()
+      expect(
+        (await check(contract.profiles.create, { ...base, personaMd: 'x'.repeat(8001) })).issues,
+      ).toBeDefined()
+      const patch = (personaMd: string) => ({ id: PROFILE, patch: { personaMd } })
+      expect(
+        (await check(contract.profiles.update, patch('x'.repeat(8000)))).issues,
+      ).toBeUndefined()
+      expect((await check(contract.profiles.update, patch('x'.repeat(8001)))).issues).toBeDefined()
+    })
+
+    it('caps an explicit slug at 40 characters', async () => {
+      const base = { name: 'Ada', modelMain: `${CRED}:m` }
+      expect(
+        (await check(contract.profiles.create, { ...base, slug: 'a'.repeat(40) })).issues,
+      ).toBeUndefined()
+      expect(
+        (await check(contract.profiles.create, { ...base, slug: 'a'.repeat(41) })).issues,
+      ).toBeDefined()
+      const patch = (slug: string) => ({ id: PROFILE, patch: { slug } })
+      expect((await check(contract.profiles.update, patch('a'.repeat(41)))).issues).toBeDefined()
+    })
+
+    it('trims the name and rejects a blank one', async () => {
+      const base = { modelMain: `${CRED}:m` }
+      expect((await check(contract.profiles.create, { ...base, name: '   ' })).issues).toBeDefined()
+      const ok = await check(contract.profiles.create, { ...base, name: '  Ada  ' })
+      expect(ok).toMatchObject({ value: { name: 'Ada' } })
+      expect(
+        (await check(contract.profiles.update, { id: PROFILE, patch: { name: '  ' } })).issues,
+      ).toBeDefined()
+    })
+
     it('declares SLUG_TAKEN and UNKNOWN_CREDENTIAL on create and update', () => {
       for (const p of [contract.profiles.create, contract.profiles.update]) {
         const errors = p['~orpc'].errorMap

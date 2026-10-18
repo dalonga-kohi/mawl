@@ -50,6 +50,10 @@ const ModelRefString = z
   .string()
   .min(1)
   .refine((v) => parseModelRef(v) !== null, { message: 'Expected <credentialId>:<modelId>' })
+/** Input limits. The stored entity stays tolerant; only what clients may write is capped. */
+const ProfileName = z.string().trim().min(1).max(80)
+const ProfileSlug = Profile.shape.slug.max(40)
+const PersonaMd = z.string().max(8000)
 const profileWrite = base.errors({
   SLUG_TAKEN: { status: 409, data: z.object({ slug: z.string() }) },
   UNKNOWN_CREDENTIAL: { status: 422, data: z.object({ credentialId: CredentialId }) },
@@ -70,13 +74,13 @@ export const contract = {
     create: profileWrite
       .input(
         z.object({
-          name: Profile.shape.name,
+          name: ProfileName,
           modelMain: ModelRefString,
           /** Derived from the name when omitted. */
-          slug: Profile.shape.slug.optional(),
+          slug: ProfileSlug.optional(),
           /** Rotates through the accent presets when omitted. */
           color: Profile.shape.color.optional(),
-          personaMd: z.string().optional(),
+          personaMd: PersonaMd.optional(),
           modelHelper: ModelRefString.optional(),
         }),
       )
@@ -86,7 +90,13 @@ export const contract = {
       .input(
         Id(ProfileId).extend({
           patch: Profile.omit({ id: true, createdAt: true, archivedAt: true })
-            .extend({ modelMain: ModelRefString, modelHelper: ModelRefString.nullable() })
+            .extend({
+              name: ProfileName,
+              slug: ProfileSlug,
+              personaMd: PersonaMd,
+              modelMain: ModelRefString,
+              modelHelper: ModelRefString.nullable(),
+            })
             .partial(),
         }),
       )
