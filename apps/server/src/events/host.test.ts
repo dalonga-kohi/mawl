@@ -28,11 +28,15 @@ describe('checkHost', () => {
     ['a missing Host', undefined],
     ['an empty Host', ''],
     ['another private address', '10.0.0.9:7420'],
+    ['an IPv4-mapped loopback', '[::ffff:127.0.0.1]:7420'],
+    ['another 127.x address', '127.0.0.2:7420'],
+    ['a trailing-dot localhost', 'localhost.:7420'],
+    ['userinfo before localhost', 'user@localhost:7420'],
   ])('rejects %s', (_name, host) => {
     expect(checkHost(host, policy)).toEqual({ ok: false, reason: 'host_not_allowed' })
   })
 
-  it('ignores a wildcard bind host: 0.0.0.0 is not a name a browser sends', () => {
+  it('ignores a wildcard bind host: Host 0.0.0.0 is denied', () => {
     expect(checkHost('0.0.0.0:7420', { bindHost: '0.0.0.0', allowedOrigins: [] })).toEqual({
       ok: false,
       reason: 'host_not_allowed',

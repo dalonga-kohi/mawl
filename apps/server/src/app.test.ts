@@ -135,25 +135,28 @@ describe('deps', () => {
 
 describe('Host check on /rpc (DNS rebinding)', () => {
   const hosts = { bindHost: '127.0.0.1', allowedOrigins: ['https://faire.example.com'] }
-  const call = (app: ReturnType<typeof setup>['app'], url: string) =>
-    app.request(url, {
+  const call = (app: ReturnType<typeof setup>['app'], host?: string) =>
+    app.request('http://localhost/rpc/health/get', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(host ? { host } : {}) },
       body: '{}',
     })
 
   it('answers 403 to a Host that is not ours', async () => {
     const { app } = setup({ hosts })
-    const res = await call(app, 'http://evil.example:7420/rpc/health/get')
-    expect(res.status).toBe(403)
+    expect((await call(app, 'evil.example:7420')).status).toBe(403)
   })
 
-  it.each(['http://localhost:7420', 'http://127.0.0.1:7420', 'https://faire.example.com'])(
-    'lets %s through',
-    async (base) => {
+  it('answers 403 when there is no Host header, whatever the request url says', async () => {
+    const { app } = setup({ hosts })
+    expect((await call(app)).status).toBe(403)
+  })
+
+  it.each(['localhost:7420', '127.0.0.1:7420', 'faire.example.com'])(
+    'lets the Host %s through',
+    async (host) => {
       const { app } = setup({ hosts })
-      const res = await call(app, `${base}/rpc/health/get`)
-      expect(res.status).toBe(200)
+      expect((await call(app, host)).status).toBe(200)
     },
   )
 

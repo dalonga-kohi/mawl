@@ -95,10 +95,10 @@ export function createApp({
 
   app.all('/rpc/*', async (c) => {
     if (hosts) {
-      const host = c.req.header('host') ?? new URL(c.req.url).host
+      const host = c.req.header('host')
       const verdict = checkHost(host, hosts)
       if (!verdict.ok) {
-        logger.warn({ reason: verdict.reason, host: host.slice(0, 200) }, 'rpc request rejected')
+        logger.warn({ reason: verdict.reason, host: host?.slice(0, 200) }, 'rpc request rejected')
         return c.json({ ok: false }, 403)
       }
     }
