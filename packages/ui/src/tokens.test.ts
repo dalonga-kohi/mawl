@@ -56,10 +56,13 @@ describe('type tokens', () => {
     expect(typeScale.display).toEqual({ size: 2.25, lineHeight: 1.1, weight: 650 })
   })
 
-  it('names Figtree, Bricolage Grotesque and JetBrains Mono first, with fallbacks', () => {
-    expect(fontFamilies.ui.startsWith("'Figtree'")).toBe(true)
-    expect(fontFamilies.display.startsWith("'Bricolage Grotesque'")).toBe(true)
-    expect(fontFamilies.mono.startsWith("'JetBrains Mono'")).toBe(true)
+  it('names the self-hosted variable faces first, then the static names, then fallbacks', () => {
+    // @fontsource-variable registers "<Family> Variable"; the plain name covers a static install.
+    expect(fontFamilies.ui.startsWith("'Figtree Variable', 'Figtree',")).toBe(true)
+    expect(
+      fontFamilies.display.startsWith("'Bricolage Grotesque Variable', 'Bricolage Grotesque',"),
+    ).toBe(true)
+    expect(fontFamilies.mono.startsWith("'JetBrains Mono Variable', 'JetBrains Mono',")).toBe(true)
     expect(fontFamilies.ui).toContain('system-ui')
   })
 })
