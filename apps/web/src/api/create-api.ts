@@ -1,18 +1,18 @@
-import type { contract } from '@faire/contracts'
-import { createORPCClient } from '@orpc/client'
-import { RPCLink } from '@orpc/client/fetch'
-import type { ContractRouterClient } from '@orpc/contract'
+import { createFaireClient } from '@faire/client'
 import type { Api } from './ApiProvider.tsx'
 
+/** The server's WebSocket endpoint on the same host as `origin`: `ws://` for http, `wss://` for https. */
+export function socketUrl(origin: string): string {
+  const url = new URL(origin)
+  return `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/ws`
+}
+
 /**
- * The live API for the browser. The web app is served by faire-server (or proxied to it by the
- * Vite dev server), so `/rpc` on the page's own origin reaches it.
- * TODO(P1.5 merge): build this from `createFaireClient` in @faire/client.
+ * The live API for the browser, over the shared @faire/client WebSocket. The web app is served by
+ * faire-server (or proxied to it by the Vite dev server), so `/ws` on the page's own host reaches it.
  */
 export function createApi(origin: string = window.location.origin): Api {
-  const rpc: ContractRouterClient<typeof contract> = createORPCClient(
-    new RPCLink({ url: `${origin}/rpc` }),
-  )
+  const { client: rpc } = createFaireClient({ url: socketUrl(origin) })
   return {
     providers: {
       catalog: () => rpc.providers.catalog(),

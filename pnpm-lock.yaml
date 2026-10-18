@@ -109,6 +109,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@faire/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@faire/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -124,12 +127,6 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@orpc/client':
-        specifier: 1.15.7
-        version: 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
-        specifier: 1.15.7
-        version: 1.15.7(@opentelemetry/api@1.9.1)
       '@tanstack/react-query':
         specifier: 5.104.4
         version: 5.104.4(@types/react@19.3.0)(react@19.3.1)

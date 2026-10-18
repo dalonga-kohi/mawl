@@ -10,7 +10,11 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     // The dev server talks to a local faire-server; the built app is served by the server itself.
-    proxy: { '/rpc': 'http://127.0.0.1:7420' },
+    proxy: {
+      '/rpc': 'http://127.0.0.1:7420',
+      // Host stays localhost:5173, which the server's Host allowlist accepts as loopback.
+      '/ws': { target: 'ws://127.0.0.1:7420', ws: true },
+    },
   },
   test: {
     name: '@faire/web',
