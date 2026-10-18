@@ -48,6 +48,11 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - *Tests:* fake model; crash/resume from the persisted step.
   - Review note from P1.1: drizzle writes JS `null` as SQL NULL, so NOT NULL jsonb columns (`run_steps.input_json`, `events.payload_json`) need `jsonValue()` from `@faire/db`. Put `run_steps`/`events` inserts and updates behind one repository helper that always applies it, and test that a raw `null` is stored as JSON null.
   - Thread deletion is blocked while runs reference the thread (FK, no action). Decide archive vs delete when a thread-delete path appears.
+  - Review notes from P1.3b:
+    - The `openai_chatgpt` model refuses non-stream calls, so the loop uses `streamText`, never `generateText`.
+    - `anthropic_claude_code` is text-only. Bridge Faire tools to it through an in-process MCP server (the SDK's `createSdkMcpServer`), still through the policy engine.
+    - A Claude `rate_limit_event` with status `rejected` is a hard failure today, even when overage may be allowed. Revisit when overage info is reliable.
+    - `ProviderFailureReason` (contracts) from `ProviderFailureError` (core) feeds the run failure reason and the app's explanation.
 - [ ] **P1.5 Event bus + WS hub.**
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
@@ -55,12 +60,19 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - tsconfig override for UI apps: `DOM` + `DOM.Iterable` libs, `jsx: react-jsx`, no `node` types. Relax `exactOptionalPropertyTypes` only where a library forces it (review note from P0.1).
   - Three-pane layout, theme (light/dark/system), and accent switcher wired to tokens.
   - Command palette and Motion presets.
+  - Review note from P1.3b: provider settings follow OpenAI's SIWC UI guidelines: a "Continue with ChatGPT" button, a "Using ChatGPT plan" tag, "Manage usage" linking to https://chatgpt.com/settings/usage, and a "Usage limit reached" state. Show `reauthRequired` as a sign-in-again prompt. When `providers.delete` returns `revoked: false`, tell the owner to revoke access in ChatGPT settings. Same rules apply in onboarding (P8.1).
 - [ ] **P1.7 Chat UI.**
   - Streaming message list, composer (attachments later), and tool-activity cards (collapsed summaries).
   - Mascot state hook (SVG fallback) and empty states.
   - *e2e:* send a message → streamed reply (fake provider).
 - [ ] **P1.8 Desktop shell.** Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `faire://`.
+  - Review note from P1.3b: the desktop app owns the SIWC loopback flow and transfers the credentials to the server over an authenticated call. The VM or host keeps its own `ext_agent_host_id`.
 - [ ] **P1.9 Compose v1.** `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
+  - Review notes from P1.3b:
+    - Publish `127.0.0.1:1455:1455` and set `FAIRE_SIWC_BIND_HOST=0.0.0.0` inside the container, so the SIWC callback reaches the server.
+    - Install `@anthropic-ai/claude-agent-sdk` as a production dependency for the image's libc (the native binary is about 290 MB). Keep it external to the esbuild bundle, and add a `claude` symlink so `docker compose exec server claude auth login` works.
+    - Put `FAIRE_CLAUDE_CONFIG_DIR` (`CLAUDE_CONFIG_DIR` for the binary) on a named volume.
+    - Verify that headless `claude auth login` works in the container.
 
 ## P2 — Profiles, tools, MCP, approvals
 
@@ -133,6 +145,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 ## P8 — Polish & ship
 
 - [ ] **P8.1 Onboarding.** Three steps with the beaver, provider key or Ollama detection, first teammate, phone pairing.
+  - Review note from P1.3b: offer "Continue with ChatGPT" first, following the SIWC UI rules recorded in P1.6.
 - [ ] **P8.2 Installer.** `install.sh` / `install.ps1`, generated secrets, and the desktop "Start my stack" button.
 - [ ] **P8.3 Mascot.** Rive state machine (8 states) on web, desktop tray and mobile.
 - [ ] **P8.4 Accessibility + reduced-motion audit**, visual-regression baseline, and performance budgets.
