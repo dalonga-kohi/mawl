@@ -1,5 +1,13 @@
 import { MotionConfig } from 'motion/react'
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react'
 import {
   type Appearance,
   applyAppearance,
@@ -28,19 +36,17 @@ function safeStorage(): Storage | null {
 
 /** Owns theme, accent and motion for the whole app and mirrors them onto `<html>`. */
 export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const [appearance, setAppearance] = useState<Appearance>(() => {
-    const initial = loadAppearance(safeStorage())
-    applyAppearance(document.documentElement, initial)
-    return initial
-  })
+  const [appearance, setAppearance] = useState<Appearance>(() => loadAppearance(safeStorage()))
+
+  // Layout effect: the new theme lands before paint, so there is no flash of the old one.
+  // Updaters stay pure; Strict Mode may call them twice.
+  useLayoutEffect(() => {
+    applyAppearance(document.documentElement, appearance)
+    saveAppearance(safeStorage(), appearance)
+  }, [appearance])
 
   const update = useCallback((patch: Partial<Appearance>) => {
-    setAppearance((prev) => {
-      const next = { ...prev, ...patch }
-      applyAppearance(document.documentElement, next)
-      saveAppearance(safeStorage(), next)
-      return next
-    })
+    setAppearance((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const api = useMemo<AppearanceApi>(
