@@ -335,6 +335,7 @@ describe('startServer edge cases', () => {
       createDb: vi.fn(() => handle),
       migrate: vi.fn(async () => {}),
       worker: false as const,
+      events: false as const,
     }
   }
   const config = (over: object = {}) => ({

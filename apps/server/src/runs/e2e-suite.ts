@@ -7,9 +7,11 @@ import { createDb, migrate, schema } from '@faire/db'
 import { fakeModel, type Turn } from '@faire/testkit'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
+import { RPCLink as WsLink } from '@orpc/client/websocket'
 import type { ContractRouterClient } from '@orpc/contract'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import WebSocket from 'ws'
 import { createLogger } from '../logger.ts'
 import { type RunningServer, startServer } from '../server.ts'
 import { createRunStore } from './store.ts'
@@ -107,6 +109,32 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
       expect(done.endedAt).not.toBeNull()
     }, 60_000)
 
+    it('a /ws subscriber sees the reply as run.delta events before the run.step and run.status that follow', async () => {
+      const { url, handle, profileId } = await seededDatabase()
+      await handle.close()
+      const { resolved } = fake([{ text: 'Hello from the fake model' }], 25)
+      const { client, server } = await boot(url, () => resolved)
+
+      const ws = new WebSocket(`${server.url.replace('http', 'ws')}/ws`)
+      try {
+        const live: Client = createORPCClient(new WsLink({ websocket: ws as never }))
+        const stream = await live.events.subscribe({ topics: ['profile:*'] })
+        const seen: { type: string; text?: string }[] = []
+        const started = await client.runs.start({ profileId, prompt: 'Say hello' })
+        for await (const event of stream) {
+          const payload = event.payload as { text?: string; status?: string }
+          seen.push({ type: event.type, ...(payload.text ? { text: payload.text } : {}) })
+          if (event.type === 'run.status' && payload.status === 'succeeded') break
+        }
+        const deltas = seen.filter((e) => e.type === 'run.delta')
+        expect(deltas.map((d) => d.text).join('')).toBe('Hello from the fake model')
+        const lastDelta = seen.map((e) => e.type).lastIndexOf('run.delta')
+        expect(seen.findIndex((e) => e.type === 'run.step')).toBeGreaterThan(lastDelta)
+        expect(started.status).toBe('queued')
+      } finally {
+        ws.terminate()
+      }
+    }, 60_000)
     it('a model that is not configured fails the run with a closed code, not the job', async () => {
       const { url, handle, profileId } = await seededDatabase()
       await handle.close()

@@ -8,8 +8,14 @@ import { serve } from '@hono/node-server'
 import { createApp } from './app.ts'
 import type { Config } from './config.ts'
 import { probeDb } from './db-probe.ts'
+import { createEventBus, type EventBus } from './events/bus.ts'
+import { createDeltaCoalescer, type DeltaCoalescer } from './events/deltas.ts'
+import { createEventsService } from './events/service.ts'
+import { createPgSource } from './events/source.ts'
+import { attachWsHub, type WsHub } from './events/ws.ts'
 import { createLogger, type Logger } from './logger.ts'
 import { createProviderService } from './providers/service.ts'
+import { createRouter } from './router.ts'
 import { RunRegistry } from './runs/registry.ts'
 import { createModelResolver } from './runs/resolve-model.ts'
 import { createRunService } from './runs/service.ts'
@@ -29,6 +35,8 @@ export interface BootOverrides {
   migrate?: typeof migrate
   /** When false, no Graphile Worker starts (unit tests with a fake database); runs then stay queued. */
   worker?: boolean
+  /** When false, no event bus, delta coalescer or /ws hub starts (unit tests with a fake database). */
+  events?: boolean
   /** Replaces the provider-backed model lookup, so tests can run the engine with a fake model. */
   resolveModel?: (run: RunRecord, profile: ProfileRecord) => Promise<ResolvedModel>
 }
@@ -79,9 +87,10 @@ function closeServer(server: Server): Promise<void> {
 
 /**
  * Boot order: master key, database, migrations, the Graphile Worker (its own migrations, then
- * recovery of unfinished runs), then listen. Anything that fails after the database opened closes
- * it before the error propagates. Stop order: listener, abort running jobs, worker, providers,
- * database.
+ * recovery of unfinished runs), the event bus (before the worker, so no event is missed), then listen
+ * and attach the /ws hub. Anything that fails after the database opened closes
+ * it before the error propagates. Stop order: sockets, listener, abort running jobs, worker, delta
+ * coalescer, event bus, providers, database.
  */
 export async function startServer(
   config: Config,
@@ -116,6 +125,9 @@ export async function startServer(
   let url: string
   let providers: ReturnType<typeof createProviderService> | undefined
   let worker: RunWorker | undefined
+  let bus: EventBus | undefined
+  let deltas: DeltaCoalescer | undefined
+  let hub: WsHub | undefined
   const registry = new RunRegistry()
   try {
     await (overrides.migrate ?? migrate)(handle.db, resolveMigrationsFolder())
@@ -132,6 +144,28 @@ export async function startServer(
     })
     // Set before anything else can fail, so the catch below can close it.
     providers = providerService
+    if (overrides.events !== false) {
+      const liveBus = createEventBus({
+        db: handle.db,
+        source: createPgSource(config.databaseUrl),
+        logger,
+        // A persisted event must not overtake the text that precedes it.
+        beforePersisted: (event) => {
+          if (event.runId) deltas?.flush(event.runId)
+        },
+      })
+      bus = liveBus
+      deltas = createDeltaCoalescer({
+        publish: ({ profileId, runId, stepIdx, text }) =>
+          liveBus.publishEphemeral({
+            profileId,
+            runId,
+            type: 'run.delta',
+            payload: { text, stepIdx },
+          }),
+      })
+      await liveBus.start()
+    }
     if (overrides.worker !== false) {
       worker = await startRunWorker({
         pool: handle.pool,
@@ -139,6 +173,7 @@ export async function startServer(
         logger,
         registry,
         resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
+        ...(deltas ? { deltas } : {}),
       })
       logger.info('run worker started')
       // Runs a previous process left queued or running: their jobs may be lost or locked.
@@ -161,9 +196,24 @@ export async function startServer(
       },
     })
     ;({ server, url } = await listen(app, config))
+    if (bus) {
+      hub = attachWsHub({
+        server,
+        router: createRouter({
+          version,
+          providers: providerService,
+          runs,
+          events: createEventsService({ bus }),
+        }),
+        logger,
+        allowedOrigins: config.allowedOrigins,
+      })
+    }
   } catch (err) {
     registry.abortAll(ABORT_SHUTDOWN)
     await worker?.stop().catch(() => {})
+    deltas?.close()
+    await bus?.stop().catch(() => {})
     await providers?.close().catch(() => {})
     await handle.close().catch(() => {})
     throw err
@@ -177,10 +227,15 @@ export async function startServer(
     secretBox,
     stop() {
       stopping ??= (async () => {
+        // Sockets first: closing them ends the subscription streams that would hold the listener open.
+        await hub?.close()
         await closeServer(server)
         // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
         registry.abortAll(ABORT_SHUTDOWN)
         await worker?.stop()
+        // Last deltas out while the bus can still carry them, then the bus.
+        deltas?.close()
+        await bus?.stop()
         await providers?.close()
         await handle.close()
         logger.info('stopped')
