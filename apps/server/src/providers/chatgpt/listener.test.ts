@@ -92,6 +92,21 @@ describe('loopback listener', () => {
     expect(seen).toEqual(['real'])
   })
 
+  it('survives an error emitted after it started listening, reporting only its name', async () => {
+    const server = createServer()
+    const names: string[] = []
+    const l = await startLoopbackListener({
+      host: '127.0.0.1',
+      port: 0,
+      createServer: () => server,
+      onCallback: () => {},
+      onError: (name) => void names.push(name),
+    })
+    open.push(l)
+    expect(() => server.emit('error', new RangeError('secret detail'))).not.toThrow()
+    expect(names).toEqual(['RangeError'])
+  })
+
   it('rejects when the port is already taken', async () => {
     const l = await listen()
     await expect(

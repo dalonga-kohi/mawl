@@ -16,6 +16,10 @@ export interface LoopbackListenerOptions {
    * from any web page that can reach this port) gets a 400 and the listener keeps waiting.
    */
   accept?(params: URLSearchParams): boolean
+  /** Called with the error's name only when the server errors after it started listening. */
+  onError?(errName: string): void
+  /** Replaceable in tests. */
+  createServer?: () => Server
   /** Called once with the callback's query. A throw or rejection is swallowed: the page is already sent. */
   onCallback(params: URLSearchParams): void | Promise<void>
 }
@@ -56,6 +60,8 @@ export function startLoopbackListener({
   host,
   port,
   accept,
+  onError,
+  createServer: make = createServer,
   onCallback,
 }: LoopbackListenerOptions): Promise<LoopbackListener> {
   return new Promise((resolve, reject) => {
@@ -63,7 +69,8 @@ export function startLoopbackListener({
     let done = false
     let closing: Promise<void> | undefined
 
-    const server: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    const server: Server = make()
+    server.on('request', (req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
       if (req.headers.host !== `127.0.0.1:${bound}`) return reply(res, 400, 'Bad request')
       if (url.pathname !== CALLBACK_PATH) return reply(res, 404, 'Not found')
@@ -93,6 +100,8 @@ export function startLoopbackListener({
     server.once('error', reject)
     server.listen(port, host, () => {
       server.off('error', reject)
+      // An unhandled 'error' event would crash the process; report the name and carry on.
+      server.on('error', (err) => onError?.(err.name))
       const address = server.address()
       bound = typeof address === 'object' && address ? address.port : port
       resolve({ port: bound, close })

@@ -248,6 +248,8 @@ export function createChatGptAuth({
         port: options.port,
         // A forged callback must not use up the attempt.
         accept: (params) => stateMatches(sign, params),
+        onError: (errName) =>
+          logger.error({ attemptId: attempt.id, errName }, 'chatgpt sign-in listener error'),
         onCallback: (params) => onCallback(attempt, params),
       })
     } catch (err) {
