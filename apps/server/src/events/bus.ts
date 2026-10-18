@@ -125,6 +125,9 @@ export function createEventBus(options: EventBusOptions): EventBus {
   let draining = false
   let rerun = false
 
+  /** A function, so TypeScript does not narrow status across awaits. */
+  const stopped = () => status === 'stopped'
+
   function dispatch(event: LenientEnvelope): void {
     for (const listener of [...listeners]) {
       try {
@@ -152,7 +155,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
   }
 
   async function drain(): Promise<void> {
-    if (status === 'stopped') return
+    if (stopped()) return
     if (draining) {
       rerun = true
       return
@@ -174,7 +177,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
           }
           let blocked = false
           for (const row of rows) {
-            if (status === 'stopped') return
+            if (stopped()) return
             if (row.id > lastSeen + 1) {
               gapSince ??= now()
               if (now() - gapSince < gapGraceMs) {
@@ -198,7 +201,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
           }
           if (blocked || rows.length < pageSize) break
         }
-      } while (rerun && status !== 'stopped')
+      } while (rerun && !stopped())
     } catch (err) {
       logger.warn({ errName: errName(err) }, 'event bus could not read new events, retrying')
       scheduleRetryDrain()
@@ -236,7 +239,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
           scheduleReconnect()
         },
       })
-      if (status === 'stopped') {
+      if (stopped()) {
         await conn.close().catch(() => {})
         return
       }

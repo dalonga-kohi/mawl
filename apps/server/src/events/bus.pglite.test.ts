@@ -224,7 +224,7 @@ describe('event bus on PGlite', () => {
     const { bus, before, got, emit, profileId } = await setup()
     const seenByHook: number[] = []
     // The hook has run for event N by the time any subscriber sees it.
-    bus.subscribe((e) => void seenByHook.push(before.length))
+    bus.subscribe(() => void seenByHook.push(before.length))
     await bus.start()
     const id = await emit()
     await vi.waitFor(() => expect(got).toHaveLength(1))
