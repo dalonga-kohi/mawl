@@ -11,11 +11,13 @@ export interface DeltaOut {
   text: string
 }
 
-export interface DeltaCoalescer {
-  /** Buffers a token. The first token of a window starts its timer. */
+/** What the run job needs from a coalescer: feed tokens, flush at the end. */
+export interface DeltaSink {
   add(delta: DeltaOut): void
-  /** Sends the run's buffered text now (a step or the run just ended). No-op when nothing waits. */
   flush(runId: RunId): void
+}
+
+export interface DeltaCoalescer extends DeltaSink {
   /** Flushes every run and stops accepting tokens. */
   close(): void
 }

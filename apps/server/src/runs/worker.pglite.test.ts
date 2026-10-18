@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { DeltaSink } from '../events/deltas.ts'
 import { createLogger } from '../logger.ts'
 import { RunRegistry } from './registry.ts'
 import { seedMessage, seedProfile, seedRun, seedThread } from './test-util.ts'
@@ -31,7 +32,9 @@ describe('run.execute task (PGlite)', () => {
     return runId
   }
 
-  function task(over: { registry?: RunRegistry; model?: ReturnType<typeof fakeModel> } = {}) {
+  function task(
+    over: { registry?: RunRegistry; model?: ReturnType<typeof fakeModel>; deltas?: DeltaSink } = {},
+  ) {
     const model = over.model ?? fakeModel([{ text: 'done' }])
     const requeue = vi.fn(async (_runId: RunId, _retry: number) => {})
     const registry = over.registry ?? new RunRegistry()
@@ -41,6 +44,7 @@ describe('run.execute task (PGlite)', () => {
       logger: createLogger({ level: 'silent' }),
       resolveModel: async () => ({ model }),
       requeue,
+      ...(over.deltas ? { deltas: over.deltas } : {}),
     })
     return { run, requeue, registry, model }
   }
@@ -54,6 +58,45 @@ describe('run.execute task (PGlite)', () => {
     await t.run({ runId }, { abortSignal: new AbortController().signal })
     expect(await status(runId)).toBe('succeeded')
     expect(t.registry.size).toBe(0)
+  })
+
+  it('hands the model text to the delta sink with the run and profile, and flushes when the job ends', async () => {
+    const runId = await seedQueued()
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId))
+    const added: { profileId: string; runId: string; stepIdx: number; text: string }[] = []
+    const flushed: string[] = []
+    const deltas: DeltaSink = {
+      add: (d) => void added.push(d),
+      flush: (id) => void flushed.push(id),
+    }
+    const t = task({ deltas, model: fakeModel([{ text: 'hello there' }], { chunkSize: 5 }) })
+    await t.run({ runId }, { abortSignal: new AbortController().signal })
+    expect(added.map((d) => d.text).join('')).toBe('hello there')
+    expect(added.every((d) => d.runId === runId && d.profileId === row?.profileId)).toBe(true)
+    expect(added.every((d) => d.stepIdx === 0)).toBe(true)
+    // Flushed at the step end and again at the job end; a flush with nothing buffered is a no-op.
+    expect(new Set(flushed)).toEqual(new Set([runId]))
+  })
+
+  it('flushes the sink even when the execution throws', async () => {
+    const runId = await seedQueued()
+    const flushed: string[] = []
+    const deltas: DeltaSink = { add: () => {}, flush: (id) => void flushed.push(id) }
+    const t = task({ deltas })
+    const run = createRunTask({
+      db,
+      registry: t.registry,
+      logger: createLogger({ level: 'silent' }),
+      resolveModel: async () => {
+        throw new Error('infrastructure down')
+      },
+      requeue: async () => {},
+      deltas,
+    })
+    await expect(run({ runId }, { abortSignal: new AbortController().signal })).rejects.toThrow(
+      'infrastructure down',
+    )
+    expect(flushed).toEqual([runId])
   })
 
   it('stops a run whose shutdown abort fired before the listener was attached', async () => {

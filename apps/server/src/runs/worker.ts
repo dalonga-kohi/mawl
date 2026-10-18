@@ -11,6 +11,7 @@ import { type DbHandle, schema } from '@faire/db'
 import { inArray } from 'drizzle-orm'
 import { Logger as GraphileLogger, type LogLevel, run, runMigrations } from 'graphile-worker'
 import { z } from 'zod'
+import type { DeltaSink } from '../events/deltas.ts'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 import type { RunRegistry } from './registry.ts'
@@ -37,6 +38,8 @@ export interface RunTaskDeps {
   clock?: Clock
   /** Queues the job again for later (see MAX_REQUEUES). */
   requeue(runId: RunId, retry: number): Promise<void>
+  /** Receives the model's text tokens. Flushed when each step ends and when the job ends, however it ends. */
+  deltas?: DeltaSink
 }
 
 /** The `run.execute` job handler. Throws only on infrastructure errors, so Graphile retries those. */
@@ -73,16 +76,27 @@ export function createRunTask(deps: RunTaskDeps) {
     // The abort may have fired before the listener existed.
     if (helpers.abortSignal.aborted) onAbort()
     try {
+      // The run's profile routes its deltas; one lookup per job, only when someone listens.
+      const profileId = deps.deltas ? (await store.load(runId))?.run.profileId : undefined
+      const sink = deps.deltas
       const result = await executeRun({
         runId,
         store,
         clock,
         signal: controller.signal,
         resolveModel: deps.resolveModel,
+        ...(sink && profileId
+          ? {
+              onDelta: ({ runId: id, stepIdx, text }) =>
+                sink.add({ profileId, runId: id, stepIdx, text }),
+              onStepEnd: ({ runId: id }) => sink.flush(id),
+            }
+          : {}),
         onFailure: ({ code, errName }) => logger.warn({ runId, code, errName }, 'run failed'),
       })
       logger.info({ runId, outcome: result.outcome }, 'run job finished')
     } finally {
+      deps.deltas?.flush(runId)
       helpers.abortSignal.removeEventListener('abort', onAbort)
       registry.release(runId, controller)
     }
@@ -99,6 +113,7 @@ export interface RunWorkerDeps {
   concurrency?: number
   /** Delay before a requeued job runs again. Tests shorten it. */
   requeueDelayMs?: number
+  deltas?: DeltaSink
 }
 
 export interface RunWorker {
@@ -146,6 +161,7 @@ export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
         registry,
         resolveModel: deps.resolveModel,
         ...(deps.clock ? { clock: deps.clock } : {}),
+        ...(deps.deltas ? { deltas: deps.deltas } : {}),
         requeue: (runId, retry) =>
           addJob(
             { runId, retry },
