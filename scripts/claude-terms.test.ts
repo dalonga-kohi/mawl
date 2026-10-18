@@ -39,13 +39,18 @@ const rules: Array<{ term: string; allowedIn: string[] }> = [
  * Returns the names of the patterns that match; empty means clean.
  */
 function forbiddenIn(rawText: string, file = ''): string[] {
-  // Comments may name what the code must not do; only code is scanned.
+  // Comments may name what the code must not do; only code is scanned. This stripper is a
+  // heuristic: a `//` or `/*` inside a string can fool it. The guard catches accidents and drift,
+  // not an adversary; code review covers the rest.
   const text = rawText.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
   const patterns: Array<[string, RegExp]> = [
     ['env token (dot access)', /process\.env\.(ANTHROPIC|CLAUDE_CODE)_/],
     ['env token (bracket access)', /process\.env\[\s*['"`](ANTHROPIC|CLAUDE_CODE)_/],
     // An alias, a destructure or the whole object passed on hides which variables are read.
     ['whole process.env', /process\.env\b(?!\.\w|\s*\[)/],
+    ['env via destructured process', /\{[^}]*\benv\b[^}]*\}\s*=\s*process\b(?!\.)/],
+    ['env via the process module', /(from|require\()\s*['"](node:)?process['"]/],
+    ['process via globalThis', /globalThis(\.process\b|\s*\[\s*['"]process['"])/],
     ['readFile', /readFile(Sync)?\(/],
     ['createReadStream', /createReadStream\b/],
     ['open', /\b(fs\.)?open(Sync)?\(/],
@@ -117,6 +122,13 @@ describe('Claude account terms guard', () => {
       ['env destructure', 'const { HOME, ANTHROPIC_API_KEY } = process.env'],
       ['env passed whole', 'spawn(cmd, { env: process.env })'],
       ['env spread', 'const e = { ...process.env }'],
+      ['env destructured from process', 'const { env } = process'],
+      ['env destructured with others', 'const { cwd, env: e } = process;'],
+      ['env imported from node:process', "import { env } from 'node:process'"],
+      ['env imported from process', 'import { env } from "process"'],
+      ['process required', "const p = require('node:process')"],
+      ['globalThis.process', 'const e = globalThis.process.env'],
+      ['globalThis["process"]', "const e = globalThis['process']"],
       ['copyFile', "await copyFile('/a', '/b')"],
       ['readdir', "await readdir('/x')"],
       ['cp', "await cp('/a', '/b', { recursive: true })"],
