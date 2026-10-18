@@ -52,6 +52,20 @@ describe('PROVIDER_DESCRIPTORS', () => {
     })
   })
 
+  it('describes the Claude subscription: no key, no base url, text only for now', () => {
+    expect(PROVIDER_DESCRIPTORS.anthropic_claude_code).toMatchObject({
+      keyRequired: false,
+      baseUrlRequired: false,
+      defaultBaseUrl: null,
+      capabilities: {
+        supportsTools: false,
+        supportsCaching: false,
+        supportsContextEditing: false,
+        supportsCompaction: false,
+      },
+    })
+  })
+
   it('declares which providers need a key or a base url, and the defaults', () => {
     expect(PROVIDER_DESCRIPTORS.anthropic).toMatchObject({
       keyRequired: true,

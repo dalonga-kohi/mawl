@@ -67,6 +67,21 @@ export const PROVIDER_DESCRIPTORS: Record<ProviderKind, ProviderDescriptor> = {
     defaultBaseUrl: 'https://api.openai.com/v1',
     capabilities: { ...tools },
   },
+  // The owner signs in with Claude Code itself; Faire holds no credential and calls no URL.
+  // Tools stay off until they are bridged in; the binary does its own prompt caching.
+  anthropic_claude_code: {
+    kind: 'anthropic_claude_code',
+    label: 'Claude plan',
+    keyRequired: false,
+    baseUrlRequired: false,
+    defaultBaseUrl: null,
+    capabilities: {
+      supportsTools: false,
+      supportsCaching: false,
+      supportsContextEditing: false,
+      supportsCompaction: false,
+    },
+  },
 }
 
 /** Descriptors in the order of the ProviderKind enum. */
