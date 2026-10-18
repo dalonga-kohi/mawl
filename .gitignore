@@ -27,3 +27,6 @@ playwright-report/
 
 # Faire local runtime state (master key, etc.)
 .faire/
+
+# Compose secrets
+infra/compose/.env

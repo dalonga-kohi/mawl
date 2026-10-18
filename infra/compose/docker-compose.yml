@@ -1,0 +1,48 @@
+# Faire v1: the server (API, web app, Claude Code) and its Postgres.
+#   cp infra/compose/.env.example infra/compose/.env   # then set FAIRE_DB_PASSWORD
+#   docker compose -f infra/compose/docker-compose.yml up -d --build
+# Open http://localhost:7420. See docs/RUNNING.md.
+name: faire
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_USER: faire
+      POSTGRES_DB: faire
+      POSTGRES_PASSWORD: ${FAIRE_DB_PASSWORD:?set FAIRE_DB_PASSWORD in infra/compose/.env}
+    volumes:
+      - faire-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U faire -d faire"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    # No published port: only the server reaches the database.
+
+  server:
+    image: faire-server:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/server.Dockerfile
+    environment:
+      DATABASE_URL: postgres://faire:${FAIRE_DB_PASSWORD}@db:5432/faire
+      FAIRE_ALLOWED_ORIGINS: ${FAIRE_ALLOWED_ORIGINS:-}
+    ports:
+      # Host loopback only: there is no device sign-in yet, so nothing else may reach the server.
+      - "127.0.0.1:7420:7420"
+      # Sign in with ChatGPT redirects the browser back to this port.
+      - "127.0.0.1:1455:1455"
+    volumes:
+      - faire-secrets:/secrets
+      - faire-claude:/claude
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  faire-db:
+  faire-secrets:
+  faire-claude:
