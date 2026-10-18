@@ -74,6 +74,32 @@ describe('settings, models: Sign in with ChatGPT', () => {
     expect(fake.state.statusCalls).toBe(calls)
   })
 
+  it('keeps waiting through a dropped connection and still finishes the sign-in', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.statusError = new Error('socket closed')
+    fake.state.statuses = [
+      { status: 'succeeded', credentialId: 'cred_01JTESTCHATGPT0000000000001' as CredentialId },
+    ]
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
+    await waitFor(() => expect(fake.state.statusCalls).toBeGreaterThanOrEqual(2))
+    expect(within(models()).queryByText(/lost track of this sign-in/)).toBeNull()
+    fake.state.statusError = null
+    expect(await within(models()).findByText('Using ChatGPT plan')).toBeTruthy()
+  })
+
+  it('shows a sign-in that finished on the server after the owner stopped waiting', async () => {
+    const fake = fakeProvidersApi()
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
+    // The server finished the sign-in, but the page has not polled it yet.
+    fake.state.credentials.push(
+      credential({ provider: 'openai_chatgpt', label: 'ChatGPT', planUsage: true }),
+    )
+    await user.click(await within(models()).findByRole('button', { name: 'Stop waiting' }))
+    expect(await within(models()).findByText('Using ChatGPT plan')).toBeTruthy()
+  })
+
   it('stops waiting when asked', async () => {
     const fake = fakeProvidersApi()
     const { user } = await renderApp('/settings', { providers: fake.api })

@@ -1,6 +1,6 @@
 import type { ChatGptStartResult } from '@faire/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApi } from '../../api/ApiProvider.tsx'
 import { errorCode } from '../../api/providers-api.ts'
@@ -47,8 +47,11 @@ export function useChatGptSignIn() {
     queryKey: ['providers', 'chatgpt', attempt?.attemptId],
     queryFn: () => providers.chatgptStatus(attempt?.attemptId ?? ''),
     enabled: attempt !== null,
+    // Only a forgotten attempt ends the wait. Any other failure (a dropped socket, a busy server)
+    // keeps polling: the client reopens its socket on the next call.
     refetchInterval: (q) =>
-      q.state.status === 'error' || (q.state.data && q.state.data.status !== 'pending')
+      errorCode(q.state.error) === 'NOT_FOUND' ||
+      (q.state.data && q.state.data.status !== 'pending')
         ? false
         : pollMs,
     retry: false,
@@ -68,21 +71,29 @@ export function useChatGptSignIn() {
   }, [result, refresh])
 
   // A restarted server forgets the attempt (NOT_FOUND); stop polling instead of waiting forever.
-  const statusFailed = status.isError
+  const attemptLost = errorCode(status.error) === 'NOT_FOUND'
   useEffect(() => {
-    if (!statusFailed) return
+    if (!attemptLost) return
     setAttempt(null)
     setError('Faire lost track of this sign-in, maybe because the server restarted. Start again.')
-  }, [statusFailed])
+  }, [attemptLost])
+
+  // The sign-in may have finished on the server after the last poll, so the list is refreshed
+  // whenever the page stops waiting without a result.
+  const stopWaiting = useCallback(
+    (reason?: string) => {
+      setAttempt(null)
+      if (reason) setError(reason)
+      void refresh()
+    },
+    [refresh],
+  )
 
   useEffect(() => {
     if (!attempt) return
-    const timer = setTimeout(() => {
-      setAttempt(null)
-      setError(signInFailureText('expired'))
-    }, ATTEMPT_TIMEOUT_MS)
+    const timer = setTimeout(() => stopWaiting(signInFailureText('expired')), ATTEMPT_TIMEOUT_MS)
     return () => clearTimeout(timer)
-  }, [attempt])
+  }, [attempt, stopWaiting])
 
   return {
     start: () => {
@@ -90,7 +101,7 @@ export function useChatGptSignIn() {
     },
     starting: start.isPending,
     attempt,
-    cancel: () => setAttempt(null),
+    cancel: () => stopWaiting(),
     error,
     remote: !isLoopbackHost(window.location.hostname),
   }
@@ -112,7 +123,7 @@ export function ChatGptSignInStatus({ signIn }: { signIn: ChatGptSignInState }) 
             href={signIn.attempt.authorizeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-accent-ink underline-offset-2 hover:underline"
+            className="inline-flex items-center font-semibold text-accent-ink underline-offset-2 hover:underline pointer-coarse:min-h-11"
           >
             Open the sign-in page again
           </a>
