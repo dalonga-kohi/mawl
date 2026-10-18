@@ -8,6 +8,7 @@ import type { ThemePref } from '../appearance/prefs.ts'
 import { transitions } from '../motion/presets.ts'
 import { PageShell } from '../pages/PageShell.tsx'
 import { cx } from '../ui/cx.ts'
+import { ModelsSection } from './models/ModelsSection.tsx'
 
 const THEMES: { value: ThemePref; label: string; icon: ReactNode }[] = [
   { value: 'system', label: 'System', icon: <Laptop aria-hidden="true" /> },
@@ -185,6 +186,7 @@ export function SettingsPage() {
           </Setting>
         </div>
       </section>
+      <ModelsSection />
     </PageShell>
   )
 }
