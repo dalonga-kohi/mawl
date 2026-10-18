@@ -5,6 +5,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  type RouteComponent,
   redirect,
 } from '@tanstack/react-router'
 import {
@@ -24,7 +25,7 @@ const SettingsPage = lazyRouteComponent(() => import('./settings/SettingsPage.ts
 
 const rootRoute = createRootRoute({ component: Shell, notFoundComponent: NotFoundPage })
 
-const page = <P extends string>(path: P, component: () => React.ReactNode) =>
+const page = <P extends string>(path: P, component: RouteComponent) =>
   createRoute({ getParentRoute: () => rootRoute, path, component })
 
 const routeTree = rootRoute.addChildren([
