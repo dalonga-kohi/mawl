@@ -62,7 +62,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - The `/ws` hub and HTTP `/rpc` are separate router instances; HTTP `events.subscribe` returns 501. Fine while all clients use `/ws`.
     - Shutdown order is tested through `createLiveEvents().stop()`, not a full `startServer` boot.
     - The one-off `@faire/server#test` failure (2 files plus an unhandled error) did not reproduce in 8 runs. Same suspect as the P1.3b note: PGlite suites near `hookTimeout` under the parallel gate.
-- [~] **P1.6 Web app shell.**
+- [x] **P1.6 Web app shell.** (1f4d411..3213cee, merged in f872072)
   - tsconfig override for UI apps: `DOM` + `DOM.Iterable` libs, `jsx: react-jsx`, no `node` types. Relax `exactOptionalPropertyTypes` only where a library forces it (review note from P0.1).
   - Three-pane layout, theme (light/dark/system), and accent switcher wired to tokens.
   - Command palette and Motion presets.
@@ -72,6 +72,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Mascot state hook (SVG fallback) and empty states.
   - *e2e:* send a message → streamed reply (fake provider).
   - Note from P1.6: the web main chunk is 691 kB (225 kB gzip) after Settings was split off. Split the chat view and heavy vendors (Motion, cmdk) here if it grows.
+  - Review note from P1.6: `createApi` (apps/web `src/api/create-api.ts`) drops the `createFaireClient` handle. Expose it through `Api` (or one module-level client) so the event store shares the same socket, start `createEventStore` with the app's `QueryClient`, and stop it on unmount.
 - [ ] **P1.8 Desktop shell.** Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `faire://`.
   - Review note from P1.3b: the desktop app owns the SIWC loopback flow and transfers the credentials to the server over an authenticated call. The VM or host keeps its own `ext_agent_host_id`.
 - [ ] **P1.9 Compose v1.** `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
