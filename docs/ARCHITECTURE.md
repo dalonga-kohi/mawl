@@ -130,7 +130,9 @@ flowchart TB
     | `FAIRE_CLAUDE_CODE_PATH` | unset | optional, must be an absolute path; path of a Claude Code binary to use instead of the one the SDK bundles |
     | `LOG_LEVEL` | `info` | pino level |
 
-  - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED` (still stubs: profiles, approvals, devices, settings). `events.subscribe` is served only on `/ws`; HTTP `/rpc` answers it with 501.
+  - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED` (still stubs: approvals, devices, settings). `events.subscribe` is served only on `/ws`; HTTP `/rpc` answers it with 501.
+  - Profiles (as built): profiles.list/get/create/update/archive run through profiles/service.ts. create needs only 
+ame and modelMain (<credentialId>:<modelId>, checked by the contract). The slug is derived from the name (lowercase ascii, dashes, 40 chars, fallback 	eammate) and deduped -2, -3; an explicit slug that is taken answers typed SLUG_TAKEN (409), and a model naming a missing credential answers UNKNOWN_CREDENTIAL (422). The color defaults to the DESIGN.md accent presets in rotation by profile count. list hides archived profiles unless includeArchived; rchive is idempotent and keeps the slug reserved. No profile events on the bus yet.
   - Logging: pino JSON with redaction of secret-like fields and auth headers. Each request logs method, path without query, status, duration and a request id (also returned as `x-request-id`). The RPC error hook logs procedure path and error code only, never inputs or outputs.
 - **Event bus.** Every state change becomes an `Event` row and a `NOTIFY`, which the WS hub fans out to subscribed clients. Clients resume from `lastEventId`.
 

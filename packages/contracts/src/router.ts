@@ -54,7 +54,7 @@ const profileWrite = base.errors({
   SLUG_TAKEN: { status: 409, data: z.object({ slug: z.string() }) },
   UNKNOWN_CREDENTIAL: { status: 422, data: z.object({ credentialId: CredentialId }) },
 })
-const runTransition =base.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
+const runTransition = base.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
 
 const Id = <T extends z.ZodType>(schema: T) => z.object({ id: schema })
 

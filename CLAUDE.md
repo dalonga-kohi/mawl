@@ -146,7 +146,8 @@ pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl.
 pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
 pnpm --filter @faire/ui generate                 # regenerate tokens.css
 pnpm --filter @faire/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
-pnpm test:e2e / pnpm db:migrate                # arrive in P1
+pnpm test:e2e                                    # Playwright (Edge locally) vs the e2e server + scripted echo model; not in the gate
+pnpm db:migrate                                 # arrives in P1
 ```
 
 ## Platform (Windows 11, PowerShell, Node 24)
