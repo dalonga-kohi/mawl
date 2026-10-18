@@ -57,6 +57,7 @@ describe('docker compose stack', () => {
         'services:',
         '  server:',
         `    image: faire-server:${project}`,
+        // !override needs Docker Compose 2.24 or newer.
         '    ports: !override',
         '      - "127.0.0.1::7420"',
         '',
@@ -74,7 +75,11 @@ describe('docker compose stack', () => {
   })
 
   afterAll(async () => {
-    if (started) await compose(['down', '-v', '--remove-orphans', '--rmi', 'local']).catch(() => {})
+    if (started) {
+      await compose(['down', '-v', '--remove-orphans', '--rmi', 'local']).catch(() => {})
+      // --rmi local skips images with a custom image: tag, so remove this run's tag explicitly.
+      await run('docker', ['rmi', '-f', `faire-server:${project}`]).catch(() => {})
+    }
     if (scratch) await rm(scratch, { recursive: true, force: true })
   }, 120_000)
 
