@@ -2,6 +2,8 @@
 export const OPENAI_ISSUER = 'https://auth.openai.com'
 export const AUTHORIZE_URL = 'https://auth.openai.com/api/accounts/authorize'
 export const TOKEN_URL = 'https://auth.openai.com/api/accounts/oauth/token'
+/** `jwks_uri` of the issuer's openid-configuration (RS256 only). */
+export const JWKS_URL = 'https://auth.openai.com/.well-known/jwks.json'
 /** `revocation_endpoint` from the issuer's openid-configuration. */
 export const REVOKE_URL = 'https://auth.openai.com/api/accounts/oauth/revoke'
 

@@ -32,6 +32,7 @@
     "@electric-sql/pglite-pgvector": "0.0.11",
     "@faire/testkit": "workspace:*",
     "esbuild": "0.28.2",
+    "jose": "6.2.12",
     "tsx": "4.23.15"
   }
 }

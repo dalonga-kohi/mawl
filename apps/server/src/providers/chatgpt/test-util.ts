@@ -1,3 +1,5 @@
+import { generateKeyPairSync, sign } from 'node:crypto'
+import { createLocalJWKSet } from 'jose'
 import type { StartListener } from './listener.ts'
 
 export const NOW = 1_800_000_000_000
@@ -9,10 +11,18 @@ export const EMAIL = 'owner@example.com'
 
 const b64url = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url')
 
-export function makeIdToken(claims: Record<string, unknown>): string {
-  return `${b64url({ alg: 'RS256' })}.${b64url(claims)}.sig`
-}
+const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
 
+/** The key set the server trusts in tests (OpenAI's JWKS in production). */
+export const ID_KEYS = createLocalJWKSet({
+  keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' }],
+})
+
+/** A real RS256 JWT signed in-process. */
+export function makeIdToken(claims: Record<string, unknown>): string {
+  const signed = `${b64url({ alg: 'RS256', typ: 'JWT', kid: 'k1' })}.${b64url(claims)}`
+  return `${signed}.${sign('RSA-SHA256', Buffer.from(signed), privateKey).toString('base64url')}`
+}
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 

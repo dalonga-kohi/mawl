@@ -1,9 +1,10 @@
+import { generateKeyPairSync, sign } from 'node:crypto'
+import { createLocalJWKSet } from 'jose'
 import type { StoredChatGptCredential } from './stored.ts'
 
 /** Never a real token: tests assert these strings do not leak. */
 export const ACCESS = 'access-token-AAAA'
 export const REFRESH = 'refresh-token-RRRR'
-export const ID_TOKEN_SECRET_MARK = 'idtok'
 export const CLIENT_ID = 'oaiapp_testclient123'
 export const HOST_ID = 'urn:uuid:3f1c1b4e-2d7a-4b0e-9c5f-7a1e0d2b8c11'
 export const ALL_SCOPES =
@@ -11,11 +12,30 @@ export const ALL_SCOPES =
 
 const b64url = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url')
 
-/** An unsigned JWT: the sign-in code reads claims only, as the token came straight over TLS. */
-export function makeIdToken(claims: Record<string, unknown>): string {
-  return `${b64url({ alg: 'RS256', typ: 'JWT' })}.${b64url(claims)}.${ID_TOKEN_SECRET_MARK}`
+function newKeyPair() {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  return {
+    privateKey,
+    jwk: { ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' },
+  }
 }
 
+const signing = newKeyPair()
+const other = newKeyPair()
+
+/** The key set a verifier trusts in tests: the public half of `makeIdToken`'s default key. */
+export const ID_KEYS = createLocalJWKSet({ keys: [signing.jwk] })
+/** A key set that does not contain the signing key. */
+export const WRONG_KEYS = createLocalJWKSet({ keys: [other.jwk] })
+
+/** A real RS256 JWT, signed in-process. Pass `signWithOther` to sign with an untrusted key. */
+export function makeIdToken(claims: Record<string, unknown>, signWithOther = false): string {
+  const key = signWithOther ? other : signing
+  const head = b64url({ alg: 'RS256', typ: 'JWT', kid: 'k1' })
+  const signed = `${head}.${b64url(claims)}`
+  const sig = sign('RSA-SHA256', Buffer.from(signed), key.privateKey).toString('base64url')
+  return `${signed}.${sig}`
+}
 export interface FetchCall {
   url: string
   method: string

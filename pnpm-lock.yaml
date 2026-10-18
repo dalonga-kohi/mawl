@@ -82,6 +82,9 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
       tsx:
         specifier: 4.23.15
         version: 4.23.15
@@ -133,6 +136,9 @@ importers:
       ai:
         specifier: 7.0.143
         version: 7.0.143(zod@4.6.7)
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
       ollama-ai-provider-v2:
         specifier: 4.0.1
         version: 4.0.1(ai@7.0.143(zod@4.6.7))(zod@4.6.7)

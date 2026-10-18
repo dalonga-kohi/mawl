@@ -5,6 +5,7 @@ import {
   ALL_SCOPES,
   CLIENT_ID,
   HOST_ID,
+  ID_KEYS,
   makeIdToken,
   scriptedFetch,
   tokenResponse,
@@ -39,6 +40,7 @@ function deps(script: Parameters<typeof scriptedFetch>[0]) {
     deps: {
       fetch: net.fetch,
       now: () => NOW,
+      idTokenKeys: ID_KEYS,
       saveClientId: async (id: string) => void log.push(`save:${id}`),
     },
   }
@@ -115,6 +117,7 @@ describe('completeSignIn client id handling', () => {
     await completeSignIn(a, cb(a, { client_id: CLIENT_ID }), {
       fetch: net.fetch,
       now: () => NOW,
+      idTokenKeys: ID_KEYS,
       saveClientId: async (id) => void log.push(`save:${id}`),
     })
     expect(log).toEqual([`save:${CLIENT_ID}`, 'exchange'])
@@ -209,6 +212,20 @@ describe('completeSignIn success and id token', () => {
   ])('rejects an ID token with a wrong %s', async (_n, over) => {
     const a = begin()
     const d = deps([tokenResponse({ id_token: idToken({ nonce: a.nonce, ...over }) })])
+    const res = await completeSignIn(a, cb(a, { client_id: CLIENT_ID }), d.deps)
+    expect(res).toEqual({ ok: false, reason: 'invalid_id_token' })
+  })
+
+  it('rejects an ID token signed by an unknown key', async () => {
+    const a = begin()
+    const claims = {
+      iss: 'https://auth.openai.com',
+      aud: CLIENT_ID,
+      exp: NOW / 1000 + 600,
+      nonce: a.nonce,
+      sub: 's',
+    }
+    const d = deps([tokenResponse({ id_token: makeIdToken(claims, true) })])
     const res = await completeSignIn(a, cb(a, { client_id: CLIENT_ID }), d.deps)
     expect(res).toEqual({ ok: false, reason: 'invalid_id_token' })
   })

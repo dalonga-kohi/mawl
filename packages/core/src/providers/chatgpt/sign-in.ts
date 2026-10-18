@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import type { ChatGptSignInFailure } from '@faire/contracts'
 import { buildAuthorizeUrl, redirectUri } from './authorize.ts'
 import { DYNAMIC_CLIENT_ID } from './constants.ts'
-import { IdTokenError, verifyIdToken } from './id-token.ts'
+import { IdTokenError, type IdTokenKeys, verifyIdToken } from './id-token.ts'
 import { exchangeCode, OAuthTokenError } from './oauth.ts'
 import { createPkce, type RandomBytes, systemRandom } from './pkce.ts'
 import { hasPlanUsage, type StoredChatGptCredential } from './stored.ts'
@@ -70,6 +70,8 @@ export interface CompleteSignInDeps {
   now: () => number
   /** Must be durable before it resolves: it runs before the code exchange. */
   saveClientId(clientId: string): Promise<void>
+  /** Signing keys for the ID token; defaults to OpenAI's JWKS. */
+  idTokenKeys?: IdTokenKeys
 }
 
 const fail = (reason: ChatGptSignInFailure): SignInResult => ({ ok: false, reason })
@@ -90,7 +92,7 @@ export function stateMatches(attempt: SignInAttempt, params: URLSearchParams): b
 export async function completeSignIn(
   attempt: SignInAttempt,
   params: URLSearchParams,
-  { fetch, now, saveClientId }: CompleteSignInDeps,
+  { fetch, now, saveClientId, idTokenKeys }: CompleteSignInDeps,
 ): Promise<SignInResult> {
   const state = params.get('state')
   if (state === null || !sameSecret(state, attempt.state)) return fail('state_mismatch')
@@ -131,9 +133,14 @@ export async function completeSignIn(
   if (!grant.refreshToken) return fail('exchange_failed')
   if (!grant.idToken) return fail('invalid_id_token')
 
-  let identity: ReturnType<typeof verifyIdToken>
+  let identity: Awaited<ReturnType<typeof verifyIdToken>>
   try {
-    identity = verifyIdToken(grant.idToken, { clientId, nonce: attempt.nonce, now: now() })
+    identity = await verifyIdToken(grant.idToken, {
+      clientId,
+      nonce: attempt.nonce,
+      now: now(),
+      ...(idTokenKeys ? { keys: idTokenKeys } : {}),
+    })
   } catch (err) {
     if (err instanceof IdTokenError) return fail('invalid_id_token')
     throw err

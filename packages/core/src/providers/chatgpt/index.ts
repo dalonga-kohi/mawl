@@ -2,7 +2,7 @@ export { buildAuthorizeUrl, redirectUri } from './authorize.ts'
 export { CALLBACK_PATH, DEFAULT_SIWC_PORT, DIRECT_SCOPE, REFRESH_MARGIN_MS } from './constants.ts'
 export { extractErrorCode, mapResponsesError } from './errors.ts'
 export { createChatGptFetch } from './fetch.ts'
-export { IdTokenError, verifyIdToken } from './id-token.ts'
+export { IdTokenError, type IdTokenKeys, verifyIdToken } from './id-token.ts'
 export { OAuthTokenError, revokeWithRetry } from './oauth.ts'
 export { type RandomBytes, systemRandom } from './pkce.ts'
 export {

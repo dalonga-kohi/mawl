@@ -10,6 +10,7 @@ import {
   completeSignIn,
   createTokenManager,
   hasPlanUsage,
+  type IdTokenKeys,
   parseStoredCredential,
   type RandomBytes,
   revokeWithRetry,
@@ -55,6 +56,8 @@ export interface ChatGptOptions {
   /** Schedules `fn`; the returned function cancels it. */
   setTimer?: (fn: () => void, ms: number) => () => void
   attemptTtlMs?: number
+  /** ID token signing keys; defaults to OpenAI's JWKS. Tests inject a local set. */
+  idTokenKeys?: IdTokenKeys
 }
 
 export interface ChatGptAuthDeps {
@@ -192,7 +195,12 @@ export function createChatGptAuth({
     attempt.handled = true
     attempt.cancelTimer?.()
     try {
-      const result = await completeSignIn(attempt.sign, params, { fetch, now, saveClientId })
+      const result = await completeSignIn(attempt.sign, params, {
+        fetch,
+        now,
+        saveClientId,
+        ...(options.idTokenKeys ? { idTokenKeys: options.idTokenKeys } : {}),
+      })
       if (!result.ok) return await finish(attempt, { status: 'failed', reason: result.reason })
       const credentialId = await persist(result)
       await finish(attempt, { status: 'succeeded', credentialId })
