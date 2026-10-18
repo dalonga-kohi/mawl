@@ -262,7 +262,8 @@ export const artifacts = pgTable(
 
 /**
  * Feed, WebSocket resume and audit log. `id` is bigserial in `number` mode: 2^53 events is
- * far beyond a self-hosted install's lifetime, and a number is what the wire `since` cursor is.
+ * far beyond a self-hosted install's lifetime. On the wire the id is a decimal string (the
+ * contracts `EventId`); the server converts with `String(id)` at the edge.
  */
 export const events = pgTable(
   'events',

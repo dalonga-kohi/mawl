@@ -36,6 +36,9 @@ export function createDb(url: string, options: CreateDbOptions = {}): DbHandle {
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
   })
   pool.on('error', (err) => options.onError?.(err))
+  // An error on a checked-out client (the pool only listens while a client is idle) would be
+  // uncaught too. Graphile Worker also warns when a pool has no 'connect' handler like this one.
+  pool.on('connect', (client) => client.on('error', (err) => options.onError?.(err)))
   const db = drizzle(pool, { schema })
   return { db, pool, close: () => pool.end() }
 }
