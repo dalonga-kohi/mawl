@@ -6,6 +6,7 @@
       "**",
       "!design/mockup",
       "!.claude/skills",
+      "!.claude/worktrees",
       "!docs",
       "!packages/ui/src/tokens.css",
       "!**/node_modules",
