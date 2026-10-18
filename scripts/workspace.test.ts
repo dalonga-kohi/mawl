@@ -66,7 +66,13 @@ describe('workspace layout', () => {
   it.each(workspaceDirs)('%s tsconfig extends the base and covers src and vitest config', (dir) => {
     const tsconfig = readJson(`${dir}/tsconfig.json`)
     expect(tsconfig.extends).toBe('../../tsconfig.base.json')
-    expect(tsconfig.include).toEqual(['src', 'vitest.config.ts'])
+    // Always these first; a package may add more (the web app also covers its Playwright e2e).
+    expect(tsconfig.include?.slice(0, 2)).toEqual(['src', 'vitest.config.ts'])
+  })
+
+  it('apps/web typechecks and lints its Playwright config and e2e specs', () => {
+    const tsconfig = readJson('apps/web/tsconfig.json')
+    expect(tsconfig.include).toEqual(expect.arrayContaining(['playwright.config.ts', 'e2e']))
   })
 
   it.each(workspaceDirs)('%s has an index test', (dir) => {
