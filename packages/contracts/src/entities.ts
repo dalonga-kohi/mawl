@@ -106,6 +106,14 @@ export const ProviderCredential = z.strictObject({
 export type ProviderCredential = z.infer<typeof ProviderCredential>
 
 /**
+ * What providers.delete returns: the removed credential and whether the provider confirmed the
+ * revocation. False means the app should tell the owner to revoke access in ChatGPT settings.
+ * API-key providers have nothing to revoke and always answer true.
+ */
+export const ProviderCredentialRemoved = ProviderCredential.extend({ revoked: z.boolean() })
+export type ProviderCredentialRemoved = z.infer<typeof ProviderCredentialRemoved>
+
+/**
  * http(s) only. No embedded user:password (it would be stored and logged in clear) and no
  * query or fragment (a base url gets paths appended, and a query could carry a key).
  * Trailing slashes are stripped, matching `resolveBaseUrl` in core.

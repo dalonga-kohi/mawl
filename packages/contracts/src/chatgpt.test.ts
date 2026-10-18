@@ -95,3 +95,15 @@ describe('providers.chatgpt contract', () => {
     expect(Object.keys(contract.providers.chatgpt)).toEqual(['start', 'status'])
   })
 })
+
+describe('providers.delete output', () => {
+  it('is the public credential plus revoked, strictly', async () => {
+    const schema = contract.providers.delete['~orpc'].outputSchema
+    const validate = async (v: unknown) => schema?.['~standard'].validate(v)
+    expect(await validate({ ...f.providerCredential, revoked: false })).not.toHaveProperty('issues')
+    expect(await validate(f.providerCredential)).toHaveProperty('issues')
+    expect(await validate({ ...f.providerCredential, revoked: true, token: 'x' })).toHaveProperty(
+      'issues',
+    )
+  })
+})

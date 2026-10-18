@@ -29,7 +29,7 @@ const providers: ProviderService = {
   create: async () => publicRow,
   delete: async (id) => {
     if (id !== CRED) throw new CredentialNotFoundError(id)
-    return publicRow
+    return { ...publicRow, revoked: true }
   },
   test: async (target) => {
     if ('id' in target && target.id === UNREADABLE) throw new CredentialUnreadableError(target.id)

@@ -10,6 +10,7 @@ import {
   Profile,
   ProviderCredential,
   ProviderCredentialInput,
+  ProviderCredentialRemoved,
   ProviderDescriptor,
   ProviderTestResult,
   PublicKey,
@@ -139,7 +140,7 @@ export const contract = {
     catalog: base.output(z.array(ProviderDescriptor)),
     list: base.output(z.array(ProviderCredential)),
     create: base.input(ProviderCredentialInput).output(ProviderCredential),
-    delete: withNotFound.input(Id(CredentialId)).output(ProviderCredential),
+    delete: withNotFound.input(Id(CredentialId)).output(ProviderCredentialRemoved),
     /** Tests a stored credential by id, or a not-yet-saved one (nothing is written). */
     test: withNotFound
       .errors({

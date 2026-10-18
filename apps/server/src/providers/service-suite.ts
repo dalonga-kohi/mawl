@@ -119,7 +119,7 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
       const { service } = await setup()
       const created = await service.create(input())
       const deleted = await service.delete(created.id)
-      expect(deleted).toEqual(created)
+      expect(deleted).toEqual({ ...created, revoked: true })
       expect(JSON.stringify(deleted)).not.toContain(SECRET)
       expect(await service.list()).toEqual([])
       const [n] = await made.db.select({ n: count() }).from(table)

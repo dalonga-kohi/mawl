@@ -518,6 +518,7 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
       calls.length = 0
       const removed = await service.delete(id)
       expect(removed.id).toBe(id)
+      expect(removed.revoked).toBe(true)
       expect(calls).toHaveLength(1)
       expect(calls[0]?.url).toBe(REVOKE_URL)
       expect(Object.fromEntries(new URLSearchParams(calls[0]?.body))).toEqual({
@@ -533,7 +534,8 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
       const { service, id } = await signedIn()
       respond = () => new Response('', { status: 503 })
       calls.length = 0
-      await service.delete(id)
+      const removed = await service.delete(id)
+      expect(removed.revoked).toBe(false)
       expect(calls.filter((c) => c.url === REVOKE_URL)).toHaveLength(3)
       expect(sleeps).toHaveLength(2)
       expect(await service.list()).toEqual([])
@@ -549,7 +551,8 @@ describe('Sign in with ChatGPT on the server (PGlite)', () => {
           : new Response('', { status: 200 })
       await service.test({ id })
       calls.length = 0
-      await service.delete(id)
+      // Nothing left to revoke counts as done.
+      expect((await service.delete(id)).revoked).toBe(true)
       expect(calls).toHaveLength(0)
       expect(await service.list()).toEqual([])
     })

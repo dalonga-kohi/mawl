@@ -5,6 +5,7 @@ import {
   newId,
   type ProviderCredential,
   type ProviderCredentialInput,
+  type ProviderCredentialRemoved,
   type ProviderFailureReason,
   type ProviderTestResult,
 } from '@faire/contracts'
@@ -64,7 +65,7 @@ export interface ProviderService {
   list(): Promise<ProviderCredential[]>
   create(input: ProviderCredentialInput): Promise<ProviderCredential>
   /** Logout for a ChatGPT credential: revokes the refresh token, then deletes the row regardless. */
-  delete(id: CredentialId): Promise<ProviderCredential>
+  delete(id: CredentialId): Promise<ProviderCredentialRemoved>
   test(target: TestTarget): Promise<ProviderTestResult>
   /**
    * Decrypts a stored credential for the run engine. Internal: never exposed over RPC, and
@@ -195,13 +196,15 @@ export function createProviderService({
         .select({ provider: providerCredentials.provider })
         .from(providerCredentials)
         .where(eq(providerCredentials.id, id))
+      let revoked = true
       if (existing?.provider === 'openai_chatgpt') {
         // Best effort: logout must always remove the local credential.
-        await chatgpt.revoke(id).catch((err: unknown) => {
+        revoked = await chatgpt.revoke(id).catch((err: unknown) => {
           logger.warn(
             { credentialId: id, errName: err instanceof Error ? err.name : 'unknown' },
             'chatgpt token revocation not confirmed',
           )
+          return false
         })
       }
       const [row] = await db
@@ -211,7 +214,7 @@ export function createProviderService({
       if (!row) throw new CredentialNotFoundError(id)
       chatgpt.forget(id)
       logger.info({ credentialId: id, provider: row.provider }, 'provider credential deleted')
-      return toPublic(row)
+      return { ...toPublic(row), revoked }
     },
 
     async test(target) {

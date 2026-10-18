@@ -86,7 +86,7 @@ describe('providers over RPC (app + PGlite)', () => {
       reason: 'invalid_key',
     })
 
-    expect(await rpc.providers.delete({ id: created.id })).toEqual(created)
+    expect(await rpc.providers.delete({ id: created.id })).toEqual({ ...created, revoked: true })
     expect(await rpc.providers.list()).toEqual([])
 
     expect(wire.length).toBeGreaterThan(0)
