@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -79,15 +79,40 @@ const LOGIN_FAILURE: Record<
 /**
  * One private directory per process, created on first use. `mkdtemp` picks an unpredictable name
  * and makes it owner-only (0o700 on POSIX), so another user or a planted symlink cannot take over
- * a fixed, shared path. Concurrent first calls share one promise; a failure is not kept.
+ * a fixed, shared path. Concurrent first calls share one promise; a failure is not kept. The dir
+ * is checked before each use and made again if it was removed.
  */
 function defaultWorkDir(): Promise<string> {
-  defaultWorkDirPromise ??= mkdtemp(join(tmpdir(), 'faire-claude-code-')).catch((err: unknown) => {
-    defaultWorkDirPromise = undefined
-    throw err
+  const previous = defaultWorkDirPromise
+  const next: Promise<string> = (async () => {
+    if (previous) {
+      try {
+        const dir = await previous
+        // A tmp cleaner on a long-running server may have removed it: make a new one then.
+        await stat(dir)
+        return dir
+      } catch (err) {
+        // Only a vanished dir (or an earlier failed creation) is replaced; anything else is real.
+        if (!isMissing(err) && !(await previousFailed(previous))) throw err
+      }
+    }
+    return mkdtemp(join(tmpdir(), 'faire-claude-code-'))
+  })()
+  // Set synchronously so concurrent callers chain on this one attempt.
+  defaultWorkDirPromise = next
+  next.catch(() => {
+    if (defaultWorkDirPromise === next) defaultWorkDirPromise = undefined
   })
-  return defaultWorkDirPromise
+  return next
 }
+
+const isMissing = (err: unknown) => (err as NodeJS.ErrnoException | undefined)?.code === 'ENOENT'
+
+const previousFailed = (p: Promise<string>) =>
+  p.then(
+    () => false,
+    () => true,
+  )
 
 const emptyUsage = (): LanguageModelV4Usage => ({
   inputTokens: {
@@ -183,11 +208,16 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
     const { system, prompt } = toClaudePrompt(call.prompt)
     await requireLogin()
     let workDir: string
-    if (opts.workDir) {
-      workDir = opts.workDir
-      await mkdir(workDir, { recursive: true })
-    } else {
-      workDir = await defaultWorkDir()
+    try {
+      if (opts.workDir) {
+        workDir = opts.workDir
+        await mkdir(workDir, { recursive: true })
+      } else {
+        workDir = await defaultWorkDir()
+      }
+    } catch {
+      // The error text names the path. Drop it, as everywhere else in this adapter.
+      throw new ProviderFailureError('provider_error')
     }
 
     const controller = new AbortController()
