@@ -10,10 +10,12 @@
     "dev": "vite --config vitest.config.ts",
     "build": "vite build --config vitest.config.ts",
     "preview": "vite preview --config vitest.config.ts",
+    "e2e": "playwright test",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",

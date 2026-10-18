@@ -15,7 +15,8 @@
     "typecheck": "turbo typecheck",
     "typecheck:root": "tsc --noEmit -p .",
     "test": "turbo test",
-    "test:workspace": "vitest run --project workspace"
+    "test:workspace": "vitest run --project workspace",
+    "test:e2e": "pnpm --filter @faire/web e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
