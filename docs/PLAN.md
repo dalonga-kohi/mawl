@@ -55,10 +55,14 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - A Claude `rate_limit_event` with status `rejected` is a hard failure today, even when overage may be allowed. Revisit when overage info is reliable.
     - `ProviderFailureReason` (contracts) from `ProviderFailureError` (core) feeds the run failure reason and the app's explanation.
     - `@faire/server#test` failed once under the full parallel gate even after `hookTimeout` went to 60 s (PGlite suites), and passed on rerun. Find the cause when the run engine adds more PGlite suites.
-- [~] **P1.5 Event bus + WS hub.**
+- [x] **P1.5 Event bus + WS hub.** (7477944..191fe02)
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
-- [ ] **P1.6 Web app shell.**
+  - Review notes from P1.5:
+    - The `/ws` hub and HTTP `/rpc` are separate router instances; HTTP `events.subscribe` returns 501. Fine while all clients use `/ws`.
+    - Shutdown order is tested through `createLiveEvents().stop()`, not a full `startServer` boot.
+    - The one-off `@faire/server#test` failure (2 files plus an unhandled error) did not reproduce in 8 runs. Same suspect as the P1.3b note: PGlite suites near `hookTimeout` under the parallel gate.
+- [~] **P1.6 Web app shell.**
   - tsconfig override for UI apps: `DOM` + `DOM.Iterable` libs, `jsx: react-jsx`, no `node` types. Relax `exactOptionalPropertyTypes` only where a library forces it (review note from P0.1).
   - Three-pane layout, theme (light/dark/system), and accent switcher wired to tokens.
   - Command palette and Motion presets.
@@ -67,6 +71,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Streaming message list, composer (attachments later), and tool-activity cards (collapsed summaries).
   - Mascot state hook (SVG fallback) and empty states.
   - *e2e:* send a message → streamed reply (fake provider).
+  - Note from P1.6: the web main chunk is 691 kB (225 kB gzip) after Settings was split off. Split the chat view and heavy vendors (Motion, cmdk) here if it grows.
 - [ ] **P1.8 Desktop shell.** Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `faire://`.
   - Review note from P1.3b: the desktop app owns the SIWC loopback flow and transfers the credentials to the server over an authenticated call. The VM or host keeps its own `ext_agent_host_id`.
 - [ ] **P1.9 Compose v1.** `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
@@ -137,6 +142,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 - [ ] **P6.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings.
   - Review notes from P1.2/P1.3: every `/rpc` procedure except `health.get` and `devices.pair` requires a device session (`providers.*` holds the owner's keys). Add a request body size limit on `/rpc`. Until then the server binds to `127.0.0.1` by default.
   - `providers.test` with an inline input sends a key to any URL the caller picks (an SSRF oracle). With auth in place, also: block link-local/metadata ranges (169.254.0.0/16, fd00:ec2::/32), resolve DNS once and pin the IP (anti-rebinding), allow private ranges only through an explicit owner opt-in (Ollama on the LAN), and rate-limit `test`.
+  - Review notes from P1.5: `/ws` has no auth yet. The Host allowlist stops DNS rebinding, but any page served from loopback (any port) passes the origin check. Require a device session on the `/ws` upgrade, and scope `events.subscribe` topics to the device's owner.
 - [ ] **P6.2 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
 - [ ] **P6.3 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
 - [ ] **P6.4 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.
