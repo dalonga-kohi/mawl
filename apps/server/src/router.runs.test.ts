@@ -16,6 +16,7 @@ const run = {
   budget: {},
   usage: { inputTokens: 0, outputTokens: 0 },
   segmentNo: 0,
+  activeMs: 0,
   startedAt: null,
   endedAt: null,
   error: null,

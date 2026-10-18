@@ -1,4 +1,4 @@
-import { newId, type RunId } from '@faire/contracts'
+import { type MessageId, newId, type RunId } from '@faire/contracts'
 import { executeRun } from '@faire/core'
 import { schema } from '@faire/db'
 import { fakeModel } from '@faire/testkit'
@@ -300,12 +300,12 @@ export function describeRunEdges(name: string, make: () => Promise<MadeServiceDb
         }
         const s = service()
         const seen: string[] = []
-        let before: string | undefined
+        let before: MessageId | undefined
         for (let page = 0; page < 6; page++) {
           const got = await s.threadMessages({ threadId, limit: 2, before })
           if (got.length === 0) break
           seen.unshift(...got.map((m) => (m.parts[0] as { text: string }).text))
-          before = got[0]?.createdAt
+          before = got[0]?.id
         }
         expect(seen).toEqual(['m0', 'm1', 'm2', 'm3', 'm4', 'm5'])
       })
@@ -319,12 +319,12 @@ export function describeRunEdges(name: string, make: () => Promise<MadeServiceDb
         await seedMessage(db, threadId, 'user', [{ type: 'text', text: 'tie-c' }], same)
         const s = service()
         const seen: string[] = []
-        let before: string | undefined
+        let before: MessageId | undefined
         for (let page = 0; page < 5; page++) {
           const got = await s.threadMessages({ threadId, limit: 1, before })
           if (got.length === 0) break
           seen.unshift(...got.map((m) => (m.parts[0] as { text: string }).text))
-          before = got[0]?.createdAt
+          before = got[0]?.id
         }
         expect(seen.sort()).toEqual(['tie-a', 'tie-b', 'tie-c'])
       })
@@ -342,13 +342,14 @@ export function describeRunEdges(name: string, make: () => Promise<MadeServiceDb
             assistantMessages: [{ role: 'assistant', content: 'late' }],
             toolMessages: null,
             usage,
+            activeMsDelta: 0,
           },
           usage,
         )
         const steps = await db.select().from(runSteps).where(eq(runSteps.runId, id))
         const [row] = await db.select().from(runs).where(eq(runs.id, id))
         expect({ wrote, steps: steps.length, usage: row?.usage }).toEqual({
-          wrote: false,
+          wrote: 'not_running',
           steps: 0,
           usage: { inputTokens: 0, outputTokens: 0 },
         })

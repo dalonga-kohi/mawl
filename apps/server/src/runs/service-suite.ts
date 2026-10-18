@@ -293,12 +293,24 @@ export function describeRunService(name: string, make: () => Promise<MadeService
         const { threadId } = await threadWithMessages(5)
         const s = service()
         const first = await s.threadMessages({ threadId, limit: 2 })
-        const cursor = first[0]?.createdAt
+        const cursor = first[0]?.id
         expect(texts(first)).toEqual(['m3', 'm4'])
         const second = await s.threadMessages({ threadId, limit: 2, before: cursor })
         expect(texts(second)).toEqual(['m1', 'm2'])
-        const last = await s.threadMessages({ threadId, limit: 2, before: second[0]?.createdAt })
+        const last = await s.threadMessages({ threadId, limit: 2, before: second[0]?.id })
         expect(texts(last)).toEqual(['m0'])
+      })
+
+      it('answers NOT_FOUND for a cursor that is not a message of this thread', async () => {
+        const { threadId } = await threadWithMessages(1)
+        const other = await threadWithMessages(1)
+        const foreign = (await service().threadMessages({ threadId: other.threadId }))[0]
+        await expect(
+          service().threadMessages({ threadId, before: foreign?.id }),
+        ).rejects.toMatchObject({ name: 'EntityNotFoundError', entity: 'message' })
+        await expect(
+          service().threadMessages({ threadId, before: newId('message') }),
+        ).rejects.toBeInstanceOf(EntityNotFoundError)
       })
 
       it('defaults to 50 messages and answers NOT_FOUND for an unknown thread', async () => {

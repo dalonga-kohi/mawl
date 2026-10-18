@@ -74,7 +74,9 @@ describe('runs.start and threads.messages input', () => {
       safeParse: (v: unknown) => { success: boolean }
     }
     const threadId = 'thr_01HZX3K9V2M4N6P8Q0R2S4T6V8'
-    expect(input.safeParse({ threadId, before: 'msg_01HZX3K9V2M4N6P8Q0R2S4T6V8' }).success).toBe(true)
+    expect(input.safeParse({ threadId, before: 'msg_01HZX3K9V2M4N6P8Q0R2S4T6V8' }).success).toBe(
+      true,
+    )
     expect(input.safeParse({ threadId, before: '2026-01-01T00:00:00.000Z' }).success).toBe(false)
   })
 })

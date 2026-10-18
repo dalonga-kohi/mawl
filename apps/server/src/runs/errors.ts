@@ -1,6 +1,6 @@
 import type { RunStatus } from '@faire/contracts'
 
-export type EntityKind = 'profile' | 'thread' | 'run'
+export type EntityKind = 'profile' | 'thread' | 'run' | 'message'
 
 export class EntityNotFoundError extends Error {
   constructor(

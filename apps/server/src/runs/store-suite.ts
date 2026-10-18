@@ -169,10 +169,16 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         const usage = { inputTokens: 7, outputTokens: 3 }
         const ok = await store.appendStep(
           runId,
-          { idx: 0, assistantMessages: [assistant], toolMessages: [toolMsg], usage },
+          {
+            idx: 0,
+            assistantMessages: [assistant],
+            toolMessages: [toolMsg],
+            usage,
+            activeMsDelta: 40,
+          },
           usage,
         )
-        expect(ok).toBe(true)
+        expect(ok).toBe('written')
 
         const rows = await store.steps(runId)
         expect(rows.map((r) => [r.idx, r.kind])).toEqual([
@@ -188,6 +194,22 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         expect(stepEvents[0]?.payload).toMatchObject({ kind: 'model', usage })
         const [run] = await db.select().from(runs).where(eq(runs.id, runId))
         expect(run?.usage).toEqual(usage)
+        expect(run?.activeMs).toBe(40)
+      })
+
+      it('adds active time on transition and success', async () => {
+        const { runId, store } = await seed('running')
+        await store.transition(runId, 'running', 'paused', { activeMsDelta: 7 })
+        await store.transition(runId, 'paused', 'queued')
+        await store.transition(runId, 'queued', 'running')
+        await store.succeed(runId, {
+          text: 't',
+          usage: { inputTokens: 1, outputTokens: 1 },
+          endedAt: new Date(),
+          activeMsDelta: 5,
+        })
+        const [run] = await db.select().from(runs).where(eq(runs.id, runId))
+        expect(run?.activeMs).toBe(12)
       })
 
       it('returns false and writes nothing when the model row idx exists', async () => {
@@ -195,15 +217,21 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         const usage = { inputTokens: 1, outputTokens: 1 }
         await store.appendStep(
           runId,
-          { idx: 0, assistantMessages: [assistant], toolMessages: null, usage },
+          { idx: 0, assistantMessages: [assistant], toolMessages: null, usage, activeMsDelta: 0 },
           usage,
         )
         const again = await store.appendStep(
           runId,
-          { idx: 0, assistantMessages: [assistant], toolMessages: [toolMsg], usage },
+          {
+            idx: 0,
+            assistantMessages: [assistant],
+            toolMessages: [toolMsg],
+            usage,
+            activeMsDelta: 5,
+          },
           { inputTokens: 99, outputTokens: 99 },
         )
-        expect(again).toBe(false)
+        expect(again).toBe('duplicate')
         expect(await store.steps(runId)).toHaveLength(1)
         expect((await eventsOf(runId)).filter((e) => e.type === 'run.step')).toHaveLength(1)
         const [run] = await db.select().from(runs).where(eq(runs.id, runId))
@@ -222,10 +250,16 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         const usage = { inputTokens: 1, outputTokens: 1 }
         const ok = await store.appendStep(
           runId,
-          { idx: 0, assistantMessages: [assistant], toolMessages: [toolMsg], usage },
+          {
+            idx: 0,
+            assistantMessages: [assistant],
+            toolMessages: [toolMsg],
+            usage,
+            activeMsDelta: 0,
+          },
           usage,
         )
-        expect(ok).toBe(false)
+        expect(ok).toBe('duplicate')
         expect((await store.steps(runId)).map((r) => r.idx)).toEqual([1])
         expect((await eventsOf(runId)).filter((e) => e.type === 'run.step')).toHaveLength(0)
       })
@@ -237,7 +271,9 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         const usage = { inputTokens: 4, outputTokens: 9 }
         const endedAt = new Date('2026-01-02T03:06:00.000Z')
 
-        expect(await store.succeed(runId, { text: 'All done', usage, endedAt })).toBe(true)
+        expect(
+          await store.succeed(runId, { text: 'All done', usage, endedAt, activeMsDelta: 0 }),
+        ).toBe(true)
 
         const msgs = await db.select().from(messages).where(eq(messages.threadId, threadId))
         expect(msgs).toHaveLength(1)
@@ -265,6 +301,7 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
           text: 'late',
           usage: { inputTokens: 1, outputTokens: 1 },
           endedAt: new Date(),
+          activeMsDelta: 0,
         })
         expect(ok).toBe(false)
         const [n] = await db
@@ -281,6 +318,7 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
           text: '',
           usage: { inputTokens: 1, outputTokens: 0 },
           endedAt: new Date(),
+          activeMsDelta: 0,
         })
         const [m] = await db
           .select()

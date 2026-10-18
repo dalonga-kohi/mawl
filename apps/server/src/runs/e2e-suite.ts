@@ -280,6 +280,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
             },
           ],
           usage,
+          activeMsDelta: 0,
         },
         usage,
       )

@@ -7,6 +7,7 @@ import {
   type Usage,
 } from '@faire/contracts'
 import type {
+  AppendResult,
   ModelMessage,
   NewStep,
   PersistedStep,
@@ -46,6 +47,7 @@ const toRecord = (row: typeof runs.$inferSelect): RunRecord => ({
   status: row.status,
   budget: row.budget,
   usage: row.usage,
+  activeMs: row.activeMs,
   startedAt: row.startedAt,
 })
 
@@ -119,6 +121,9 @@ export function createRunStore(db: ProvidersDb): RunStore {
             ...(patch.endedAt ? { endedAt: patch.endedAt } : {}),
             ...(patch.error ? { error: patch.error } : {}),
             ...(patch.usage ? { usage: patch.usage } : {}),
+            ...(patch.activeMsDelta
+              ? { activeMs: sql`${runs.activeMs} + ${patch.activeMsDelta}` }
+              : {}),
           })
           .where(and(eq(runs.id, runId), eq(runs.status, from)))
           .returning({ profileId: runs.profileId })
@@ -133,14 +138,18 @@ export function createRunStore(db: ProvidersDb): RunStore {
       })
     },
 
-    async appendStep(runId, step: NewStep, runUsage: Usage): Promise<boolean> {
+    async appendStep(runId, step: NewStep, runUsage: Usage): Promise<AppendResult> {
       try {
         return await db.transaction(async (tx) => {
+          // Lock the run row: a cancel or pause that commits first is seen here, and one that
+          // arrives later waits until this step is written.
           const [run] = await tx
-            .select({ profileId: runs.profileId })
+            .select({ profileId: runs.profileId, status: runs.status })
             .from(runs)
             .where(eq(runs.id, runId))
+            .for('update')
           if (!run) throw new Error('run not found')
+          if (run.status !== 'running') return 'not_running' as const
 
           const modelId = await insertRunStep(tx, {
             runId,
@@ -150,7 +159,7 @@ export function createRunStore(db: ProvidersDb): RunStore {
             usage: step.usage,
           })
           // Another execution wrote this step first: nothing of ours exists yet.
-          if (modelId === null) return false
+          if (modelId === null) return 'duplicate' as const
           await recordEvent(tx, {
             profileId: run.profileId,
             runId,
@@ -174,11 +183,14 @@ export function createRunStore(db: ProvidersDb): RunStore {
               payload: { stepId: toolId, idx: step.idx + 1, kind: 'tool' },
             })
           }
-          await tx.update(runs).set({ usage: runUsage }).where(eq(runs.id, runId))
-          return true
+          await tx
+            .update(runs)
+            .set({ usage: runUsage, activeMs: sql`${runs.activeMs} + ${step.activeMsDelta}` })
+            .where(eq(runs.id, runId))
+          return 'written' as const
         })
       } catch (err) {
-        if (err instanceof DuplicateStep) return false
+        if (err instanceof DuplicateStep) return 'duplicate'
         throw err
       }
     },
@@ -187,7 +199,12 @@ export function createRunStore(db: ProvidersDb): RunStore {
       return db.transaction(async (tx) => {
         const [row] = await tx
           .update(runs)
-          .set({ status: 'succeeded', endedAt: result.endedAt, usage: result.usage })
+          .set({
+            status: 'succeeded',
+            endedAt: result.endedAt,
+            usage: result.usage,
+            activeMs: sql`${runs.activeMs} + ${result.activeMsDelta}`,
+          })
           .where(and(eq(runs.id, runId), eq(runs.status, 'running')))
           .returning({ profileId: runs.profileId, threadId: runs.threadId })
         if (!row) return false

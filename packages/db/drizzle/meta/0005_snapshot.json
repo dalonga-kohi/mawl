@@ -92,12 +92,8 @@
           "name": "artifacts_profile_id_profiles_id_fk",
           "tableFrom": "artifacts",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -105,12 +101,8 @@
           "name": "artifacts_run_id_runs_id_fk",
           "tableFrom": "artifacts",
           "tableTo": "runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -225,12 +217,8 @@
           "name": "events_profile_id_profiles_id_fk",
           "tableFrom": "events",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -238,12 +226,8 @@
           "name": "events_run_id_runs_id_fk",
           "tableFrom": "events",
           "tableTo": "runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -330,12 +314,8 @@
           "name": "messages_thread_id_threads_id_fk",
           "tableFrom": "messages",
           "tableTo": "threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -343,12 +323,8 @@
           "name": "messages_run_id_runs_id_fk",
           "tableFrom": "messages",
           "tableTo": "runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -499,9 +475,7 @@
         "profiles_slug_unique": {
           "name": "profiles_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -582,12 +556,8 @@
           "name": "provider_credentials_oauth_client_id_oauth_clients_client_id_fk",
           "tableFrom": "provider_credentials",
           "tableTo": "oauth_clients",
-          "columnsFrom": [
-            "oauth_client_id"
-          ],
-          "columnsTo": [
-            "client_id"
-          ],
+          "columnsFrom": ["oauth_client_id"],
+          "columnsTo": ["client_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -597,9 +567,7 @@
         "provider_credentials_oauth_client_id_unique": {
           "name": "provider_credentials_oauth_client_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "oauth_client_id"
-          ]
+          "columns": ["oauth_client_id"]
         }
       },
       "policies": {},
@@ -666,12 +634,8 @@
           "name": "run_steps_run_id_runs_id_fk",
           "tableFrom": "run_steps",
           "tableTo": "runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -681,10 +645,7 @@
         "run_steps_run_idx_unique": {
           "name": "run_steps_run_idx_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "run_id",
-            "idx"
-          ]
+          "columns": ["run_id", "idx"]
         }
       },
       "policies": {},
@@ -828,12 +789,8 @@
           "name": "runs_profile_id_profiles_id_fk",
           "tableFrom": "runs",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -841,12 +798,8 @@
           "name": "runs_thread_id_threads_id_fk",
           "tableFrom": "runs",
           "tableTo": "threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -942,12 +895,8 @@
           "name": "threads_profile_id_profiles_id_fk",
           "tableFrom": "threads",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -968,12 +917,7 @@
     "public.message_role": {
       "name": "message_role",
       "schema": "public",
-      "values": [
-        "user",
-        "assistant",
-        "system",
-        "tool"
-      ]
+      "values": ["user", "assistant", "system", "tool"]
     },
     "public.provider_kind": {
       "name": "provider_kind",
@@ -1007,20 +951,12 @@
     "public.run_trigger": {
       "name": "run_trigger",
       "schema": "public",
-      "values": [
-        "user",
-        "routine",
-        "heartbeat",
-        "teammate"
-      ]
+      "values": ["user", "routine", "heartbeat", "teammate"]
     },
     "public.step_kind": {
       "name": "step_kind",
       "schema": "public",
-      "values": [
-        "model",
-        "tool"
-      ]
+      "values": ["model", "tool"]
     }
   },
   "schemas": {},

@@ -1,5 +1,6 @@
 import {
   type Message,
+  type MessageId,
   newId,
   type ProfileId,
   RUN_TERMINAL_STATUSES,
@@ -12,7 +13,7 @@ import {
 } from '@faire/contracts'
 import type { RunStore } from '@faire/core'
 import { schema } from '@faire/db'
-import { and, desc, eq, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 import { EntityNotFoundError, RunConflictError } from './errors.ts'
@@ -52,7 +53,7 @@ export interface RunService {
   threadMessages(input: {
     threadId: ThreadId
     limit?: number | undefined
-    before?: string | undefined
+    before?: MessageId | undefined
   }): Promise<Message[]>
 }
 
@@ -65,6 +66,7 @@ const toRun = (row: typeof runs.$inferSelect): Run => ({
   budget: row.budget,
   usage: row.usage,
   segmentNo: row.segmentNo,
+  activeMs: row.activeMs,
   startedAt: row.startedAt?.toISOString() ?? null,
   endedAt: row.endedAt?.toISOString() ?? null,
   error: row.error,
@@ -241,13 +243,24 @@ export function createRunService({ db, registry, enqueue, logger }: RunServiceDe
         .from(threads)
         .where(eq(threads.id, threadId))
       if (!thread) throw new EntityNotFoundError('thread', threadId)
+      if (before !== undefined) {
+        const [cursor] = await db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(and(eq(messages.id, before), eq(messages.threadId, threadId)))
+        if (!cursor) throw new EntityNotFoundError('message', before)
+      }
+      // Keyset paging on (created_at, id). The cursor's own timestamp is read inside the query, so
+      // its microseconds are never rounded through a JS Date, and ties on created_at cannot drop rows.
       const rows = await db
         .select()
         .from(messages)
         .where(
           and(
             eq(messages.threadId, threadId),
-            before === undefined ? undefined : lt(messages.createdAt, new Date(before)),
+            before === undefined
+              ? undefined
+              : sql`(${messages.createdAt}, ${messages.id}) < (select m.created_at, m.id from messages m where m.id = ${before})`,
           ),
         )
         .orderBy(desc(messages.createdAt), desc(messages.id))
