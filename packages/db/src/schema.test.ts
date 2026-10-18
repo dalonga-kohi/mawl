@@ -42,8 +42,9 @@ describe('table columns (ARCHITECTURE section 9)', () => {
     [
       'provider_credentials',
       schema.providerCredentials,
-      'base_url created_at id label provider secret_enc',
+      'account_email base_url created_at id label oauth_client_id plan_usage provider reauth_required secret_enc',
     ],
+    ['oauth_clients', schema.oauthClients, 'client_id created_at provider'],
     ['threads', schema.threads, 'channel created_at id last_event_at peer profile_id title'],
     ['messages', schema.messages, 'created_at id parts_json role run_id thread_id token_count'],
     [

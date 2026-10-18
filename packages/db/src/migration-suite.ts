@@ -14,6 +14,7 @@ import {
   jsonValue,
   messageRole,
   messages,
+  oauthClients,
   profiles,
   providerCredentials,
   providerKind,
@@ -32,6 +33,7 @@ const enumNames = new Set(
 const schemaTables = {
   profiles,
   providerCredentials,
+  oauthClients,
   threads,
   messages,
   runs,
@@ -122,8 +124,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           m.db,
           sql`select count(*)::int as n from information_schema.tables where table_schema = 'public'`,
         )
-        // 8 tables (the drizzle journal lives in schema "drizzle").
-        expect(row?.n).toBe(8)
+        // 9 tables (the drizzle journal lives in schema "drizzle").
+        expect(row?.n).toBe(9)
       } finally {
         await m.close()
       }
@@ -295,6 +297,103 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
       }
     })
 
+    it('stores an openai_chatgpt credential tied to an issued oauth client', async () => {
+      const m = await fresh()
+      try {
+        await m.db
+          .insert(oauthClients)
+          .values({ clientId: 'oaiapp_abc', provider: 'openai_chatgpt' })
+        const id = newId('credential')
+        await m.db.insert(providerCredentials).values({
+          id,
+          provider: 'openai_chatgpt',
+          label: 'ChatGPT',
+          secretEnc: new Uint8Array([1]),
+          oauthClientId: 'oaiapp_abc',
+          accountEmail: 'owner@example.com',
+          planUsage: true,
+        })
+        const [row] = await m.db
+          .select()
+          .from(providerCredentials)
+          .where(eq(providerCredentials.id, id))
+        expect(row).toMatchObject({
+          provider: 'openai_chatgpt',
+          accountEmail: 'owner@example.com',
+          planUsage: true,
+          reauthRequired: false,
+          oauthClientId: 'oaiapp_abc',
+        })
+        // API-key rows get the defaults.
+        const keyId = newId('credential')
+        await m.db
+          .insert(providerCredentials)
+          .values({ id: keyId, provider: 'openai', label: 'k', secretEnc: new Uint8Array([2]) })
+        const [key] = await m.db
+          .select()
+          .from(providerCredentials)
+          .where(eq(providerCredentials.id, keyId))
+        expect(key).toMatchObject({ accountEmail: null, planUsage: false, oauthClientId: null })
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('allows one credential per oauth client and a known client only', async () => {
+      const m = await fresh()
+      try {
+        await m.db
+          .insert(oauthClients)
+          .values({ clientId: 'oaiapp_one', provider: 'openai_chatgpt' })
+        const row = (oauthClientId: string) => ({
+          id: newId('credential'),
+          provider: 'openai_chatgpt' as const,
+          label: 'c',
+          secretEnc: new Uint8Array([1]),
+          oauthClientId,
+        })
+        await m.db.insert(providerCredentials).values(row('oaiapp_one'))
+        await expectPgError(m.db.insert(providerCredentials).values(row('oaiapp_one')), UNIQUE)
+        await expectPgError(m.db.insert(providerCredentials).values(row('oaiapp_unknown')), FK)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('keeps the oauth client when its credential is deleted, so sign-in can reuse it', async () => {
+      const m = await fresh()
+      try {
+        await m.db
+          .insert(oauthClients)
+          .values({ clientId: 'oaiapp_keep', provider: 'openai_chatgpt' })
+        const id = newId('credential')
+        await m.db.insert(providerCredentials).values({
+          id,
+          provider: 'openai_chatgpt',
+          label: 'c',
+          secretEnc: new Uint8Array([1]),
+          oauthClientId: 'oaiapp_keep',
+        })
+        await m.db.delete(providerCredentials).where(eq(providerCredentials.id, id))
+        const clients = await m.db.select().from(oauthClients)
+        expect(clients.map((c) => c.clientId)).toEqual(['oaiapp_keep'])
+        // A client cannot be removed while a credential still uses it.
+        const again = newId('credential')
+        await m.db.insert(providerCredentials).values({
+          id: again,
+          provider: 'openai_chatgpt',
+          label: 'c',
+          secretEnc: new Uint8Array([1]),
+          oauthClientId: 'oaiapp_keep',
+        })
+        await expectPgError(
+          m.db.delete(oauthClients).where(eq(oauthClients.clientId, 'oaiapp_keep')),
+          FK,
+        )
+      } finally {
+        await m.close()
+      }
+    })
     it('round-trips jsonb columns and applies run defaults', async () => {
       const m = await fresh()
       try {
@@ -614,6 +713,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           events_profile_id_idx: '(profile_id, id)',
           events_run_id_idx: '(run_id, id)',
           run_steps_run_idx_unique: '(run_id, idx)',
+          oauth_clients_provider_created_idx: '(provider, created_at DESC NULLS LAST)',
+          provider_credentials_oauth_client_id_unique: '(oauth_client_id)',
         }
         for (const [name, cols] of Object.entries(expected)) {
           expect(def(name), name).toContain(cols)

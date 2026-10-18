@@ -22,6 +22,7 @@ import {
 import { type SQL, sql } from 'drizzle-orm'
 import {
   bigserial,
+  boolean,
   check,
   customType,
   index,
@@ -98,8 +99,33 @@ export const providerCredentials = pgTable('provider_credentials', {
   label: text('label').notNull(),
   secretEnc: bytea('secret_enc').notNull(),
   baseUrl: text('base_url'),
+  /** Sign in with ChatGPT: the owner's own account email, shown in the app. Null for API keys. */
+  accountEmail: text('account_email'),
+  /** Sign in with ChatGPT: false when the grant lacks plan usage. */
+  planUsage: boolean('plan_usage').notNull().default(false),
+  /** Sign in with ChatGPT: tokens were cleared by a terminal refresh error. */
+  reauthRequired: boolean('reauth_required').notNull().default(false),
+  /** The issued OAuth client behind a signed-in credential. At most one credential per client. */
+  oauthClientId: text('oauth_client_id')
+    .unique()
+    .references(() => oauthClients.clientId),
   createdAt: createdAt(),
 })
+
+/**
+ * OAuth clients that a provider issued to this server (Sign in with ChatGPT hands out an
+ * oaiapp_... id on first sign-in). Kept when a credential is deleted, so the next sign-in
+ * reuses the registration. The id is public, not a secret.
+ */
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    clientId: text('client_id').primaryKey(),
+    provider: providerKind('provider').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('oauth_clients_provider_created_idx').on(t.provider, t.createdAt.desc())],
+)
 
 export const threads = pgTable(
   'threads',
@@ -263,5 +289,8 @@ export const providerCredentialPublicColumns = {
   provider: providerCredentials.provider,
   label: providerCredentials.label,
   baseUrl: providerCredentials.baseUrl,
+  accountEmail: providerCredentials.accountEmail,
+  planUsage: providerCredentials.planUsage,
+  reauthRequired: providerCredentials.reauthRequired,
   createdAt: providerCredentials.createdAt,
 }
