@@ -48,7 +48,7 @@ export interface NewStep {
   assistantMessages: ModelMessage[]
   toolMessages: ModelMessage[] | null
   usage: Usage
-  /** Active time since the previous checkpoint, added to the run's ctiveMs in the same transaction. */
+  /** Active time since the previous checkpoint, added to the run's `activeMs` in the same transaction. */
   activeMsDelta: number
 }
 
@@ -57,7 +57,7 @@ export interface TransitionPatch {
   endedAt?: Date
   error?: RunErrorCode
   usage?: Usage
-  /** Added to the run's ctiveMs. */
+  /** Added to the run's `activeMs`. */
   activeMsDelta?: number
 }
 
@@ -88,11 +88,9 @@ export interface RunStore {
   ): Promise<boolean>
   /**
    * Writes the model row (and tool row) plus one `run.step` event per row, and the run's
-   * running usage total, atomically, but only while the run is still 
-unning (the run row is
+   * running usage total, atomically, but only while the run is still `running` (the run row is
    * locked for the check). Nothing is written for duplicate (a row with that idx exists: another
-   * execution of the same run got there first) or 
-ot_running (cancel or pause won).
+   * execution of the same run got there first) or `not_running` (cancel or pause won).
    */
   appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<AppendResult>
   /**
