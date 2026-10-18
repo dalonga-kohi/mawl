@@ -129,6 +129,29 @@ describe('chatgpt fetch wrapper: request', () => {
   })
 })
 
+describe('chatgpt fetch wrapper: destination', () => {
+  it.each([
+    'https://evil.example/v1/responses',
+    'http://api.openai.com/v1/responses',
+    'https://api.openai.com.evil.example/v1/responses',
+    'https://api.openai.com:8443/v1/responses',
+  ])('never sends the bearer to %s', async (target) => {
+    const net = scriptedFetch([OK()])
+    let asked = 0
+    const tokens: TokenManager = {
+      getAccessToken: async () => {
+        asked++
+        return 'bearer-1'
+      },
+      refreshAfterRejection: async () => 'bearer-2',
+    }
+    const f = createChatGptFetch({ tokens, fetch: net.fetch })
+    await expect(f(target, post(body()))).rejects.toMatchObject({ reason: 'config_error' })
+    expect(net.calls).toHaveLength(0)
+    expect(asked).toBe(0)
+  })
+})
+
 describe('chatgpt fetch wrapper: errors', () => {
   it.each([
     ['subscription_sharing_usage_limit_exceeded', 429, 'plan_limit_reached'],

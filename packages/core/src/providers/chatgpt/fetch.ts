@@ -163,6 +163,10 @@ export function createChatGptFetch({
 
   return (async (input: string | URL | Request, init: RequestInit = {}) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url)
+    // Plan tokens go to OpenAI's API and nowhere else, whatever base url the SDK was given.
+    if (url.protocol !== 'https:' || url.origin !== 'https://api.openai.com') {
+      throw new ProviderFailureError('config_error')
+    }
     const isResponses =
       (init.method ?? 'GET').toUpperCase() === 'POST' && url.pathname.endsWith('/responses')
     const body = isResponses ? rewriteBody(init.body) : init.body
