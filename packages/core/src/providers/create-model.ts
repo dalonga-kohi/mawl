@@ -7,7 +7,8 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { PLACEHOLDER_API_KEY } from './chatgpt/constants.ts'
 import { createChatGptFetch } from './chatgpt/fetch.ts'
 import type { TokenManager } from './chatgpt/token-manager.ts'
-import { createClaudeCodeModel } from './claude-code/model.ts'
+import { type ClaudeLoginTestOptions, testClaudeCodeLogin } from './claude-code/auth-status.ts'
+import { type ClaudeCodeModelOptions, createClaudeCodeModel } from './claude-code/model.ts'
 import type { ClaudeQueryFn } from './claude-code/types.ts'
 import { PROVIDER_DESCRIPTORS, type ProviderConnection, resolveBaseUrl } from './descriptors.ts'
 import { noRedirectFetch } from './no-redirect-fetch.ts'
@@ -23,6 +24,11 @@ export interface CreateLanguageModelOptions {
     pathToClaudeCodeExecutable?: string | undefined
     /** Injected in tests so the binary is never spawned. */
     query?: ClaudeQueryFn
+    /** Injected in tests so `claude auth status` is never spawned. */
+    checkLogin?: NonNullable<ClaudeCodeModelOptions['checkLogin']>
+    /** Test seams of the login check, used when `checkLogin` is not given. */
+    run?: ClaudeLoginTestOptions['run']
+    resolveBinary?: ClaudeLoginTestOptions['resolveBinary']
   }
 }
 
@@ -48,7 +54,20 @@ export function createLanguageModel(
   }
   if (conn.kind === 'anthropic_claude_code') {
     // The login lives in the binary's own config dir. A stored secret or base url is ignored.
-    return createClaudeCodeModel({ modelId, ...claudeCode })
+    const { run, resolveBinary, ...modelOptions } = claudeCode ?? {}
+    // The login check asks the same binary the model runs; the seams keep tests from spawning it.
+    const seamed = () =>
+      testClaudeCodeLogin({
+        configDir: modelOptions.configDir,
+        pathToClaudeCodeExecutable: modelOptions.pathToClaudeCodeExecutable,
+        ...(run ? { run } : {}),
+        ...(resolveBinary ? { resolveBinary } : {}),
+      })
+    return createClaudeCodeModel({
+      modelId,
+      ...modelOptions,
+      ...(!modelOptions.checkLogin && (run || resolveBinary) ? { checkLogin: seamed } : {}),
+    })
   }
   const baseURL = resolveBaseUrl(conn.kind, conn.baseUrl)
   const apiKey = conn.secret ?? undefined

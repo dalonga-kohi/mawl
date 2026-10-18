@@ -10,7 +10,9 @@ import type {
   LanguageModelV4Usage,
 } from '@ai-sdk/provider'
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
+import type { ProviderFailureReason, ProviderTestResult } from '@faire/contracts'
 import { ProviderFailureError } from '../failure.ts'
+import { testClaudeCodeLogin } from './auth-status.ts'
 import { defaultClaudeQuery } from './default-query.ts'
 import { buildClaudeEnv } from './env.ts'
 import { failureForAssistantError, failureForRateLimit } from './errors.ts'
@@ -34,13 +36,45 @@ export interface ClaudeCodeModelOptions {
   workDir?: string
   /** Environment source for the allowlist. Defaults to `process.env`. */
   env?: Record<string, string | undefined>
-  /** Clock in ms, for turning a reset time into a wait. */
+  /**
+   * The cheap `claude auth status` check run before the first query, so a login that is missing
+   * or not a claude.ai subscription never reaches a billable call. Defaults to
+   * `testClaudeCodeLogin` with this model's config dir, binary and env. Injected in tests.
+   */
+  checkLogin?: () => Promise<ProviderTestResult>
+  /** Clock in ms, for turning a reset time into a wait and for the login check's cache. */
   now?: () => number
 }
 
 type Part = LanguageModelV4StreamPart
 
 let defaultWorkDirPromise: Promise<string> | undefined
+
+/** How long a passing login check is trusted before the binary is asked again. */
+const LOGIN_CHECK_TTL_MS = 5 * 60_000
+
+/** Passing checks by binary path and config dir, shared by every model made in this process. */
+const loginOk = new Map<string, number>()
+/** Checks under way, so concurrent first calls ask the binary once. */
+const loginInFlight = new Map<string, Promise<ProviderTestResult>>()
+
+/** Test-only: forget every cached and in-flight login check. */
+export function __resetClaudeLoginCache(): void {
+  loginOk.clear()
+  loginInFlight.clear()
+}
+
+const LOGIN_FAILURE: Record<
+  Extract<ProviderTestResult, { ok: false }>['reason'],
+  ProviderFailureReason
+> = {
+  not_signed_in: 'reauth_required',
+  wrong_auth_method: 'config_error',
+  invalid_key: 'provider_error',
+  unreachable: 'provider_error',
+  rate_limited: 'provider_error',
+  unexpected_response: 'provider_error',
+}
 
 /**
  * One private directory per process, created on first use. `mkdtemp` picks an unpredictable name
@@ -109,6 +143,35 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
   const query = opts.query ?? defaultClaudeQuery
   const now = opts.now ?? Date.now
 
+  const checkLogin =
+    opts.checkLogin ??
+    (() =>
+      testClaudeCodeLogin({
+        configDir: opts.configDir,
+        pathToClaudeCodeExecutable: opts.pathToClaudeCodeExecutable,
+        ...(opts.env ? { env: opts.env } : {}),
+      }))
+  const loginKey = `${opts.pathToClaudeCodeExecutable ?? ''}\0${opts.configDir ?? ''}`
+
+  /** Throws a ProviderFailureError unless the binary is signed in with a claude.ai subscription. */
+  async function requireLogin(): Promise<void> {
+    const okAt = loginOk.get(loginKey)
+    if (okAt !== undefined && now() - okAt < LOGIN_CHECK_TTL_MS) return
+    let pending = loginInFlight.get(loginKey)
+    if (!pending) {
+      pending = checkLogin()
+        .catch((): ProviderTestResult => ({ ok: false, reason: 'unreachable' }))
+        .then((result) => {
+          if (result.ok) loginOk.set(loginKey, now())
+          return result
+        })
+        .finally(() => loginInFlight.delete(loginKey))
+      loginInFlight.set(loginKey, pending)
+    }
+    const result = await pending
+    if (!result.ok) throw new ProviderFailureError(LOGIN_FAILURE[result.reason])
+  }
+
   /** Validates the call, then starts the query. Everything unsupported fails before a spawn. */
   async function start(call: LanguageModelV4CallOptions) {
     if (call.tools && call.tools.length > 0) {
@@ -118,6 +181,7 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
       })
     }
     const { system, prompt } = toClaudePrompt(call.prompt)
+    await requireLogin()
     let workDir: string
     if (opts.workDir) {
       workDir = opts.workDir
@@ -268,7 +332,15 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
     supportedUrls: {},
 
     async doStream(call) {
-      const started = await start(call)
+      let started: Started
+      try {
+        started = await start(call)
+      } catch (err) {
+        // A failed login check is a provider failure like any other: report it in the stream.
+        // Unsupported input and other errors still reject, as before.
+        if (err instanceof ProviderFailureError) return { stream: failedStream(call, err) }
+        throw err
+      }
       const gen = run(started)
       const stream = new ReadableStream<Part>({
         async pull(c) {
@@ -344,6 +416,22 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
       return { content, finishReason, usage, warnings, response }
     },
   }
+}
+
+/** The parts a run emits when it fails before producing anything. */
+function failedStream(call: LanguageModelV4CallOptions, err: ProviderFailureError) {
+  return new ReadableStream<Part>({
+    start(c) {
+      c.enqueue({ type: 'stream-start', warnings: warningsFor(call) })
+      c.enqueue({ type: 'error', error: err })
+      c.enqueue({
+        type: 'finish',
+        usage: emptyUsage(),
+        finishReason: { unified: 'error', raw: err.reason },
+      })
+      c.close()
+    },
+  })
 }
 
 function warningsFor(call: LanguageModelV4CallOptions) {

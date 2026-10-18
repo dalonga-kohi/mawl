@@ -2,9 +2,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ProviderTestResult } from '@faire/contracts'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderFailureError } from '../failure.ts'
-import { createClaudeCodeModel } from './model.ts'
+import { __resetClaudeLoginCache, createClaudeCodeModel } from './model.ts'
 import { type FakeQuery, fakeQuery, msg } from './test-util.ts'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -22,8 +23,17 @@ const happy = () => [
   msg.success(),
 ]
 
+beforeEach(() => __resetClaudeLoginCache())
+
+const okLogin = async (): Promise<ProviderTestResult> => ({ ok: true, latencyMs: 1 })
+
 function model(fq: FakeQuery, extra: Partial<Parameters<typeof createClaudeCodeModel>[0]> = {}) {
-  return createClaudeCodeModel({ modelId: 'sonnet', query: fq.query, ...extra })
+  return createClaudeCodeModel({
+    modelId: 'sonnet',
+    query: fq.query,
+    checkLogin: okLogin,
+    ...extra,
+  })
 }
 
 async function readAll(stream: ReadableStream<LanguageModelV4StreamPart>) {
@@ -438,5 +448,106 @@ describe('Claude Code language model: failures', () => {
     expect(error?.error).toBeInstanceOf(ProviderFailureError)
     expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: { unified: 'error' } })
     expect(JSON.stringify(parts)).not.toContain('LEAK')
+  })
+})
+
+describe('Claude Code language model: login check', () => {
+  const fail = (reason: Extract<ProviderTestResult, { ok: false }>['reason']) =>
+    vi.fn(async (): Promise<ProviderTestResult> => ({ ok: false, reason }))
+
+  it('never starts a query when the binary uses another auth method', async () => {
+    const fq = fakeQuery(happy())
+    const checkLogin = fail('wrong_auth_method')
+    const m = model(fq, { checkLogin })
+    const err = await m.doGenerate(userPrompt('hi')).then(
+      () => undefined,
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(ProviderFailureError)
+    expect((err as ProviderFailureError).reason).toBe('config_error')
+    const parts = await readAll((await m.doStream(userPrompt('hi'))).stream)
+    expect(fq.calls).toHaveLength(0)
+    expect(parts.map((p) => p.type)).toEqual(['stream-start', 'error', 'finish'])
+    expect(parts.find((p) => p.type === 'error')?.error).toMatchObject({ reason: 'config_error' })
+    expect(parts.at(-1)).toMatchObject({ finishReason: { unified: 'error', raw: 'config_error' } })
+  })
+
+  it.each([
+    ['not_signed_in', 'reauth_required'],
+    ['wrong_auth_method', 'config_error'],
+    ['unreachable', 'provider_error'],
+    ['unexpected_response', 'provider_error'],
+  ] as const)('maps a %s login check to %s', async (reason, expected) => {
+    const fq = fakeQuery(happy())
+    const err = await model(fq, { checkLogin: fail(reason) })
+      .doGenerate(userPrompt('hi'))
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+    expect((err as ProviderFailureError).reason).toBe(expected)
+    expect(fq.calls).toHaveLength(0)
+  })
+
+  it('still rejects unsupported input before running the login check', async () => {
+    const checkLogin = vi.fn(okLogin)
+    const call = {
+      ...userPrompt('hi'),
+      tools: [{ type: 'function' as const, name: 'f', description: 'd', inputSchema: {} }],
+    }
+    await expect(model(fakeQuery(happy()), { checkLogin }).doStream(call)).rejects.toBeInstanceOf(
+      UnsupportedFunctionalityError,
+    )
+    expect(checkLogin).not.toHaveBeenCalled()
+  })
+
+  it('caches an ok result for five minutes, across models, then checks again', async () => {
+    let t = 1_000_000
+    const checkLogin = vi.fn(okLogin)
+    const make = () => model(fakeQuery(happy()), { checkLogin, now: () => t })
+    await make().doGenerate(userPrompt('hi'))
+    await make().doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(1)
+    t += 5 * 60_000 - 1
+    await make().doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(1)
+    t += 1
+    await make().doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache a failure', async () => {
+    const checkLogin = vi
+      .fn<() => Promise<ProviderTestResult>>()
+      .mockResolvedValueOnce({ ok: false, reason: 'not_signed_in' })
+      .mockResolvedValue({ ok: true, latencyMs: 1 })
+    const m = model(fakeQuery(happy()), { checkLogin })
+    await expect(m.doGenerate(userPrompt('hi'))).rejects.toBeInstanceOf(ProviderFailureError)
+    await m.doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+  })
+
+  it('shares one in-flight check between concurrent calls', async () => {
+    let release: (r: ProviderTestResult) => void = () => {}
+    const checkLogin = vi.fn(
+      () =>
+        new Promise<ProviderTestResult>((resolve) => {
+          release = resolve
+        }),
+    )
+    const m = model(fakeQuery(happy()), { checkLogin })
+    const a = m.doGenerate(userPrompt('hi'))
+    const b = m.doGenerate(userPrompt('hi'))
+    await vi.waitFor(() => expect(checkLogin).toHaveBeenCalledTimes(1))
+    release({ ok: true, latencyMs: 1 })
+    await Promise.all([a, b])
+    expect(checkLogin).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps separate results per binary path and config dir', async () => {
+    const checkLogin = vi.fn(okLogin)
+    await model(fakeQuery(happy()), { checkLogin, configDir: '/a' }).doGenerate(userPrompt('hi'))
+    await model(fakeQuery(happy()), { checkLogin, configDir: '/b' }).doGenerate(userPrompt('hi'))
+    expect(checkLogin).toHaveBeenCalledTimes(2)
   })
 })

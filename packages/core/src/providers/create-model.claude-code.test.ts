@@ -3,6 +3,7 @@ import { fakeQuery, msg } from './claude-code/test-util.ts'
 import { createLanguageModel } from './create-model.ts'
 
 const conn = { kind: 'anthropic_claude_code', baseUrl: null, secret: null } as const
+const okLogin = async () => ({ ok: true as const, latencyMs: 1 })
 const prompt = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'hi' }] }]
 
 describe('createLanguageModel for anthropic_claude_code', () => {
@@ -13,6 +14,7 @@ describe('createLanguageModel for anthropic_claude_code', () => {
         configDir: '/data/claude',
         pathToClaudeCodeExecutable: '/opt/claude',
         query: fq.query,
+        checkLogin: okLogin,
       },
     })
     expect(model.provider).toBe('anthropic-claude-code')
@@ -34,7 +36,7 @@ describe('createLanguageModel for anthropic_claude_code', () => {
     const model = createLanguageModel(
       { kind: 'anthropic_claude_code', baseUrl: 'https://evil.example', secret: 'sk-ant-oat01-x' },
       'sonnet',
-      { claudeCode: { query: fq.query } },
+      { claudeCode: { query: fq.query, checkLogin: okLogin } },
     )
     await model.doGenerate({ prompt })
     expect(JSON.stringify(fq.calls[0])).not.toContain('sk-ant-oat01')
