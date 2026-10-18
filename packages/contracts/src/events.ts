@@ -191,11 +191,3 @@ export const Topic = z.custom<Topic>(
 /** Typed topic builders: the branded id type keeps arbitrary strings out of `Topic`. */
 export const profileTopic = (id: ProfileId): Topic => `profile:${id}`
 export const runTopic = (id: RunId): Topic => `run:${id}`
-
-const Topics = z.array(Topic).min(1)
-
-export const ClientMessage = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('subscribe'), topics: Topics, since: EventId.optional() }),
-  z.object({ type: z.literal('unsubscribe'), topics: Topics }),
-])
-export type ClientMessage = z.infer<typeof ClientMessage>

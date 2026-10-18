@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ClientMessage,
-  Envelope,
-  EVENT_TYPES,
-  type EventType,
-  profileTopic,
-  runTopic,
-  Topic,
-} from './events'
+import { Envelope, EVENT_TYPES, type EventType, profileTopic, runTopic, Topic } from './events'
 import * as f from './fixtures'
 import { ProfileId, RunId } from './ids'
 
@@ -110,7 +102,7 @@ describe('Envelope', () => {
   })
 })
 
-describe('Topic and ClientMessage', () => {
+describe('Topic', () => {
   it.each(['profile:*', `profile:${f.id('prof')}`, `run:${f.id('run')}`])(
     'accepts topic %s',
     (t) => {
@@ -124,21 +116,6 @@ describe('Topic and ClientMessage', () => {
       expect(Topic.safeParse(t).success).toBe(false)
     },
   )
-
-  it('parses subscribe with and without since', () => {
-    const a = { type: 'subscribe', topics: ['profile:*'] }
-    const b = { type: 'subscribe', topics: [`run:${f.id('run')}`], since: '42' }
-    expect(ClientMessage.parse(a)).toEqual(a)
-    expect(ClientMessage.parse(b)).toEqual(b)
-  })
-
-  it('parses unsubscribe and rejects unknown client messages', () => {
-    expect(ClientMessage.safeParse({ type: 'unsubscribe', topics: ['profile:*'] }).success).toBe(
-      true,
-    )
-    expect(ClientMessage.safeParse({ type: 'ping' }).success).toBe(false)
-    expect(ClientMessage.safeParse({ type: 'subscribe', topics: [] }).success).toBe(false)
-  })
 })
 
 describe('payload specifics', () => {

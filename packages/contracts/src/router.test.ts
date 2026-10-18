@@ -84,6 +84,21 @@ describe('contract validation', () => {
     const out = contract.events.subscribe['~orpc'].outputSchema
     expect(out).toBeDefined()
   })
+
+  it('declares RESYNC_REQUIRED and TOO_MANY_SUBSCRIPTIONS on events.subscribe', () => {
+    const errors = contract.events.subscribe['~orpc'].errorMap
+    expect(errors.RESYNC_REQUIRED).toMatchObject({ status: 409 })
+    expect(errors.TOO_MANY_SUBSCRIPTIONS).toMatchObject({ status: 429 })
+  })
+
+  it('limits one subscription to 50 topics', async () => {
+    const schema = contract.events.subscribe['~orpc'].inputSchema
+    const topic = 'profile:*'
+    const validate = (n: number) =>
+      schema?.['~standard'].validate({ topics: Array.from({ length: n }, () => topic) })
+    expect(await validate(50)).not.toHaveProperty('issues')
+    expect(await validate(51)).toHaveProperty('issues')
+  })
 })
 
 describe('contract types', () => {

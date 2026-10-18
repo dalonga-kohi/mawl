@@ -25,6 +25,9 @@ import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
 import { ApprovalId, CredentialId, DeviceId, MessageId, ProfileId, RunId, ThreadId } from './ids'
 
+/** Most topics one vents.subscribe call may name. */
+export const MAX_TOPICS = 50
+
 const NotFound = { status: 404, data: z.object({ entity: z.string(), id: z.string() }) }
 const Conflict = {
   status: 409,
@@ -171,7 +174,13 @@ export const contract = {
      * with the item's id.
      */
     subscribe: base
-      .input(z.object({ topics: z.array(Topic).min(1), since: EventId.optional() }))
+      .errors({
+        /** The stream cannot continue (a slow consumer overflowed): subscribe again from your last since. */
+        RESYNC_REQUIRED: { status: 409 },
+        /** One connection already holds the maximum number of concurrent subscriptions. */
+        TOO_MANY_SUBSCRIPTIONS: { status: 429 },
+      })
+      .input(z.object({ topics: z.array(Topic).min(1).max(MAX_TOPICS), since: EventId.optional() }))
       .output(eventIterator(LenientEnvelope)),
   },
 }

@@ -6,7 +6,6 @@ import * as f from './fixtures'
 import * as contracts from './index'
 import {
   ChannelBinding,
-  ClientMessage,
   canTransition,
   Envelope,
   EVENT_PAYLOADS,
@@ -325,11 +324,6 @@ describe('event payload validation', () => {
     ]) {
       expect(Topic.safeParse(bad).success).toBe(false)
     }
-    expect(ClientMessage.safeParse({ type: 'subscribe', topics: ['run:*'] }).success).toBe(false)
-    expect(
-      ClientMessage.safeParse({ type: 'subscribe', topics: ['profile:*'], since: 'x' }).success,
-    ).toBe(false)
-    expect(ClientMessage.safeParse({ type: 'subscribe', topics: 'profile:*' }).success).toBe(false)
   })
 })
 
