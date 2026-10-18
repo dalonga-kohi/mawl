@@ -603,6 +603,23 @@ describe('Claude Code language model: login check', () => {
     expect(fq.calls).toHaveLength(0)
   })
 
+  it('keys on the inherited CLAUDE_CONFIG_DIR when no config dir is set', async () => {
+    const checkLogin = vi.fn(okLogin)
+    const ask = (env: Record<string, string>) =>
+      model(fakeQuery(happy()), { checkLogin, env }).doGenerate(userPrompt('hi'))
+    await ask({ CLAUDE_CONFIG_DIR: '/a' })
+    await ask({ CLAUDE_CONFIG_DIR: '/b' })
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+    await ask({ CLAUDE_CONFIG_DIR: '/a' })
+    expect(checkLogin).toHaveBeenCalledTimes(2)
+    // An explicit config dir wins over the inherited one, so the inherited one does not matter.
+    const set = (env: Record<string, string>) =>
+      model(fakeQuery(happy()), { checkLogin, env, configDir: '/set' }).doGenerate(userPrompt('hi'))
+    await set({ CLAUDE_CONFIG_DIR: '/a' })
+    await set({ CLAUDE_CONFIG_DIR: '/b' })
+    expect(checkLogin).toHaveBeenCalledTimes(3)
+  })
+
   it('treats a login check that throws synchronously as provider_error', async () => {
     const fq = fakeQuery(happy())
     const checkLogin = vi.fn((): Promise<ProviderTestResult> => {

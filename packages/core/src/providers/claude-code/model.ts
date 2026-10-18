@@ -199,10 +199,18 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
         pathToClaudeCodeExecutable: opts.pathToClaudeCodeExecutable,
         ...(opts.env ? { env: opts.env } : {}),
       }))
-  const loginKey = `${opts.pathToClaudeCodeExecutable ?? ''}\0${opts.configDir ?? ''}`
+  /** The binary and the config dir it will use, as `buildClaudeEnv` passes it on. */
+  const loginKeyNow = () => {
+    const configDir = buildClaudeEnv({
+      ...(opts.env ? { env: opts.env } : {}),
+      configDir: opts.configDir,
+    }).CLAUDE_CONFIG_DIR
+    return `${opts.pathToClaudeCodeExecutable ?? ''}\0${configDir ?? ''}`
+  }
 
   /** Throws a ProviderFailureError unless the binary is signed in with a claude.ai subscription. */
   async function requireLogin(signal: AbortSignal | undefined): Promise<void> {
+    const loginKey = loginKeyNow()
     const okAt = loginOk.get(loginKey)
     if (okAt !== undefined && now() - okAt < LOGIN_CHECK_TTL_MS) return
     let pending = loginInFlight.get(loginKey)
