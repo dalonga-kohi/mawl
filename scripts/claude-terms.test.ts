@@ -33,6 +33,25 @@ const rules: Array<{ term: string; allowedIn: string[] }> = [
   { term: 'CLAUDE_CODE_OAUTH_TOKEN', allowedIn: [SELF, ...DOCS, CLAUDE_CODE_DIR] },
 ]
 
+/**
+ * Source patterns that would mean Faire touches a Claude login: env tokens (dot or bracket
+ * access), any file read or open, the home-directory credential location, and the OS keychains.
+ * Returns the names of the patterns that match; empty means clean.
+ */
+function forbiddenIn(text: string): string[] {
+  const patterns: Array<[string, RegExp]> = [
+    ['env token (dot access)', /process\.env\.(ANTHROPIC|CLAUDE_CODE)_/],
+    ['env token (bracket access)', /process\.env\[\s*['"`](ANTHROPIC|CLAUDE_CODE)_/],
+    ['readFile', /readFile(Sync)?\(/],
+    ['createReadStream', /createReadStream\b/],
+    ['open', /\b(fs\.)?open(Sync)?\(/],
+    ['home .claude directory', /homedir\(\)[^\n]*\.claude/],
+    ['macOS keychain', /security\s+find-generic-password/],
+    ['libsecret', /secret-tool/],
+  ]
+  return patterns.filter(([, re]) => re.test(text)).map(([name]) => name)
+}
+
 describe('Claude account terms guard', () => {
   it('finds tracked files to scan', () => {
     expect(files.length).toBeGreaterThan(50)
@@ -48,13 +67,42 @@ describe('Claude account terms guard', () => {
     })
   }
 
-  it('never reads a credentials file or env token in the Claude Code adapter sources', () => {
+  it('never reads a credentials file, keychain entry or env token in the Claude Code adapter sources', () => {
     const sources = files.filter((f) => f.startsWith(CLAUDE_CODE_DIR) && !f.endsWith('.test.ts'))
     expect(sources.length).toBeGreaterThan(0)
     for (const f of sources) {
-      const text = readFileSync(join(root, f), 'utf8')
-      expect(text, f).not.toMatch(/process\.env\.(ANTHROPIC|CLAUDE_CODE)_/)
-      expect(text, f).not.toMatch(/readFile(Sync)?\(/)
+      expect(forbiddenIn(readFileSync(join(root, f), 'utf8')), f).toEqual([])
     }
+  })
+
+  describe('forbiddenIn', () => {
+    it.each([
+      ['dot access to an env token', 'const k = process.env.ANTHROPIC_API_KEY'],
+      ['dot access to a Claude Code env var', 'process.env.CLAUDE_CODE_OAUTH_TOKEN'],
+      ['bracket access, single quotes', "process.env['ANTHROPIC_API_KEY']"],
+      ['bracket access, double quotes', 'process.env["CLAUDE_CODE_OAUTH_TOKEN"]'],
+      ['bracket access with spaces', "process.env[ 'ANTHROPIC_AUTH_TOKEN' ]"],
+      ['readFile', "await readFile(join(dir, 'x'))"],
+      ['readFileSync', "readFileSync('/x')"],
+      ['createReadStream', "createReadStream('/x')"],
+      ['fs.open', "const h = await fs.open('/x')"],
+      ['open from fs/promises', "const h = await open('/x', 'r')"],
+      ['openSync', "openSync('/x', 'r')"],
+      ['homedir with .claude', "join(homedir(), '.claude')"],
+      ['os.homedir with .claude', "path.join(os.homedir(), '.claude', 'x')"],
+      ['macOS keychain read', "execFile('security find-generic-password -s x')"],
+      ['libsecret read', "execFile('secret-tool', ['lookup'])"],
+    ])('flags %s', (_name, snippet) => {
+      expect(forbiddenIn(snippet)).not.toEqual([])
+    })
+
+    it.each([
+      ['an env allowlist by variable name', "const ALLOW = ['PATH', 'HOME', 'CLAUDE_CONFIG_DIR']"],
+      ['a Map named open', 'const open = new Map(); open.get(1)'],
+      ['homedir without .claude', 'const home = homedir()'],
+      ['reading a non-secret env var', "process.env['PATH']"],
+    ])('allows %s', (_name, snippet) => {
+      expect(forbiddenIn(snippet)).toEqual([])
+    })
   })
 })
