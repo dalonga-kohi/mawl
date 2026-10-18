@@ -140,7 +140,9 @@ function Conversation({
   const runQuery = useRun(runId)
   const run = runQuery.data
   const text = useRunText(runId)
-  const active = isActive(run?.status) || (pending !== null && pending.runId === undefined)
+  // The send is in flight: no run id yet.
+  const starting = pending !== null && pending.runId === undefined
+  const active = isActive(run?.status) || starting
 
   const start = useStartRun()
   const cancel = useCancelRun()
@@ -231,7 +233,9 @@ function Conversation({
           <h1 className="truncate text-heading">{profile.name}</h1>
           <span className="flex shrink-0 items-center gap-1.5 text-small text-text-2">
             {active ? <span className="live-dot" aria-hidden="true" /> : null}
-            {live === 'reconnecting' ? 'Reconnecting…' : statusLine(run?.status, text.length > 0)}
+            {live === 'reconnecting'
+              ? 'Reconnecting…'
+              : statusLine(starting ? 'queued' : run?.status, text.length > 0)}
           </span>
         </div>
         <ThreadMenu
@@ -361,6 +365,19 @@ function RunTail({
 }) {
   if (starting) return <Thinking name={name} />
   if (!run) return null
+  if (text && run.status === 'cancelled') {
+    return (
+      <motion.div {...enter} className="flex flex-col gap-2">
+        <div className="text-text-2">
+          <Markdown text={text} />
+        </div>
+        <p className="flex items-center gap-1.5 text-small text-text-2">
+          <CircleStop className="size-4" aria-hidden="true" />
+          Stopped. The partial reply above isn't saved.
+        </p>
+      </motion.div>
+    )
+  }
   if (text) {
     return (
       <motion.article
@@ -394,12 +411,12 @@ function Thinking({ name }: { name: string }) {
       role="status"
       aria-label={`${name} is thinking`}
     >
+      {/* A CSS pulse, so reduced motion (OS or in-app) stops it like every other animation. */}
       {[0, 1, 2].map((i) => (
-        <motion.span
+        <span
           key={i}
-          className="size-2 rounded-pill bg-text-3"
-          animate={{ opacity: [0.35, 1, 0.35] }}
-          transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+          className="thinking-dot size-2 rounded-pill bg-text-3"
+          style={{ animationDelay: `${i * 0.18}s` }}
         />
       ))}
     </motion.div>

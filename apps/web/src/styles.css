@@ -151,6 +151,9 @@
     background: var(--accent);
     animation: faire-breathe 1s ease-in-out infinite;
   }
+  .thinking-dot {
+    animation: faire-breathe 1.2s ease-in-out infinite;
+  }
   .live-dot {
     width: 7px;
     height: 7px;

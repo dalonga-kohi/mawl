@@ -147,7 +147,7 @@ describe('chat', () => {
     await fake.server.stream('Once upon')
     await user.click(await screen.findByRole('button', { name: 'Stop' }))
     expect(fake.chat.cancelled).toHaveLength(1)
-    expect(await screen.findByText(/Stopped\. Nothing more will happen/)).toBeTruthy()
+    expect(await screen.findByText(/^Stopped\. The partial reply/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
   })
 
@@ -250,6 +250,32 @@ describe('chat', () => {
     await user.click(screen.getByRole('button', { name: /Conversation: Older chat/ }))
     await user.click(await screen.findByRole('menuitem', { name: 'New chat' }))
     expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
+  })
+
+  it('says it is getting started while the send is in flight', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    let release = () => {}
+    fake.chat.startGate = new Promise<void>((r) => {
+      release = r
+    })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'hi{Enter}')
+    expect(await screen.findByText('Getting started')).toBeTruthy()
+    expect(screen.queryByText('Ready')).toBeNull()
+    release()
+  })
+
+  it('marks a stopped partial reply and says it is not saved', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'go{Enter}')
+    await screen.findByRole('button', { name: 'Stop' })
+    await fake.server.stream('Once upon a time')
+    await user.click(await screen.findByRole('button', { name: 'Stop' }))
+    // The streamed text stays until the event store drops it, marked as not kept.
+    expect(await screen.findByText("Stopped. The partial reply above isn't saved.")).toBeTruthy()
+    expect(screen.getByText('Once upon a time')).toBeTruthy()
+    expect(screen.queryByRole('article', { name: 'Inbox Sweeper is replying' })).toBeNull()
   })
 
   it('offers Stop only once the run exists', async () => {

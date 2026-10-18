@@ -1,6 +1,6 @@
 import { Link, Navigate, Outlet } from '@tanstack/react-router'
 import { PanelRight, PanelRightClose } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCredentials } from '../settings/models/queries.ts'
 import { useShell } from '../shell/ShellContext.tsx'
 import { MEDIUM, useMediaQuery } from '../shell/use-media-query.ts'
@@ -31,6 +31,11 @@ export function PanelToggle() {
  * Below 760 px the list steps aside; the landing route shows it full screen instead.
  */
 export function TeammatesLayout() {
+  // Fetch the conversation chunk while the list renders, so opening a teammate never shows a
+  // blank frame.
+  useEffect(() => {
+    void import('../chat/ChatView.tsx')
+  }, [])
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] md:grid-cols-[280px_minmax(0,1fr)]">
       <TeammateList />

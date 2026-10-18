@@ -192,9 +192,9 @@ export function fakeChatApi(initial: { profiles?: Profile[] } = {}) {
     },
     cancel: async (id) => {
       state.cancelled.push(id)
+      // Like the server: cancelling never touches the client's streamed text; the event store
+      // drops it later (see `dropText`).
       setRun(id, { status: 'cancelled' })
-      text.delete(id)
-      notify(id)
       return state.runs.get(id) as Run
     },
   }
