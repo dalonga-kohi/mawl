@@ -10,13 +10,15 @@ import {
   type Usage,
 } from '@faire/contracts'
 import { schema } from '@faire/db'
+import { sql } from 'drizzle-orm'
 import type { z } from 'zod'
+import { EVENTS_CHANNEL } from '../events/source.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 
 const { events, runSteps, jsonValue } = schema
 
 /** A database or an open transaction: node-postgres in production, PGlite in tests. */
-export type Queryable = Pick<ProvidersDb, 'insert' | 'select' | 'update'>
+export type Queryable = Pick<ProvidersDb, 'insert' | 'select' | 'update' | 'execute'>
 
 export interface EventInput {
   profileId: ProfileId | null
@@ -27,15 +29,23 @@ export interface EventInput {
 
 /**
  * The only way the server writes `events`. `payload_json` is NOT NULL jsonb and drizzle turns a
- * JS null into SQL NULL, so every payload goes through `jsonValue()`.
+ * JS null into SQL NULL, so every payload goes through `jsonValue()`. In the same transaction it
+ * NOTIFYs `faire_events` with just the id, so the event bus wakes up once the row is committed
+ * (a rolled-back transaction notifies nobody). Returns the new event id.
  */
-export async function insertEvent(db: Queryable, e: EventInput): Promise<void> {
-  await db.insert(events).values({
-    profileId: e.profileId,
-    runId: e.runId,
-    type: e.type,
-    payload: jsonValue(e.payload),
-  })
+export async function insertEvent(db: Queryable, e: EventInput): Promise<number> {
+  const [row] = await db
+    .insert(events)
+    .values({
+      profileId: e.profileId,
+      runId: e.runId,
+      type: e.type,
+      payload: jsonValue(e.payload),
+    })
+    .returning({ id: events.id })
+  if (!row) throw new Error('event insert returned no row')
+  await db.execute(sql`select pg_notify(${EVENTS_CHANNEL}, ${JSON.stringify({ id: row.id })})`)
+  return row.id
 }
 
 /** Like insertEvent, but the payload must match the contract schema for its type. */
@@ -47,9 +57,9 @@ export async function recordEvent<T extends EventType>(
     type: T
     payload: z.input<(typeof EVENT_PAYLOADS)[T]>
   },
-): Promise<void> {
+): Promise<number> {
   const payload = EVENT_PAYLOADS[e.type].parse(e.payload) as Json
-  await insertEvent(db, { profileId: e.profileId, runId: e.runId, type: e.type, payload })
+  return insertEvent(db, { profileId: e.profileId, runId: e.runId, type: e.type, payload })
 }
 
 export interface StepInput {
