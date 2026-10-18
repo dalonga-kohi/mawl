@@ -49,6 +49,8 @@ export const ProviderKind = z.enum([
   'openai_compatible',
   // Sign in with ChatGPT: plan usage through OAuth instead of an API key.
   'openai_chatgpt',
+  // Claude subscription through the unmodified Claude Code binary, signed in by the owner out of band.
+  'anthropic_claude_code',
 ])
 export type ProviderKind = z.infer<typeof ProviderKind>
 

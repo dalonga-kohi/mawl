@@ -142,6 +142,18 @@ export const ProviderCredentialInput = z
         message: 'openai_chatgpt credentials come only from Sign in with ChatGPT',
       })
     }
+    if (v.provider === 'anthropic_claude_code') {
+      // Faire never holds a Claude credential: the owner signs in with `claude auth login`.
+      for (const field of ['secret', 'baseUrl'] as const) {
+        if (v[field] !== undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [field],
+            message: `anthropic_claude_code takes no ${field}: sign in with \`claude auth login\` on the server`,
+          })
+        }
+      }
+    }
     if (KEY_REQUIRED.has(v.provider) && v.secret === undefined) {
       ctx.addIssue({ code: 'custom', path: ['secret'], message: 'secret is required' })
     }
@@ -157,6 +169,9 @@ export const ProviderTestFailure = z.enum([
   'unreachable',
   'rate_limited',
   'unexpected_response',
+  // Claude subscription only: the Claude Code binary has no login, or uses a login Faire refuses.
+  'not_signed_in',
+  'wrong_auth_method',
 ])
 export type ProviderTestFailure = z.infer<typeof ProviderTestFailure>
 
