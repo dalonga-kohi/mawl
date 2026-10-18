@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -27,7 +27,10 @@ export interface ClaudeCodeModelOptions {
   configDir?: string | undefined
   /** Faire's FAIRE_CLAUDE_CODE_PATH. Without it the SDK uses the binary it bundles. */
   pathToClaudeCodeExecutable?: string | undefined
-  /** Empty directory the binary runs in. Defaults to a fixed directory under the OS temp dir. */
+  /**
+   * Empty directory the binary runs in, created (recursively) if missing. Without it, one private
+   * `mkdtemp` directory under the OS temp dir is created per process on first use and shared.
+   */
   workDir?: string
   /** Environment source for the allowlist. Defaults to `process.env`. */
   env?: Record<string, string | undefined>
@@ -36,6 +39,21 @@ export interface ClaudeCodeModelOptions {
 }
 
 type Part = LanguageModelV4StreamPart
+
+let defaultWorkDirPromise: Promise<string> | undefined
+
+/**
+ * One private directory per process, created on first use. `mkdtemp` picks an unpredictable name
+ * and makes it owner-only (0o700 on POSIX), so another user or a planted symlink cannot take over
+ * a fixed, shared path. Concurrent first calls share one promise; a failure is not kept.
+ */
+function defaultWorkDir(): Promise<string> {
+  defaultWorkDirPromise ??= mkdtemp(join(tmpdir(), 'faire-claude-code-')).catch((err: unknown) => {
+    defaultWorkDirPromise = undefined
+    throw err
+  })
+  return defaultWorkDirPromise
+}
 
 const emptyUsage = (): LanguageModelV4Usage => ({
   inputTokens: {
@@ -90,7 +108,6 @@ function mapFinish(stopReason: string | null | undefined): LanguageModelV4Finish
 export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageModelV4 {
   const query = opts.query ?? defaultClaudeQuery
   const now = opts.now ?? Date.now
-  const workDir = opts.workDir ?? join(tmpdir(), 'faire-claude-code')
 
   /** Validates the call, then starts the query. Everything unsupported fails before a spawn. */
   async function start(call: LanguageModelV4CallOptions) {
@@ -101,7 +118,13 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
       })
     }
     const { system, prompt } = toClaudePrompt(call.prompt)
-    await mkdir(workDir, { recursive: true })
+    let workDir: string
+    if (opts.workDir) {
+      workDir = opts.workDir
+      await mkdir(workDir, { recursive: true })
+    } else {
+      workDir = await defaultWorkDir()
+    }
 
     const controller = new AbortController()
     const { abortSignal } = call

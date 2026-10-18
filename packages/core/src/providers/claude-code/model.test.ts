@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -69,6 +71,30 @@ describe('Claude Code language model: query options', () => {
     expect(cwd).toBeTypeOf('string')
     expect(cwd).not.toBe(process.cwd())
     expect(cwd).toContain('faire-claude-code')
+  })
+
+  it('defaults to one private per-process temp dir shared by every call', async () => {
+    const a = fakeQuery(happy())
+    const b = fakeQuery(happy())
+    const first = model(a)
+    const second = model(b)
+    await Promise.all([
+      first.doStream(userPrompt('hi')).then((r) => readAll(r.stream)),
+      first.doStream(userPrompt('hi')).then((r) => readAll(r.stream)),
+    ])
+    await readAll((await second.doStream(userPrompt('hi'))).stream)
+    const dirs = new Set([...a.calls, ...b.calls].map((c) => c.options.cwd))
+    expect(dirs.size).toBe(1)
+    const [dir] = [...dirs]
+    expect(dir?.startsWith(join(tmpdir(), 'faire-claude-code-'))).toBe(true)
+    expect(dir).not.toBe(join(tmpdir(), 'faire-claude-code'))
+  })
+
+  it('uses an injected work dir as given', async () => {
+    const fq = fakeQuery(happy())
+    const dir = join(tmpdir(), 'faire-injected-test-dir')
+    await readAll((await model(fq, { workDir: dir }).doStream(userPrompt('hi'))).stream)
+    expect(fq.calls[0]?.options.cwd).toBe(dir)
   })
 
   it('hands the binary a clean env even when the server env holds Anthropic credentials', async () => {
