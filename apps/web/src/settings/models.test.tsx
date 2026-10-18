@@ -51,7 +51,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
     )
     expect(await within(models()).findByText(/Finish signing in/)).toBeTruthy()
     expect(
-      await within(models()).findByText('Using ChatGPT plan', {}, { timeout: 5000 }),
+      await within(models()).findByText('Using ChatGPT plan'),
     ).toBeTruthy()
     const manage = within(models()).getByRole('link', { name: 'Manage usage' })
     expect(manage.getAttribute('href')).toBe('https://chatgpt.com/settings/usage')
@@ -63,8 +63,33 @@ describe('settings, models: Sign in with ChatGPT', () => {
     const { user } = await renderApp('/settings', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     expect(
-      await within(models()).findByText('Sign-in was cancelled in ChatGPT.', {}, { timeout: 5000 }),
+      await within(models()).findByText('Sign-in was cancelled in ChatGPT.'),
     ).toBeTruthy()
+  })
+
+  it('stops polling and says so when the status check fails', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.statusError = new ApiError('NOT_FOUND')
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
+    expect(await within(models()).findByText(/lost track of this sign-in/)).toBeTruthy()
+    const calls = fake.state.statusCalls
+    await new Promise((r) => setTimeout(r, 120))
+    expect(fake.state.statusCalls).toBe(calls)
+  })
+
+  it('stops waiting when asked', async () => {
+    const fake = fakeProvidersApi()
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
+    await user.click(await within(models()).findByRole('button', { name: 'Stop waiting' }))
+    expect(within(models()).queryByText(/Finish signing in/)).toBeNull()
+    const calls = fake.state.statusCalls
+    await new Promise((r) => setTimeout(r, 120))
+    expect(fake.state.statusCalls).toBe(calls)
+    expect(
+      within(models()).getByRole('button', { name: 'Continue with ChatGPT' }).hasAttribute('disabled'),
+    ).toBe(false)
   })
 
   it('explains a busy sign-in port', async () => {
@@ -172,5 +197,27 @@ describe('settings, models: API keys', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
     expect(await within(dialog).findByText('Enter the server address.')).toBeTruthy()
     expect(fake.state.created).toEqual([])
+    // Focus moves to the first field that needs fixing.
+    expect(document.activeElement).toBe(within(dialog).getByLabelText('Server address'))
+  })
+
+  it('starts on the provider field', async () => {
+    const { user } = await renderApp('/settings', { providers: fakeProvidersApi().api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(dialog).getByLabelText('Provider')),
+    )
+  })
+
+  it('names a server-side validation error instead of blaming the connection', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.createError = new ApiError('VALIDATION')
+    const { user } = await renderApp('/settings', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await user.type(within(dialog).getByLabelText('API key'), 'sk-test')
+    await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+    expect(await within(dialog).findByText(/The server didn't accept these details/)).toBeTruthy()
   })
 })

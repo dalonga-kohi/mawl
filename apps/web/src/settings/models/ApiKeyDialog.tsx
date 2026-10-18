@@ -11,6 +11,7 @@ import { Dialog } from 'radix-ui'
 import { type FormEvent, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { useApi } from '../../api/ApiProvider.tsx'
+import { errorCode } from '../../api/providers-api.ts'
 import { overlayFade, transitions } from '../../motion/presets.ts'
 import { Button, IconButton } from '../../ui/Button.tsx'
 import { testFailureText } from './copy.ts'
@@ -52,6 +53,8 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
   const keyRequired = descriptor?.keyRequired ?? true
 
   const save = useMutation({
+    // The input holds the API key: don't keep it in the mutation cache after the dialog closes.
+    gcTime: 0,
     mutationFn: async (input: ProviderCredentialInput) => {
       const check = await providers.test(input)
       if (!check.ok) return { saved: false as const, reason: check.reason }
@@ -67,9 +70,14 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
       toast(`${input.label} connected`)
       onDone()
     },
-    onError: () =>
+    onError: (e) =>
       setErrors({
-        form: "Couldn't reach the Faire server. Check that it's running, then try again.",
+        form:
+          errorCode(e) === 'VALIDATION'
+            ? "The server didn't accept these details. Check each field and try again."
+            : errorCode(e) === undefined
+              ? "Couldn't reach the Faire server. Check that it's running, then try again."
+              : "Faire couldn't save this connection. Try again.",
       }),
   })
 
@@ -92,16 +100,24 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
       ...(showAddress && baseUrl.trim() ? { baseUrl: baseUrl.trim() } : {}),
     }
     const parsed = ProviderCredentialInputSchema.safeParse(input)
-    if (!parsed.success && !next.baseUrl) {
+    if (!parsed.success) {
       for (const issue of parsed.error.issues) {
-        if (issue.path[0] === 'baseUrl')
-          next.baseUrl = 'Enter a full address starting with http:// or https://.'
-        else if (issue.path[0] === 'label') next.label = 'Keep the name under 80 characters.'
-        else if (issue.path[0] === 'secret') next.secret = 'That key is too long.'
+        const field = issue.path[0]
+        if (field === 'baseUrl')
+          next.baseUrl ??= 'Enter a full address starting with http:// or https://.'
+        else if (field === 'label') next.label ??= 'Keep the name under 80 characters.'
+        else if (field === 'secret') next.secret ??= 'That key is too long.'
+        // Fail closed on anything the form has no field for.
+        else next.form ??= 'Faire refused these details. Check each field and try again.'
       }
     }
     setErrors(next)
-    if (Object.keys(next).length === 0) save.mutate(input)
+    const firstInvalid = (['label', 'secret', 'baseUrl'] as const).find((f) => next[f])
+    if (firstInvalid) {
+      const id = { label: ids.label, secret: ids.secret, baseUrl: ids.baseUrl }[firstInvalid]
+      document.getElementById(id)?.focus()
+    }
+    if (parsed.success && Object.keys(next).length === 0) save.mutate(parsed.data)
   }
 
   const fieldError = (id: string, message?: string) =>
@@ -223,7 +239,18 @@ export function ApiKeyDialog({
             <Dialog.Overlay asChild>
               <motion.div className="fixed inset-0 z-40 bg-text/20" {...overlayFade} />
             </Dialog.Overlay>
-            <Dialog.Content asChild aria-describedby={undefined}>
+            <Dialog.Content
+              asChild
+              aria-describedby={undefined}
+              onOpenAutoFocus={(e) => {
+                // Start on the first field, not the Close button.
+                const select = (e.currentTarget as HTMLElement | null)?.querySelector('select')
+                if (select) {
+                  e.preventDefault()
+                  select.focus()
+                }
+              }}
+            >
               <motion.div
                 className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-surface p-5 shadow-2"
                 initial={{ opacity: 0, scale: 0.98 }}

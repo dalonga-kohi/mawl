@@ -109,14 +109,20 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
     statuses: [] as ChatGptAttemptStatus[],
     created: [] as ProviderCredentialInput[],
     removed: [] as string[],
+    createError: null as Error | null,
+    statusError: null as Error | null,
+    statusCalls: 0,
   }
   const api: ProvidersApi = {
+    // Fast polling keeps the sign-in tests quick and independent of the real 1.5 s cadence.
+    chatgptPollMs: 20,
     catalog: async () => CATALOG,
     list: async () => {
       if (state.listError) throw state.listError
       return [...state.credentials]
     },
     create: async (input) => {
+      if (state.createError) throw state.createError
       state.created.push(input)
       const row = credential({
         provider: input.provider,
@@ -145,6 +151,8 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
       }
     },
     chatgptStatus: async () => {
+      state.statusCalls++
+      if (state.statusError) throw state.statusError
       const next = state.statuses.shift() ?? { status: 'pending' }
       if (next.status === 'succeeded') {
         state.credentials.push(

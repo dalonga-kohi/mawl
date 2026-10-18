@@ -9,6 +9,8 @@ import { signInFailureText } from './copy.ts'
 import { useRefreshCredentials } from './queries.ts'
 
 const POLL_MS = 1500
+/** The server expires an attempt after 10 minutes; the page stops waiting at the same point. */
+const ATTEMPT_TIMEOUT_MS = 10 * 60_000
 
 const isLoopbackHost = (host: string) =>
   host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.endsWith('.localhost')
@@ -22,12 +24,15 @@ export function useChatGptSignIn() {
   const refresh = useRefreshCredentials()
   const [attempt, setAttempt] = useState<ChatGptStartResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const pollMs = providers.chatgptPollMs ?? POLL_MS
 
   const start = useMutation({
     mutationFn: () => providers.chatgptStart(),
     onMutate: () => setError(null),
     onSuccess: (result) => {
       setAttempt(result)
+      // Opened after a server round trip, so a popup blocker may stop it; the status panel links
+      // to the same page.
       window.open(result.authorizeUrl, '_blank', 'noopener,noreferrer')
     },
     onError: (e) =>
@@ -42,7 +47,11 @@ export function useChatGptSignIn() {
     queryKey: ['providers', 'chatgpt', attempt?.attemptId],
     queryFn: () => providers.chatgptStatus(attempt?.attemptId ?? ''),
     enabled: attempt !== null,
-    refetchInterval: (q) => (q.state.data && q.state.data.status !== 'pending' ? false : POLL_MS),
+    refetchInterval: (q) =>
+      q.state.status === 'error' || (q.state.data && q.state.data.status !== 'pending')
+        ? false
+        : pollMs,
+    retry: false,
     gcTime: 0,
   })
 
@@ -58,8 +67,27 @@ export function useChatGptSignIn() {
     }
   }, [result, refresh])
 
+  // A restarted server forgets the attempt (NOT_FOUND); stop polling instead of waiting forever.
+  const statusFailed = status.isError
+  useEffect(() => {
+    if (!statusFailed) return
+    setAttempt(null)
+    setError('Faire lost track of this sign-in, maybe because the server restarted. Start again.')
+  }, [statusFailed])
+
+  useEffect(() => {
+    if (!attempt) return
+    const timer = setTimeout(() => {
+      setAttempt(null)
+      setError(signInFailureText('expired'))
+    }, ATTEMPT_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [attempt])
+
   return {
-    start: () => start.mutate(),
+    start: () => {
+      if (!start.isPending && !attempt) start.mutate()
+    },
     starting: start.isPending,
     attempt,
     cancel: () => setAttempt(null),
@@ -75,7 +103,10 @@ export function ChatGptSignInStatus({ signIn }: { signIn: ChatGptSignInState }) 
   if (signIn.attempt) {
     return (
       <div role="status" className="flex flex-col gap-2 rounded-md bg-accent-softer p-3 text-small">
-        <p>Finish signing in in the browser tab that just opened. This page updates by itself.</p>
+        <p>
+          Finish signing in on the ChatGPT page. If no tab opened, use the link below. This page
+          updates by itself.
+        </p>
         <div className="flex flex-wrap gap-2">
           <a
             href={signIn.attempt.authorizeUrl}

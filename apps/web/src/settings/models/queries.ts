@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import { useApi } from '../../api/ApiProvider.tsx'
 
 export const providerKeys = {
@@ -22,5 +23,5 @@ export function useCredentials() {
 
 export function useRefreshCredentials() {
   const client = useQueryClient()
-  return () => client.invalidateQueries({ queryKey: providerKeys.list })
+  return useCallback(() => client.invalidateQueries({ queryKey: providerKeys.list }), [client])
 }

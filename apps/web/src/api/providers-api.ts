@@ -22,6 +22,8 @@ export interface ProvidersApi {
   test(target: { id: CredentialId } | ProviderCredentialInput): Promise<ProviderTestResult>
   chatgptStart(): Promise<ChatGptStartResult>
   chatgptStatus(attemptId: string): Promise<ChatGptAttemptStatus>
+  /** How often to poll a pending sign-in; defaults to 1.5 s. */
+  chatgptPollMs?: number
 }
 
 /** The oRPC error code of a failed call, when there is one. */
