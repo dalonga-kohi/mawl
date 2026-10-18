@@ -42,7 +42,8 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - Verify every endpoint, scope and error code from OpenAI's current docs at slice start. This bullet list is a research summary, not a verified API.
   - Verified 2026-10-18 (developers.openai.com/siwc/token-sharing-open-source): authorize `https://auth.openai.com/api/accounts/authorize`, token `https://auth.openai.com/api/accounts/oauth/token`, discovery `https://auth.openai.com/.well-known/openid-configuration` (revocation endpoint). Scopes `openid profile email offline_access resource.invoke chatgpt.tokens.use.direct`, resource `https://api.openai.com/v1`, PKCE S256, redirect `http://127.0.0.1:<port>/auth/callback` (never `localhost`). `ext_agent_host_id` as `urn:uuid:` v4. Access tokens live 3600 s; refresh tokens rotate and live 30 days. Errors `subscription_sharing_*` (`usage_limit_exceeded` 429 → plan limit reached). Unsupported Responses fields (`temperature`, `max_output_tokens`, `top_p`, ...) are stripped. No official SDK; the `@ai-sdk/openai` Responses model is used with a token-injecting fetch.
   - **Claude account (owner decision 2026-10-18: Faire is a personal, self-hosted project, not distributed).** New `ProviderKind` `anthropic_claude_code`: runs the unmodified Claude Code binary through `@anthropic-ai/claude-agent-sdk`, and the owner signs in with Claude Code's own flow (`claude auth login` on the server host or container). Faire never collects, stores or reads Claude.ai credentials, which is the only subscription path Anthropic's terms allow (code.claude.com/docs/en/legal-and-compliance: "sign-in to a Claude account must complete through Anthropic's own flow"). Built-in tools disabled, no setting sources, clean env (no `ANTHROPIC_*`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_*`). If Faire is ever distributed or multi-user, this provider must go (check before P8.5).
-- [~] **P1.4 Run engine v1.**
+- [x] **P1.4 Run engine v1.** (1abc23c..e9bc662; gate green with `FAIRE_REQUIRE_DOCKER=1`; CAS, atomic steps, crash resume and budgets mutation-checked)
+  - Decided: `profiles.model_main` is `<credentialId>:<modelId>` (split at the first `:`); `runs.error` holds a closed `RunErrorCode`; the wall-clock budget counts active time (`runs.active_ms`, migration 0005); Graphile Worker 0.18.0 runs task `run.execute` with boot recovery. Cost cap and `contextWindow` are not built yet (S7, P3.5).
   - AI SDK v7 loop with durable steps, the run state machine (queued → running → succeeded/failed/cancelled), and budget caps.
   - Graphile Worker job.
   - *Tests:* fake model; crash/resume from the persisted step.
@@ -54,7 +55,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - A Claude `rate_limit_event` with status `rejected` is a hard failure today, even when overage may be allowed. Revisit when overage info is reliable.
     - `ProviderFailureReason` (contracts) from `ProviderFailureError` (core) feeds the run failure reason and the app's explanation.
     - `@faire/server#test` failed once under the full parallel gate even after `hookTimeout` went to 60 s (PGlite suites), and passed on rerun. Find the cause when the run engine adds more PGlite suites.
-- [ ] **P1.5 Event bus + WS hub.**
+- [~] **P1.5 Event bus + WS hub.**
   - Postgres `NOTIFY` → WS fan-out with `since` resume.
   - `packages/client` store with TanStack Query integration.
 - [ ] **P1.6 Web app shell.**
@@ -79,6 +80,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 
 - [ ] **P2.1 Profiles CRUD.** Persona editor, color/avatar, main and helper model, clone and archive. Teammate list UI.
 - [ ] **P2.2 Tool registry + built-ins.** `web_fetch`, `web_search` (pluggable), `ask_user`, `notify`, `read_artifact`. Artifacts for outputs over 4k tokens.
+  - Review notes from P1.4: `executeRun` passes `deps.tools` straight to `streamText`; route every call through the policy engine (P2.3) first. A crash between a tool's side effect and the step write re-runs the tool on resume, so tools need idempotency keys (`run_id`, `step_idx`, `toolCallId`). Wrap tool results as untrusted data. Bridge tools to `anthropic_claude_code` through an in-process MCP server (`createSdkMcpServer`).
 - [ ] **P2.3 Policy engine.**
   - Action classes, levels, rule precedence, and the non-lowerable classes.
   - *Tests:* a table-driven rule-matrix test.
@@ -99,6 +101,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - *Tests:* the ranking math, plus a fixture corpus with expected top-k.
 - [ ] **P3.4 Fact extraction (warm path).** Extract → compare → ADD/UPDATE/INVALIDATE/NOOP, bi-temporal, injection scanner, `memory_ops` audit. Includes the golden set.
 - [ ] **P3.5 Compaction ladder.**
+  - Review notes from P1.4: resolve `contextWindow` per model id here. Two runs on the same thread can execute at once and both read the same history; decide whether a thread runs one run at a time.
   - L0–L3 with thresholds, pre-flush, checkpoints, segment rollover, and native Anthropic context editing when available.
   - *Tests:* survival ≥ 95%.
 - [ ] **P3.6 Sleep-time consolidator.** Dedupe, re-densify, digests, decay, and a "what changed overnight" record.
@@ -122,6 +125,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
 ## P5 — Always on: background, routines, heartbeat
 
 - [ ] **P5.1 Background runs UX.** Pause, resume and cancel from anywhere, plus "Pause all teammates".
+  - Review notes from P1.4: add a stale-run sweeper. A run stays `running` with no job after Graphile exhausts its 5 attempts on infra errors, after an enqueue failure right after `runs.start`, or after 30 resume requeues; today only boot recovery picks it up. A deterministic non-provider error from `createModel` retries 5 times before that; fail it as `internal_error` on the last attempt.
 - [ ] **P5.2 Routines.**
   - Cron or RRULE storage, a natural-language → schedule parser (helper model + confirmation), and Graphile cron.
   - Routines UI with run history and a delivery channel.
