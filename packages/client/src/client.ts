@@ -12,8 +12,9 @@ export type FaireQueryUtils = RouterUtils<FaireClient>
 type LinkSocket = RPCLinkOptions<Record<never, never>>['websocket']
 
 /** What the client needs from a socket; the browser `WebSocket` and the `ws` package both fit. */
+// `readyState` comes from the link's socket type; redeclaring it as `number` breaks under the DOM
+// lib, where it is `0 | 1 | 2 | 3`.
 export interface FaireSocket extends LinkSocket {
-  readonly readyState: number
   close(code?: number, reason?: string): void
 }
 export type FaireSocketConstructor = new (url: string) => FaireSocket
