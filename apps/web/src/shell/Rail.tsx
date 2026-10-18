@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { Beaver } from '../mascot/Beaver.tsx'
 import { cx } from '../ui/cx.ts'
 import { Tooltip } from '../ui/Tooltip.tsx'
+import { paletteShortcutLabel } from './CommandPalette.tsx'
 import { MAIN_NAV, type NavItem, SETTINGS_NAV } from './nav.ts'
 import { useShell } from './ShellContext.tsx'
 
@@ -29,7 +30,7 @@ function RailLink({ item }: { item: NavItem }) {
 function SearchButton() {
   const { setPaletteOpen } = useShell()
   return (
-    <Tooltip label="Search or jump to (Ctrl K)" side="right">
+    <Tooltip label={`Search or jump to (${paletteShortcutLabel()})`} side="right">
       <button
         type="button"
         aria-label="Search or jump to"

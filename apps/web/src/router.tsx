@@ -16,6 +16,7 @@ import {
   NotFoundPage,
   RoutinesPage,
 } from './pages/placeholders.tsx'
+import { RouteError, RoutePending } from './pages/route-fallbacks.tsx'
 import { Shell } from './shell/Shell.tsx'
 import { TeammatesView } from './teammates/TeammatesView.tsx'
 
@@ -49,6 +50,8 @@ const routeTree = rootRoute.addChildren([
 export function createAppRouter({ initialPath }: { initialPath?: string } = {}) {
   return createRouter({
     routeTree,
+    defaultPendingComponent: RoutePending,
+    defaultErrorComponent: RouteError,
     history:
       initialPath === undefined
         ? createBrowserHistory()
