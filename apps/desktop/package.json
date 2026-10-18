@@ -7,7 +7,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1"
   }
 }

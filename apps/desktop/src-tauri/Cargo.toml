@@ -1,0 +1,22 @@
+[package]
+name = "faire-desktop"
+version = "0.0.0"
+description = "Faire desktop shell"
+edition = "2021"
+rust-version = "1.85"
+license = "UNLICENSED"
+publish = false
+
+[lib]
+name = "faire_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = ["tray-icon"] }
+tauri-plugin-single-instance = { version = "=2.5.2", features = ["deep-link"] }
+tauri-plugin-deep-link = "=2.6.1"
+tauri-plugin-notification = "=2.5.1"
+tauri-plugin-opener = "=2.7.0"
