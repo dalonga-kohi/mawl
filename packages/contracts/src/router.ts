@@ -24,6 +24,7 @@ import {
 import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
 import { ApprovalId, CredentialId, DeviceId, MessageId, ProfileId, RunId, ThreadId } from './ids'
+import { parseModelRef } from './model-ref'
 
 /** Most topics one events.subscribe call may name. */
 export const MAX_TOPICS = 50
@@ -44,7 +45,16 @@ const base = oc.errors({
   },
 })
 const withNotFound = base.errors({ NOT_FOUND: NotFound })
-const runTransition = base.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
+/** A model choice must read as `<credentialId>:<modelId>`; whether the credential exists is the server's check. */
+const ModelRefString = z
+  .string()
+  .min(1)
+  .refine((v) => parseModelRef(v) !== null, { message: 'Expected <credentialId>:<modelId>' })
+const profileWrite = base.errors({
+  SLUG_TAKEN: { status: 409, data: z.object({ slug: z.string() }) },
+  UNKNOWN_CREDENTIAL: { status: 422, data: z.object({ credentialId: CredentialId }) },
+})
+const runTransition =base.errors({ NOT_FOUND: NotFound, CONFLICT: Conflict })
 
 const Id = <T extends z.ZodType>(schema: T) => z.object({ id: schema })
 
@@ -57,18 +67,27 @@ export const contract = {
       .input(z.object({ includeArchived: z.boolean().optional() }).optional())
       .output(z.array(Profile)),
     get: withNotFound.input(Id(ProfileId)).output(Profile),
-    create: base
+    create: profileWrite
       .input(
-        Profile.pick({ name: true, slug: true, color: true, modelMain: true }).extend({
+        z.object({
+          name: Profile.shape.name,
+          modelMain: ModelRefString,
+          /** Derived from the name when omitted. */
+          slug: Profile.shape.slug.optional(),
+          /** Rotates through the accent presets when omitted. */
+          color: Profile.shape.color.optional(),
           personaMd: z.string().optional(),
-          modelHelper: z.string().min(1).optional(),
+          modelHelper: ModelRefString.optional(),
         }),
       )
       .output(Profile),
-    update: withNotFound
+    update: profileWrite
+      .errors({ NOT_FOUND: NotFound })
       .input(
         Id(ProfileId).extend({
-          patch: Profile.omit({ id: true, createdAt: true, archivedAt: true }).partial(),
+          patch: Profile.omit({ id: true, createdAt: true, archivedAt: true })
+            .extend({ modelMain: ModelRefString, modelHelper: ModelRefString.nullable() })
+            .partial(),
         }),
       )
       .output(Profile),

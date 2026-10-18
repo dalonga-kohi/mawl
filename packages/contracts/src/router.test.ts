@@ -80,6 +80,64 @@ describe('contract validation', () => {
     expect(parse({ theme: 'sepia' })).toHaveProperty('issues')
   })
 
+  describe('profiles input rules', () => {
+    const CRED = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    const PROFILE = 'prof_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    const check = async (proc: { '~orpc': { inputSchema?: unknown } }, value: unknown) => {
+      const schema = proc['~orpc'].inputSchema as {
+        '~standard': { validate(v: unknown): unknown }
+      }
+      return (await schema['~standard'].validate(value)) as { issues?: unknown[] }
+    }
+
+    it('create needs only a name and a model; everything else is optional', async () => {
+      const ok = await check(contract.profiles.create, {
+        name: 'Ada',
+        modelMain: `${CRED}:fake-echo`,
+      })
+      expect(ok.issues).toBeUndefined()
+      expect((await check(contract.profiles.create, { name: 'Ada' })).issues).toBeDefined()
+      expect(
+        (await check(contract.profiles.create, { modelMain: `${CRED}:m` })).issues,
+      ).toBeDefined()
+    })
+
+    it('create rejects a model that is not <credentialId>:<modelId>', async () => {
+      for (const modelMain of ['gpt-4o', 'openai:gpt-4o', `${CRED}:`]) {
+        const res = await check(contract.profiles.create, { name: 'Ada', modelMain })
+        expect(res.issues, modelMain).toBeDefined()
+      }
+      const helper = await check(contract.profiles.create, {
+        name: 'Ada',
+        modelMain: `${CRED}:m`,
+        modelHelper: 'nope',
+      })
+      expect(helper.issues).toBeDefined()
+    })
+
+    it('update rejects a malformed model in the patch but accepts clearing the helper', async () => {
+      const bad = await check(contract.profiles.update, {
+        id: PROFILE,
+        patch: { modelMain: 'nope' },
+      })
+      expect(bad.issues).toBeDefined()
+      const clear = await check(contract.profiles.update, {
+        id: PROFILE,
+        patch: { modelHelper: null },
+      })
+      expect(clear.issues).toBeUndefined()
+    })
+
+    it('declares SLUG_TAKEN and UNKNOWN_CREDENTIAL on create and update', () => {
+      for (const p of [contract.profiles.create, contract.profiles.update]) {
+        const errors = p['~orpc'].errorMap
+        expect(errors.SLUG_TAKEN).toMatchObject({ status: 409 })
+        expect(errors.UNKNOWN_CREDENTIAL).toMatchObject({ status: 422 })
+      }
+      expect(Object.keys(contract.profiles.update['~orpc'].errorMap)).toContain('NOT_FOUND')
+    })
+  })
+
   it('streams Envelope events from events.subscribe', () => {
     const out = contract.events.subscribe['~orpc'].outputSchema
     expect(out).toBeDefined()
