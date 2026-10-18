@@ -26,6 +26,7 @@ import {
   type SecretBox,
 } from './secrets/index.ts'
 import { readVersion } from './version.ts'
+import { resolveWebDir } from './web-static.ts'
 
 /** Replaceable pieces, so tests can boot without a database. */
 export interface BootOverrides {
@@ -56,6 +57,11 @@ const HEALTH_QUERY_TIMEOUT_MS = 1500
 function resolveMigrationsFolder(): string {
   const beside = fileURLToPath(new URL('./drizzle', import.meta.url))
   return existsSync(join(beside, 'meta', '_journal.json')) ? beside : migrationsFolder
+}
+
+function webDirOption(config: Config): { webDir?: string } {
+  const webDir = resolveWebDir(config.webDir)
+  return webDir ? { webDir } : {}
 }
 
 function listen(
@@ -172,6 +178,7 @@ export async function startServer(
     })
     const app = createApp({
       hosts: { bindHost: config.host, allowedOrigins: config.allowedOrigins ?? [] },
+      ...webDirOption(config),
       logger,
       version,
       providers: providerService,
