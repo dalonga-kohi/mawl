@@ -1,4 +1,4 @@
-import { contract } from '@faire/contracts'
+import { contract, type RunStatus } from '@faire/contracts'
 import { listProviderDescriptors } from '@faire/core'
 import { implement, ORPCError } from '@orpc/server'
 import {
@@ -8,10 +8,13 @@ import {
   SignInAttemptNotFoundError,
   SignInUnavailableError,
 } from './providers/service.ts'
+import { EntityNotFoundError, RunConflictError } from './runs/errors.ts'
+import type { RunService } from './runs/service.ts'
 
 export interface RouterDeps {
   version: string
   providers: ProviderService
+  runs: RunService
 }
 
 /**
@@ -37,12 +40,30 @@ const notFound =
     throw err
   }
 
+type RunErrors = {
+  NOT_FOUND: (options: { data: { entity: string; id: string } }) => Error
+  CONFLICT?: (options: { data: { from: RunStatus; to: RunStatus } }) => Error
+}
+
+/** Maps the run service's domain errors to the contract's typed NOT_FOUND and CONFLICT. */
+const runErrors =
+  (errors: RunErrors) =>
+  (err: unknown): never => {
+    if (err instanceof EntityNotFoundError) {
+      throw errors.NOT_FOUND({ data: { entity: err.entity, id: err.id } })
+    }
+    if (err instanceof RunConflictError && errors.CONFLICT) {
+      throw errors.CONFLICT({ data: { from: err.from, to: err.to } })
+    }
+    throw err
+  }
+
 /**
  * Every procedure in the contract must appear here: this object is type-checked against the
  * contract, so adding a procedure to `@faire/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version, providers }: RouterDeps) {
+export function createRouter({ version, providers, runs }: RouterDeps) {
   const os = implement(contract)
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
@@ -54,15 +75,27 @@ export function createRouter({ version, providers }: RouterDeps) {
       archive: stub(os.profiles.archive),
     },
     threads: {
-      list: stub(os.threads.list),
-      messages: stub(os.threads.messages),
+      list: os.threads.list.handler(({ input, errors }) =>
+        runs.listThreads(input.profileId).catch(runErrors(errors)),
+      ),
+      messages: os.threads.messages.handler(({ input, errors }) =>
+        runs.threadMessages(input).catch(runErrors(errors)),
+      ),
     },
     runs: {
-      start: stub(os.runs.start),
-      get: stub(os.runs.get),
-      cancel: stub(os.runs.cancel),
-      pause: stub(os.runs.pause),
-      resume: stub(os.runs.resume),
+      start: os.runs.start.handler(({ input, errors }) =>
+        runs.start(input).catch(runErrors(errors)),
+      ),
+      get: os.runs.get.handler(({ input, errors }) => runs.get(input.id).catch(runErrors(errors))),
+      cancel: os.runs.cancel.handler(({ input, errors }) =>
+        runs.cancel(input.id).catch(runErrors(errors)),
+      ),
+      pause: os.runs.pause.handler(({ input, errors }) =>
+        runs.pause(input.id).catch(runErrors(errors)),
+      ),
+      resume: os.runs.resume.handler(({ input, errors }) =>
+        runs.resume(input.id).catch(runErrors(errors)),
+      ),
     },
     approvals: {
       list: stub(os.approvals.list),

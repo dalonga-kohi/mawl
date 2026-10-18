@@ -9,6 +9,7 @@ import {
 } from './providers/service.ts'
 import { unusedProviders } from './providers/test-util.ts'
 import { createRouter } from './router.ts'
+import { unusedRuns } from './runs/test-util.ts'
 
 const CRED = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6V8' as CredentialId
 const UNREADABLE = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6VA' as CredentialId
@@ -38,7 +39,7 @@ const providers: ProviderService = {
   },
 }
 
-const router = createRouter({ version: '9.9.9', providers })
+const router = createRouter({ version: '9.9.9', providers, runs: unusedRuns })
 
 function contractPaths(): string[][] {
   const paths: string[][] = []

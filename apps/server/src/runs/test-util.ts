@@ -8,6 +8,7 @@ import {
 } from '@faire/contracts'
 import { schema } from '@faire/db'
 import type { ProvidersDb } from '../providers/types.ts'
+import type { RunService } from './service.ts'
 
 const { profiles, threads, runs, messages } = schema
 
@@ -63,4 +64,15 @@ export async function seedMessage(
     ...(createdAt ? { createdAt } : {}),
     ...(runId ? { runId } : {}),
   })
+}
+
+/** A run service for tests that never touch runs: any call is a test bug. */
+export const unusedRuns: RunService = {
+  start: () => Promise.reject(new Error('runs.start not stubbed')),
+  get: () => Promise.reject(new Error('runs.get not stubbed')),
+  cancel: () => Promise.reject(new Error('runs.cancel not stubbed')),
+  pause: () => Promise.reject(new Error('runs.pause not stubbed')),
+  resume: () => Promise.reject(new Error('runs.resume not stubbed')),
+  listThreads: () => Promise.reject(new Error('runs.listThreads not stubbed')),
+  threadMessages: () => Promise.reject(new Error('runs.threadMessages not stubbed')),
 }

@@ -4,11 +4,13 @@ import { Hono } from 'hono'
 import type { Logger } from './logger.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
+import type { RunService } from './runs/service.ts'
 
 export interface AppDeps {
   logger: Logger
   version: string
   providers: ProviderService
+  runs: RunService
   /** Resolves when the database answers; rejects otherwise. */
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
@@ -38,7 +40,14 @@ async function isHealthy(checkDb: () => Promise<void>, timeoutMs: number): Promi
   }
 }
 
-export function createApp({ logger, version, providers, checkDb, healthTimeoutMs }: AppDeps): Hono {
+export function createApp({
+  logger,
+  version,
+  providers,
+  runs,
+  checkDb,
+  healthTimeoutMs,
+}: AppDeps): Hono {
   const app = new Hono()
 
   // Request log: method, path without the query string, status, duration, request id.
@@ -70,7 +79,7 @@ export function createApp({ logger, version, providers, checkDb, healthTimeoutMs
     return c.json({ ok }, ok ? 200 : 503)
   })
 
-  const rpc = new RPCHandler(createRouter({ version, providers }), {
+  const rpc = new RPCHandler(createRouter({ version, providers, runs }), {
     // Procedure path and error code only. Inputs and outputs may hold credentials.
     clientInterceptors: [
       onError((error, { path }) => {

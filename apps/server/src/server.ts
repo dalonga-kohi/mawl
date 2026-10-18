@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord } from '@faire/core'
 import { createDb, migrate, migrationsFolder } from '@faire/db'
 import { serve } from '@hono/node-server'
 import { createApp } from './app.ts'
@@ -9,6 +10,10 @@ import type { Config } from './config.ts'
 import { probeDb } from './db-probe.ts'
 import { createLogger, type Logger } from './logger.ts'
 import { createProviderService } from './providers/service.ts'
+import { RunRegistry } from './runs/registry.ts'
+import { createModelResolver } from './runs/resolve-model.ts'
+import { createRunService } from './runs/service.ts'
+import { type RunWorker, startRunWorker } from './runs/worker.ts'
 import {
   createSecretBox,
   loadOrCreateHostId,
@@ -22,6 +27,10 @@ export interface BootOverrides {
   logger?: Logger
   createDb?: typeof createDb
   migrate?: typeof migrate
+  /** When false, no Graphile Worker starts (unit tests with a fake database); runs then stay queued. */
+  worker?: boolean
+  /** Replaces the provider-backed model lookup, so tests can run the engine with a fake model. */
+  resolveModel?: (run: RunRecord, profile: ProfileRecord) => Promise<ResolvedModel>
 }
 
 export interface RunningServer {
@@ -69,8 +78,10 @@ function closeServer(server: Server): Promise<void> {
 }
 
 /**
- * Boot order: master key, database, migrations, then listen. Anything that fails after the
- * database opened closes it before the error propagates.
+ * Boot order: master key, database, migrations, the Graphile Worker (its own migrations, then
+ * recovery of unfinished runs), then listen. Anything that fails after the database opened closes
+ * it before the error propagates. Stop order: listener, abort running jobs, worker, providers,
+ * database.
  */
 export async function startServer(
   config: Config,
@@ -104,6 +115,8 @@ export async function startServer(
   let server: Server
   let url: string
   let providers: ReturnType<typeof createProviderService>
+  let worker: RunWorker | undefined
+  const registry = new RunRegistry()
   try {
     await (overrides.migrate ?? migrate)(handle.db, resolveMigrationsFolder())
     logger.info('migrations applied')
@@ -117,16 +130,38 @@ export async function startServer(
         pathToClaudeCodeExecutable: config.claudeCodePath,
       },
     })
+    if (overrides.worker !== false) {
+      worker = await startRunWorker({
+        pool: handle.pool,
+        db: handle.db,
+        logger,
+        registry,
+        resolveModel: overrides.resolveModel ?? createModelResolver(providers),
+      })
+      logger.info('run worker started')
+      // Runs a previous process left queued or running: their jobs may be lost or locked.
+      const recovered = await worker.recover()
+      if (recovered > 0) logger.info({ runs: recovered }, 'recovered unfinished runs')
+    }
+    const runs = createRunService({
+      db: handle.db,
+      registry,
+      logger,
+      enqueue: (runId) => (worker ? worker.enqueue(runId) : Promise.resolve()),
+    })
     const app = createApp({
       logger,
       version,
       providers,
+      runs,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
     })
     ;({ server, url } = await listen(app, config))
   } catch (err) {
+    registry.abortAll(ABORT_SHUTDOWN)
+    await worker?.stop().catch(() => {})
     await handle.close().catch(() => {})
     throw err
   }
@@ -140,6 +175,9 @@ export async function startServer(
     stop() {
       stopping ??= (async () => {
         await closeServer(server)
+        // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
+        registry.abortAll(ABORT_SHUTDOWN)
+        await worker?.stop()
         await providers.close()
         await handle.close()
         logger.info('stopped')

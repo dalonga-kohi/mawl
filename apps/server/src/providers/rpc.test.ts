@@ -11,6 +11,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.ts'
 import { createLogger } from '../logger.ts'
+import { unusedRuns } from '../runs/test-util.ts'
 import { createSecretBox } from '../secrets/index.ts'
 import { createProviderService } from './service.ts'
 
@@ -41,7 +42,13 @@ describe('providers over RPC (app + PGlite)', () => {
         return respond()
       }) as typeof globalThis.fetch,
     })
-    const app = createApp({ logger, version: '1', providers, checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers,
+      runs: unusedRuns,
+      checkDb: async () => {},
+    })
     rpc = createORPCClient(
       new RPCLink({
         url: 'http://faire.test/rpc',

@@ -29,7 +29,7 @@ function fakes(
   } as unknown as DbHandle
   const migrate = vi.fn(opts.migrate ?? (async () => {}))
   const createDb = vi.fn((_url: string, _options?: CreateDbOptions) => handle)
-  return { close, migrate, createDb }
+  return { close, migrate, createDb, worker: false as const }
 }
 
 const config = (): Config => ({

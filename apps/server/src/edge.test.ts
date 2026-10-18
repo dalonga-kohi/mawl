@@ -7,6 +7,7 @@ import { createApp } from './app.ts'
 import { ConfigError, parseConfig } from './config.ts'
 import { createLogger } from './logger.ts'
 import { unusedProviders } from './providers/test-util.ts'
+import { unusedRuns } from './runs/test-util.ts'
 import { createSecretBox, loadOrCreateMasterKey, SecretDecryptError } from './secrets/index.ts'
 import { startServer } from './server.ts'
 
@@ -61,6 +62,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: async () => {},
     })
     await app.request('/rpc/health/get?ticket=LEAK-ME', { method: 'POST' })
@@ -75,6 +77,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: async () => {},
     })
     for (const p of ['/rpc/nope', '/rpc/health/nope', '/rpc/', '/rpc/a/b/c/d']) {
@@ -89,6 +92,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: async () => {},
     })
     const res = await app.request('/rpc/health/get', {
@@ -107,6 +111,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: () => new Promise(() => {}),
     })
     const pending = Promise.resolve(app.request('/healthz'))
@@ -129,6 +134,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: () => {
         throw new Error('postgres://u:LEAK-ME@h/d')
       },
@@ -145,6 +151,7 @@ describe('app edge cases', () => {
       logger,
       version: '1',
       providers: unusedProviders,
+      runs: unusedRuns,
       checkDb: async () => {},
     })
     app.get('/boom', () => {
@@ -323,7 +330,12 @@ describe('startServer edge cases', () => {
   const fakes = () => {
     const close = vi.fn(async () => {})
     const handle = { db: {}, pool: { query: async () => ({}) }, close } as unknown as DbHandle
-    return { close, createDb: vi.fn(() => handle), migrate: vi.fn(async () => {}) }
+    return {
+      close,
+      createDb: vi.fn(() => handle),
+      migrate: vi.fn(async () => {}),
+      worker: false as const,
+    }
   }
   const config = (over: object = {}) => ({
     databaseUrl: 'postgres://faire:s3cr3t-pw@db/faire',

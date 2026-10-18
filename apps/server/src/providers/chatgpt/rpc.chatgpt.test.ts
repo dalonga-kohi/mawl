@@ -11,6 +11,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { createLogger } from '../../logger.ts'
+import { unusedRuns } from '../../runs/test-util.ts'
 import { createSecretBox } from '../../secrets/index.ts'
 import { createProviderService } from '../service.ts'
 import { fakeListeners, HOST_ID } from './test-util.ts'
@@ -30,7 +31,13 @@ describe('Sign in with ChatGPT over RPC (app + PGlite)', () => {
       logger,
       chatgpt: { hostId, port: 1455, bindHost: '127.0.0.1', startListener: listeners.start },
     })
-    const app = createApp({ logger, version: '1', providers, checkDb: async () => {} })
+    const app = createApp({
+      logger,
+      version: '1',
+      providers,
+      runs: unusedRuns,
+      checkDb: async () => {},
+    })
     return createORPCClient<ContractRouterClient<typeof contract>>(
       new RPCLink({ url: 'http://faire.test/rpc', fetch: async (request) => app.request(request) }),
     )
