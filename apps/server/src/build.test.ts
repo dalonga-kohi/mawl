@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildServer } from './build.ts'
+import { E2E_CREDENTIAL_LABEL, ECHO_MODEL_ID } from './e2e/echo.ts'
 import { runNode } from './run-node.test-util.ts'
 
 describe('production bundle', () => {
@@ -33,6 +34,13 @@ describe('production bundle', () => {
     // Bundled, the SDK would add ~1 MB and resolve the binary relative to server.mjs.
     expect(source.length).toBeLessThan(5_000_000)
     expect(source).not.toContain('Native CLI binary for')
+  })
+
+  it('never ships the e2e echo model or its server entry', () => {
+    const source = readFileSync(bundle, 'utf8')
+    expect(source).not.toContain(ECHO_MODEL_ID)
+    expect(source).not.toContain(E2E_CREDENTIAL_LABEL)
+    expect(source).not.toContain('FAIRE_E2E')
   })
 
   it('bakes in the package version', () => {
