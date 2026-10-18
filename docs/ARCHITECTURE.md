@@ -130,7 +130,7 @@ flowchart TB
     | `FAIRE_CLAUDE_CODE_PATH` | unset | optional, must be an absolute path; path of a Claude Code binary to use instead of the one the SDK bundles |
     | `LOG_LEVEL` | `info` | pino level |
 
-  - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED` (still stubs: profiles, approvals, devices, settings, `events.subscribe`).
+  - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED` (still stubs: profiles, approvals, devices, settings). `events.subscribe` is served only on `/ws`; HTTP `/rpc` answers it with 501.
   - Logging: pino JSON with redaction of secret-like fields and auth headers. Each request logs method, path without query, status, duration and a request id (also returned as `x-request-id`). The RPC error hook logs procedure path and error code only, never inputs or outputs.
 - **Event bus.** Every state change becomes an `Event` row and a `NOTIFY`, which the WS hub fans out to subscribed clients. Clients resume from `lastEventId`.
 
@@ -308,6 +308,8 @@ interface ChannelAdapter {
   - Routes: `/onboarding`, `/t/:profile` (chat), `/t/:profile/computer`, `/activity`, `/approvals`, `/memory`, `/routines`, `/connections`, `/settings`.
   - Command palette (⌘K).
   - Layout: three panes. A teammate list, the conversation, and a context panel (computer / memory / run details) that you can collapse.
+  - Transport: one `@faire/client` WebSocket to `/ws` on the page's own host (`wss://` on https pages), shared by every query and mutation. The browser never calls HTTP `/rpc`. In development Vite proxies `/rpc` and `/ws` to `127.0.0.1:7420` and keeps the `localhost:5173` Host, which the server's loopback allowlist accepts.
+  - Views read through TanStack Query; views and components never fetch ad hoc. Heavy pages load on first visit through route code splitting (Settings today); Teammates, the landing page, stays in the main chunk.
 - **Desktop (`apps/desktop`).** Tauri loads the web build bundled with it and points it at the configured server URL (default `http://localhost:7420`).
   - Native features: tray icon with the mascot state, native notifications, a global shortcut to a quick-ask popover, autostart, and deep links `faire://`.
   - A "Start my stack" helper runs `docker compose up -d` when Docker exists locally.
