@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -129,6 +129,8 @@ describe('serving the web build', () => {
     ['encoded in assets', '/assets/%2e%2e/%2e%2e/secret.txt'],
     ['a dotfile', '/.hidden'],
     ['a double slash', '//secret.txt'],
+    ['a leading dot-dot', '/../secret.txt'],
+    ['a dotenv file', '/.env'],
   ])('never serves files outside the web dir or hidden files: %s', async (_name, path) => {
     const res = await appFor().request(path, { headers: { ...HTML, host: 'localhost' } })
     const body = await res.text()
@@ -137,6 +139,27 @@ describe('serving the web build', () => {
     expect(res.status).toBe(404)
   })
 
+  it('collapses /assets/../index.html to the index and never leaves the web dir', async () => {
+    const res = await appFor().request('/assets/../index.html', {
+      headers: { ...HTML, host: 'localhost' },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(INDEX)
+  })
+
+  // A directory link (a junction on Windows, which needs no privileges) from inside the web dir to
+  // a directory outside it. serveStatic would follow it, so the handler checks the real path.
+  it('refuses a link inside the web dir that points outside it', async () => {
+    const outside = join(base, 'outside')
+    await mkdir(outside, { recursive: true })
+    await writeFile(join(outside, 'leak.txt'), 'outside-the-web-dir')
+    await symlink(outside, join(webDir, 'linked'), 'junction')
+    const res = await appFor().request('/linked/leak.txt', {
+      headers: { ...HTML, host: 'localhost' },
+    })
+    expect(await res.text()).not.toContain('outside-the-web-dir')
+    expect(res.status).toBe(404)
+  })
   it('applies the Host allowlist to static files too', async () => {
     const app = appFor()
     const bad = await app.request('/', { headers: { host: 'evil.example' } })

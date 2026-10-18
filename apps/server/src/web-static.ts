@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { existsSync, realpathSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serveStatic } from '@hono/node-server/serve-static'
 import type { MiddlewareHandler } from 'hono'
@@ -33,6 +33,18 @@ export interface WebStaticOptions {
   hosts?: HostPolicy | undefined
 }
 
+/** True when the real path of candidate (links resolved) lies inside ealRoot. A missing file is fine: it is a miss. */
+function staysInside(realRoot: string, candidate: string): boolean {
+  let real: string
+  try {
+    real = realpathSync(candidate)
+  } catch {
+    return true
+  }
+  const rel = relative(realRoot, real)
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+}
+
 function acceptsHtml(accept: string | undefined): boolean {
   return accept?.toLowerCase().includes('text/html') ?? false
 }
@@ -44,6 +56,7 @@ function acceptsHtml(accept: string | undefined): boolean {
  */
 export function webStatic({ dir, hosts }: WebStaticOptions): MiddlewareHandler {
   const root = resolve(dir)
+  let realRoot: string | undefined
   const files = serveStatic({ root })
   const index = serveStatic({ root, path: '/index.html' })
 
@@ -56,6 +69,13 @@ export function webStatic({ dir, hosts }: WebStaticOptions): MiddlewareHandler {
       if (!verdict.ok) return c.json({ ok: false }, 403)
     }
     if (UNSAFE_PATH.test(path)) return next()
+    // serveStatic follows links, so refuse any file whose real path leaves the web dir.
+    try {
+      realRoot ??= realpathSync(root)
+    } catch {
+      return next()
+    }
+    if (!staysInside(realRoot, join(root, path))) return next()
 
     let missed = false
     const miss = async () => {
