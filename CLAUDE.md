@@ -147,7 +147,7 @@ pnpm turbo lint typecheck test --force           # the full gate, no cache — r
 pnpm --filter @faire/ui generate                 # regenerate tokens.css
 pnpm --filter @faire/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
 pnpm test:e2e                                    # Playwright (Edge locally) vs the e2e server + scripted echo model; not in the gate
-pnpm db:migrate                                 # arrives in P1
+docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack at :7420; needs infra/compose/.env (docs/RUNNING.md)
 ```
 
 ## Platform (Windows 11, PowerShell, Node 24)

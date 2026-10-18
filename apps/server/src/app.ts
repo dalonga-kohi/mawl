@@ -7,6 +7,7 @@ import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
 import type { RunService } from './runs/service.ts'
+import { webStatic } from './web-static.ts'
 
 export interface AppDeps {
   logger: Logger
@@ -20,6 +21,8 @@ export interface AppDeps {
   healthTimeoutMs?: number
   /** Accepted Host headers on /rpc (DNS rebinding guard). Boot always sets it; unit tests may omit it. */
   hosts?: HostPolicy
+  /** Directory of the built web app to serve at `/`. Omitted: the server only exposes the API. */
+  webDir?: string
 }
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 2000
@@ -54,6 +57,7 @@ export function createApp({
   checkDb,
   healthTimeoutMs,
   hosts,
+  webDir,
 }: AppDeps): Hono {
   const app = new Hono()
 
@@ -111,6 +115,9 @@ export function createApp({
     const { matched, response } = await rpc.handle(c.req.raw, { prefix: '/rpc', context: {} })
     return matched ? response : c.notFound()
   })
+
+  // Last, so the API routes above always win.
+  if (webDir) app.use(webStatic({ dir: webDir, hosts }))
 
   return app
 }

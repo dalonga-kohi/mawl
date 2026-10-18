@@ -72,6 +72,8 @@ const EnvSchema = z.object({
   // `claude auth login` (Faire never reads it); the path overrides the binary the SDK bundles.
   FAIRE_CLAUDE_CONFIG_DIR: optional(absolutePath().optional()),
   FAIRE_CLAUDE_CODE_PATH: optional(absolutePath().optional()),
+  // Built web app to serve. Unset: `web` beside the bundle when it exists, else none (dev uses Vite).
+  FAIRE_WEB_DIR: optional(absolutePath().optional()),
   // Extra browser origins allowed to open the WebSocket (same-host, loopback and Tauri always are).
   FAIRE_ALLOWED_ORIGINS: optional(originList()),
   LOG_LEVEL: optional(
@@ -88,6 +90,8 @@ export interface Config {
   siwcHost: string
   claudeConfigDir?: string | undefined
   claudeCodePath?: string | undefined
+  /** Directory of the built web app, when the owner set one. */
+  webDir?: string | undefined
   /** Origins besides same-host, loopback and Tauri that may open the WebSocket. */
   allowedOrigins?: string[] | undefined
   logLevel: LogLevel
@@ -121,6 +125,7 @@ export function parseConfig(env: Record<string, string | undefined> = process.en
     siwcHost: v.FAIRE_SIWC_BIND_HOST,
     claudeConfigDir: v.FAIRE_CLAUDE_CONFIG_DIR,
     claudeCodePath: v.FAIRE_CLAUDE_CODE_PATH,
+    webDir: v.FAIRE_WEB_DIR,
     allowedOrigins: v.FAIRE_ALLOWED_ORIGINS,
     logLevel: v.LOG_LEVEL,
   }

@@ -114,7 +114,7 @@ flowchart TB
 
 - A single Node process runs everything for v1: API, WS, worker, gateways. Its entrypoint can start them as separate roles later (`--role=api|worker|gateway`) for scaling or crash isolation. In compose, `restart: unless-stopped` plus a healthcheck supervises it.
 - **Runtime and config.**
-  - Dev runs `tsx watch src/main.ts`. Production is one esbuild bundle, `apps/server/dist/server.mjs` (`pnpm --filter @faire/server build`), with `@faire/*` sources and npm deps inlined (only `pg-native` is external) and the SQL migrations copied to `dist/drizzle`. Native Node type stripping is not used because workspace packages use extensionless imports. Start with `pnpm --filter @faire/server start`.
+  - Dev runs `tsx watch src/main.ts`. Production is one esbuild bundle, `apps/server/dist/server.mjs` (`pnpm --filter @faire/server build`), with `@faire/*` sources and npm deps inlined (only `pg-native` and `@anthropic-ai/claude-agent-sdk` are external) and the SQL migrations copied to `dist/drizzle`. Native Node type stripping is not used because workspace packages use extensionless imports. Start with `pnpm --filter @faire/server start`.
   - Boot order: parse env, open logger, load or create the master key and the ChatGPT host id, open Postgres, run migrations (advisory-locked), run Graphile Worker's own migrations and start its worker, re-enqueue runs left `queued` or `running`, listen, log `listening`. SIGINT and SIGTERM stop the listener, abort running jobs (their runs stay `running` and resume on the next boot), stop the worker, close the database and exit 0. Any boot failure logs one `boot failed` line (error name, code, message; never the connection string) and exits 1.
   - Env is validated with zod at boot; errors list variable names only, never values.
 
@@ -128,11 +128,13 @@ flowchart TB
     | `FAIRE_SIWC_BIND_HOST` | `127.0.0.1` | bind address of that callback listener |
     | `FAIRE_CLAUDE_CONFIG_DIR` | unset | optional, must be an absolute path; passed to the Claude Code binary as `CLAUDE_CONFIG_DIR`, where the owner's own `claude auth login` keeps its login (compose: a named volume) |
     | `FAIRE_CLAUDE_CODE_PATH` | unset | optional, must be an absolute path; path of a Claude Code binary to use instead of the one the SDK bundles |
+    | `FAIRE_WEB_DIR` | unset | optional, must be an absolute path; the built web app (`apps/web/dist`) to serve at `/`. Unset: a `web` directory beside the bundle (`dist/web`, which the image ships) when it holds `index.html`, otherwise none, and dev uses the Vite server |
+    | `FAIRE_ALLOWED_ORIGINS` | none | comma-separated extra origins that may open the WebSocket and pass the Host check (compose passes it through from `infra/compose/.env`) |
     | `LOG_LEVEL` | `info` | pino level |
 
   - HTTP surface: `GET /healthz` returns 200 `{ok:true}`, or 503 `{ok:false}` (no detail) if `select 1` fails or takes over 2 s; it is the compose healthcheck target. oRPC (`RPCHandler`, fetch adapter) is mounted at `/rpc`. Procedures not built yet answer 501 `NOT_IMPLEMENTED` (still stubs: approvals, devices, settings). `events.subscribe` is served only on `/ws`; HTTP `/rpc` answers it with 501.
-  - Profiles (as built): profiles.list/get/create/update/archive run through profiles/service.ts. create needs only 
   - Profiles (as built): `profiles.list/get/create/update/archive` run through `profiles/service.ts`. `create` needs only `name` (trimmed, 1-80 chars) and `modelMain` (`<credentialId>:<modelId>`, checked by the contract). Persona is capped at 8000 characters and an explicit slug at 40. The slug is derived from the name (lowercase ascii, dashes, 40 chars, fallback `teammate`) and deduped `-2`, `-3`; an explicit slug that is taken answers typed `SLUG_TAKEN` (409), and a model naming a missing credential answers `UNKNOWN_CREDENTIAL` (422). The color defaults to the DESIGN.md accent presets in rotation by profile count. `list` hides archived profiles unless `includeArchived`; `archive` is idempotent and keeps the slug reserved. An archived profile is not found for `update` and `runs.start`. No profile events on the bus yet.
+  - Web app: when a web directory exists (`FAIRE_WEB_DIR`, else `dist/web`), `apps/server/src/web-static.ts` serves it after the API routes, so `/rpc`, `/ws` and `/healthz` are never shadowed. GET and HEAD only, behind the same Host check as `/rpc`. A file that exists is sent as it is; `/assets/*` (hashed by Vite) gets `Cache-Control: public, max-age=31536000, immutable` and everything else `no-cache`. A path with no file falls back to `index.html` only when the request accepts `text/html`, is not under `/assets/` and has no file extension (client-side routes such as `/t` or `/settings`); anything else is a 404. Paths with percent escapes, backslashes, empty segments or a segment starting with `.` are never mapped to a file (no traversal, no dotfiles). Every static response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Content-Security-Policy: frame-ancestors 'none'`.
   - Logging: pino JSON with redaction of secret-like fields and auth headers. Each request logs method, path without query, status, duration and a request id (also returned as `x-request-id`). The RPC error hook logs procedure path and error code only, never inputs or outputs.
 - **Event bus.** Every state change becomes an `Event` row and a `NOTIFY`, which the WS hub fans out to subscribed clients. Clients resume from `lastEventId`.
 
@@ -224,7 +226,7 @@ A user can cancel a run from any non-terminal state (SPEC F6). Waiting states do
 
   **Claude plan via Claude Code (`anthropic_claude_code`, as built).** The owner uses a Claude subscription by signing in to Claude Code itself; Faire runs the unmodified binary that `@anthropic-ai/claude-agent-sdk` bundles. This is the only subscription path Anthropic's terms allow (code.claude.com/docs/en/legal-and-compliance: sign-in to a Claude account must complete through Anthropic's own flow). Owner decision 2026-10-18: Faire is a personal, self-hosted project. If Faire is ever distributed or multi-user, remove this provider (check before P8.5).
   - *Hard rules, tested.* Faire never reads, copies, parses or logs `.credentials.json` or any keychain entry; implements no claude.ai OAuth flow; accepts no Claude token in any input (no setup-token storage, no OAuth-token handling); and does not remove or disable any of the binary's auth methods. `scripts/claude-terms.test.ts` fails the build if those file names or token variable names appear outside docs and the negative tests. `ProviderCredentialInput` accepts `anthropic_claude_code` with a label only and rejects a `secret` or a `baseUrl`. The row stores the label; its secret column holds an empty encrypted string and the credential has no public account fields (Faire does not surface the Claude email).
-  - *Sign in.* The owner runs `claude auth login` in a terminal on the server host or in the container, with `CLAUDE_CONFIG_DIR` set to the same directory as `FAIRE_CLAUDE_CONFIG_DIR` (when set). Faire only documents the command. Docker: `docker compose exec server <claude> auth login`, with the config dir on a named volume. P1.9 must add what that needs. The server bundle keeps the SDK external (`apps/server/src/build.ts`), because the SDK finds its native binary (about 290 MB per platform, an optional `@anthropic-ai/claude-agent-sdk-<platform>` package) beside itself in `node_modules`. So the runtime image needs a production install of the SDK for its libc (glibc `linux-x64` or `linux-arm64`, or the `-musl` package on Alpine) and a `claude` symlink or the full binary path for the login command. Also unverified: whether `claude auth login` completes in a headless container (it prints a URL to open elsewhere). P1.9 checks this.
+  - *Sign in.* The owner runs `claude auth login` in a terminal on the server host or in the container, with `CLAUDE_CONFIG_DIR` set to the same directory as `FAIRE_CLAUDE_CONFIG_DIR` (when set). Faire only documents the command. Docker: `docker compose -f infra/compose/docker-compose.yml exec server claude auth login` (it needs a terminal, so no `-T`). The image sets both `FAIRE_CLAUDE_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` to `/claude`, a named volume, so the login the shell writes is the one the server's spawned binary reads. The server bundle keeps the SDK external (`apps/server/src/build.ts`), because the SDK finds its native binary (about 290 MB per platform, an optional `@anthropic-ai/claude-agent-sdk-<platform>` package) beside itself in `node_modules`. The image (`infra/docker/server.Dockerfile`, Debian glibc) therefore runs `npm install --omit=dev` of exactly `@anthropic-ai/claude-agent-sdk@0.3.302` in `/app`, which pulls the matching `linux-x64` or `linux-arm64` package, and links its `claude` file to `/usr/local/bin/claude`. The SDK is self-contained at runtime: its peers `@anthropic-ai/sdk` and `@modelcontextprotocol/sdk` are not installed in the image and `import('@anthropic-ai/claude-agent-sdk')` still resolves (checked in the container). Headless login, checked 2026-10-18 in the container: `claude auth login` prints `Opening browser to sign in...`, then a `https://claude.com/cai/oauth/authorize?...` URL whose redirect is `https://platform.claude.com/oauth/code/callback`, then `Paste code here if prompted >`. No local callback port is needed: the owner opens the URL in any browser, signs in, copies the code Anthropic's page shows and pastes it into the terminal. Faire never sees the code.
   - *Model.* `createClaudeCodeModel` (`packages/core/src/providers/claude-code/`) is an own thin `LanguageModelV4` over the SDK's `query()`, loaded by dynamic import on first use. Text only in v1: system messages become the system prompt, a lone user message is the prompt, and earlier turns become a labelled `User:`/`Assistant:` transcript. Files, images and function tools fail with `UnsupportedFunctionalityError` before anything is spawned (descriptor `supportsTools: false`; P1.4 may bridge tools through an in-process MCP server). `doStream` maps the SDK's partial stream events to text and reasoning parts and the result message to `finish` (usage from the result: input, output, cache read and write; `stop_reason` to the unified finish reason). `doGenerate` collects the stream. Sampling settings are ignored with `unsupported` warnings.
   - *Options, always.* `tools: []`, `settingSources: []`, `strictMcpConfig: true`, `persistSession: false`, `maxTurns: 1`, `includePartialMessages: true`, `permissionMode: 'dontAsk'` (never `bypassPermissions`, never `allowedTools`), `cwd` a dedicated empty directory, one private `mkdtemp` directory (`faire-claude-code-XXXXXX`, owner-only) under the OS temp dir created per process on first use and made again if a tmp cleaner removes it (a creation failure is `provider_error` without the path), and the AI SDK abort signal wired to the query's `AbortController` (a cancelled stream also aborts). Not `--bare`.
   - *Clean environment.* The SDK's `env` replaces the subprocess environment, so Faire builds it from an allowlist (`PATH`, `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TMPDIR`/`TEMP`/`TMP`, `LANG`, `LC_ALL`, `SystemRoot` and a few Windows basics, `NODE_EXTRA_CA_CERTS`, the proxy variables, `CLAUDE_CONFIG_DIR`; matched case-insensitively) and never passes `ANTHROPIC_*`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_*` or anything else. Otherwise a stray variable would outrank the subscription login in Claude Code's auth order (cloud vars, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `apiKeyHelper`, `CLAUDE_CODE_OAUTH_TOKEN`, then the `/login` subscription) and bill someone else's key. `FAIRE_CLAUDE_CONFIG_DIR` overrides an inherited `CLAUDE_CONFIG_DIR`.
@@ -232,7 +234,7 @@ A user can cancel a run from any non-terminal state (SPEC F6). Waiting states do
   - *Key test.* `providers.test` runs `claude auth status` (JSON on stdout, exit 1 when logged out) with the same clean env and a 10 s deadline, resolving the binary from `FAIRE_CLAUDE_CODE_PATH` or the SDK's platform package. Only `authMethod` is read: `claude.ai` is `ok` with the measured latency; `none` (or `loggedIn: false`) is `not_signed_in`; any other method (`api_key`, `oauth_token`, `api_key_helper`, `third_party`) is `wrong_auth_method`, because something in the environment or config would bill another key or token and Faire refuses; a spawn failure or timeout is `unreachable`; output that is not that JSON is `unexpected_response`. Stdout and the owner's email are never returned or logged.
   - *Login check before every run.* The same check runs inside the model, after the input is validated and before any `query()` spawn, so a binary that is signed out or uses another auth method never reaches a billable call. Mapping: `not_signed_in` is `reauth_required`, `wrong_auth_method` is `config_error`, anything else (`unreachable`, `unexpected_response`) is `provider_error`. A check that throws counts as `unreachable`. Only an `ok` result is cached, for 5 minutes (a clock that steps backwards forces a re-check) per (binary path, effective config dir, including an inherited `CLAUDE_CONFIG_DIR`) in a process-wide map shared by every model; failures are never cached and concurrent calls share one in-flight check. A call whose signal is already aborted rejects with the abort before any check or spawn. A caller that aborts while the check is pending stops waiting and rejects with the abort; the check keeps running for the others. `doStream` reports a failed check like any other failure (`stream-start`, `error`, `finish` with reason `error`); `doGenerate` throws it. The check is injectable (`checkLogin`) for tests.
   - *Dependencies.* `@anthropic-ai/claude-agent-sdk` 0.3.302 and its peers `@anthropic-ai/sdk` 0.135.0 and `@modelcontextprotocol/sdk` 1.32.1 are pinned in `@faire/core`. The SDK's license is Anthropic's Commercial Terms ("SEE LICENSE IN README.md"), not an OSS license; the owner accepted this for a personal project.
-  - *Not yet.* Tools (P1.4), the add-provider UI and a "run `claude auth login`" hint on `not_signed_in` (P1.6), compose volume and image changes (P1.9), model listing (`supportedModels()`), and plan-usage display from `rate_limit_event`.
+  - *Not yet.* Tools (P1.4), the add-provider UI and a "run `claude auth login`" hint on `not_signed_in` (P1.6), model listing (`supportedModels()`), and plan-usage display from `rate_limit_event`.
   The server (`apps/server/src/providers/`) owns persistence. `create` encrypts the secret (or an empty string when none) with AAD `provider_credentials:<id>`; reads select only `providerCredentialPublicColumns`; `resolveCredential(id)` decrypts for the run engine and is not exposed over RPC.
 
 ### Tools
@@ -398,22 +400,25 @@ All event types are defined as zod schemas in `packages/contracts`.
 
 ## 12. Deployment
 
-`infra/compose/docker-compose.yml` (sketch):
+### Compose v1 (as built, P1.9)
+
+`infra/compose/docker-compose.yml`, project `faire`. Run it with `docker compose -f infra/compose/docker-compose.yml up -d --build` after copying `infra/compose/.env.example` to `.env` and setting `FAIRE_DB_PASSWORD` (docs/RUNNING.md has the full steps).
+
+| Service | Image | Notes |
+|---|---|---|
+| `db` | `pgvector/pgvector:0.8.7-pg17` | `POSTGRES_USER` and `POSTGRES_DB` `faire`, `POSTGRES_PASSWORD` from `FAIRE_DB_PASSWORD` (compose refuses to start without it), volume `faire-db`, `pg_isready` healthcheck, no published port |
+| `server` | built from `infra/docker/server.Dockerfile` as `faire-server:local` | waits for `db` to be healthy; `restart: unless-stopped`; volumes `faire-secrets:/secrets` (master key, ChatGPT host id) and `faire-claude:/claude` (the Claude Code login); `DATABASE_URL` points at `db`; `FAIRE_ALLOWED_ORIGINS` is passed through from `.env` |
+
+- **Ports are host-loopback only.** `127.0.0.1:7420` is the app and API; `127.0.0.1:1455` is the Sign in with ChatGPT callback, which OpenAI redirects the owner's browser to. There is no device sign-in until P6.1, so nothing else may reach the server. Exposing it on a LAN or the internet waits for device auth and a TLS proxy.
+- **Image.** Build context is the repo root (`.dockerignore` keeps `.git`, `.env*`, `node_modules`, `dist`, `docs`, `design` out). Two stages on `node:24-bookworm-slim`, pinned by digest (a test enforces it): `build` runs `pnpm install --frozen-lockfile` for the server and web, then builds both; `runtime` installs the Claude SDK for its architecture, copies `dist/server.mjs`, `dist/drizzle` and the web build to `/app/dist/web`, and runs as the non-root `node` user. `/secrets` and `/claude` are created owned by `node`, so fresh named volumes get the right owner. Environment: `FAIRE_HOST=0.0.0.0`, `FAIRE_SECRETS_DIR=/secrets`, `FAIRE_SIWC_BIND_HOST=0.0.0.0`, `FAIRE_CLAUDE_CONFIG_DIR=/claude`, `CLAUDE_CONFIG_DIR=/claude`, `NODE_ENV=production`. A `HEALTHCHECK` fetches `http://127.0.0.1:7420/healthz`. A cold build takes about a minute.
+- **Tests.** `scripts/compose.test.ts` checks the compose file and Dockerfile statically (loopback ports, named volumes, required password, healthcheck gate, digest pins). `apps/server/src/compose.smoke.test.ts` builds and boots the real stack under a throwaway project name, random host port and its own image tag, then checks `/healthz`, `/`, `/t`, an immutable asset, `health.get` over `/rpc` and `claude auth status` (logged out, config dir `/claude`). It skips without Docker locally and fails under `CI` or `FAIRE_REQUIRE_DOCKER`.
+
+### Later (P4 and P8)
+
+The sandbox arrives with `dockerproxy` (`tecnativa/docker-socket-proxy`, containers/exec/images/networks/volumes only), separate `core` and `sbx` networks, an artifacts volume and a `computer-image` service under a `build` profile; the server image moves to GHCR. Sketch of the additions:
 
 ```yaml
 services:
-  server:
-    image: ghcr.io/<owner>/faire-server:latest
-    ports: ["7420:7420"]
-    environment: [DATABASE_URL=postgres://faire@db/faire, DOCKER_HOST=tcp://dockerproxy:2375]
-    volumes: [faire-secrets:/secrets, faire-artifacts:/data/artifacts]
-    networks: [core, sbx]
-    depends_on: { db: { condition: service_healthy } }
-    restart: unless-stopped
-  db:
-    image: pgvector/pgvector:pg17
-    volumes: [faire-db:/var/lib/postgresql/data]
-    networks: [core]
   dockerproxy:
     image: tecnativa/docker-socket-proxy
     environment: [CONTAINERS=1, POST=1, EXEC=1, IMAGES=1, NETWORKS=1, VOLUMES=1]
@@ -423,7 +428,6 @@ services:
     image: ghcr.io/<owner>/faire-computer:latest
     profiles: [build]
 networks: { core: {}, sbx: { internal: false } }
-volumes: { faire-db: {}, faire-secrets: {}, faire-artifacts: {} }
 ```
 
 `install.sh` / `install.ps1`:
@@ -433,7 +437,6 @@ volumes: { faire-db: {}, faire-secrets: {}, faire-artifacts: {} }
 4. Open `http://localhost:7420`.
 
 The desktop app can run the same flow from its "Start my stack" button.
-
 ## 13. Key decisions (ADR summary)
 
 | # | Decision | Alternatives considered |

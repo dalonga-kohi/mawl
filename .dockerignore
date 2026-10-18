@@ -1,0 +1,21 @@
+# Build context for infra/docker/server.Dockerfile is the repo root. Keep secrets and bulk out of it.
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.faire
+.env
+.env.*
+**/.env
+**/.env.*
+infra/compose/.env
+.claude
+design
+docs
+apps/desktop/src-tauri/target
+apps/mobile/.expo
+apps/mobile/ios
+apps/mobile/android
+**/test-results
+**/playwright-report

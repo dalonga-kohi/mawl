@@ -11,13 +11,13 @@ Faire is a self-hosted, always-on agent app:
 
 > Status: **planning**. No app code yet. See [docs/PLAN.md](docs/PLAN.md).
 
-## Quick start (target)
+## Quick start
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d
+docker compose -f infra/compose/docker-compose.yml up -d --build
 ```
 
-Then open http://localhost:7420, or the desktop app, and follow the three-step onboarding.
+Set `FAIRE_DB_PASSWORD` in `infra/compose/.env` first (copy `.env.example`), then open http://localhost:7420. [docs/RUNNING.md](docs/RUNNING.md) covers sign-in with ChatGPT or Claude Code, logs and reset.
 
 ## Docs
 - [Spec](docs/SPEC.md) · [Architecture](docs/ARCHITECTURE.md) · [Memory](docs/MEMORY.md) · [Plan](docs/PLAN.md) · [Design](docs/DESIGN.md)
