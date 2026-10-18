@@ -72,7 +72,7 @@ export const contract = {
     archive: withNotFound.input(Id(ProfileId)).output(Profile),
   },
   threads: {
-    list: base.input(z.object({ profileId: ProfileId })).output(z.array(Thread)),
+    list: withNotFound.input(z.object({ profileId: ProfileId })).output(z.array(Thread)),
     messages: withNotFound
       .input(
         z.object({
