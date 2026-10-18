@@ -375,8 +375,8 @@ All event types are defined as zod schemas in `packages/contracts`.
 
 **Client (`packages/client`).**
 - `createFaireClient({ url, WebSocket? })` returns the typed contract client and TanStack Query utils. A socket cannot be reopened, so the link opens a new socket for the first call after the old one closed.
-- The event store keeps one `events.subscribe` stream open. Every item goes through `parseEnvelope`: unknown types and versions are skipped, but the `since` cursor still moves past them. After a dropped stream it reconnects with exponential backoff (1 s doubling to 30 s, jittered) and resumes from the cursor.
-- On `RESYNC_REQUIRED` it invalidates every query and subscribes again without a cursor (live only). The first resync retries at once, and repeats without any event in between back off.
+- The event store keeps one `events.subscribe` stream open. Every item goes through `parseEnvelope`: unknown types and versions are skipped, but the `since` cursor still moves past them. After a dropped stream it reconnects with exponential backoff (1 s doubling to 30 s, jittered, reset by the first event of a stream, not by opening it) and resumes from the cursor.
+- On `RESYNC_REQUIRED` it drops the run text buffers and subscribes again without a cursor (live only); once that stream is attached it invalidates every query, so no event can fall between the refetch and the stream. The first resync retries at once, and repeats without any event in between back off.
 - Stored events invalidate the queries they change (run status, threads, approvals). `run.delta` text is appended to a per-run buffer that a UI reads with `getRunText` and `subscribeRunText`. A new `stepIdx` starts the buffer over, and a terminal `run.status` drops it once the invalidated queries have refetched the stored reply.
 ## 11. Security model
 

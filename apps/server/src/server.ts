@@ -8,8 +8,7 @@ import { serve } from '@hono/node-server'
 import { createApp } from './app.ts'
 import type { Config } from './config.ts'
 import { probeDb } from './db-probe.ts'
-import { createEventBus, type EventBus } from './events/bus.ts'
-import { createDeltaCoalescer, type DeltaCoalescer } from './events/deltas.ts'
+import { createLiveEvents, type LiveEvents } from './events/live.ts'
 import { createEventsService } from './events/service.ts'
 import { createPgSource } from './events/source.ts'
 import { attachWsHub, type WsHub } from './events/ws.ts'
@@ -125,8 +124,7 @@ export async function startServer(
   let url: string
   let providers: ReturnType<typeof createProviderService> | undefined
   let worker: RunWorker | undefined
-  let bus: EventBus | undefined
-  let deltas: DeltaCoalescer | undefined
+  let live: LiveEvents | undefined
   let hub: WsHub | undefined
   const registry = new RunRegistry()
   try {
@@ -145,26 +143,12 @@ export async function startServer(
     // Set before anything else can fail, so the catch below can close it.
     providers = providerService
     if (overrides.events !== false) {
-      const liveBus = createEventBus({
+      live = createLiveEvents({
         db: handle.db,
         source: createPgSource(config.databaseUrl),
         logger,
-        // A persisted event must not overtake the text that precedes it.
-        beforePersisted: (event) => {
-          if (event.runId) deltas?.flush(event.runId)
-        },
       })
-      bus = liveBus
-      deltas = createDeltaCoalescer({
-        publish: ({ profileId, runId, stepIdx, text }) =>
-          liveBus.publishEphemeral({
-            profileId,
-            runId,
-            type: 'run.delta',
-            payload: { text, stepIdx },
-          }),
-      })
-      await liveBus.start()
+      await live.start()
     }
     if (overrides.worker !== false) {
       worker = await startRunWorker({
@@ -173,7 +157,7 @@ export async function startServer(
         logger,
         registry,
         resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
-        ...(deltas ? { deltas } : {}),
+        ...(live ? { deltas: live.deltas } : {}),
       })
       logger.info('run worker started')
       // Runs a previous process left queued or running: their jobs may be lost or locked.
@@ -197,14 +181,14 @@ export async function startServer(
       },
     })
     ;({ server, url } = await listen(app, config))
-    if (bus) {
+    if (live) {
       hub = attachWsHub({
         server,
         router: createRouter({
           version,
           providers: providerService,
           runs,
-          events: createEventsService({ bus }),
+          events: createEventsService({ bus: live.bus }),
         }),
         logger,
         allowedOrigins: config.allowedOrigins,
@@ -214,8 +198,7 @@ export async function startServer(
   } catch (err) {
     registry.abortAll(ABORT_SHUTDOWN)
     await worker?.stop().catch(() => {})
-    deltas?.close()
-    await bus?.stop().catch(() => {})
+    await live?.stop().catch(() => {})
     await providers?.close().catch(() => {})
     await handle.close().catch(() => {})
     throw err
@@ -236,8 +219,7 @@ export async function startServer(
         registry.abortAll(ABORT_SHUTDOWN)
         await worker?.stop()
         // Last deltas out while the bus can still carry them, then the bus.
-        deltas?.close()
-        await bus?.stop()
+        await live?.stop()
         await providers?.close()
         await handle.close()
         logger.info('stopped')
