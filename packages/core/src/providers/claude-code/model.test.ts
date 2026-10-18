@@ -557,6 +557,52 @@ describe('Claude Code language model: login check', () => {
     expect(checkLogin).toHaveBeenCalledTimes(2)
   })
 
+  it('stops waiting for a pending login check when the call is aborted, and starts no query', async () => {
+    const fq = fakeQuery(happy())
+    let release: (r: ProviderTestResult) => void = () => {}
+    const checkLogin = vi.fn(
+      () =>
+        new Promise<ProviderTestResult>((resolve) => {
+          release = resolve
+        }),
+    )
+    const m = model(fq, { checkLogin })
+    const controller = new AbortController()
+    const aborted = m.doGenerate({ ...userPrompt('hi'), abortSignal: controller.signal }).then(
+      () => undefined,
+      (e: unknown) => e,
+    )
+    const other = m.doGenerate(userPrompt('hi'))
+    await vi.waitFor(() => expect(checkLogin).toHaveBeenCalledTimes(1))
+    const reason = new Error('user stopped')
+    controller.abort(reason)
+    expect(await aborted).toBe(reason)
+    // The shared check keeps running for the other caller, which still gets its result.
+    release({ ok: true, latencyMs: 1 })
+    await other
+    expect(checkLogin).toHaveBeenCalledTimes(1)
+    expect(fq.calls).toHaveLength(1)
+  })
+
+  it('rejects an abort during the login check as an abort, not as a provider failure', async () => {
+    const fq = fakeQuery(happy())
+    const checkLogin = vi.fn(() => new Promise<ProviderTestResult>(() => {}))
+    const controller = new AbortController()
+    const res = model(fq, { checkLogin }).doStream({
+      ...userPrompt('hi'),
+      abortSignal: controller.signal,
+    })
+    await vi.waitFor(() => expect(checkLogin).toHaveBeenCalledTimes(1))
+    controller.abort()
+    const err = await res.then(
+      () => undefined,
+      (e: unknown) => e,
+    )
+    expect(err).toBeDefined()
+    expect(err).not.toBeInstanceOf(ProviderFailureError)
+    expect(fq.calls).toHaveLength(0)
+  })
+
   it('treats a login check that throws synchronously as provider_error', async () => {
     const fq = fakeQuery(happy())
     const checkLogin = vi.fn((): Promise<ProviderTestResult> => {

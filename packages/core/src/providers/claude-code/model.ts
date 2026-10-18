@@ -114,6 +114,29 @@ const previousFailed = (p: Promise<string>) =>
     () => true,
   )
 
+/**
+ * Waits for `pending`, but rejects with the signal's reason (or an AbortError) if the caller
+ * aborts first. `pending` itself is left running: other callers may share it and it never rejects.
+ * A signal that is already aborted is not raced: the run then starts aborted, as before.
+ */
+function untilAborted<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal || signal.aborted) return pending
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason ?? new DOMException('aborted', 'AbortError'))
+    signal.addEventListener('abort', onAbort, { once: true })
+    pending.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (err: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(err)
+      },
+    )
+  })
+}
+
 const emptyUsage = (): LanguageModelV4Usage => ({
   inputTokens: {
     total: undefined,
@@ -179,7 +202,7 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
   const loginKey = `${opts.pathToClaudeCodeExecutable ?? ''}\0${opts.configDir ?? ''}`
 
   /** Throws a ProviderFailureError unless the binary is signed in with a claude.ai subscription. */
-  async function requireLogin(): Promise<void> {
+  async function requireLogin(signal: AbortSignal | undefined): Promise<void> {
     const okAt = loginOk.get(loginKey)
     if (okAt !== undefined && now() - okAt < LOGIN_CHECK_TTL_MS) return
     let pending = loginInFlight.get(loginKey)
@@ -195,7 +218,7 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
         .finally(() => loginInFlight.delete(loginKey))
       loginInFlight.set(loginKey, pending)
     }
-    const result = await pending
+    const result = await untilAborted(pending, signal)
     if (!result.ok) throw new ProviderFailureError(LOGIN_FAILURE[result.reason])
   }
 
@@ -208,7 +231,7 @@ export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageMod
       })
     }
     const { system, prompt } = toClaudePrompt(call.prompt)
-    await requireLogin()
+    await requireLogin(call.abortSignal)
     let workDir: string
     try {
       if (opts.workDir) {
