@@ -1,72 +1,89 @@
-import { motion } from 'motion/react'
-import type { ComponentPropsWithRef, ReactNode } from 'react'
-import { press } from '../motion/presets.ts'
-import { cx } from './cx.ts'
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Slot } from 'radix-ui'
+import type { ComponentProps } from 'react'
+import { cn } from './cn.ts'
 import { Tooltip } from './Tooltip.tsx'
 
-type Variant = 'primary' | 'soft' | 'ghost' | 'contrast'
-type Size = 'sm' | 'md'
+/**
+ * shadcn's button, reshaped for Mawl: every button is a pill, presses scale to .97 (DESIGN §7),
+ * focus uses the global accent ring, and touch screens get 44 px targets while mouse users keep
+ * the denser sizes (DESIGN §11).
+ */
+export const buttonVariants = cva(
+  [
+    'accent-tween inline-flex shrink-0 items-center justify-center rounded-pill font-semibold whitespace-nowrap select-none',
+    'active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
+  ],
+  {
+    variants: {
+      variant: {
+        primary: 'bg-accent-fill text-on-accent hover:bg-accent-hover active:bg-accent-press',
+        soft: 'bg-surface-2 text-text hover:bg-line',
+        ghost: 'text-text-2 hover:bg-surface-2 hover:text-text',
+        /** Third-party sign-in ("Continue with ChatGPT"): neutral, never the accent, so it reads as theirs. */
+        contrast: 'bg-text text-bg hover:bg-text-2 active:bg-text',
+      },
+      size: {
+        sm: 'h-8 gap-1.5 px-3.5 text-small pointer-coarse:h-11',
+        md: 'h-10 gap-2 px-5 text-body pointer-coarse:h-11',
+        icon: 'size-9 pointer-coarse:size-11',
+      },
+    },
+    defaultVariants: { variant: 'soft', size: 'md' },
+  },
+)
 
-const variants: Record<Variant, string> = {
-  primary: 'bg-accent-fill text-on-accent hover:bg-accent-hover active:bg-accent-press',
-  soft: 'bg-surface-2 text-text hover:bg-line',
-  ghost: 'text-text-2 hover:bg-surface-2 hover:text-text',
-  /** Third-party sign-in ("Continue with ChatGPT"): neutral, never the accent, so it reads as theirs. */
-  contrast: 'bg-text text-bg hover:bg-text-2 active:bg-text',
-}
+type Variants = VariantProps<typeof buttonVariants>
+type Variant = NonNullable<Variants['variant']>
+type Size = Exclude<NonNullable<Variants['size']>, 'icon'>
 
-// Touch screens get 44 px tall targets; mouse users keep the denser sizes.
-const sizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-small gap-1.5 pointer-coarse:h-11',
-  md: 'h-10 px-4 text-body gap-2 font-semibold pointer-coarse:h-11',
-}
-
+/** The button look for elements that are not buttons, such as router links. */
 export const buttonClass = (variant: Variant = 'soft', size: Size = 'md') =>
-  cx(
-    'accent-tween inline-flex items-center justify-center rounded-sm font-semibold whitespace-nowrap',
-    'disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-[18px] [&_svg]:shrink-0',
-    variants[variant],
-    sizes[size],
-  )
+  buttonVariants({ variant, size })
 
-type ButtonProps = Omit<
-  ComponentPropsWithRef<typeof motion.button>,
-  'children' | 'whileTap' | 'transition'
-> & {
+type ButtonProps = ComponentProps<'button'> & {
   variant?: Variant
   size?: Size
-  children?: ReactNode
+  /** Render the single child (a link, say) with the button look instead of a `<button>`. */
+  asChild?: boolean
 }
 
-export function Button({ variant, size, className, type = 'button', ...rest }: ButtonProps) {
+export function Button({
+  variant = 'soft',
+  size = 'md',
+  asChild = false,
+  className,
+  type,
+  ...rest
+}: ButtonProps) {
+  const Comp = asChild ? Slot.Root : 'button'
   return (
-    <motion.button
-      type={type}
-      className={cx(buttonClass(variant, size), className)}
-      {...press}
+    <Comp
+      data-slot="button"
+      // A child element keeps its own semantics; only real buttons default to type="button".
+      type={asChild ? type : (type ?? 'button')}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...rest}
     />
   )
 }
 
-type IconButtonProps = Omit<ButtonProps, 'aria-label' | 'variant' | 'size'> & {
+type IconButtonProps = Omit<ComponentProps<'button'>, 'aria-label'> & {
   /** Required: icon buttons are named for screen readers and get a matching tooltip. */
   label: string
   tooltipSide?: 'top' | 'right' | 'bottom' | 'left'
 }
 
+/** A circular ghost button holding one icon. */
 export function IconButton({ label, tooltipSide = 'bottom', className, ...rest }: IconButtonProps) {
   return (
     <Tooltip label={label} side={tooltipSide}>
-      <motion.button
+      <button
         type="button"
+        data-slot="icon-button"
         aria-label={label}
-        className={cx(
-          'grid size-9 pointer-coarse:size-11 place-items-center rounded-sm text-text-2 transition-colors duration-[120ms]',
-          'hover:bg-surface-2 hover:text-text disabled:opacity-50 [&_svg]:size-[18px]',
-          className,
-        )}
-        {...press}
+        className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), className)}
         {...rest}
       />
     </Tooltip>
