@@ -206,7 +206,7 @@ export function NewTeammateDialog({
           <div className="flex justify-end">
             <Link
               to="/settings"
-              hash="models"
+              search={{ section: 'models' }}
               className={buttonClass('primary')}
               onClick={() => onOpenChange(false)}
             >

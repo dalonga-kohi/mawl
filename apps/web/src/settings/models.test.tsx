@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, credential, fakeProvidersApi } from '../test/fake-providers-api.ts'
 import { renderApp, stubViewport } from '../test/render-app.tsx'
 
-const models = () => screen.getByRole('region', { name: 'Models' })
+const models = () => screen.getByRole('region', { name: 'Models and keys' })
 
 beforeEach(() => {
   stubViewport(1440)
@@ -13,7 +13,7 @@ beforeEach(() => {
 
 describe('settings, models: empty and failure states', () => {
   it('offers ChatGPT first, then the Claude plan, then an API key', async () => {
-    await renderApp('/settings', { providers: fakeProvidersApi().api })
+    await renderApp('/settings?section=models', { providers: fakeProvidersApi().api })
     const region = models()
     const buttons = await within(region).findAllByRole('button')
     const names = buttons.map((b) => b.textContent)
@@ -27,7 +27,7 @@ describe('settings, models: empty and failure states', () => {
   it('explains an unreachable server and retries', async () => {
     const fake = fakeProvidersApi()
     fake.state.listError = new Error('Failed to fetch')
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     expect(await within(models()).findByText(/Couldn't reach the Mawl server/)).toBeTruthy()
     fake.state.listError = null
     await user.click(within(models()).getByRole('button', { name: 'Try again' }))
@@ -42,7 +42,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
       { status: 'pending' },
       { status: 'succeeded', credentialId: 'cred_01JTESTCHATGPT0000000000001' as CredentialId },
     ]
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     expect(window.open).toHaveBeenCalledWith(
       'https://auth.openai.com/api/accounts/authorize?client_id=x',
@@ -58,7 +58,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
   it('says why a sign-in failed', async () => {
     const fake = fakeProvidersApi()
     fake.state.statuses = [{ status: 'failed', reason: 'access_denied' }]
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     expect(await within(models()).findByText('Sign-in was cancelled in ChatGPT.')).toBeTruthy()
   })
@@ -66,7 +66,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
   it('stops polling and says so when the status check fails', async () => {
     const fake = fakeProvidersApi()
     fake.state.statusError = new ApiError('NOT_FOUND')
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     expect(await within(models()).findByText(/lost track of this sign-in/)).toBeTruthy()
     const calls = fake.state.statusCalls
@@ -80,7 +80,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
     fake.state.statuses = [
       { status: 'succeeded', credentialId: 'cred_01JTESTCHATGPT0000000000001' as CredentialId },
     ]
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     await waitFor(() => expect(fake.state.statusCalls).toBeGreaterThanOrEqual(2))
     expect(within(models()).queryByText(/lost track of this sign-in/)).toBeNull()
@@ -90,7 +90,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
 
   it('shows a sign-in that finished on the server after the owner stopped waiting', async () => {
     const fake = fakeProvidersApi()
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     // The server finished the sign-in, but the page has not polled it yet.
     fake.state.credentials.push(
@@ -102,7 +102,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
 
   it('stops waiting when asked', async () => {
     const fake = fakeProvidersApi()
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     await user.click(await within(models()).findByRole('button', { name: 'Stop waiting' }))
     expect(within(models()).queryByText(/Finish signing in/)).toBeNull()
@@ -119,7 +119,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
   it('explains a busy sign-in port', async () => {
     const fake = fakeProvidersApi()
     fake.state.startError = new ApiError('SIGN_IN_UNAVAILABLE')
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Continue with ChatGPT' }))
     expect(await within(models()).findByText(/port 1455/)).toBeTruthy()
   })
@@ -133,7 +133,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
         planUsage: true,
       }),
     ])
-    await renderApp('/settings', { providers: fake.api })
+    await renderApp('/settings?section=models', { providers: fake.api })
     expect(await within(models()).findByText('Signed out of ChatGPT')).toBeTruthy()
     expect(within(models()).getByRole('button', { name: 'Sign in again' })).toBeTruthy()
     expect(within(models()).queryByText('Using ChatGPT plan')).toBeNull()
@@ -143,7 +143,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
     const row = credential({ provider: 'openai_chatgpt', label: 'ChatGPT', planUsage: true })
     const fake = fakeProvidersApi([row])
     fake.state.testResults.set(row.id, { ok: false, reason: 'rate_limited' })
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Check ChatGPT' }))
     expect(await within(models()).findByText('Usage limit reached')).toBeTruthy()
   })
@@ -152,7 +152,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
     const row = credential({ provider: 'openai_chatgpt', label: 'ChatGPT', planUsage: true })
     const fake = fakeProvidersApi([row])
     fake.state.revoked = false
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Sign out of ChatGPT' }))
     const confirm = await screen.findByRole('alertdialog')
     await user.click(within(confirm).getByRole('button', { name: 'Sign out' }))
@@ -162,16 +162,16 @@ describe('settings, models: Sign in with ChatGPT', () => {
     expect(fake.state.removed).toEqual([row.id])
   })
 
-  it('moves focus to the Models heading after a removal, not to the page body', async () => {
+  it('moves focus to the Models and keys heading after a removal, not to the page body', async () => {
     const row = credential({ provider: 'anthropic', label: 'Work key' })
     const fake = fakeProvidersApi([row])
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Remove Work key' }))
     const confirm = await screen.findByRole('alertdialog')
     await user.click(within(confirm).getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(within(models()).queryByText('Work key')).toBeNull())
     await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Models' })),
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Models and keys' })),
     )
   })
 })
@@ -179,7 +179,7 @@ describe('settings, models: Sign in with ChatGPT', () => {
 describe('settings, models: Claude plan', () => {
   it('adds the Claude plan and explains a missing Claude Code login', async () => {
     const fake = fakeProvidersApi()
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Use your Claude plan' }))
     expect(within(models()).getByText('claude auth login')).toBeTruthy()
     fake.state.testResults.clear()
@@ -199,7 +199,7 @@ describe('settings, models: Claude plan', () => {
 describe('settings, models: API keys', () => {
   it('checks a key before saving it', async () => {
     const fake = fakeProvidersApi()
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
     await user.type(within(dialog).getByLabelText('API key'), 'sk-test-123')
@@ -216,7 +216,7 @@ describe('settings, models: API keys', () => {
   it('keeps the dialog open and says why when the key is rejected', async () => {
     const fake = fakeProvidersApi()
     fake.state.inlineTest = { ok: false, reason: 'invalid_key' }
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
     await user.type(within(dialog).getByLabelText('API key'), 'sk-bad')
@@ -227,7 +227,7 @@ describe('settings, models: API keys', () => {
 
   it('requires an address for an OpenAI-compatible server', async () => {
     const fake = fakeProvidersApi()
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
     await user.selectOptions(within(dialog).getByLabelText('Provider'), 'openai_compatible')
@@ -239,7 +239,9 @@ describe('settings, models: API keys', () => {
   })
 
   it('starts on the provider field', async () => {
-    const { user } = await renderApp('/settings', { providers: fakeProvidersApi().api })
+    const { user } = await renderApp('/settings?section=models', {
+      providers: fakeProvidersApi().api,
+    })
     await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
     await waitFor(() =>
@@ -250,7 +252,7 @@ describe('settings, models: API keys', () => {
   it('names a server-side validation error instead of blaming the connection', async () => {
     const fake = fakeProvidersApi()
     fake.state.createError = new ApiError('VALIDATION')
-    const { user } = await renderApp('/settings', { providers: fake.api })
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
     await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
     const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
     await user.type(within(dialog).getByLabelText('API key'), 'sk-test')

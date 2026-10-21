@@ -555,7 +555,11 @@ function RunFailure({ run, onRetry }: { run: Run; onRetry: (() => void) | undefi
             </Button>
           ) : null}
           {copy.action === 'models' ? (
-            <Link to="/settings" hash="models" className={buttonClass('ghost', 'sm')}>
+            <Link
+              to="/settings"
+              search={{ section: 'models' }}
+              className={buttonClass('ghost', 'sm')}
+            >
               Open model settings
             </Link>
           ) : null}

@@ -8,6 +8,7 @@ import { Badge } from '../../ui/Badge.tsx'
 import { Button, buttonClass } from '../../ui/Button.tsx'
 import { cn } from '../../ui/cn.ts'
 import { dialogSurfaceClass, overlayClass } from '../../ui/Dialog.tsx'
+import { settingsCard } from '../parts.tsx'
 import { CHATGPT_USAGE_URL, testFailureText } from './copy.ts'
 import { useRefreshCredentials } from './queries.ts'
 
@@ -98,7 +99,7 @@ export function CredentialRow({
           : 'API key'
 
   return (
-    <li className="flex flex-col gap-2 border-t border-line py-3.5 first:border-t-0">
+    <li className={cn(settingsCard, 'flex flex-col gap-2')}>
       <div className="flex flex-wrap items-center gap-3">
         <ProviderMark label={credential.label} />
         <div className="min-w-0 flex-1">

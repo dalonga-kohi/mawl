@@ -9,6 +9,6 @@ test('the app loads and shows the sidebar with the teammates group', async ({ pa
 test('RPC reaches the e2e server: Settings lists the seeded fake model credential', async ({
   page,
 }) => {
-  await page.goto('/settings')
+  await page.goto('/settings?section=models')
   await expect(page.getByRole('heading', { name: 'E2E fake model' })).toBeVisible()
 })

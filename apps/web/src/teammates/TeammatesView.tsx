@@ -68,7 +68,7 @@ function FirstRun() {
       mascot="idle"
       mascotSize={120}
       action={
-        <Link to="/settings" hash="models" className={buttonClass('primary')}>
+        <Link to="/settings" search={{ section: 'models' }} className={buttonClass('primary')}>
           Connect a model
         </Link>
       }

@@ -6,6 +6,19 @@ export type ToolsTab = (typeof TOOLS_TABS)[number]
 export const APPROVALS_TABS = ['needs-you', 'activity'] as const
 export type ApprovalsTab = (typeof APPROVALS_TABS)[number]
 
+/** Only sections that exist today; Channels, Devices and Data join when their slices land. */
+export const SETTINGS_SECTIONS = ['appearance', 'models'] as const
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
+export const DEFAULT_SETTINGS_SECTION: SettingsSection = 'appearance'
+
+const settingsSearch = z.object({
+  section: z.enum(SETTINGS_SECTIONS).catch(DEFAULT_SETTINGS_SECTION),
+})
+
+/** `?section=` on /settings; a missing or unknown value opens Appearance. */
+export const validateSettingsSearch = (search: Record<string, unknown>) =>
+  settingsSearch.parse(search)
+
 const toolsSearch = z.object({ tab: z.enum(TOOLS_TABS).catch('connections') })
 const approvalsSearch = z.object({ tab: z.enum(APPROVALS_TABS).catch('needs-you') })
 

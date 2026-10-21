@@ -8,12 +8,18 @@ import {
   lazyRouteComponent,
   type RouteComponent,
   redirect,
+  stripSearchParams,
 } from '@tanstack/react-router'
 import { ApprovalsPage } from './pages/ApprovalsPage.tsx'
 import { MemoryPage, NotFoundPage } from './pages/placeholders.tsx'
 import { RouteError, RoutePending } from './pages/route-fallbacks.tsx'
 import { ScheduledPage } from './pages/ScheduledPage.tsx'
-import { validateApprovalsSearch, validateToolsSearch } from './pages/search.ts'
+import {
+  DEFAULT_SETTINGS_SECTION,
+  validateApprovalsSearch,
+  validateSettingsSearch,
+  validateToolsSearch,
+} from './pages/search.ts'
 import { ToolsPage } from './pages/ToolsPage.tsx'
 import { Shell } from './shell/Shell.tsx'
 import { TeammatesIndex, TeammatesLayout } from './teammates/TeammatesView.tsx'
@@ -86,7 +92,16 @@ const routeTree = rootRoute.addChildren([
   moved('/connections', '/tools', 'connections'),
   page('/memory', MemoryPage),
   page('/routines', ScheduledPage),
-  page('/settings', SettingsPage),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings',
+    component: SettingsPage,
+    validateSearch: validateSettingsSearch,
+    // The default section is the bare /settings address, so links to it stay clean.
+    search: {
+      middlewares: [stripSearchParams({ section: DEFAULT_SETTINGS_SECTION })],
+    },
+  }),
 ])
 
 /** Browser history in the app; memory history when `initialPath` is given (tests). */

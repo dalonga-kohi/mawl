@@ -1,19 +1,19 @@
 import type { ProviderCredential } from '@mawl/contracts'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, X } from 'lucide-react'
+import { Check, Copy, Sparkles, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useRef, useState } from 'react'
 import { useApi } from '../../api/ApiProvider.tsx'
 import { enter } from '../../motion/presets.ts'
 import { Button, IconButton } from '../../ui/Button.tsx'
 import { cx } from '../../ui/cx.ts'
+import { IconTile } from '../../ui/IconTile.tsx'
+import { SettingsSectionHeader, settingsCard } from '../parts.tsx'
 import { ApiKeyDialog } from './ApiKeyDialog.tsx'
 import { type ChatGptSignInState, ChatGptSignInStatus, useChatGptSignIn } from './ChatGptSignIn.tsx'
 import { CredentialRow } from './CredentialRow.tsx'
 import { CHATGPT_SETTINGS_URL } from './copy.ts'
 import { providerKeys, useCatalog, useCredentials } from './queries.ts'
-
-const card = 'rounded-card bg-surface px-[18px] py-1 shadow-1'
 
 /** SIWC asks for a recognisable "Continue with ChatGPT" control; it reads as a sign-in, not a Mawl action. */
 function ChatGptButton({
@@ -103,33 +103,42 @@ function ClaudePlanSteps({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** One way to connect a model, as its own card; `below` holds what opens under it. */
 function Option({
   title,
   description,
   children,
+  below,
 }: {
   title: string
   description: string
   children: ReactNode
+  below?: ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-3.5 first:border-t-0">
-      <div className="max-w-[46ch]">
-        <h3 className="text-body font-semibold">{title}</h3>
-        <p className="text-small text-text-2">{description}</p>
+    <div className={cx(settingsCard, 'flex flex-col gap-3')}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-[46ch]">
+          <h3 className="text-body font-semibold">{title}</h3>
+          <p className="text-small text-text-2">{description}</p>
+        </div>
+        {children}
       </div>
-      {children}
+      {below}
     </div>
   )
 }
 
 function Skeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-3 py-4">
+    <div aria-hidden="true" className={cx(settingsCard, 'flex flex-col gap-4')}>
       {[0, 1].map((i) => (
         <div key={i} className="flex items-center gap-3">
-          <span className="size-8 animate-pulse rounded-sm bg-surface-2" />
-          <span className="h-3.5 w-48 animate-pulse rounded-xs bg-surface-2" />
+          <span className="size-8 animate-pulse rounded-pill bg-surface-2" />
+          <span className="flex flex-col gap-1.5">
+            <span className="h-3.5 w-40 animate-pulse rounded-xs bg-surface-2" />
+            <span className="h-3 w-24 animate-pulse rounded-xs bg-surface-2" />
+          </span>
         </div>
       ))}
     </div>
@@ -150,12 +159,23 @@ export function ModelsSection() {
   const hasClaude = list.some((c) => c.provider === 'anthropic_claude_code')
   const descriptorOf = (c: ProviderCredential) => catalog.data?.find((d) => d.kind === c.provider)
 
+  // The sign-in status stays visible after ChatGPT is connected only while there is news.
+  const showSignInStatus = !hasChatGpt || signIn.attempt || signIn.error
+  const signInStatus = showSignInStatus ? (
+    <div className="empty:hidden">
+      <ChatGptSignInStatus signIn={signIn} />
+    </div>
+  ) : null
+
   let body: ReactNode
   if (credentials.isPending) {
     body = <Skeleton />
   } else if (credentials.isError) {
     body = (
-      <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+      <div
+        role="alert"
+        className={cx(settingsCard, 'flex flex-wrap items-center justify-between gap-3')}
+      >
         <p className="text-small text-text-2">
           Couldn't reach the Mawl server. Check that it's running, then try again.
         </p>
@@ -168,9 +188,17 @@ export function ModelsSection() {
     body = (
       <>
         {list.length === 0 ? (
-          <p className="pt-3.5 text-small text-text-2">No model connected yet.</p>
+          <div className={cx(settingsCard, 'flex items-center gap-4')}>
+            <IconTile icon={Sparkles} size={44} iconSize={22} />
+            <div>
+              <p className="text-body font-semibold">No model connected yet.</p>
+              <p className="text-small text-text-2">
+                Pick one below. Teammates need a model before they can chat.
+              </p>
+            </div>
+          </div>
         ) : (
-          <ul>
+          <ul className="flex flex-col gap-3">
             {list.map((c) => (
               <CredentialRow
                 key={c.id}
@@ -183,60 +211,49 @@ export function ModelsSection() {
             ))}
           </ul>
         )}
-        <div className={cx(list.length > 0 && 'border-t border-line')}>
-          {!hasChatGpt ? (
-            <Option
-              title="ChatGPT plan"
-              description="Use your ChatGPT Plus or Pro plan. No API key needed."
-            >
-              <ChatGptButton signIn={signIn} />
-            </Option>
-          ) : null}
-          {!hasChatGpt || signIn.attempt || signIn.error ? (
-            <div className="pb-3 empty:hidden">
-              <ChatGptSignInStatus signIn={signIn} />
-            </div>
-          ) : null}
-          {!hasClaude ? (
-            <Option
-              title="Claude plan"
-              description="Use your Claude Pro or Max plan through Claude Code on this server."
-            >
-              <Button variant="soft" onClick={() => setClaudeOpen(true)} disabled={claudeOpen}>
-                Use your Claude plan
-              </Button>
-            </Option>
-          ) : null}
-          <AnimatePresence>
-            {claudeOpen ? (
-              <div className="pb-3.5">
-                <ClaudePlanSteps onClose={() => setClaudeOpen(false)} />
-              </div>
-            ) : null}
-          </AnimatePresence>
+        {!hasChatGpt ? (
           <Option
-            title="API key"
-            description="Anthropic, OpenAI, OpenRouter, Ollama or any OpenAI-compatible server."
+            title="ChatGPT plan"
+            description="Use your ChatGPT Plus or Pro plan. No API key needed."
+            below={signInStatus}
           >
-            <Button variant="soft" onClick={() => setKeyOpen(true)}>
-              Add an API key
+            <ChatGptButton signIn={signIn} />
+          </Option>
+        ) : (
+          signInStatus
+        )}
+        {!hasClaude ? (
+          <Option
+            title="Claude plan"
+            description="Use your Claude Pro or Max plan through Claude Code on this server."
+            below={
+              <AnimatePresence>
+                {claudeOpen ? <ClaudePlanSteps onClose={() => setClaudeOpen(false)} /> : null}
+              </AnimatePresence>
+            }
+          >
+            <Button variant="soft" onClick={() => setClaudeOpen(true)} disabled={claudeOpen}>
+              Use your Claude plan
             </Button>
           </Option>
-        </div>
+        ) : null}
+        <Option
+          title="API key"
+          description="Anthropic, OpenAI, OpenRouter, Ollama or any OpenAI-compatible server."
+        >
+          <Button variant="soft" onClick={() => setKeyOpen(true)}>
+            Add an API key
+          </Button>
+        </Option>
       </>
     )
   }
 
   return (
-    <section aria-labelledby="models" className="flex max-w-[860px] flex-col gap-2.5">
-      <h2
-        id="models"
-        ref={headingRef}
-        tabIndex={-1}
-        className="scroll-mt-6 text-small font-semibold text-text-2 outline-none"
-      >
-        Models
-      </h2>
+    <section aria-labelledby="settings-models" className="flex flex-col gap-4">
+      <SettingsSectionHeader id="settings-models" title="Models and keys" headingRef={headingRef}>
+        The models your teammates think with. Keys stay on your Mawl server.
+      </SettingsSectionHeader>
       {revokeNotice ? (
         <div
           role="alert"
@@ -259,7 +276,7 @@ export function ModelsSection() {
           </IconButton>
         </div>
       ) : null}
-      <div className={card}>{body}</div>
+      {body}
       <ApiKeyDialog open={keyOpen} onOpenChange={setKeyOpen} catalog={catalog.data ?? []} />
     </section>
   )
