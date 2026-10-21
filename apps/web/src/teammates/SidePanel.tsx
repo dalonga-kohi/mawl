@@ -15,7 +15,7 @@ function InlinePanel({ children }: { children: ReactNode }) {
         <motion.aside
           key="panel"
           aria-label="Context"
-          className="flex min-w-0 shrink-0 flex-col overflow-hidden border-l border-line bg-surface"
+          className="flex min-w-0 shrink-0 flex-col overflow-hidden border-l border-line bg-bg"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: PANEL_WIDTH, opacity: 1, transition: transitions.gentle }}
           exit={{ width: 0, opacity: 0, transition: transitions.exit }}
