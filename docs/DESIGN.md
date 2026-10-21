@@ -150,7 +150,7 @@ Rules:
   - Dark mode uses a 1 px `--line` hairline instead of shadows.
   - Overlays behind dialogs, sheets and the palette are a soft wash of the background (`bg/70` with a 2 px blur), not grey.
 - **Layout (desktop):**
-  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the small Mawl, the word Mawl and a hide button; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; one bottom row with the profile button and a Settings gear. No New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
+  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the word Mawl (display font, 24 px, no mascot) and a hide button; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; one bottom row with the profile button and a Settings gear. No New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
   2. Conversation (fluid): a flat, full-bleed pane on the same `--bg` as the sidebar: edge to edge, no tonal change, no radius, no inset, no outer border and no shadow.
   3. Context panel, 360 px, collapsible, flat on `--bg` with a faint 1 px `--line` on its left edge: Computer / Memory / Run. Below 1100 px it is a sheet, which is raised and so uses `--surface`.
   - The sidebar hides completely (`Ctrl+B` or the button); a round show button then appears in the page header. The choice is remembered.
@@ -228,7 +228,7 @@ Mawl is drawn in code from the reference, so no mascot sheet and no onboarding i
 
 ## 9. Components (inventory)
 
-Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
+Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster, plus two Mawl-made pieces: `IconTile` (a round `--surface-2` tile with one icon) and `EmptyPanel` (icon tile, title, one line, optional action) for empty lists and pages. The mascot appears only on the new-chat landing, in the chat header and as teammate avatars. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
 
 - **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk).
 - **Chat:**
@@ -262,7 +262,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
    - The river wave at the bottom; it advances with each step through a horizontal wave-offset animation.
 2. **Home / chat:** the three panes. The header shows the teammate name, status ("working · 3 steps"), a computer thumbnail and a ⋯ menu.
 3. **Computer:** the panel is expanded and the chat collapses to a narrow side column. "Take control" puts an accent ring around the screen.
-4. **Approvals:** an inbox list grouped by teammate, with an inline decision on each.
+4. **Approvals:** a pill control with Needs you (default) and Activity; Needs you is an inbox list grouped by teammate, with an inline decision on each. Tools (Connections, Skills, Plugins) and Scheduled share the same page frame (title, one-line subtitle, centered column) and, until their data exists, an icon-tile empty state.
 5. **Activity:** a day-grouped timeline of sentences, filterable.
 6. **Memory:** tabs for Blocks / Facts / Timeline / Skills, plus an overnight changes card at the top.
 7. **Routines:** a list with natural-language summaries and next run times. "New routine" opens a sheet with an NL input that turns into a parsed schedule preview.
