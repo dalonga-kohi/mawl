@@ -7,6 +7,7 @@ import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
 import type { RunService } from './runs/service.ts'
+import type { UserService } from './user/service.ts'
 import { webStatic } from './web-static.ts'
 
 export interface AppDeps {
@@ -15,6 +16,7 @@ export interface AppDeps {
   providers: ProviderService
   runs: RunService
   profiles?: ProfileService
+  user?: UserService
   /** Resolves when the database answers; rejects otherwise. */
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
@@ -54,6 +56,7 @@ export function createApp({
   providers,
   runs,
   profiles,
+  user,
   checkDb,
   healthTimeoutMs,
   hosts,
@@ -91,7 +94,13 @@ export function createApp({
   })
 
   const rpc = new RPCHandler(
-    createRouter({ version, providers, runs, ...(profiles ? { profiles } : {}) }),
+    createRouter({
+      version,
+      providers,
+      runs,
+      ...(profiles ? { profiles } : {}),
+      ...(user ? { user } : {}),
+    }),
     {
       // Procedure path and error code only. Inputs and outputs may hold credentials.
       clientInterceptors: [

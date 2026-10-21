@@ -19,6 +19,7 @@ import {
 } from './providers/service.ts'
 import { EntityNotFoundError, RunConflictError } from './runs/errors.ts'
 import type { RunService } from './runs/service.ts'
+import type { UserService } from './user/service.ts'
 
 export interface RouterDeps {
   version: string
@@ -26,6 +27,8 @@ export interface RouterDeps {
   runs: RunService
   /** Without it the profiles procedures stay 501 stubs (unit tests that never touch them). */
   profiles?: ProfileService
+  /** Without it the user procedures stay 501 stubs. */
+  user?: UserService
   /** Without it events.subscribe stays a 501 stub (unit tests that never stream). */
   events?: EventsService
 }
@@ -106,7 +109,7 @@ const profileErrors =
  * contract, so adding a procedure to `@mawl/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version, providers, runs, events, profiles }: RouterDeps) {
+export function createRouter({ version, providers, runs, events, profiles, user }: RouterDeps) {
   const os = implement(contract).$context<RouterContext>()
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
@@ -206,10 +209,12 @@ export function createRouter({ version, providers, runs, events, profiles }: Rou
       get: stub(os.settings.get),
       update: stub(os.settings.update),
     },
-    user: {
-      get: stub(os.user.get),
-      update: stub(os.user.update),
-    },
+    user: user
+      ? {
+          get: os.user.get.handler(() => user.get()),
+          update: os.user.update.handler(({ input }) => user.update(input)),
+        }
+      : { get: stub(os.user.get), update: stub(os.user.update) },
     events: {
       subscribe: events
         ? os.events.subscribe.handler(async function* ({ input, context, signal, errors }) {

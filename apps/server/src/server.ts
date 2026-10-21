@@ -26,6 +26,7 @@ import {
   loadOrCreateMasterKey,
   type SecretBox,
 } from './secrets/index.ts'
+import { createUserService } from './user/service.ts'
 import { readVersion } from './version.ts'
 import { resolveWebDir } from './web-static.ts'
 
@@ -178,6 +179,7 @@ export async function startServer(
       enqueue: (runId) => (worker ? worker.enqueue(runId) : Promise.resolve()),
     })
     const profileService = createProfileService({ db: handle.db })
+    const userService = createUserService({ db: handle.db })
     const app = createApp({
       hosts: { bindHost: config.host, allowedOrigins: config.allowedOrigins ?? [] },
       ...webDirOption(config),
@@ -186,6 +188,7 @@ export async function startServer(
       providers: providerService,
       runs,
       profiles: profileService,
+      user: userService,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
@@ -199,6 +202,7 @@ export async function startServer(
           providers: providerService,
           runs,
           profiles: profileService,
+          user: userService,
           events: createEventsService({ bus: live.bus }),
         }),
         logger,
