@@ -11,11 +11,11 @@ The first UI was correct but plain: a 64 px icon rail, a brown beaver, a blue ac
 | Topic | Decision |
 |---|---|
 | Component library | **shadcn/ui** (Radix + Tailwind 4, already in the repo), plus AI Elements for chat parts where they fit. Each component is edited to fit Mawl, not used as shipped. shadcn's CSS variables (`--background`, `--primary` …) are mapped onto our tokens, so `packages/ui` stays the single source of truth |
-| Shape | Everything is round. Interactive controls are pills (buttons, chips, inputs, composer, tabs, toggles); the send button is a circle. Cards 24, panels 28, dialogs and the window 32 |
+| Shape | Everything is round. Interactive controls are pills (buttons, chips, inputs, composer, tabs, toggles); the send button is a circle. Cards 24, panels 28, dialogs 32. The window itself is flat: the conversation is full-bleed with no inset or radius |
 | Mascot | **Mawl** (renamed from Pip): a mochi blob with two round ears and a small paddle tail. No teeth, no species detail. Ported from the user's mint reference (`faire_mint_state_animations.html`): SVG + CSS keyframes, 6 states |
 | Mawl color | Lemon-lime / pistachio, base about `#D8E88A`; not alert yellow. It is also the default app accent |
 | Neutrals | True-dark and warm cream (below). Dark mode is near-black with hairline borders, not shadows |
-| Sidebar | **No icon rail, only a sidebar.** It is hideable (fully hidden, not collapsed to icons). The top row is the small Mawl on the left and the name "Mawl" beside it, then the hide button. Search · Tools · Scheduled · Approvals, then **Pinned**, then **Teammates** (one row per teammate), then at the bottom Settings and the user profile |
+| Sidebar | **No icon rail, only a sidebar.** It is hideable (fully hidden, not collapsed to icons). The top row is the small Mawl on the left and the name "Mawl" beside it, then the hide button. Search · Tools · Scheduled · Approvals, then **Pinned**, then **Teammates** (one row per teammate), then one compact bottom row: the profile button (round initial avatar and name) on the left and a round Settings gear on the right. There is no New chat button; chats start from a teammate |
 | Workspace | The existing collapsible right panel stays (Computer · Memory · Files · Run). Memory is per teammate, so it lives here |
 | New chat | Centered large idle Mawl, a short greeting, a pill composer with `+` and a round send button, soft suggestion pills. After the first send the composer docks to the bottom and Mawl shrinks into the chat header |
 | Profile | The profile row opens a dialog with the user's **name** and **personal context** (what Mawl should always know about them) |
@@ -71,7 +71,7 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 ```
 ┌─ Sidebar 280 px (hideable) ─┬─ Conversation (fluid, 68ch text) ─┬─ Workspace 360 px (collapsible) ─┐
 │ (mawl) Mawl       [hide]    │ header: avatar · name · status    │ Computer · Memory · Files · Run  │
-│ [+ New chat]                │         thread ▾ · panel toggle   │                                  │
+│                             │         thread ▾ · panel toggle   │                                  │
 │ Search                      │                                   │                                  │
 │ Tools                       │   messages / landing              │                                  │
 │ Scheduled                   │                                   │                                  │
@@ -79,10 +79,12 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 │ ─ Pinned                    │                                   │                                  │
 │ ─ Teammates                 │                                   │                                  |
 │                             │                                   │                                  │
-│ Settings   · profile        │                                   │                                  │
+│ (S) Sam              (gear) │                                   │                                  │
 └─────────────────────────────┴───────────────────────────────────┴──────────────────────────────────┘
 ```
 
+- **Flat panes:** the sidebar sits on `--bg`; the conversation and the workspace are flat `--surface` panes with no radius, inset or outer border. A single 1 px `--line` divides sidebar from conversation (on the sidebar's right edge) and conversation from workspace (on the workspace's left edge). Controls inside stay round. The mobile drawer keeps its rounded sheet edge.
+- **Bottom row:** one row, no divider. The profile button fills it and opens the Your profile dialog; the 36 px Settings gear (44 px on touch) links to `/settings` and turns accent-ink on `--surface-2` when active.
 - **Hide:** the toggle (and `Ctrl+B`) hides the sidebar completely; a small round button in the conversation header brings it back. The choice is remembered. There is no icon rail anywhere. Below 760 px the sidebar is a drawer opened from the header button (no bottom tab bar).
 - **Teammate row:** tinted mini Mawl, name, one-line last message, time, unread pill, live dot. Right-click or the `⋯` menu: pin, rename, archive. Pinned teammates float into Pinned.
 - **Activity** (the old rail item) becomes a tab on the Approvals page: "Needs you" and "Activity". **Routines** is renamed **Scheduled** in the UI (the code keeps `routines`). **Memory** moves into the workspace panel (per teammate); the cross-teammate overview is reached from Tools.

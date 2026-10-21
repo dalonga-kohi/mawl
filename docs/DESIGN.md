@@ -150,11 +150,11 @@ Rules:
   - Dark mode uses a 1 px `--line` hairline instead of shadows.
   - Overlays behind dialogs, sheets and the palette are a soft wash of the background (`bg/70` with a 2 px blur), not grey.
 - **Layout (desktop):**
-  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the small Mawl, the word Mawl and a hide button; a **New chat** pill; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; Settings and the profile row at the bottom. No icon rail.
-  2. Conversation (fluid): a large rounded panel (`--r-panel`) on `--surface`, inset 8 px from the window edges, with a 1 px `--line` border and no shadow.
-  3. Context panel, 360 px, collapsible: Computer / Memory / Run.
+  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the small Mawl, the word Mawl and a hide button; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; one bottom row with the profile button and a Settings gear. No New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
+  2. Conversation (fluid): a flat, full-bleed pane on `--surface`: edge to edge, no radius, no inset, no outer border and no shadow.
+  3. Context panel, 360 px, collapsible, flat on `--surface` with a 1 px `--line` on its left edge: Computer / Memory / Run.
   - The sidebar hides completely (`Ctrl+B` or the button); a round show button then appears in the page header. The choice is remembered.
-  - Below 1100 px the context panel becomes a sheet. Below 760 px the panel is full-bleed with no inset or radius and the sidebar is a left drawer opened from the header button. There is no bottom tab bar.
+  - Below 1100 px the context panel becomes a sheet. Below 760 px the sidebar is a left drawer with a rounded sheet edge opened from the header button. There is no bottom tab bar.
 
 ## 6. Iconography
 
