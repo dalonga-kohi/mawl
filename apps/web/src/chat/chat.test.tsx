@@ -13,8 +13,11 @@ beforeEach(() => stubViewport(1440))
 
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
+/** The mascot in the conversation header, the only one that reflects the run. */
 function railMascot() {
-  return document.querySelector('aside[aria-label="Sidebar"] .mawl')?.getAttribute('data-state')
+  return document
+    .querySelector('section[aria-label^="Chat with"] header .mawl')
+    ?.getAttribute('data-state')
 }
 
 describe('teammates landing', () => {

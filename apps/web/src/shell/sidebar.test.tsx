@@ -24,6 +24,15 @@ describe('sidebar', () => {
     expect(within(nav).queryByText('Activity')).toBeNull()
   })
 
+  it('has a larger wordmark and no mascot beside it', async () => {
+    await renderApp('/t')
+    const bar = sidebar()
+    expect(bar.querySelector('.mawl')).toBeNull()
+    const word = within(bar).getByText('Mawl')
+    expect(word.className).toContain('text-[1.5rem]')
+    expect(word.className).toContain('font-display')
+  })
+
   it('has no icon rail or bottom tab bar', async () => {
     await renderApp('/t')
     expect(document.querySelector('[data-rail]')).toBeNull()

@@ -2,7 +2,6 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { PanelLeftClose, Search, Settings, User } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useEffect, useState } from 'react'
-import { Mawl } from '../mascot/Mawl.tsx'
 import { transitions } from '../motion/presets.ts'
 import { ProfileDialog } from '../profile/ProfileDialog.tsx'
 import { useProfile } from '../profile/useProfile.ts'
@@ -57,11 +56,12 @@ function SearchRow() {
 }
 
 function Header() {
-  const { mascot, hideSidebar } = useShell()
+  const { hideSidebar } = useShell()
   return (
     <div className="flex items-center gap-2.5 px-2">
-      <Mawl size={28} state={mascot} />
-      <span className="flex-1 font-display text-heading">Mawl</span>
+      <span className="flex-1 font-display text-[1.5rem] leading-none font-[650] tracking-tight">
+        Mawl
+      </span>
       <Tooltip label={`Hide sidebar (${sidebarShortcutLabel()})`} side="right">
         <button
           type="button"

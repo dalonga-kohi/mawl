@@ -1,7 +1,8 @@
 import type { Run } from '@mawl/contracts'
+import { Monitor } from 'lucide-react'
 import { useState } from 'react'
 import { failureCopy } from '../chat/run-copy.ts'
-import { Mawl } from '../mascot/Mawl.tsx'
+import { IconTile } from '../ui/IconTile.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs.tsx'
 
 const TABS = [
@@ -75,10 +76,10 @@ export function ContextPanelBody({ run }: { run?: Run | undefined }) {
       </TabsList>
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-3.5">
         <TabsContent value="computer" className="flex flex-col gap-3">
-          <div className="grid aspect-[16/10] place-items-center rounded-card bg-surface-2">
-            <Mawl size={56} state="sleepy" />
+          <div className="flex flex-col items-center gap-3 px-2 py-8 text-center">
+            <IconTile icon={Monitor} />
+            <p className={note}>The computer starts when a teammate needs it.</p>
           </div>
-          <p className={note}>The computer starts when a teammate needs it.</p>
         </TabsContent>
         <TabsContent value="memory">
           <p className={note}>Memories a teammate used for its last reply show up here.</p>

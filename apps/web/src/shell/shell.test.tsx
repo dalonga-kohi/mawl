@@ -60,6 +60,14 @@ describe('teammates view', () => {
     expect(within(sheet).getByRole('tab', { name: 'Computer' })).toBeTruthy()
   })
 
+  it('shows a calm monitor tile, not the mascot, in the empty computer panel', async () => {
+    await renderApp('/t')
+    const panel = screen.getByRole('complementary', { name: 'Context' })
+    expect(within(panel).getByText('The computer starts when a teammate needs it.')).toBeTruthy()
+    expect(panel.querySelector('.mawl')).toBeNull()
+    expect(panel.querySelector('[data-slot="icon-tile"]')).toBeTruthy()
+  })
+
   it('switches context panel tabs', async () => {
     const { user } = await renderApp('/t')
     await user.click(screen.getByRole('tab', { name: 'Run' }))
