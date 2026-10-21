@@ -150,15 +150,15 @@ Rules:
   - Dark mode uses a 1 px `--line` hairline instead of shadows.
   - Overlays behind dialogs, sheets and the palette are a soft wash of the background (`bg/70` with a 2 px blur), not grey.
 - **Layout (desktop):**
-  1. Rail, 64 px: icons for Teammates, Activity, Approvals, Memory, Routines, Settings, with the mascot at the top.
-  2. Teammate list, 280 px.
-  3. Conversation (fluid).
-  4. Context panel, 360 px, collapsible: Computer / Memory / Run.
-  - Below 1100 px the context panel becomes a sheet. Below 760 px the layout switches to the mobile single-column one.
+  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the small Mawl, the word Mawl and a hide button; a **New chat** pill; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; Settings and the profile row at the bottom. No icon rail.
+  2. Conversation (fluid): a large rounded panel (`--r-panel`) on `--surface`, inset 8 px from the window edges, with a 1 px `--line` border and no shadow.
+  3. Context panel, 360 px, collapsible: Computer / Memory / Run.
+  - The sidebar hides completely (`Ctrl+B` or the button); a round show button then appears in the page header. The choice is remembered.
+  - Below 1100 px the context panel becomes a sheet. Below 760 px the panel is full-bleed with no inset or radius and the sidebar is a left drawer opened from the header button. There is no bottom tab bar.
 
 ## 6. Iconography
 
-Lucide icons at 1.75 stroke, 18 px in UI and 20 px in the rail. Never use emoji as icons. Teammate avatars are a round neutral chip holding the **simplified Mawl** (body, ears and eyes; no mouth, no tail) **in the teammate's color**, or an initial when there are many. The tint keeps the teammate's hue at Mawl's lightness, so the dark eyes always read.
+Lucide icons at 1.75 stroke, 18 px in UI. Never use emoji as icons. Teammate avatars are a round neutral chip holding the **simplified Mawl** (body, ears and eyes; no mouth, no tail) **in the teammate's color**, or an initial when there are many. The tint keeps the teammate's hue at Mawl's lightness, so the dark eyes always read.
 
 ## 7. Motion
 
@@ -210,11 +210,11 @@ Mawl is a soft lemon-lime mochi: a round blob with two round ears and a small pa
 | `oops` | A watched run just failed (2.4 s) | Shake, round eyes, a sweat drop |
 | `sleepy` | The run is paused, or a computer is asleep | Slow deep breathing, closed eyes, floating "z" |
 
-- **Click:** a large Mawl hops once. Small ones (the rail) don't.
+- **Click:** a large Mawl hops once. Small ones (the sidebar header) don't.
 - **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) freeze Mawl on its pose: no loops, no pointer follow, no hop, with every effect shown at rest.
 - **Simplified avatar:** `MawlAvatar` draws the body, ears and eyes only, never moves, and shows the state through its eyes. It wears the teammate's color at Mawl's lightness, or Mawl's own lime without one.
 - **Placement:**
-  - the sidebar or rail (the focused teammate's state)
+  - the sidebar header (the focused teammate's state)
   - empty states and the new-chat landing
   - onboarding
   - desktop tray icon (monochrome glyph per state)
@@ -230,7 +230,7 @@ Mawl is drawn in code from the reference, so no mascot sheet and no onboarding i
 
 Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
 
-- **Navigation:** Rail, TeammateList (row: avatar, name, last activity line, time, unread pill, live dot), CommandPalette (cmdk).
+- **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk).
 - **Chat:**
   - Message bubbles. Assistant messages are plain on `--bg` and span the full text width. User messages are `--accent-soft` bubbles aligned right with `--r-md`.
   - ToolActivityCard: a collapsed sentence with an expandable step list. Shows ✓, spinner or ! and the duration.
