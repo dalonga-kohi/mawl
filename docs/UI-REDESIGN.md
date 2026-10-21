@@ -15,7 +15,7 @@ The first UI was correct but plain: a 64 px icon rail, a brown beaver, a blue ac
 | Mascot | **Mawl** (renamed from Pip): a mochi blob with two round ears and a small paddle tail. No teeth, no species detail. Ported from the user's mint reference (`faire_mint_state_animations.html`): SVG + CSS keyframes, 6 states |
 | Mawl color | Lemon-lime / pistachio, base about `#D8E88A`; not alert yellow. It is also the default app accent |
 | Neutrals | True-dark and warm cream (below). Dark mode is near-black with hairline borders, not shadows |
-| Sidebar | Hideable. Search · Tools · Scheduled · Approvals, then **Pinned**, then **Teammates** (one row per teammate), then at the bottom Settings and the user profile |
+| Sidebar | **No icon rail, only a sidebar.** It is hideable (fully hidden, not collapsed to icons). The top row is the small Mawl on the left and the name "Mawl" beside it, then the hide button. Search · Tools · Scheduled · Approvals, then **Pinned**, then **Teammates** (one row per teammate), then at the bottom Settings and the user profile |
 | Workspace | The existing collapsible right panel stays (Computer · Memory · Files · Run). Memory is per teammate, so it lives here |
 | New chat | Centered large idle Mawl, a short greeting, a pill composer with `+` and a round send button, soft suggestion pills. After the first send the composer docks to the bottom and Mawl shrinks into the chat header |
 | Profile | The profile row opens a dialog with the user's **name** and **personal context** (what Mawl should always know about them) |
@@ -70,7 +70,7 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 
 ```
 ┌─ Sidebar 280 px (hideable) ─┬─ Conversation (fluid, 68ch text) ─┬─ Workspace 360 px (collapsible) ─┐
-│ Mawl wordmark     [hide]    │ header: avatar · name · status    │ Computer · Memory · Files · Run  │
+│ (mawl) Mawl       [hide]    │ header: avatar · name · status    │ Computer · Memory · Files · Run  │
 │ [+ New chat]                │         thread ▾ · panel toggle   │                                  │
 │ Search                      │                                   │                                  │
 │ Tools                       │   messages / landing              │                                  │
@@ -83,7 +83,7 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 └─────────────────────────────┴───────────────────────────────────┴──────────────────────────────────┘
 ```
 
-- **Hide:** the toggle (and `Ctrl+B`) collapses the sidebar to a 64 px round-icon rail; the choice is remembered. Below 760 px the sidebar is a drawer and the bottom tab bar returns.
+- **Hide:** the toggle (and `Ctrl+B`) hides the sidebar completely; a small round button in the conversation header brings it back. The choice is remembered. There is no icon rail anywhere. Below 760 px the sidebar is a drawer opened from the header button (no bottom tab bar).
 - **Teammate row:** tinted mini Mawl, name, one-line last message, time, unread pill, live dot. Right-click or the `⋯` menu: pin, rename, archive. Pinned teammates float into Pinned.
 - **Activity** (the old rail item) becomes a tab on the Approvals page: "Needs you" and "Activity". **Routines** is renamed **Scheduled** in the UI (the code keeps `routines`). **Memory** moves into the workspace panel (per teammate); the cross-teammate overview is reached from Tools.
 - **Tools page:** tabs Connections (MCP appears only in the detail view, per the plain-words rule), Skills, Plugins. Each is a list of round cards with an on/off toggle and an "Add" flow.
@@ -98,3 +98,7 @@ U1 to U7 in [PLAN.md](PLAN.md). Each is a UI slice and goes to `head-coder` (CLA
 - Pip rename: `packages/mascot`, `apps/web/src/mascot/Beaver.tsx`, docs, `DESIGN.md` §8 and any copy. Done in U2.
 - Personal context from the profile dialog feeds the `human` core memory block (D4.1). Until D4 lands it is stored as a user setting, and U6 adds the small contract for it (a contract change, so it is a hard slice and gets a head-reviewer proposal).
 - The onboarding illustration and app icon prompts in DESIGN §8 are obsolete. Mawl is code-drawn from the reference SVG, so only an app icon is still needed; the user will generate it from a new prompt once Mawl is final.
+
+## 8. Overall feel (user note, 2026-10-22)
+
+The whole app, not only the shell, must move toward the references: generous air, near-black dark mode, soft round surfaces, quiet type, one centered column, few borders. Every slice U3 to U7 is judged against the reference screenshots, not only against the checklist. Cut anything that crowds.
