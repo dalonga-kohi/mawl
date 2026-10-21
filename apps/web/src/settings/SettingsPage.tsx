@@ -1,13 +1,14 @@
 import { accentPresets } from '@mawl/ui'
 import { Laptop, Moon, Sun } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { RadioGroup, Switch } from 'radix-ui'
+import { RadioGroup } from 'radix-ui'
 import type { ReactNode } from 'react'
 import { useAppearance } from '../appearance/AppearanceProvider.tsx'
 import type { ThemePref } from '../appearance/prefs.ts'
 import { transitions } from '../motion/presets.ts'
 import { PageShell } from '../pages/PageShell.tsx'
 import { cx } from '../ui/cx.ts'
+import { Switch } from '../ui/Switch.tsx'
 import { ModelsSection } from './models/ModelsSection.tsx'
 
 const THEMES: { value: ThemePref; label: string; icon: ReactNode }[] = [
@@ -146,19 +147,15 @@ function AccentControl() {
 function ReduceMotionControl() {
   const { appearance, setReduceMotion } = useAppearance()
   return (
-    <Switch.Root
+    <Switch
       id="reduce-motion"
       checked={appearance.reduceMotion}
       onCheckedChange={setReduceMotion}
-      // The pseudo-element widens the hit area to 44 px without changing how the switch looks.
-      className="relative h-[26px] w-[42px] shrink-0 rounded-pill before:absolute before:-inset-[9px] before:content-[''] bg-line transition-colors duration-[200ms] data-[state=checked]:bg-accent-fill"
-    >
-      <Switch.Thumb className="block size-5 translate-x-[3px] rounded-pill bg-surface shadow-1 transition-transform duration-[320ms] data-[state=checked]:translate-x-[19px]" />
-    </Switch.Root>
+    />
   )
 }
 
-const card = 'rounded-lg bg-surface px-[18px] py-1 shadow-1'
+const card = 'rounded-card bg-surface px-[18px] py-1 shadow-1'
 const groupLabel = 'text-small font-semibold text-text-2'
 
 export function SettingsPage() {

@@ -13,7 +13,7 @@ export function RoutePending() {
     >
       <span className="h-7 w-40 animate-pulse rounded-sm bg-surface-2" />
       <span className="h-4 w-64 max-w-full animate-pulse rounded-xs bg-surface-2" />
-      <span className="mt-4 h-40 w-full max-w-[860px] animate-pulse rounded-lg bg-surface-2" />
+      <span className="mt-4 h-40 w-full max-w-[860px] animate-pulse rounded-card bg-surface-2" />
     </div>
   )
 }

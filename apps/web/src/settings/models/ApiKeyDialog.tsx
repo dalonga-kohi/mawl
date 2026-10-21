@@ -5,15 +5,14 @@ import {
   type ProviderKind,
 } from '@mawl/contracts'
 import { useMutation } from '@tanstack/react-query'
-import { X } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { Dialog } from 'radix-ui'
 import { type FormEvent, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { useApi } from '../../api/ApiProvider.tsx'
 import { errorCode } from '../../api/providers-api.ts'
-import { overlayFade, transitions } from '../../motion/presets.ts'
-import { Button, IconButton } from '../../ui/Button.tsx'
+import { Button } from '../../ui/Button.tsx'
+import { cn } from '../../ui/cn.ts'
+import { DialogClose } from '../../ui/Dialog.tsx'
+import { fieldClass, Modal } from '../../ui/Modal.tsx'
 import { testFailureText } from './copy.ts'
 import { useRefreshCredentials } from './queries.ts'
 
@@ -26,8 +25,7 @@ const KEY_KINDS: ProviderKind[] = [
   'openai_compatible',
 ]
 
-const field =
-  'h-11 w-full rounded-sm bg-surface px-3.5 text-body text-text shadow-[0_0_0_1px_var(--line)] outline-none transition-shadow duration-[120ms] placeholder:text-text-3 focus:shadow-[0_0_0_2px_var(--accent-ring)] aria-[invalid=true]:shadow-[0_0_0_2px_var(--danger)]'
+const field = cn(fieldClass, 'h-11')
 
 interface Errors {
   secret?: string
@@ -211,9 +209,9 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
         </p>
       ) : null}
       <div className="flex justify-end gap-2 pt-1">
-        <Dialog.Close asChild>
+        <DialogClose asChild>
           <Button variant="ghost">Cancel</Button>
-        </Dialog.Close>
+        </DialogClose>
         <Button type="submit" variant="primary" disabled={save.isPending}>
           {save.isPending ? 'Checking…' : 'Check and save'}
         </Button>
@@ -232,45 +230,8 @@ export function ApiKeyDialog({
   catalog: ProviderDescriptor[]
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <AnimatePresence>
-        {open ? (
-          <Dialog.Portal forceMount>
-            <Dialog.Overlay asChild>
-              <motion.div className="fixed inset-0 z-40 bg-text/20" {...overlayFade} />
-            </Dialog.Overlay>
-            <Dialog.Content
-              asChild
-              aria-describedby={undefined}
-              onOpenAutoFocus={(e) => {
-                // Start on the first field, not the Close button.
-                const select = (e.currentTarget as HTMLElement | null)?.querySelector('select')
-                if (select) {
-                  e.preventDefault()
-                  select.focus()
-                }
-              }}
-            >
-              <motion.div
-                className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-surface p-5 shadow-2"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1, transition: transitions.gentle }}
-                exit={{ opacity: 0, scale: 0.98, transition: transitions.exit }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <Dialog.Title className="text-heading">Add an API key</Dialog.Title>
-                  <Dialog.Close asChild>
-                    <IconButton label="Close">
-                      <X aria-hidden="true" />
-                    </IconButton>
-                  </Dialog.Close>
-                </div>
-                <Form catalog={catalog} onDone={() => onOpenChange(false)} />
-              </motion.div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        ) : null}
-      </AnimatePresence>
-    </Dialog.Root>
+    <Modal open={open} onOpenChange={onOpenChange} title="Add an API key">
+      <Form catalog={catalog} onDone={() => onOpenChange(false)} />
+    </Modal>
   )
 }

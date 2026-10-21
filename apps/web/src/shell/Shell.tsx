@@ -1,5 +1,5 @@
 import { Outlet } from '@tanstack/react-router'
-import { Toaster } from 'sonner'
+import { Toaster } from '../ui/Toaster.tsx'
 import { CommandPalette } from './CommandPalette.tsx'
 import { Rail } from './Rail.tsx'
 import { ShellProvider } from './ShellContext.tsx'
@@ -17,19 +17,7 @@ export function Shell() {
         </main>
       </div>
       <CommandPalette />
-      <Toaster
-        position="bottom-center"
-        // Above the composer and the phone tab bar, so a toast never covers what you type.
-        offset={96}
-        mobileOffset={136}
-        toastOptions={{
-          unstyled: true,
-          classNames: {
-            toast:
-              'flex items-center gap-2 rounded-pill bg-text px-4 py-2.5 text-small text-bg shadow-2',
-          },
-        }}
-      />
+      <Toaster />
     </ShellProvider>
   )
 }

@@ -4,18 +4,18 @@ import { AlertDialog } from 'radix-ui'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApi } from '../../api/ApiProvider.tsx'
+import { Badge } from '../../ui/Badge.tsx'
 import { Button, buttonClass } from '../../ui/Button.tsx'
-import { cx } from '../../ui/cx.ts'
+import { cn } from '../../ui/cn.ts'
+import { dialogSurfaceClass, overlayClass } from '../../ui/Dialog.tsx'
 import { CHATGPT_USAGE_URL, testFailureText } from './copy.ts'
 import { useRefreshCredentials } from './queries.ts'
-
-const tag = 'rounded-pill px-2 py-0.5 text-micro whitespace-nowrap'
 
 function ProviderMark({ label }: { label: string }) {
   return (
     <span
       aria-hidden="true"
-      className="grid size-8 shrink-0 place-items-center rounded-sm bg-surface-2 text-small font-bold text-text-2"
+      className="grid size-8 shrink-0 place-items-center rounded-pill bg-surface-2 text-small font-bold text-text-2"
     >
       {label.slice(0, 1).toUpperCase()}
     </span>
@@ -106,13 +106,13 @@ export function CredentialRow({
           <p className="truncate text-small text-text-2">{providerName}</p>
         </div>
         {isChatGpt && !credential.reauthRequired && credential.planUsage ? (
-          <span className={cx(tag, 'bg-ok-soft text-ok')}>Using ChatGPT plan</span>
+          <Badge variant="ok">Using ChatGPT plan</Badge>
         ) : null}
         {isChatGpt && !credential.reauthRequired && !credential.planUsage ? (
-          <span className={cx(tag, 'bg-warn-soft text-warn')}>Plan usage is off</span>
+          <Badge variant="warn">Plan usage is off</Badge>
         ) : null}
         {check.data && !check.data.ok && check.data.reason === 'rate_limited' && isChatGpt ? (
-          <span className={cx(tag, 'bg-warn-soft text-warn')}>Usage limit reached</span>
+          <Badge variant="warn">Usage limit reached</Badge>
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
           {isChatGpt ? (
@@ -175,8 +175,10 @@ export function CredentialRow({
 
       <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-40 bg-text/20" />
-          <AlertDialog.Content className="fixed top-1/2 left-1/2 z-50 flex w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 rounded-lg bg-surface p-5 shadow-2">
+          <AlertDialog.Overlay className={overlayClass} />
+          <AlertDialog.Content
+            className={cn(dialogSurfaceClass, 'w-[min(420px,calc(100vw-32px))] gap-3')}
+          >
             <AlertDialog.Title className="text-heading">
               {isChatGpt ? 'Sign out of ChatGPT?' : `Remove ${credential.label}?`}
             </AlertDialog.Title>

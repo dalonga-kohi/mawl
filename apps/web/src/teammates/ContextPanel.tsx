@@ -1,8 +1,8 @@
 import type { Run } from '@mawl/contracts'
-import { Tabs } from 'radix-ui'
 import { useState } from 'react'
 import { failureCopy } from '../chat/run-copy.ts'
 import { Beaver } from '../mascot/Beaver.tsx'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs.tsx'
 
 const TABS = [
   { id: 'computer', label: 'Computer' },
@@ -64,33 +64,29 @@ function RunDetails({ run }: { run: Run | undefined }) {
 export function ContextPanelBody({ run }: { run?: Run | undefined }) {
   const [tab, setTab] = useState<string>('computer')
   return (
-    <Tabs.Root value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-      <Tabs.List aria-label="Context" className="flex gap-1 px-3.5 pt-3.5">
+    <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1">
+      {/* The tabs draw their focus ring inset: the panel clips anything outside a tab. */}
+      <TabsList aria-label="Context" className="mx-3.5 mt-3.5 flex">
         {TABS.map((t) => (
-          <Tabs.Trigger
-            key={t.id}
-            value={t.id}
-            // Inset ring: the panel clips anything drawn outside the tab.
-            className="h-[34px] pointer-coarse:h-11 flex-1 rounded-sm focus-visible:outline-offset-[-2px] text-small font-semibold text-text-2 transition-colors duration-[120ms] hover:bg-surface-2 data-[state=active]:bg-surface-2 data-[state=active]:text-text"
-          >
+          <TabsTrigger key={t.id} value={t.id}>
             {t.label}
-          </Tabs.Trigger>
+          </TabsTrigger>
         ))}
-      </Tabs.List>
+      </TabsList>
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-3.5">
-        <Tabs.Content value="computer" className="flex flex-col gap-3 outline-none">
-          <div className="grid aspect-[16/10] place-items-center rounded-md bg-surface-2">
+        <TabsContent value="computer" className="flex flex-col gap-3">
+          <div className="grid aspect-[16/10] place-items-center rounded-card bg-surface-2">
             <Beaver size={56} state="sleeping" />
           </div>
           <p className={note}>The computer starts when a teammate needs it.</p>
-        </Tabs.Content>
-        <Tabs.Content value="memory" className="outline-none">
+        </TabsContent>
+        <TabsContent value="memory">
           <p className={note}>Memories a teammate used for its last reply show up here.</p>
-        </Tabs.Content>
-        <Tabs.Content value="run" className="outline-none">
+        </TabsContent>
+        <TabsContent value="run">
           <RunDetails run={run} />
-        </Tabs.Content>
+        </TabsContent>
       </div>
-    </Tabs.Root>
+    </Tabs>
   )
 }
