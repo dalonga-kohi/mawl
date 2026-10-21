@@ -75,7 +75,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
    - Then re-verify the gate yourself and send a short re-review of only the fix commits.
    - After 2 loops without convergence, escalate to `head-coder` (above). After 3 head-coder loops, stop and ask the user.
 7. **Close.**
-   - Run the gate yourself: `pnpm turbo lint typecheck test --force`.
+   - Run the gate yourself: `pnpm turbo lint typecheck test --force`, **only at phase boundaries or for slices touching server/DB/sandbox/build**; otherwise run the scoped checks (see the "Full test runs lag" bullet under Platform).
    - Mark the slice `[x] (firstSha..lastSha)` in PLAN.md.
    - Fix docs whose meaning changed.
    - Note deferred review items in the right future PLAN slice.
@@ -190,6 +190,11 @@ docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack a
 - Turbo needs `pnpm` on PATH. Until the user runs `corepack enable` (it may need admin), every agent does:
   `corepack enable --install-directory <scratchpad>\shims` then `$env:PATH="<scratchpad>\shims;$env:PATH"`.
 - **Docker Desktop is installed** (engine 29.8.2, context `desktop-linux`). Run DB/server suites with `$env:MAWL_REQUIRE_DOCKER='1'` so the Testcontainers suites must run, not skip. A cold engine can be slow, so the testkit probe waits up to 30 s.
+- **Full test runs lag the user's PC and are generally unwanted.** The full gate and the Docker/Testcontainers suites exhaust memory (Postgres crashes, 5 s timeouts, BuildKit failures) and make the machine unusable. This overrides the "run the gate" steps in the loop above:
+  - By default run only the checks that cover what you changed: `pnpm --filter <pkg> typecheck`, `pnpm exec biome check <path>`, and `pnpm --filter <pkg> exec vitest run <file>` (or the package's `test`), one run at a time. Never run several suites or agents' test runs in parallel.
+  - Do not run `pnpm turbo ... --force`, Docker-backed suites, the compose smoke test or e2e unless the slice touches the server, DB, sandbox or build, or the user asks. When one is needed, say so first, run it once with `--concurrency=1` (turbo) or `--workspace-concurrency=1` (pnpm), and run it alone.
+  - UI-only slices close on typecheck, biome and the web tests. The full gate runs at phase boundaries or when the user says so, not after every slice.
+  - Subagent briefs must state this. Do not spawn the `runner` for the full gate unasked.
 - The remote is `origin` → `git@github.com:dalonga-kohi/mawl.git` (public), over SSH. Every push is the user's call; never push without a yes in chat.
 - The repo-local git identity is `megas`. Line endings are LF via `.gitattributes`; CRLF warnings are cosmetic.
 
