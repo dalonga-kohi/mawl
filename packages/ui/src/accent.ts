@@ -1,4 +1,4 @@
-import { clampChroma, converter, formatHex, parse, wcagContrast } from 'culori'
+import { clampChroma, converter, formatHex, interpolate, parse, wcagContrast } from 'culori'
 import { ink, neutrals, type ThemeName } from './palette.ts'
 
 /** Hex strings, all valid sRGB. soft/softer/ring are color-mix expressions in the generated CSS. */
@@ -21,6 +21,16 @@ export class InvalidColorError extends Error {
     this.name = 'InvalidColorError'
   }
 }
+
+/**
+ * Percentages for the color-mix() tints in tokens.css, per theme. Soft accents (Lime and friends)
+ * barely tint a light surface at 12 %, so light uses more; dark surfaces show any tint quickly.
+ * `ring` mixes `--accent-ink` (not the base) so the focus ring reaches 3:1 even for pastel accents.
+ */
+export const accentTints = {
+  light: { soft: 24, softer: 12, ring: 100 },
+  dark: { soft: 14, softer: 7, ring: 80 },
+} as const satisfies Record<ThemeName, { soft: number; softer: number; ring: number }>
 
 const toOklch = converter('oklch')
 const WHITE = '#ffffff'
@@ -112,8 +122,23 @@ export function deriveAccent(hex: string, theme: ThemeName): AccentScale {
     accentPress: states.press,
     accentFill,
     onAccent,
-    accentInk: shiftUntil(eff, neutrals[theme].surface, TEXT_CONTRAST, theme === 'dark' ? 1 : -1),
+    accentInk: inkFor(eff, theme),
   }
+}
+
+/**
+ * Small accent text sits on bg, surface, surface-2 and the soft tint (selected rows). Light moves
+ * darker and dark moves lighter, so each shift only adds contrast against the grounds before it.
+ */
+function inkFor(eff: string, theme: ThemeName): string {
+  const n = neutrals[theme]
+  const soft = formatHex(interpolate([n.surface, eff], 'oklab')(accentTints[theme].soft / 100))
+  const direction = theme === 'dark' ? 1 : -1
+  let inkHex = eff
+  for (const ground of [n.surface, n.bg, n.surface2, soft]) {
+    inkHex = shiftUntil(inkHex, ground, TEXT_CONTRAST, direction)
+  }
+  return inkHex
 }
 
 export interface AccentScales {

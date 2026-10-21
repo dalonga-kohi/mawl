@@ -2,25 +2,25 @@
 
 :root {
   color-scheme: light;
-  --accent-light-accent: #3d8bfd;
-  --accent-light-hover: #1466d5;
-  --accent-light-press: #005ac7;
-  --accent-light-fill: #2473e3;
-  --accent-light-on: #ffffff;
-  --accent-light-ink: #2473e3;
-  --accent-dark-accent: #5197ff;
-  --accent-dark-hover: #2268cb;
-  --accent-dark-press: #135bbe;
-  --accent-dark-fill: #2f74d9;
-  --accent-dark-on: #ffffff;
-  --accent-dark-ink: #5197ff;
-  --bg: #F5F7FA;
+  --accent-light-accent: #d8e88a;
+  --accent-light-hover: #cbdb7d;
+  --accent-light-press: #bece70;
+  --accent-light-fill: #d8e88a;
+  --accent-light-on: #1D1B16;
+  --accent-light-ink: #687309;
+  --accent-dark-accent: #d8e88a;
+  --accent-dark-hover: #cbdb7d;
+  --accent-dark-press: #bece70;
+  --accent-dark-fill: #d8e88a;
+  --accent-dark-on: #1D1B16;
+  --accent-dark-ink: #d8e88a;
+  --bg: #FAF8F4;
   --surface: #FFFFFF;
-  --surface-2: #EEF2F6;
-  --line: #E1E6EC;
-  --text: #17202B;
-  --text-2: #5A6675;
-  --text-3: #8A95A3;
+  --surface-2: #F2EFE8;
+  --line: #E7E3DA;
+  --text: #1D1B16;
+  --text-2: #5E5A50;
+  --text-3: #8C877B;
   --ok: #007A4A;
   --warn: #985D00;
   --danger: #C33632;
@@ -30,11 +30,11 @@
   --accent-fill: var(--accent-light-fill);
   --on-accent: var(--accent-light-on);
   --accent-ink: var(--accent-light-ink);
-  --shadow-1: 0 1px 2px rgb(16 24 40 / .05);
-  --shadow-2: 0 8px 24px -8px rgb(16 24 40 / .12);
-  --accent-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
-  --accent-softer: color-mix(in oklab, var(--accent) 6%, var(--surface));
-  --accent-ring: color-mix(in oklab, var(--accent) 40%, transparent);
+  --accent-soft: color-mix(in oklab, var(--accent) 24%, var(--surface));
+  --accent-softer: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  --accent-ring: color-mix(in oklab, var(--accent-ink) 100%, transparent);
+  --shadow-1: 0 1px 2px rgb(29 27 22 / .05);
+  --shadow-2: 0 12px 32px -12px rgb(29 27 22 / .16);
   --info: var(--accent);
   --ok-soft: color-mix(in oklab, var(--ok) 12%, var(--surface));
   --warn-soft: color-mix(in oklab, var(--warn) 12%, var(--surface));
@@ -54,11 +54,12 @@
   --space-32: 32px;
   --space-40: 40px;
   --space-56: 56px;
-  --r-xs: 6px;
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 20px;
-  --r-xl: 28px;
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-card: 24px;
+  --r-panel: 28px;
+  --r-dialog: 32px;
   --r-pill: 999px;
   --fs-display: 2.25rem;
   --lh-display: 1.1;
@@ -89,13 +90,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0F141A;
-    --surface: #161C24;
-    --surface-2: #1D2530;
-    --line: #26303C;
-    --text: #E8EDF3;
-    --text-2: #A3AEBB;
-    --text-3: #6E7A88;
+    --bg: #0B0B0D;
+    --surface: #131315;
+    --surface-2: #1B1B1E;
+    --line: #26262A;
+    --text: #ECECEE;
+    --text-2: #A6A6AD;
+    --text-3: #6F6F77;
     --ok: #32A16A;
     --warn: #D98A14;
     --danger: #EF6056;
@@ -105,6 +106,9 @@
     --accent-fill: var(--accent-dark-fill);
     --on-accent: var(--accent-dark-on);
     --accent-ink: var(--accent-dark-ink);
+    --accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));
+    --accent-softer: color-mix(in oklab, var(--accent) 7%, var(--surface));
+    --accent-ring: color-mix(in oklab, var(--accent-ink) 80%, transparent);
     --shadow-1: 0 0 0 1px var(--line);
     --shadow-2: 0 0 0 1px var(--line);
     color-scheme: dark;
@@ -112,13 +116,13 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0F141A;
-  --surface: #161C24;
-  --surface-2: #1D2530;
-  --line: #26303C;
-  --text: #E8EDF3;
-  --text-2: #A3AEBB;
-  --text-3: #6E7A88;
+  --bg: #0B0B0D;
+  --surface: #131315;
+  --surface-2: #1B1B1E;
+  --line: #26262A;
+  --text: #ECECEE;
+  --text-2: #A6A6AD;
+  --text-3: #6F6F77;
   --ok: #32A16A;
   --warn: #D98A14;
   --danger: #EF6056;
@@ -128,6 +132,9 @@
   --accent-fill: var(--accent-dark-fill);
   --on-accent: var(--accent-dark-on);
   --accent-ink: var(--accent-dark-ink);
+  --accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));
+  --accent-softer: color-mix(in oklab, var(--accent) 7%, var(--surface));
+  --accent-ring: color-mix(in oklab, var(--accent-ink) 80%, transparent);
   --shadow-1: 0 0 0 1px var(--line);
   --shadow-2: 0 0 0 1px var(--line);
   color-scheme: dark;
@@ -167,8 +174,9 @@
   --radius-xs: var(--r-xs);
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
-  --radius-lg: var(--r-lg);
-  --radius-xl: var(--r-xl);
+  --radius-card: var(--r-card);
+  --radius-panel: var(--r-panel);
+  --radius-dialog: var(--r-dialog);
   --radius-pill: var(--r-pill);
   --font-sans: var(--ff-ui);
   --font-display: var(--ff-display);

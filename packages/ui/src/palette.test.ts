@@ -1,6 +1,15 @@
-import { formatHex, interpolate, wcagContrast } from 'culori'
+import { converter, formatHex, interpolate, wcagContrast } from 'culori'
 import { describe, expect, it } from 'vitest'
-import { accentPresets, mascot, neutrals, semantic, type ThemeName } from './palette.ts'
+import {
+  accentPresets,
+  defaultAccent,
+  ink,
+  mascot,
+  neutrals,
+  retiredAccentPresets,
+  semantic,
+  type ThemeName,
+} from './palette.ts'
 
 const themes: ThemeName[] = ['light', 'dark']
 
@@ -21,11 +30,35 @@ describe('neutral palette', () => {
     })
   }
 
-  it('uses the DESIGN.md Mist and Night river values', () => {
-    expect(neutrals.light.bg).toBe('#F5F7FA')
-    expect(neutrals.light.surface).toBe('#FFFFFF')
-    expect(neutrals.dark.bg).toBe('#0F141A')
-    expect(neutrals.dark.surface).toBe('#161C24')
+  it('uses the UI-REDESIGN Cream and Ink values', () => {
+    expect(neutrals.light).toEqual({
+      bg: '#FAF8F4',
+      surface: '#FFFFFF',
+      surface2: '#F2EFE8',
+      line: '#E7E3DA',
+      text: '#1D1B16',
+      text2: '#5E5A50',
+      text3: '#8C877B',
+    })
+    expect(neutrals.dark).toEqual({
+      bg: '#0B0B0D',
+      surface: '#131315',
+      surface2: '#1B1B1E',
+      line: '#26262A',
+      text: '#ECECEE',
+      text2: '#A6A6AD',
+      text3: '#6F6F77',
+    })
+  })
+
+  it('reads near-black in dark mode (bg and surface under OKLCH L 0.2)', () => {
+    const toOklch = converter('oklch')
+    expect(toOklch(neutrals.dark.bg)?.l).toBeLessThan(0.2)
+    expect(toOklch(neutrals.dark.surface)?.l).toBeLessThan(0.2)
+  })
+
+  it('uses the light text color as the ink on light accent fills', () => {
+    expect(ink).toBe(neutrals.light.text)
   })
 })
 
@@ -58,8 +91,29 @@ describe('semantic text on its own soft tint', () => {
 })
 
 describe('presets and mascot', () => {
-  it('lists the six presets with Lake first', () => {
+  it('lists the six presets with Lime first and makes Lime the default', () => {
     expect(accentPresets.map((p) => p.name)).toEqual([
+      'Lime',
+      'Sky',
+      'Peach',
+      'Lilac',
+      'Rose',
+      'Slate',
+    ])
+    expect(accentPresets[0]?.hex).toBe('#D8E88A')
+    expect(defaultAccent.id).toBe('lime')
+  })
+
+  it('keeps every preset soft: a light color that takes ink text on its fill', () => {
+    const toOklch = converter('oklch')
+    for (const p of accentPresets) {
+      expect(toOklch(p.hex)?.l, p.name).toBeGreaterThanOrEqual(0.8)
+      expect(wcagContrast(p.hex, ink), p.name).toBeGreaterThanOrEqual(6)
+    }
+  })
+
+  it('retires the old preset names and hexes, none of which collide with a new preset', () => {
+    expect(retiredAccentPresets.map((p) => p.name)).toEqual([
       'Lake',
       'Moss',
       'Amber',
@@ -67,7 +121,8 @@ describe('presets and mascot', () => {
       'Plum',
       'Slate',
     ])
-    expect(accentPresets[0]?.hex).toBe('#3D8BFD')
+    const live = new Set<string>(accentPresets.map((p) => p.hex))
+    for (const p of retiredAccentPresets) expect(live.has(p.hex), p.name).toBe(false)
   })
 
   it('has the fixed mascot palette', () => {

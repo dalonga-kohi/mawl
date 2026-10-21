@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { accentScaleKeys, accentVarName, deriveAccent } from './accent.ts'
+import { accentScaleKeys, accentTints, accentVarName, deriveAccent } from './accent.ts'
 import { generateTokensCss } from './css.ts'
 import { dur } from './motion.ts'
-import { accentPresets, mascot, neutrals, semantic } from './palette.ts'
+import { defaultAccent, mascot, neutrals, semantic } from './palette.ts'
 import { radii, spacing } from './space.ts'
 import { typeScale } from './type.ts'
 
@@ -63,40 +63,61 @@ describe('generateTokensCss', () => {
     for (const [k, v] of Object.entries(mascot)) expect(root.get(`--${kebab(k)}`)).toBe(v)
   })
 
-  it('emits the default Lake light and dark scales and maps the public vars to the light one', () => {
+  it('emits the default Lime light and dark scales and maps the public vars to the light one', () => {
+    expect(defaultAccent.name).toBe('Lime')
     for (const theme of ['light', 'dark'] as const) {
-      const lake = deriveAccent(accentPresets[0].hex, theme)
+      const lime = deriveAccent(defaultAccent.hex, theme)
       for (const key of accentScaleKeys) {
-        expect(root.get(accentVarName(theme, key)), `${theme} ${key}`).toBe(lake[key])
+        expect(root.get(accentVarName(theme, key)), `${theme} ${key}`).toBe(lime[key])
       }
     }
     for (const [pub, key] of publicAccentVars) {
       expect(root.get(pub)).toBe(`var(${accentVarName('light', key)})`)
     }
   })
-  it('expresses soft, softer and ring as color-mix over the live accent', () => {
-    expect(root.get('--accent-soft')).toMatch(
-      /^color-mix\(in oklab, var\(--accent\) 12%, var\(--surface\)\)$/,
-    )
-    expect(root.get('--accent-softer')).toMatch(/var\(--accent\) 6%/)
-    expect(root.get('--accent-ring')).toMatch(/var\(--accent\) 40%, transparent/)
+
+  it('expresses soft and softer as color-mix over the live accent, per theme', () => {
+    for (const [theme, block] of [
+      ['light', root],
+      ['dark', darkAttr],
+    ] as const) {
+      const t = accentTints[theme]
+      expect(block.get('--accent-soft')).toBe(
+        `color-mix(in oklab, var(--accent) ${t.soft}%, var(--surface))`,
+      )
+      expect(block.get('--accent-softer')).toBe(
+        `color-mix(in oklab, var(--accent) ${t.softer}%, var(--surface))`,
+      )
+    }
     for (const name of ['ok', 'warn', 'danger']) {
       expect(root.get(`--${name}-soft`)).toContain(`var(--${name}) 12%`)
     }
     expect(root.get('--info')).toBe('var(--accent)')
   })
 
-  it('defines space, radii, type, font and motion tokens', () => {
+  it('draws the focus ring from accent-ink, so pastel accents still reach 3:1', () => {
+    expect(root.get('--accent-ring')).toBe(
+      `color-mix(in oklab, var(--accent-ink) ${accentTints.light.ring}%, transparent)`,
+    )
+    expect(darkAttr.get('--accent-ring')).toBe(
+      `color-mix(in oklab, var(--accent-ink) ${accentTints.dark.ring}%, transparent)`,
+    )
+  })
+
+  it('defines the round shape scale: pills for controls, card 24, panel 28, dialog 32', () => {
+    expect(radii).toEqual({ xs: 8, sm: 12, md: 18, card: 24, panel: 28, dialog: 32, pill: 999 })
+    for (const [k, v] of Object.entries(radii)) expect(root.get(`--r-${k}`)).toBe(`${v}px`)
+  })
+
+  it('defines space, type, font and motion tokens', () => {
     for (const s of spacing) expect(root.get(`--space-${s}`)).toBe(`${s}px`)
-    expect(root.get('--r-md')).toBe(`${radii.md}px`)
-    expect(root.get('--r-pill')).toBe('999px')
     expect(root.get('--fs-body')).toBe(`${typeScale.body.size}rem`)
     expect(root.get('--lh-body')).toBe(String(typeScale.body.lineHeight))
     expect(root.get('--fw-body')).toBe(String(typeScale.body.weight))
     expect(root.get('--ff-ui')).toContain('Figtree')
     expect(root.get('--dur-slow')).toBe(`${dur.slow}ms`)
     expect(root.get('--ease-out')).toBe('cubic-bezier(.2,.8,.2,1)')
-    expect(root.get('--shadow-1')).toContain('rgb(16 24 40 / .05)')
+    expect(root.get('--shadow-1')).toMatch(/^0 1px 2px rgb\(/)
   })
 
   it('declares the light color-scheme so a forced light theme wins over a dark OS', () => {
@@ -138,6 +159,7 @@ describe('generateTokensCss', () => {
     expect(theme.get('--color-text-3')).toBe('var(--text-3)')
     expect(theme.get('--color-danger-soft')).toBe('var(--danger-soft)')
     expect(theme.get('--radius-md')).toBe('var(--r-md)')
+    expect(theme.get('--radius-dialog')).toBe('var(--r-dialog)')
     expect(theme.get('--font-sans')).toBe('var(--ff-ui)')
     expect(theme.get('--font-display')).toBe('var(--ff-display)')
     expect(theme.get('--font-mono')).toBe('var(--ff-mono)')
