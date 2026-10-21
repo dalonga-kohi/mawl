@@ -456,7 +456,7 @@ export const USER_CONTEXT_MAX = 2000
 
 /**
  * The owner (the person teammates work for): their name and what every teammate should always
- * know about them. It becomes the `human` core memory block (MEMORY.md). Both fields are free text
+ * know about them. It seeds the `user` core memory block (MEMORY.md §2). Both fields are free text
  * the owner typed: data, never instructions, wherever they are shown or put into a prompt.
  * Strict, so nothing else (and never a secret) can ride along.
  */

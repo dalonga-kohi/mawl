@@ -9,7 +9,7 @@ const { userProfile } = schema
 const ROW_ID = 1
 
 /**
- * The owner's own profile. It is user-typed text and stays data: when the `human` core memory
+ * The owner's own profile. It is user-typed text and stays data: when the `user` core memory
  * block is built from it (D4.1), it must be placed as quoted owner data, never as instructions.
  */
 export interface UserService {
@@ -31,6 +31,8 @@ const toPublic = (row: { name: string; personalContext: string }): UserProfile =
 })
 
 export function createUserService({ db }: UserServiceDeps): UserService {
+  // reason: nothing reads this into a prompt yet. D4.1 wires it into the `user` core block; it
+  // must go in wrapped as untrusted owner data (server rules), not concatenated as instructions.
   return {
     async get() {
       const [row] = await db

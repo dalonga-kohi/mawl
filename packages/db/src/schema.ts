@@ -288,7 +288,7 @@ export const events = pgTable(
 
 /**
  * The owner's own profile: one row per install (the id is pinned to 1), written by `user.update`.
- * Both texts are the owner's words and later feed the `human` core memory block (MEMORY.md); they
+ * Both texts are the owner's words and later feed the `user` core memory block (MEMORY.md); they
  * are data, never instructions. No secret ever lives here.
  */
 export const userProfile = pgTable(

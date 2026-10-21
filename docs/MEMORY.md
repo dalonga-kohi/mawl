@@ -30,6 +30,7 @@ This design borrows from:
 | `scratchpad` | 1000 | Volatile notes | Agent |
 | `heartbeat` | 1000 | The checklist the heartbeat reviews | User + agent |
 
+- The owner's profile (`user.get`: name and personal context, set in the Your profile dialog) is the owner-written source of the `user` block. It is untrusted owner text: quoted as data, never followed as instructions. Its context can hold 2000 characters against the block's 1500, so D4.1 decides how it is seeded (a separate owner-written block, or condensed).
 - Blocks are rendered as `<memory_block label="user" chars="812/1500">…</memory_block>`.
 - **Frozen per segment.** Edits are written to the DB immediately but only show up in the prompt at the next segment boundary or compaction. That keeps the prompt prefix byte-stable, so caching works. The agent sees its own edit acknowledged in the tool result.
 - **Hard caps.** A write that would go over the cap is rejected with the current fill level, so the agent has to condense. This keeps blocks dense.

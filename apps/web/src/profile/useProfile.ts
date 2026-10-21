@@ -55,7 +55,7 @@ async function fetchProfile(user: UserApi): Promise<UserProfile> {
  * when it can't be reached) the copy cached in this browser is shown, so the greeting and the
  * sidebar never flash empty.
  *
- * reason: the personal context is the owner's own text and later feeds the `human` core memory
+ * reason: the personal context is the owner's own text and later feeds the `user` core memory
  * block (D4.1). Render it as text only (never as HTML or markdown that runs), and the prompt
  * assembler must quote it as data, never as instructions.
  */

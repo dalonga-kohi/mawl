@@ -250,9 +250,11 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
   - AgentCursorGhost.
 - **Memory:** BlockCard (fill meter), FactRow, Timeline, SkillCard, DiffView.
 - **Routines:** RoutineRow (natural-language summary, next run, toggle), RunHistory.
-- **Settings:**
-  - Appearance (theme segmented control, accent swatches + custom picker, reduced-motion toggle)
-  - Models & keys, Connections, Channels, Devices (QR pairing), Data.
+- **Settings:** one calm column inside the page frame. From 760 px a 200 px list of pill links (icon and name; the current one on `--surface-2` with an accent-ink icon) sits beside the open section; below 760 px the same links become one pill segmented track above it. The section lives in `?section=` (`appearance` is the bare `/settings`). Only sections that exist are listed, never "coming soon" ones. Each section has its own heading and one line, then round `--surface` cards (24 px, 20 px padding), each with a heading, one helper line and its control.
+  - Appearance: Theme (a pill segmented control: Light, Dark, System), Accent color (round swatches Lime, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
+  - Models and keys: each connected model is its own round card (mark, name, what it is, Check and Remove or Sign out), then one card per way to connect (ChatGPT plan, Claude plan with its steps opening inside the card, API key). Loading is a skeleton card, an unreachable server an inline card with Try again, and an empty list a card with an icon tile.
+  - Later: Channels, Devices (QR pairing), Data.
+- **Your profile dialog** (from the sidebar's profile row, not part of Settings): Name and Personal context, saved on the server. The Save button reads "Saving…" while the save is in flight; the sidebar and greeting show the new name at once and roll back with a toast if the server refuses. Errors sit under their field ("Keep your name to 80 characters.", "Trim it by N characters.") and the context counter turns danger past 2000. Cancel and Escape drop the edits.
 - **Feedback:** Toasts (Sonner, bottom-center, mascot glyph), Skeletons (soft shimmer, no spinners in lists), Inline errors that say how to fix the problem.
 
 ## 10. Key screens

@@ -92,7 +92,8 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 - **Activity** (the old rail item) becomes a tab on the Approvals page: "Needs you" (default) and "Activity", kept in `?tab=`. `/activity` redirects to `/approvals?tab=activity`. **Routines** is renamed **Scheduled** in the UI (the code keeps `routines`). **Memory** moves into the workspace panel (per teammate); the cross-teammate overview is reached from Tools.
 - **Tools page:** a pill segmented control with Connections (default), Skills and Plugins, kept in `?tab=` (an unknown value opens Connections); `/connections` redirects to `/tools?tab=connections`. MCP appears only in a row's detail view, per the plain-words rule. Each tab will be a list of round rows with an on/off toggle and an "Add" flow; until D2.8 (skills), D2.9 (connections) and D9.3 (plugin import) land, each shows an icon-tile empty state and no dead buttons.
 - **Scheduled page** (`/routines`): an empty state with an "Open a chat" link until D5.5 fills it.
-- **Settings** gets a left list of sections: Appearance, Models and keys, Channels, Devices, Data. The profile dialog is separate from Settings.
+- **Settings** (U6) has a left list of pill links, a pill segmented track below 760 px, kept in `?section=`. Today it lists Appearance and Models and keys; Channels, Devices and Data join when they exist, never as empty tabs. Every section is a few round `--surface` cards. The profile dialog is separate from Settings and saves to the server (`user.update`).
+- **Teammate colors:** a new teammate takes the next soft preset in turn, Lime first, so the first one wears Mawl's own color. Existing teammates keep their stored color.
 
 ## 6. Slices
 
@@ -101,7 +102,7 @@ U1 to U7 in [PLAN.md](PLAN.md). Each is a UI slice and goes to `head-coder` (CLA
 ## 7. Open items and follow-ups
 
 - Pip rename: `packages/mascot`, `apps/web/src/mascot/Beaver.tsx`, docs, `DESIGN.md` §8 and any copy. Done in U2.
-- Personal context from the profile dialog feeds the `human` core memory block (D4.1). Until D4 lands it is stored as a user setting, and U6 adds the small contract for it (a contract change, so it is a hard slice and gets a head-reviewer proposal).
+- Personal context from the profile dialog feeds the `user` core memory block (MEMORY.md §2, D4.1). U6 added `user.get` / `user.update` and the single-row `user_profile` table (migration 0006); D4.1 decides how its 2000 characters seed the 1500-character block.
 - The onboarding illustration and app icon prompts in DESIGN §8 are obsolete. Mawl is code-drawn from the reference SVG, so only an app icon is still needed; the user will generate it from a new prompt once Mawl is final.
 
 ## 8. Overall feel (user note, 2026-10-22)
