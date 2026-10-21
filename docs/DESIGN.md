@@ -232,12 +232,17 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
 
 - **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk).
 - **Chat:**
-  - Message bubbles. Assistant messages are plain on `--bg` and span the full text width. User messages are `--accent-soft` bubbles aligned right with `--r-md`.
-  - ToolActivityCard: a collapsed sentence with an expandable step list. Shows ✓, spinner or ! and the duration.
+  - Messages sit in one centered 720 px column. Assistant replies are plain on `--bg`, no bubble, at most 68ch wide. User messages are tail-less `--r-card` (24 px) bubbles on `--surface-2`, aligned right. Times show on hover or focus with a mouse and always on touch. Messages enter with opacity and y 6 to 0 on `spring.gentle`; streaming text ends in a soft caret pulse.
+  - Markdown: code blocks are round `--surface` cards with a 1 px `--line`, the language and a Copy button, in JetBrains Mono; tables are round cards with a `--surface-2` header row.
+  - Tool activity (`ToolActivity`): one round pill per run of tool calls ("Used 3 tools", "Used 2 tools, 1 didn't work") with a spinner, check or alert, and a thin shimmer while working. It expands into a card listing each step with its own status, arguments and result. Stored tool parts carry no timings yet, so no duration is shown.
+  - Reasoning: a muted "Thinking" disclosure above the reply, closed by default.
+  - Failed runs: an inline `--danger-soft` card that says what happened and how to fix it, with a "Try again" pill that resends the owner's last message (and a model settings link when the fix lives there).
   - ApprovalCard: action sentence, redacted args, and the buttons Approve / Deny / Open details.
   - TakeoverBanner.
-  - Composer: autosizing input, attach, model chip, send (accent), and a stop button while streaming.
-  - Empty state: the mascot with suggested prompts as soft chips.
+  - Composer: a pill on `--surface` with a 1 px `--line` (plus `--shadow-1` in light). Its 28 px radius is a full pill at the one-line height of 56 px and reads as a soft card when the text wraps. Left a round ghost `+` menu (attachments show as a disabled "Attach files, soon" item until uploads exist), then the autosizing input (Enter sends, Shift+Enter adds a line), the model chip and a round 44 px send button (`--accent-fill`, `ArrowUp`, muted to `--surface-2` when empty, press scale .94). While a run is going it becomes a round Stop button with a square icon. Focus draws a soft accent ring around the whole pill.
+  - Header: show-sidebar button when needed, a small Mawl that mirrors the run, the teammate name with a one-line status, the conversation menu and the panel toggle. No border or shadow under it.
+  - Scroll to latest: a small round `ArrowDown` button floats above the composer when the owner scrolls up; new text follows only while pinned to the bottom.
+  - New chat (the empty state): a large Mawl (120 px, 88 px on phones; listening while the owner types), the Bricolage greeting "What's next, {first name}?" (or "What's next?"), the composer in the middle of the view and three soft suggestion pills under it that fill the composer without sending. Nothing else. After the first send the same composer docks to the bottom with a `spring.gentle` layout transition and Mawl moves into the header through a shared `layoutId`; reduced motion makes both instant.
 - **Computer:**
   - ComputerThumbnail: a live 16:10 mini-screen with a "live" dot.
   - ComputerPanel: noVNC canvas, toolbar (Watch · Take control · Give back · Type a password · Fullscreen) and lease timer.
