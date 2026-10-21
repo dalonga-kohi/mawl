@@ -1,7 +1,9 @@
-import { Beaver, type MascotState } from '../mascot/Beaver.tsx'
+import { MawlAvatar } from '../mascot/MawlAvatar.tsx'
+import type { MascotState } from '../mascot/states.ts'
 
 /**
- * A rounded square holding Pip, tinted by the teammate's own color (DESIGN.md §6). The color is
+ * A round, neutral chip holding the simplified Mawl, which wears the teammate's own color
+ * (UI-REDESIGN.md §3). The chip stays neutral so the tinted Mawl stands out against it. The color is
  * the teammate's data, not a design token, so it only ever tints: text never sits on it.
  */
 export function TeammateAvatar({
@@ -16,14 +18,10 @@ export function TeammateAvatar({
   return (
     <span
       aria-hidden="true"
-      className="grid shrink-0 place-items-center overflow-hidden rounded-sm"
-      style={{
-        width: size,
-        height: size,
-        background: `color-mix(in oklch, ${color} 22%, var(--surface))`,
-      }}
+      className="grid shrink-0 place-items-center overflow-hidden rounded-pill bg-surface-2"
+      style={{ width: size, height: size }}
     >
-      <Beaver size={Math.round(size * 0.86)} state={state} />
+      <MawlAvatar color={color} size={Math.round(size * 0.8)} state={state} />
     </span>
   )
 }

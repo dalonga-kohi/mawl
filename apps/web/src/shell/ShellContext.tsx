@@ -1,5 +1,5 @@
 import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
-import type { MascotState } from '../mascot/Beaver.tsx'
+import type { MascotState } from '../mascot/states.ts'
 
 interface ShellApi {
   /** Context panel: inline at 1100 px and wider, a sheet below. */

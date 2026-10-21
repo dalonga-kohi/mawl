@@ -56,7 +56,7 @@ mawl/
 │  ├─ channels/      ChannelAdapter interface + telegram (grammY) + discord (discord.js)
 │  ├─ ui/            design tokens (CSS vars + TS), shared React components (web/desktop)
 │  ├─ ui-native/     RN components using the same tokens (mobile)
-│  ├─ mascot/        beaver assets: Rive file + SVG fallbacks + state hook
+│  ├─ mascot/        Mawl assets shared with mobile (a stub today; the web Mawl lives in apps/web/src/mascot)
 │  ├─ client/        typed API client + WS event store (TanStack Query), used by web & mobile
 │  └─ testkit/       fake LLM provider (scripted), fixtures, test containers helpers
 ├─ infra/
@@ -89,7 +89,7 @@ mawl/
 | Desktop host | Tauri 2.12 (+ plugins: notification, deep-link, single-instance, autostart, updater), NSIS per-user installer; `node.exe` sidecar spawned by a Rust supervisor (REDESIGN §10.2) | Small and fast; one installer of about 46 MiB, no admin |
 | Mobile | Expo SDK (latest), expo-router, Reanimated, expo-notifications, expo-camera (QR), react-native-webview (noVNC) | Proven mobile path |
 | UI | React 19, Tailwind v4, Radix primitives (via shadcn-style local components), Motion, Lucide icons, Sonner (toasts), cmdk (command palette) | Use existing libraries; don't reinvent |
-| Mascot animation | Rive (`@rive-app/react-canvas`, `rive-react-native`) with an SVG + Motion fallback | One state machine for both platforms |
+| Mascot animation | Mawl is an inline SVG with CSS keyframes, and CSS transitions between states (UI-REDESIGN.md §4). Rive is dropped for now | Ships today, freezes cleanly under reduced motion, no runtime to load |
 | Data fetching | TanStack Query + a WS event bus that updates the cache | Live UI without polling |
 | Crypto | libsodium-wrappers (secret encryption at rest) | Audited |
 | Observability | pino logs + OpenTelemetry traces (optional exporter) | |

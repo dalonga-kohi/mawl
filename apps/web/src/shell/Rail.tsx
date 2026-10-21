@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
-import { Beaver } from '../mascot/Beaver.tsx'
+import { Mawl } from '../mascot/Mawl.tsx'
 import { cx } from '../ui/cx.ts'
 import { Tooltip } from '../ui/Tooltip.tsx'
 import { paletteShortcutLabel } from './CommandPalette.tsx'
@@ -61,7 +61,7 @@ export function Rail() {
       )}
     >
       <div className="mb-2.5 hidden size-12 place-items-center rounded-md bg-accent-softer md:grid">
-        <Beaver size={40} state={mascot} />
+        <Mawl size={40} state={mascot} />
       </div>
       {MAIN_NAV.map((item) => (
         <RailLink key={item.to} item={item} />

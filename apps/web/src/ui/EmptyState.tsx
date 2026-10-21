@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Beaver, type MascotState } from '../mascot/Beaver.tsx'
+import { Mawl } from '../mascot/Mawl.tsx'
+import type { MascotState } from '../mascot/states.ts'
 
 /** DESIGN.md §9: the mascot, one plain line about the state, and the next action. */
 export function EmptyState({
@@ -21,7 +22,7 @@ export function EmptyState({
   return (
     <div className="grid flex-1 place-items-center p-6 text-center">
       <div className="flex max-w-[40ch] flex-col items-center gap-2">
-        <Beaver size={mascotSize} state={mascot} />
+        <Mawl size={mascotSize} state={mascot} />
         <Heading className="mt-2 font-display text-title">{title}</Heading>
         {children ? <div className="text-text-2">{children}</div> : null}
         {action ? <div className="mt-3 flex flex-wrap justify-center gap-2">{action}</div> : null}

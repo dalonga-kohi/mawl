@@ -24,10 +24,10 @@ describe('useMascotState end pose', () => {
     expect(result.current).toBe('idle')
   })
 
-  it('plays error after a watched run fails', () => {
+  it('plays oops after a watched run fails', () => {
     const { result, rerender } = setup('queued')
     rerender({ run: 'failed' })
-    expect(result.current).toBe('error')
+    expect(result.current).toBe('oops')
   })
 
   it('stays idle for a run that was already over when the view opened', () => {

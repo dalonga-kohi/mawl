@@ -20,7 +20,7 @@
   "css": { "parser": { "tailwindDirectives": true } },
   "overrides": [
     {
-      "includes": ["apps/web/src/styles.css"],
+      "includes": ["apps/web/src/styles.css", "apps/web/src/mascot/mawl.css"],
       "linter": { "rules": { "complexity": { "noImportantStyles": "off" } } }
     }
   ],

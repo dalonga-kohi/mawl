@@ -58,7 +58,7 @@ Mawl is a single self-hosted product with:
 | F11 | **Watch & take control** | Live desktop stream in the app. "Take control" / "Give back". The agent can ask for takeover (e.g. logins, 2FA, CAPTCHA). A secure credential form lets you type secrets into the sandbox without the model ever seeing them |
 | F12 | **Approvals & policy** | Each action class gets a level: auto / ask / hand off / block. Defaults: sends, purchases, deletes and payments are ask. Approvals arrive on every channel |
 | F14 | **Telegram & Discord** | Per-profile bot tokens over long polling (no inbound networking). Chat, approve, check status and run routines from the chat. Owner allowlist. Token locks |
-| F15 | **Onboarding** | Windows installer, then three steps: provider (Continue with ChatGPT, an API key, Ollama, or the Claude plan) → name your first teammate → done. A computer is offered later. The beaver guides you |
+| F15 | **Onboarding** | Windows installer, then three steps: provider (Continue with ChatGPT, an API key, Ollama, or the Claude plan) → name your first teammate → done. A computer is offered later. Mawl guides you |
 | F16 | **Accent color & theme** | Light, dark or system theme. Six accent presets plus a custom color |
 | F17 | **Activity & audit log** | Every tool call, approval, takeover and memory write is recorded and searchable |
 | F18 | **Desktop host** | The app runs the server and its database itself: tray icon, starts at login, close-to-tray, Windows notifications. Headless mode (Docker or a plain process) serves the same web app |

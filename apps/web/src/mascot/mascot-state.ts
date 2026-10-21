@@ -1,6 +1,6 @@
 import type { RunStatus } from '@mawl/contracts'
 import { useEffect, useRef, useState } from 'react'
-import type { MascotState } from './Beaver.tsx'
+import type { MascotState } from './states.ts'
 
 export interface MascotInputs {
   /** Status of the run the owner is looking at, if any. */
@@ -13,7 +13,7 @@ export interface MascotInputs {
   justEnded?: boolean
 }
 
-/** DESIGN.md §8 states from what the owner can see. Pure: timing lives in {@link useMascotState}. */
+/** Mawl's state (UI-REDESIGN.md §4) from what the owner can see. Pure: timing lives in {@link useMascotState}. */
 export function deriveMascotState({
   run,
   toolsRunning,
@@ -32,12 +32,12 @@ export function deriveMascotState({
     case 'waiting_user':
       return 'waiting'
     case 'paused':
-      return 'sleeping'
+      return 'sleepy'
     case 'succeeded':
       if (justEnded) return 'done'
       break
     case 'failed':
-      if (justEnded) return 'error'
+      if (justEnded) return 'oops'
       break
     default:
       break
@@ -45,7 +45,7 @@ export function deriveMascotState({
   return typing ? 'listening' : 'idle'
 }
 
-/** How long "done" and "error" play before Pip settles back to idle. */
+/** How long "done" and "oops" play before Mawl settles back to idle. */
 export const END_POSE_MS = 2400
 
 /**

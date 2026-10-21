@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@mawl/ui/tokens.css";
+@import "./mascot/mawl.css";
 @import "@fontsource-variable/figtree";
 @import "@fontsource-variable/bricolage-grotesque";
 @import "@fontsource-variable/jetbrains-mono";
@@ -163,101 +164,6 @@
   }
 }
 
-/* Pip, placeholder art (see src/mascot/Beaver.tsx). Ambient motion belongs only to the mascot. */
-.beaver {
-  overflow: visible;
-}
-.beaver .bob {
-  animation: mawl-bob 3.6s ease-in-out infinite;
-  transform-origin: 60px 100px;
-}
-.beaver .eyes-open {
-  animation: mawl-blink 5.5s infinite;
-  transform-origin: 60px 46px;
-}
-.beaver :is(.eyes-closed, .zz, .logbits, .sign, .think, .sweat, .sparkle) {
-  opacity: 0;
-  transition: opacity var(--dur-base);
-}
-.beaver .pupils {
-  transition: transform var(--dur-slow) var(--ease-out);
-}
-.beaver .tailg {
-  transform-origin: 84px 98px;
-}
-.beaver .ears {
-  transition: transform var(--dur-slow) var(--ease-out);
-  transform-origin: 60px 40px;
-}
-.beaver .head {
-  transition: transform var(--dur-slow) var(--ease-out);
-  transform-origin: 60px 70px;
-}
-.beaver[data-state="listening"] .ears {
-  transform: translateY(-2px) scale(1.04);
-}
-.beaver[data-state="listening"] .head {
-  transform: rotate(-6deg);
-}
-.beaver[data-state="thinking"] .pupils {
-  transform: translate(1.5px, -2.2px);
-}
-.beaver[data-state="thinking"] .think {
-  opacity: 1;
-  animation: mawl-breathe 1.2s infinite;
-}
-.beaver[data-state="working"] .logbits {
-  opacity: 1;
-}
-.beaver[data-state="working"] .head {
-  animation: mawl-gnaw 0.32s ease-in-out infinite;
-}
-.beaver[data-state="working"] .chipbit {
-  animation: mawl-chip 1s ease-out infinite;
-}
-.beaver .chip-a {
-  --dx: -8px;
-}
-.beaver .chip-b {
-  --dx: 7px;
-  animation-delay: 0.33s;
-}
-.beaver .chip-c {
-  --dx: -3px;
-  animation-delay: 0.66s;
-}
-.beaver[data-state="waiting"] .sign {
-  opacity: 1;
-}
-.beaver[data-state="waiting"] .head {
-  animation: mawl-tilt 2.4s ease-in-out infinite;
-}
-.beaver[data-state="done"] .tailg {
-  animation: mawl-slap 0.7s var(--ease-out) 2;
-}
-.beaver[data-state="done"] .sparkle {
-  opacity: 1;
-}
-.beaver[data-state="sleeping"] .eyes-open {
-  opacity: 0;
-  animation: none;
-}
-.beaver[data-state="sleeping"] :is(.eyes-closed, .zz) {
-  opacity: 1;
-}
-.beaver[data-state="sleeping"] .bob {
-  animation-duration: 5s;
-}
-.beaver[data-state="error"] .ears {
-  transform: translateY(3px);
-}
-.beaver[data-state="error"] .sweat {
-  opacity: 1;
-}
-.beaver[data-state="error"] .pupils {
-  transform: translateY(1.5px);
-}
-
 @keyframes mawl-shimmer {
   from {
     background-position: -40% 0;
@@ -271,49 +177,9 @@
     opacity: 0.35;
   }
 }
-@keyframes mawl-bob {
-  50% {
-    transform: translateY(-1.6px);
-  }
-}
-@keyframes mawl-blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  96.5% {
-    transform: scaleY(0.08);
-  }
-}
-@keyframes mawl-gnaw {
-  50% {
-    transform: translateY(1.5px) rotate(1deg);
-  }
-}
-@keyframes mawl-chip {
-  0% {
-    transform: translate(0, 0);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--dx), -10px);
-    opacity: 0;
-  }
-}
-@keyframes mawl-tilt {
-  50% {
-    transform: rotate(4deg);
-  }
-}
-@keyframes mawl-slap {
-  40% {
-    transform: rotate(-28deg);
-  }
-}
 
 /* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
-   MotionConfig; this freezes CSS animation, including the mascot on its pose frame. */
+   MotionConfig; this freezes CSS animation. Mawl holds its pose on its own (mascot/mawl.css). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
