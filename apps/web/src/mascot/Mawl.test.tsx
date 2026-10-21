@@ -77,6 +77,9 @@ describe('Mawl', () => {
     const svg = svgOf(small.container)
     expect(svg.getAttribute('width')).toBe('16')
     expect(small.container.querySelector('[data-part^="fx-"]')).toBeNull()
+    expect(small.container.querySelector('.mawl-shadow')).toBeNull()
+    expect(svg.classList).toContain('is-tiny')
+    expect(svgOf(big.container).classList).not.toContain('is-tiny')
     expect(on(svg)).toContain('eyes-happy')
   })
 

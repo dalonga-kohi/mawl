@@ -1,6 +1,6 @@
 /*
  * Mawl, the lemon-lime mochi (docs/UI-REDESIGN.md §3-4). The palette is fixed and never follows
- * the accent; it is the only place these colours live. Shapes and keyframes are ported from the
+ * the accent; it is the only place these colors live. Shapes and keyframes are ported from the
  * user's mint reference. Ambient motion belongs only to the mascot (DESIGN.md §7).
  */
 .mawl,
@@ -19,12 +19,19 @@
   overflow: visible;
 }
 
-/* A teammate colour keeps its hue but takes Mawl's lightness, so the ink eyes always read. */
+/* A teammate color keeps its hue but takes Mawl's lightness, so the ink eyes always read. */
 .mawl-avatar.is-tinted {
   --mawl-body-top: oklch(from var(--mawl-tint) 0.94 calc(c * 0.55) h);
   --mawl-body-bottom: oklch(from var(--mawl-tint) 0.84 calc(c * 0.8) h);
   --mawl-ear: oklch(from var(--mawl-tint) 0.89 calc(c * 0.7) h);
   --mawl-ear-inner: oklch(from var(--mawl-tint) 0.74 c h);
+}
+/* Heavier eyes at tray and list-icon sizes. */
+:is(.mawl, .mawl-avatar).is-tiny [data-part^="eyes-"] path {
+  stroke-width: 8.5;
+}
+:is(.mawl, .mawl-avatar).is-tiny [data-part="eyes-round"] circle {
+  r: 6;
 }
 /* The avatar never animates, so it shows its active eyes only and skips the cross-fade. */
 .mawl-avatar [data-part^="eyes-"]:not([data-on]) {
@@ -69,7 +76,7 @@
 }
 .mawl-paw {
   opacity: 0;
-  transform-origin: 80% 90%;
+  transform-origin: 85% 100%;
   transition: opacity var(--dur-base) var(--ease-out);
 }
 

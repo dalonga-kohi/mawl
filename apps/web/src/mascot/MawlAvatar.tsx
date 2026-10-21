@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react'
 import { cx } from '../ui/cx.ts'
-import { BODY_PATH, MawlEyes, POSES, useSvgIds } from './Mawl.tsx'
+import { BODY_PATH, MawlEyes, POSES, TINY_AT, useSvgIds } from './Mawl.tsx'
 import type { MascotState } from './states.ts'
 
 /**
  * The simplified Mawl for chat lists and teammate avatars (UI-REDESIGN.md §3): body, ears and eyes,
- * no mouth, no tail, no motion. A teammate colour re-tints it; mawl.css pins the lightness so the
- * dark eyes stay readable whatever the colour. Without one it wears Mawl's own lime. The state shows
+ * no mouth, no tail, no motion. A teammate color re-tints it; mawl.css pins the lightness so the
+ * dark eyes stay readable whatever the color. Without one it wears Mawl's own lime. The state shows
  * in the eyes only.
  */
 export function MawlAvatar({
@@ -15,7 +15,7 @@ export function MawlAvatar({
   state = 'idle',
   className,
 }: {
-  /** The teammate's colour (a validated hex). Data, not a token: it only ever tints. */
+  /** The teammate's color (a validated hex). Data, not a token: it only ever tints. */
   color?: string | undefined
   size?: number
   state?: MascotState
@@ -25,7 +25,7 @@ export function MawlAvatar({
   const style = color ? ({ '--mawl-tint': color } as CSSProperties) : undefined
   return (
     <svg
-      className={cx('mawl-avatar', color && 'is-tinted', className)}
+      className={cx('mawl-avatar', color && 'is-tinted', size <= TINY_AT && 'is-tiny', className)}
       width={size}
       height={size}
       viewBox="-50 -51 100 100"

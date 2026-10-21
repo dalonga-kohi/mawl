@@ -20,13 +20,18 @@ describe('MawlAvatar', () => {
     expect(svg.querySelector('[data-part^="fx-"]')).toBeNull()
   })
 
+  it('thickens its eyes when tiny so they survive 16 px', () => {
+    expect(svgOf(render(<MawlAvatar size={16} />).container).classList).toContain('is-tiny')
+    expect(svgOf(render(<MawlAvatar size={40} />).container).classList).not.toContain('is-tiny')
+  })
+
   it('is square at the requested size', () => {
     const svg = svgOf(render(<MawlAvatar size={16} />).container)
     expect(svg.getAttribute('width')).toBe('16')
     expect(svg.getAttribute('height')).toBe('16')
   })
 
-  it("wears Mawl's own lime unless the teammate has a colour", () => {
+  it("wears Mawl's own lime unless the teammate has a color", () => {
     const plain = svgOf(render(<MawlAvatar />).container)
     expect(plain.style.getPropertyValue('--mawl-tint')).toBe('')
     const tinted = svgOf(render(<MawlAvatar color="#3b82f6" />).container)

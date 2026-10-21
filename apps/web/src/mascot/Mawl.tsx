@@ -6,7 +6,7 @@ import type { MascotState } from './states.ts'
 /**
  * Mawl, the lemon-lime mochi (docs/UI-REDESIGN.md §2-4). Ported from the user's mint reference:
  * the shapes and keyframes are the reference's, recolored with the fixed Mawl palette in
- * `mawl.css`. Every colour is a `--mawl-*` variable; none of them follow the accent.
+ * `mawl.css`. Every color is a `--mawl-*` variable; none of them follow the accent.
  *
  * The state only picks which eyes, mouth and effect are on (see {@link POSES}); the motion for each
  * state lives in `mawl.css`, keyed on `data-state`. Reduced motion (the OS setting or the in-app
@@ -78,6 +78,8 @@ export function MawlEyes({ on, still }: { on?: EyeShape | undefined; still?: boo
   )
 }
 
+/** At or below this size the eye strokes fall under a pixel, so mawl.css makes them heavier. */
+export const TINY_AT = 20
 /** Below this width the effects are unreadable, so Mawl drops them and crops to its body. */
 const COMPACT_BELOW = 48
 /** Eyes follow the pointer only when Mawl is big enough for the glance to read. */
@@ -85,7 +87,8 @@ const FOLLOW_FROM = 64
 /** Matches `mawl-hop` in mawl.css. */
 export const HOP_MS = 550
 const FULL_BOX = { x: -85, y: -90, w: 170, h: 150 }
-const COMPACT_BOX = { x: -62, y: -54, w: 124, h: 108 }
+// Body, ears and tail only; overflow stays visible, so a hop or bob may leave the box.
+const COMPACT_BOX = { x: -50, y: -46, w: 112, h: 92 }
 
 export function Mawl({
   size = 40,
@@ -129,7 +132,13 @@ export function Mawl({
   return (
     <svg
       ref={svgRef}
-      className={cx('mawl', reduce && 'is-still', hopping && 'is-hopping', className)}
+      className={cx(
+        'mawl',
+        size <= TINY_AT && 'is-tiny',
+        reduce && 'is-still',
+        hopping && 'is-hopping',
+        className,
+      )}
       width={size}
       height={Math.round((size * box.h) / box.w)}
       viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
@@ -152,7 +161,7 @@ export function Mawl({
           <path d={OPEN_MOUTH} />
         </clipPath>
       </defs>
-      <ellipse className="mawl-shadow" cx="0" cy="46" rx="42" ry="5.5" />
+      {compact ? null : <ellipse className="mawl-shadow" cx="0" cy="46" rx="42" ry="5.5" />}
       <g className="mawl-hop">
         <g className="mawl-bounce">
           <g className="mawl-squish">
@@ -173,7 +182,14 @@ export function Mawl({
               <circle cx="29" cy="-34" r="5.5" fill="var(--mawl-ear-inner)" />
             </g>
             <g className="mawl-paw">
-              <ellipse cx="-50" cy="-2" rx="7" ry="10" fill="var(--mawl-body-bottom)" />
+              <ellipse
+                cx="-51"
+                cy="-12"
+                rx="6.5"
+                ry="11"
+                fill={`url(#${ids.body})`}
+                transform="rotate(-32 -51 -12)"
+              />
             </g>
             <path data-part="body" d={BODY_PATH} fill={`url(#${ids.body})`} />
             <g className="mawl-blush" fill="var(--mawl-blush)">
