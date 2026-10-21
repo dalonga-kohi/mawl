@@ -1,0 +1,52 @@
+# Main CI. GitHub Actions (.github/workflows/ci.yml) runs the same gate as a fallback.
+# scripts/travis-config.test.ts checks the shape of this file.
+os: linux
+dist: noble
+language: node_js
+# No node_js key: Travis's nvm reads the version from .nvmrc.
+
+# Pushes to main and pull requests only; slice branches build through their PR.
+if: branch = main OR type = pull_request
+
+services:
+  - docker
+
+env:
+  global:
+    - CI=1
+    # The Testcontainers suites must run here, never skip.
+    - FAIRE_REQUIRE_DOCKER=1
+    - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    - TURBO_CACHE_DIR=.turbo/cache
+
+cache:
+  directories:
+    - $HOME/.pnpm-store
+    - .turbo/cache
+
+# The pnpm version comes from "packageManager" in package.json.
+before_install:
+  - corepack enable
+  - pnpm config set store-dir "$HOME/.pnpm-store"
+
+install:
+  - pnpm install --frozen-lockfile
+
+stages:
+  - gate
+  - e2e
+
+jobs:
+  include:
+    - stage: gate
+      name: lint, typecheck, test
+      script:
+        - pnpm turbo lint typecheck test
+
+    # The e2e server starts its own Postgres container.
+    - stage: e2e
+      name: browser e2e
+      before_script:
+        - pnpm --filter @faire/web exec playwright install --with-deps chromium
+      script:
+        - pnpm test:e2e
