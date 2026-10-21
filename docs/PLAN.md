@@ -91,6 +91,17 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - Put `MAWL_CLAUDE_CONFIG_DIR` (`CLAUDE_CONFIG_DIR` for the binary) on a named volume.
     - Verify that headless `claude auth login` works in the container.
 
+## U — Mawl UI redesign (see [UI-REDESIGN.md](UI-REDESIGN.md))
+Goal: a comforting, playful, uncrowded UI on shadcn, with the new Mawl mascot, palette and sidebar. All slices are UI, so `head-coder`; read UI-REDESIGN.md, DESIGN.md and use all four design skills. Each slice is checked at 1440 / 1100 / 760 / 390 in light and dark.
+
+- [ ] **U1 Foundations.** shadcn init (Radix, Tailwind 4, components in `apps/web/src/ui/`), shadcn variables mapped onto `@mawl/ui` tokens, new Cream/Ink neutrals, the round shape scale, accent presets re-tuned with Lime as default, accent engine and contrast tests updated, `tokens.css` regenerated. Restyle the existing primitives (Button, Modal, Tooltip, EmptyState) on shadcn.
+- [ ] **U2 Mawl.** Port the mint reference to a `Mawl` SVG component (8 states, pointer-follow, blink, reduced motion) and a simplified `MawlAvatar`; rename Pip and Beaver everywhere (code, `packages/mascot`, docs, copy); update `mascot-state` mapping and tests.
+- [ ] **U3 Shell and sidebar.** The new sidebar (Search, Tools, Scheduled, Approvals, Pinned, Teammates, Settings + profile), hide to a 64 px rail with `Ctrl+B`, drawer and tab bar under 760 px, pin and unpin teammates, the profile dialog UI (name, personal context; stored locally until U6).
+- [ ] **U4 Chat and composer.** New-chat landing, pill composer with `+`, model chip and a circular send / stop, message styling, tool activity and reasoning on AI Elements where they fit, Mawl in the header, the dock transition, loading / empty / error states.
+- [ ] **U5 Tools, Scheduled and Approvals pages.** Tools (Connections, Skills, Plugins tabs), Scheduled, Approvals with the Activity tab. Pages may show real data where the server has it and a designed empty state where it doesn't yet; each one names the D-slice that fills it.
+- [ ] **U6 Settings and profile.** (hard: contract) Sectioned Settings, the Appearance redesign (theme, accent swatches, reduced motion), and the `user` profile RPC (name, personal context) with a server store. Propose head-reviewer (contracts change).
+- [ ] **U7 Workspace panel and sweep.** Restyle the right panel (Computer, Memory, Files, Run placeholders), teammate dialogs and the command palette; then the full responsive and theme sweep, a11y pass, and screenshots for the user.
+
 ## D1 — Desktop host (install and go)
 Goal: download the installer, open Mawl from the tray, chat with a teammate. No Docker, no terminal. See REDESIGN §4.
 

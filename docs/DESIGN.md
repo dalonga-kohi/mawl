@@ -1,6 +1,8 @@
 # Mawl — Design System
 
-> Calm, lowkey, gentle and a little playful. The UI stays quiet so the work and the beaver can speak.
+> Calm, lowkey, gentle and a little playful. The UI stays quiet so the work and the mascot can speak.
+
+> **2026-10-21 redesign: [UI-REDESIGN.md](UI-REDESIGN.md) wins over this file** on palette, mascot (now **Mawl**, a lemon-lime mochi, not the brown beaver Pip), shape (everything round), shell layout and the shadcn component base. Sections 3, 5 (layout), 6 (avatars), 8 and 9 are being rewritten slice by slice (PLAN U1 to U7).
 
 The reference mood is the airy blue/white Telegram concepts plus a quiet dark mode. They show direction only; we don't copy them. When you do frontend work, apply the **ui-taste**, **frontend-design** and **ui-ux-pro-max** skills on top of this document. This document wins on any conflict.
 
