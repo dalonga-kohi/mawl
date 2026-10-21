@@ -9,16 +9,12 @@ import {
   type RouteComponent,
   redirect,
 } from '@tanstack/react-router'
-import {
-  ActivityPage,
-  ApprovalsPage,
-  ConnectionsPage,
-  MemoryPage,
-  NotFoundPage,
-  RoutinesPage,
-  ToolsPage,
-} from './pages/placeholders.tsx'
+import { ApprovalsPage } from './pages/ApprovalsPage.tsx'
+import { MemoryPage, NotFoundPage } from './pages/placeholders.tsx'
 import { RouteError, RoutePending } from './pages/route-fallbacks.tsx'
+import { ScheduledPage } from './pages/ScheduledPage.tsx'
+import { validateApprovalsSearch, validateToolsSearch } from './pages/search.ts'
+import { ToolsPage } from './pages/ToolsPage.tsx'
 import { Shell } from './shell/Shell.tsx'
 import { TeammatesIndex, TeammatesLayout } from './teammates/TeammatesView.tsx'
 
@@ -51,6 +47,17 @@ const chatRoute = createRoute({
   validateSearch: chatSearch,
 })
 
+/** An old address that now lives on a tab of another page. */
+const moved = (path: '/activity' | '/connections', to: '/approvals' | '/tools', tab: string) =>
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path,
+    beforeLoad: () => {
+      // reason: 	o is a union of two routes with different search types; both take a plain tab.
+      throw redirect({ to, search: { tab } as never, replace: true })
+    },
+  })
+
 const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
@@ -63,12 +70,22 @@ const routeTree = rootRoute.addChildren([
     createRoute({ getParentRoute: () => teammatesRoute, path: '/', component: TeammatesIndex }),
     chatRoute,
   ]),
-  page('/activity', ActivityPage),
-  page('/approvals', ApprovalsPage),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/approvals',
+    component: ApprovalsPage,
+    validateSearch: validateApprovalsSearch,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/tools',
+    component: ToolsPage,
+    validateSearch: validateToolsSearch,
+  }),
+  moved('/activity', '/approvals', 'activity'),
+  moved('/connections', '/tools', 'connections'),
   page('/memory', MemoryPage),
-  page('/routines', RoutinesPage),
-  page('/tools', ToolsPage),
-  page('/connections', ConnectionsPage),
+  page('/routines', ScheduledPage),
   page('/settings', SettingsPage),
 ])
 

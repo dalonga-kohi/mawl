@@ -22,9 +22,9 @@ describe('app shell', () => {
     )
   })
 
-  it('keeps Activity and Memory reachable by address', async () => {
-    await renderApp('/activity')
-    expect(screen.getByRole('heading', { level: 1, name: 'Activity' })).toBeTruthy()
+  it('keeps Memory reachable by address', async () => {
+    await renderApp('/memory')
+    expect(screen.getByRole('heading', { level: 1, name: 'Memory' })).toBeTruthy()
   })
 
   it('shows a not-found page with a way back for unknown paths', async () => {
