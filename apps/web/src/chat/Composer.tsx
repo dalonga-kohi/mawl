@@ -84,7 +84,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     <form
       onSubmit={submit}
       className={cx(
-        'flex w-full items-end gap-1 rounded-panel bg-surface p-1.5',
+        'flex w-full items-end gap-1 rounded-panel bg-surface p-[7px]',
         'shadow-[0_0_0_1px_var(--line),var(--shadow-1)]',
       )}
     >
