@@ -1,5 +1,14 @@
-import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import type { MascotState } from '../mascot/states.ts'
+import { loadSidebarOpen, saveSidebarOpen } from './shell-prefs.ts'
 
 interface ShellApi {
   /** Context panel: inline at 1100 px and wider, a sheet below. */
@@ -7,19 +16,68 @@ interface ShellApi {
   setPanelOpen(open: boolean): void
   paletteOpen: boolean
   setPaletteOpen(open: boolean): void
-  /** The rail mascot shows the focused teammate's state (DESIGN.md §8). */
+  /** The sidebar mascot shows the focused teammate's state (DESIGN.md §8). */
   mascot: MascotState
   setMascot(state: MascotState): void
+  /** Below 760 px the sidebar is a drawer instead of a column. */
+  compact: boolean
+  /** Desktop: is the sidebar column shown? Remembered between visits. */
+  sidebarOpen: boolean
+  /** Compact: is the drawer open? */
+  drawerOpen: boolean
+  setDrawerOpen(open: boolean): void
+  /** Whichever of column or drawer applies at this width is visible. */
+  sidebarVisible: boolean
+  showSidebar(): void
+  hideSidebar(): void
+  toggleSidebar(): void
 }
 
 const ShellContext = createContext<ShellApi | null>(null)
 
-export function ShellProvider({ children, wide }: { children: ReactNode; wide: boolean }) {
+const isSidebarShortcut = (e: KeyboardEvent) =>
+  (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b'
+
+export function ShellProvider({
+  children,
+  wide,
+  medium,
+}: {
+  children: ReactNode
+  wide: boolean
+  medium: boolean
+}) {
   // Wide screens start with the panel open; narrower ones keep the sheet closed until asked.
   const [wideOpen, setWideOpen] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [mascot, setMascot] = useState<MascotState>('idle')
+  const [sidebarOpen, setSidebarOpenState] = useState(() => loadSidebarOpen(window.localStorage))
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const compact = !medium
+
+  const setSidebarOpen = useCallback((open: boolean) => {
+    setSidebarOpenState(open)
+    saveSidebarOpen(window.localStorage, open)
+  }, [])
+
+  const sidebarVisible = compact ? drawerOpen : sidebarOpen
+  const setVisible = useCallback(
+    (open: boolean) => (compact ? setDrawerOpen(open) : setSidebarOpen(open)),
+    [compact, setSidebarOpen],
+  )
+
+  // Ctrl+B / Cmd+B toggles the sidebar from anywhere, typing included.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSidebarShortcut(e)) return
+      e.preventDefault()
+      setVisible(!sidebarVisible)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setVisible, sidebarVisible])
+
   const api = useMemo<ShellApi>(
     () => ({
       panelOpen: wide ? wideOpen : sheetOpen,
@@ -28,8 +86,27 @@ export function ShellProvider({ children, wide }: { children: ReactNode; wide: b
       setPaletteOpen,
       mascot,
       setMascot,
+      compact,
+      sidebarOpen,
+      drawerOpen,
+      setDrawerOpen,
+      sidebarVisible,
+      showSidebar: () => setVisible(true),
+      hideSidebar: () => setVisible(false),
+      toggleSidebar: () => setVisible(!sidebarVisible),
     }),
-    [wide, wideOpen, sheetOpen, paletteOpen, mascot],
+    [
+      wide,
+      wideOpen,
+      sheetOpen,
+      paletteOpen,
+      mascot,
+      compact,
+      sidebarOpen,
+      drawerOpen,
+      sidebarVisible,
+      setVisible,
+    ],
   )
   return <ShellContext value={api}>{children}</ShellContext>
 }

@@ -14,7 +14,7 @@ beforeEach(() => stubViewport(1440))
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
 function railMascot() {
-  return document.querySelector('nav[aria-label="Main"] .mawl')?.getAttribute('data-state')
+  return document.querySelector('aside[aria-label="Sidebar"] .mawl')?.getAttribute('data-state')
 }
 
 describe('teammates landing', () => {
@@ -25,13 +25,14 @@ describe('teammates landing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Inbox Sweeper' })).toBeTruthy()
   })
 
-  it('lists teammates full screen on phones', async () => {
+  it('opens the first teammate on phones, with the list in the drawer', async () => {
     stubViewport(390)
     const fake = fakeApi({ profiles: [sweeper()] })
-    const { router } = await renderApp('/t', fake.api)
-    const list = await screen.findByRole('complementary', { name: 'Teammates' })
-    expect(await within(list).findByRole('link', { name: /Inbox Sweeper/ })).toBeTruthy()
-    expect(router.state.location.pathname).toBe('/t')
+    const { user, router } = await renderApp('/t', fake.api)
+    await waitFor(() => expect(router.state.location.pathname).toBe('/t/inbox-sweeper'))
+    await user.click(await screen.findByRole('button', { name: 'Show sidebar' }))
+    const drawer = await screen.findByRole('dialog', { name: 'Sidebar' })
+    expect(await within(drawer).findByRole('link', { name: /Inbox Sweeper/ })).toBeTruthy()
   })
 
   it('creates a first teammate once a model is connected', async () => {

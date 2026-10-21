@@ -3,14 +3,13 @@ import { PanelRight, PanelRightClose } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useCredentials } from '../settings/models/queries.ts'
 import { useShell } from '../shell/ShellContext.tsx'
-import { MEDIUM, useMediaQuery } from '../shell/use-media-query.ts'
+import { ShowSidebarButton } from '../shell/ShowSidebarButton.tsx'
 import { Button, buttonClass, IconButton } from '../ui/Button.tsx'
 import { EmptyState } from '../ui/EmptyState.tsx'
 import { ContextPanelBody } from './ContextPanel.tsx'
 import { NewTeammateDialog } from './NewTeammateDialog.tsx'
 import { useProfiles } from './queries.ts'
 import { SidePanel } from './SidePanel.tsx'
-import { TeammateList } from './TeammateList.tsx'
 
 /** Shows or hides the context panel; the label says which. */
 export function PanelToggle() {
@@ -26,10 +25,8 @@ export function PanelToggle() {
   )
 }
 
-/**
- * Teammate list beside whatever the child route shows (a conversation, or the landing state).
- * Below 760 px the list steps aside; the landing route shows it full screen instead.
- */
+/** Whatever the child route shows (a conversation, or the landing state); the sidebar lists teammates. */
+
 export function TeammatesLayout() {
   // Fetch the conversation chunk while the list renders, so opening a teammate never shows a
   // blank frame.
@@ -37,11 +34,8 @@ export function TeammatesLayout() {
     void import('../chat/ChatView.tsx')
   }, [])
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] md:grid-cols-[280px_minmax(0,1fr)]">
-      <TeammateList />
-      <div className="flex min-h-0 min-w-0">
-        <Outlet />
-      </div>
+    <div className="flex min-h-0 min-w-0 flex-1">
+      <Outlet />
     </div>
   )
 }
@@ -84,21 +78,17 @@ function FirstRun() {
   )
 }
 
-/** `/t`: opens the first teammate, or explains how to get one. Phones see the list itself. */
+/** `/t`: opens the first teammate, or explains how to get one. */
 export function TeammatesIndex() {
-  const medium = useMediaQuery(MEDIUM)
   const profiles = useProfiles()
   const first = profiles.data?.[0]
-  if (first && medium) {
-    return <Navigate to="/t/$slug" params={{ slug: first.slug }} replace />
-  }
-  if (first) return <TeammateList variant="screen" />
+  if (first) return <Navigate to="/t/$slug" params={{ slug: first.slug }} replace />
   return (
     <>
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-bg">
-        <header className="flex min-h-[68px] items-center justify-end gap-3 border-b border-line px-5 py-3.5">
-          {/* Below 760 px the list is hidden, so the conversation carries the view's title. */}
-          {medium ? null : <h1 className="flex-1 text-heading">Teammates</h1>}
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex min-h-[68px] items-center gap-3 px-3 py-3 md:px-5">
+          <ShowSidebarButton />
+          <span className="flex-1" />
           <PanelToggle />
         </header>
         {profiles.isPending ? (

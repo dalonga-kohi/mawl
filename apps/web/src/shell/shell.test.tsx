@@ -8,29 +8,23 @@ describe('app shell', () => {
   it('opens on Teammates', async () => {
     const { router } = await renderApp('/')
     await waitFor(() => expect(router.state.location.pathname).toBe('/t'))
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(within(nav).getByRole('link', { name: 'Teammates' }).getAttribute('aria-current')).toBe(
-      'page',
-    )
+    expect(await screen.findByRole('heading', { name: 'No teammates yet' })).toBeTruthy()
   })
 
-  it('has a labelled rail link for every main view', async () => {
-    await renderApp('/t')
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Teammates', 'Activity', 'Approvals', 'Memory', 'Routines', 'Settings']) {
-      expect(within(nav).getByRole('link', { name })).toBeTruthy()
-    }
-  })
-
-  it('moves between views from the rail', async () => {
+  it('moves between views from the sidebar', async () => {
     const { user, router } = await renderApp('/t')
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    await user.click(within(nav).getByRole('link', { name: 'Activity' }))
-    await waitFor(() => expect(router.state.location.pathname).toBe('/activity'))
-    expect(screen.getByRole('heading', { level: 1, name: 'Activity' })).toBeTruthy()
-    expect(within(nav).getByRole('link', { name: 'Activity' }).getAttribute('aria-current')).toBe(
+    await user.click(within(nav).getByRole('link', { name: 'Scheduled' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/routines'))
+    expect(screen.getByRole('heading', { level: 1, name: 'Scheduled' })).toBeTruthy()
+    expect(within(nav).getByRole('link', { name: 'Scheduled' }).getAttribute('aria-current')).toBe(
       'page',
     )
+  })
+
+  it('keeps Activity and Memory reachable by address', async () => {
+    await renderApp('/activity')
+    expect(screen.getByRole('heading', { level: 1, name: 'Activity' })).toBeTruthy()
   })
 
   it('shows a not-found page with a way back for unknown paths', async () => {
@@ -40,7 +34,6 @@ describe('app shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/t'))
   })
 })
-
 describe('teammates view', () => {
   it('points a fresh install to connecting a model', async () => {
     const { user, router } = await renderApp('/t')

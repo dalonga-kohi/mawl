@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-test('the app loads and shows the teammates list', async ({ page }) => {
+test('the app loads and shows the sidebar with the teammates group', async ({ page }) => {
   await page.goto('/t')
-  await expect(page.getByRole('heading', { name: 'Teammates' }).first()).toBeVisible()
+  const sidebar = page.getByRole('complementary', { name: 'Sidebar' })
+  await expect(sidebar.getByRole('heading', { name: 'Teammates' })).toBeVisible()
 })
 
 test('RPC reaches the e2e server: Settings lists the seeded fake model credential', async ({

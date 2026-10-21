@@ -16,11 +16,12 @@ describe('command palette', () => {
     )
   })
 
-  it('opens from the rail on any page, including phone widths', async () => {
+  it('opens from the sidebar on any page, including phone widths', async () => {
     stubViewport(390)
     const { user } = await renderApp('/settings')
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    await user.click(within(nav).getByRole('button', { name: 'Search or jump to' }))
+    await user.click(screen.getByRole('button', { name: 'Show sidebar' }))
+    const nav = await screen.findByRole('navigation', { name: 'Main' })
+    await user.click(within(nav).getByRole('button', { name: /^Search/ }))
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
   })
 
@@ -30,11 +31,19 @@ describe('command palette', () => {
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
   })
 
-  it('opens from the search button in the teammate list', async () => {
+  it('opens from the search row in the sidebar', async () => {
     const { user } = await renderApp('/t')
-    const list = screen.getByRole('complementary', { name: 'Teammates' })
-    await user.click(within(list).getByRole('button', { name: /Search or jump to/ }))
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    await user.click(within(nav).getByRole('button', { name: /^Search/ }))
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
+  })
+
+  it('still lists Memory and Activity, which have no sidebar row', async () => {
+    const { user } = await renderApp('/t')
+    await user.keyboard('{Control>}k{/Control}')
+    expect(await screen.findByRole('option', { name: 'Memory' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Activity' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Tools' })).toBeTruthy()
   })
 
   it('jumps to a view', async () => {

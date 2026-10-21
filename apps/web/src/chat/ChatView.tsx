@@ -7,7 +7,7 @@ import {
   type ThreadId,
 } from '@mawl/contracts'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowDown, ChevronLeft, CircleAlert, CircleStop } from 'lucide-react'
+import { ArrowDown, CircleAlert, CircleStop } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveStatus, useRunText } from '../api/ApiProvider.tsx'
@@ -17,7 +17,7 @@ import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
 import { enter, transitions } from '../motion/presets.ts'
 import { useShell } from '../shell/ShellContext.tsx'
-import { MEDIUM, useMediaQuery } from '../shell/use-media-query.ts'
+import { ShowSidebarButton } from '../shell/ShowSidebarButton.tsx'
 import { ContextPanelBody } from '../teammates/ContextPanel.tsx'
 import {
   useCancelRun,
@@ -101,7 +101,6 @@ function Conversation({
   threadParam: string | undefined
 }) {
   const navigate = useNavigate()
-  const medium = useMediaQuery(MEDIUM)
   const { setMascot } = useShell()
   const threads = useThreads(profile.id)
   // No param: the latest conversation, or a new one when there is none yet.
@@ -217,16 +216,9 @@ function Conversation({
   const loading = resolving || (threadId !== undefined && messagesQuery.isPending)
 
   const header = (
-    <header className="flex min-h-[68px] items-center gap-3 border-b border-line px-3 py-3 md:px-5">
-      {medium ? null : (
-        <Link
-          to="/t"
-          aria-label="All teammates"
-          className="grid size-11 shrink-0 place-items-center rounded-pill text-text-2 hover:bg-surface-2"
-        >
-          <ChevronLeft className="size-5" aria-hidden="true" />
-        </Link>
-      )}
+    <header className="flex min-h-[68px] items-center gap-3 px-3 py-3 md:px-5">
+      <ShowSidebarButton />
+
       <TeammateAvatar color={profile.color} size={40} state={mascot} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 items-baseline gap-2">
@@ -265,7 +257,7 @@ function Conversation({
   return (
     <>
       <section
-        className="flex min-h-0 min-w-0 flex-1 flex-col bg-bg"
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
         aria-label={`Chat with ${profile.name}`}
       >
         {header}
@@ -601,8 +593,8 @@ function MessagesSkeleton() {
 
 function ChatSkeleton() {
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-bg" aria-busy="true">
-      <div className="flex min-h-[68px] items-center gap-3 border-b border-line px-5">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-busy="true">
+      <div className="flex min-h-[68px] items-center gap-3 px-5">
         <span className="size-10 animate-pulse rounded-sm bg-surface-2" />
         <span className="h-4 w-40 animate-pulse rounded-xs bg-surface-2" />
       </div>
