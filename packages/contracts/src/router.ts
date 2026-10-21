@@ -20,6 +20,8 @@ import {
   SettingsUpdate,
   Thread,
   Timestamp,
+  UserProfile,
+  UserProfileUpdate,
 } from './entities'
 import { ApprovalStatus, RunStatus } from './enums'
 import { EventId, LenientEnvelope, Topic } from './events'
@@ -194,6 +196,11 @@ export const contract = {
   settings: {
     get: base.output(Settings),
     update: base.input(SettingsUpdate).output(Settings),
+  },
+  /** The owner's own profile (one per install). Empty strings until they fill it in. */
+  user: {
+    get: base.output(UserProfile),
+    update: base.input(UserProfileUpdate).output(UserProfile),
   },
   events: {
     /**

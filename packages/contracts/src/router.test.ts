@@ -2,7 +2,7 @@ import type { InferContractRouterInputs, InferContractRouterOutputs } from '@orp
 import { isContractProcedure } from '@orpc/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
-import type { Approval, Device, Profile, Run, Settings } from './entities'
+import type { Approval, Device, Profile, Run, Settings, UserProfile } from './entities'
 import type { LenientEnvelope } from './events'
 import { contract } from './router'
 
@@ -43,6 +43,8 @@ describe('contract shape', () => {
         'devices.revoke',
         'settings.get',
         'settings.update',
+        'user.get',
+        'user.update',
         'events.subscribe',
       ].sort(),
     )
@@ -175,6 +177,61 @@ describe('contract validation', () => {
     })
   })
 
+  describe('user profile input rules', () => {
+    const check = async (value: unknown) =>
+      (await contract.user.update['~orpc'].inputSchema?.['~standard'].validate(value)) as {
+        value?: unknown
+        issues?: unknown[]
+      }
+
+    it('trims the name and keeps the personal context as typed', async () => {
+      expect(await check({ name: '  Sam  ', personalContext: '  I bake.\n' })).toMatchObject({
+        value: { name: 'Sam', personalContext: '  I bake.\n' },
+      })
+    })
+
+    it('accepts an empty profile (both fields cleared)', async () => {
+      expect((await check({ name: '', personalContext: '' })).issues).toBeUndefined()
+      expect((await check({ name: '   ', personalContext: '' })).value).toEqual({
+        name: '',
+        personalContext: '',
+      })
+    })
+
+    it('caps the name at 80 characters after trimming', async () => {
+      expect((await check({ name: 'x'.repeat(80), personalContext: '' })).issues).toBeUndefined()
+      expect(
+        (await check({ name: ` ${'x'.repeat(80)} `, personalContext: '' })).issues,
+      ).toBeUndefined()
+      expect((await check({ name: 'x'.repeat(81), personalContext: '' })).issues).toBeDefined()
+    })
+
+    it('caps the personal context at 2000 characters', async () => {
+      expect((await check({ name: '', personalContext: 'x'.repeat(2000) })).issues).toBeUndefined()
+      expect((await check({ name: '', personalContext: 'x'.repeat(2001) })).issues).toBeDefined()
+    })
+
+    it('needs both fields, so an update always replaces the whole profile', async () => {
+      expect((await check({ name: 'Sam' })).issues).toBeDefined()
+      expect((await check({ personalContext: 'x' })).issues).toBeDefined()
+      expect((await check({ name: 4, personalContext: '' })).issues).toBeDefined()
+    })
+
+    it('rejects unknown keys instead of dropping them', async () => {
+      expect(
+        (await check({ name: 'Sam', personalContext: '', apiKey: 'sk-live' })).issues,
+      ).toBeDefined()
+    })
+
+    it('user.get takes no input and returns a strict profile', async () => {
+      const out = contract.user.get['~orpc'].outputSchema
+      const ok = await out?.['~standard'].validate({ name: 'Sam', personalContext: '' })
+      expect(ok).not.toHaveProperty('issues')
+      const extra = await out?.['~standard'].validate({ name: 'S', personalContext: '', x: 1 })
+      expect(extra).toHaveProperty('issues')
+    })
+  })
+
   it('streams Envelope events from events.subscribe', () => {
     const out = contract.events.subscribe['~orpc'].outputSchema
     expect(out).toBeDefined()
@@ -208,6 +265,8 @@ describe('contract types', () => {
     expectTypeOf<Out['devices']['pair']['device']>().toEqualTypeOf<z.infer<typeof Device>>()
     expectTypeOf<Out['devices']['pair']['session']['token']>().toEqualTypeOf<string>()
     expectTypeOf<Out['settings']['get']>().toEqualTypeOf<Settings>()
+    expectTypeOf<Out['user']['get']>().toEqualTypeOf<UserProfile>()
+    expectTypeOf<Out['user']['update']>().toEqualTypeOf<UserProfile>()
   })
 
   it('infers procedure inputs', () => {

@@ -448,3 +448,27 @@ export type Settings = z.infer<typeof Settings>
 
 export const SettingsUpdate = Settings.partial()
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>
+
+// --- The owner's profile -----------------------------------------------------
+
+export const USER_NAME_MAX = 80
+export const USER_CONTEXT_MAX = 2000
+
+/**
+ * The owner (the person teammates work for): their name and what every teammate should always
+ * know about them. It becomes the `human` core memory block (MEMORY.md). Both fields are free text
+ * the owner typed: data, never instructions, wherever they are shown or put into a prompt.
+ * Strict, so nothing else (and never a secret) can ride along.
+ */
+export const UserProfile = z.strictObject({
+  name: z.string(),
+  personalContext: z.string(),
+})
+export type UserProfile = z.infer<typeof UserProfile>
+
+/** What a client may write. It replaces the whole profile; empty strings clear a field. */
+export const UserProfileUpdate = z.strictObject({
+  name: z.string().trim().max(USER_NAME_MAX),
+  personalContext: z.string().max(USER_CONTEXT_MAX),
+})
+export type UserProfileUpdate = z.infer<typeof UserProfileUpdate>

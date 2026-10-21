@@ -206,6 +206,10 @@ export function createRouter({ version, providers, runs, events, profiles }: Rou
       get: stub(os.settings.get),
       update: stub(os.settings.update),
     },
+    user: {
+      get: stub(os.user.get),
+      update: stub(os.user.update),
+    },
     events: {
       subscribe: events
         ? os.events.subscribe.handler(async function* ({ input, context, signal, errors }) {
