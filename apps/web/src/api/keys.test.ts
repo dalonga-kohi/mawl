@@ -19,6 +19,7 @@ const runId = 'run_01JTEST0000000000000000001' as RunId
 describe('query keys', () => {
   it('match the keys @orpc/tanstack-query generates for the same calls', () => {
     expect(keys.profiles()).toEqual(utils.profiles.list.queryKey())
+    expect(keys.user()).toEqual(utils.user.get.queryKey())
     expect(keys.threads(profileId)).toEqual(utils.threads.list.queryKey({ input: { profileId } }))
     expect(keys.run(runId)).toEqual(utils.runs.get.queryKey({ input: { id: runId } }))
     expect(keys.messages(threadId)).toEqual(

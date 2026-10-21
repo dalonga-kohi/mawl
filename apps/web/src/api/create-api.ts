@@ -24,6 +24,10 @@ export function createApi(origin: string = window.location.origin): Api {
       chatgptStart: () => rpc.providers.chatgpt.start(),
       chatgptStatus: (attemptId) => rpc.providers.chatgpt.status({ attemptId }),
     },
+    user: {
+      get: () => rpc.user.get(),
+      update: (input) => rpc.user.update(input),
+    },
     profiles: {
       list: () => rpc.profiles.list(),
       create: (input) => rpc.profiles.create(input),

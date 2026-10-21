@@ -1,4 +1,4 @@
-import type { Profile, ProviderCredential } from '@mawl/contracts'
+import type { Profile, ProviderCredential, UserProfile } from '@mawl/contracts'
 import { QueryClient } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -7,15 +7,23 @@ import type { Api } from '../api/ApiProvider.tsx'
 import { createAppRouter } from '../router.tsx'
 import { fakeChatApi } from './fake-chat-api.ts'
 import { fakeProvidersApi } from './fake-providers-api.ts'
+import { fakeUserApi } from './fake-user-api.ts'
 
 /** A whole fake backend: providers plus profiles, threads, runs and the live stream. */
 export function fakeApi(
-  options: { credentials?: ProviderCredential[]; profiles?: Profile[] } = {},
+  options: { credentials?: ProviderCredential[]; profiles?: Profile[]; user?: UserProfile } = {},
 ) {
   const providers = fakeProvidersApi(options.credentials)
   const chat = fakeChatApi(options.profiles ? { profiles: options.profiles } : {})
-  const api: Api = { providers: providers.api, ...chat.api }
-  return { api, providers: providers.state, chat: chat.state, server: chat.server }
+  const owner = fakeUserApi(options.user)
+  const api: Api = { providers: providers.api, user: owner.api, ...chat.api }
+  return {
+    api,
+    providers: providers.state,
+    chat: chat.state,
+    server: chat.server,
+    user: owner.state,
+  }
 }
 
 /**

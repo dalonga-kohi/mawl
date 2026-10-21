@@ -7,8 +7,15 @@ import type {
   RunId,
   Thread,
   ThreadId,
+  UserProfile,
 } from '@mawl/contracts'
 import type { QueryClient } from '@tanstack/react-query'
+
+/** The owner's own profile (`user.*`). `update` replaces both fields. */
+export interface UserApi {
+  get(): Promise<UserProfile>
+  update(input: UserProfile): Promise<UserProfile>
+}
 
 /** What the teammate views need from `profiles.*`. */
 export interface ProfilesApi {

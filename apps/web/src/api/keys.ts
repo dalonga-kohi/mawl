@@ -11,6 +11,7 @@ const op = (path: readonly string[], type: 'query' | 'infinite', input?: unknown
 export const MESSAGE_PAGE = 50
 
 export const keys = {
+  user: () => op(['user', 'get'], 'query'),
   profiles: () => op(['profiles', 'list'], 'query'),
   threads: (profileId: ProfileId) => op(['threads', 'list'], 'query', { profileId }),
   messages: (threadId: ThreadId) =>

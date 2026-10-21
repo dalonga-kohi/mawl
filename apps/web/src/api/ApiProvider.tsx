@@ -14,11 +14,15 @@ import type {
   ProfilesApi,
   RunsApi,
   ThreadsApi,
+  UserApi,
 } from './chat-api.ts'
 import type { ProvidersApi } from './providers-api.ts'
 
 export interface Api {
   providers: ProvidersApi
+  /** The owner's own profile. */
+  user: UserApi
+  /** Teammates. */
   profiles: ProfilesApi
   threads: ThreadsApi
   runs: RunsApi
