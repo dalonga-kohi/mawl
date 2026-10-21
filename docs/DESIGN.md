@@ -6,11 +6,11 @@
 
 The reference mood is the airy blue/white Telegram concepts plus a quiet dark mode. They show direction only; we don't copy them. When you do frontend work, apply the **ui-taste**, **frontend-design** and **ui-ux-pro-max** skills on top of this document. This document wins on any conflict.
 
-## 1. Concept: "the lodge by the river"
+## 1. Concept: "Mawl keeps watch"
 
-A beaver builds a lodge in a quiet river. Mawl's teammates work in their lodge, and you check in from the bank. That gives us:
-- **Water** (cool, airy neutrals and a soft blue default accent): the calm surface.
-- **Wood** (the beaver's warm brown, used *only* on the mascot and a few tiny highlights): warmth and character.
+Mawl, a soft lemon-lime mochi, keeps watch while your teammates work, and you check in whenever you like. That gives us:
+- **Calm surfaces** (quiet neutrals, see UI-REDESIGN.md §3): the backdrop.
+- **Mochi** (Mawl's fixed lemon-lime palette, used on the mascot and a few tiny highlights; lime is also the default accent): warmth and character.
 - **One memorable element:** the mascot, plus a soft river *wave* line that appears at moments of transition (onboarding, the empty states, the bottom of the mobile login). Everything else stays disciplined.
 
 ## 2. Principles
@@ -86,14 +86,19 @@ The light values are darker so they reach 4.5:1 as text on white and on their ow
 Each has a `-soft` variant at 12% alpha.
 
 ### Mascot palette (fixed)
+Mawl's colors are fixed and never follow the accent. They are CSS variables (`--mawl-*`) defined with the mascot in `apps/web/src/mascot/mawl.css`, the only place these hex values live.
+
 | Name | Hex | Use |
 |---|---|---|
-| Fur | `#8B5E3C` | Body |
-| Fur light | `#B07D52` | Belly and cheeks |
-| Tail | `#5B3D28` | Tail with crosshatch |
-| Tooth | `#FFF7E6` | Teeth |
-| Nose/eye | `#2A1E16` | Nose and eyes |
-| Blush | `#F2A38F` | Optional cheek blush |
+| Body | `#E4F09A` → `#BFD45E` | Body gradient (also the waiting paw and working chips) |
+| Ear / ear inner | `#D2E47A` / `#A8BE4A` | Ears; the inner tone also colors the thinking dots |
+| Tail | `#A4BC48` → `#869B36` | Tail gradient |
+| Ink | `#26301A` | Eyes, mouth, the "!" and a 13 % ground shadow |
+| Blush / tongue | `#FF9AA8` | Cheeks at 40 %, the open mouth's tongue |
+| Sparkle | `#F6D66B` | Done sparkles, the waiting bubble |
+| Sweat | `#8FD3F4` | The oops sweat drop |
+
+The old beaver tokens (`--fur`, `--fur-light`, `--tail`, `--tooth`, `--nose`, `--blush`) in `packages/ui` are unused and retire with the U1 token rework.
 
 ## 4. Typography
 
@@ -143,15 +148,14 @@ Rules:
 
 ## 6. Iconography
 
-Lucide icons at 1.75 stroke, 18 px in UI and 20 px in the rail. Never use emoji as icons. Teammate avatars are a rounded square holding a **mini beaver head tinted by the teammate's color**, or an initial when there are many.
+Lucide icons at 1.75 stroke, 18 px in UI and 20 px in the rail. Never use emoji as icons. Teammate avatars are a round neutral chip holding the **simplified Mawl** (body, ears and eyes; no mouth, no tail) **in the teammate's color**, or an initial when there are many. The tint keeps the teammate's hue at Mawl's lightness, so the dark eyes always read.
 
 ## 7. Motion
 
 Use existing libraries:
 - **Motion** (`motion/react`) on web and desktop
 - **Reanimated 3** + `moti` on mobile
-- **Rive** for the mascot
-- **Lottie** only if a Rive asset isn't available
+- **Inline SVG + CSS keyframes** for Mawl, with CSS transitions between states (Rive is dropped for now, UI-REDESIGN.md §4)
 
 Don't hand-roll animation engines.
 
@@ -177,27 +181,31 @@ Patterns:
 - **Reduced motion:** `prefers-reduced-motion` (and the in-app toggle) turns springs into 0-duration opacity fades and freezes the mascot on its pose frames.
 - **Ambient motion** is limited to the mascot and the "live" dot on the computer thumbnail.
 
-## 8. The mascot: Pip the beaver
+## 8. The mascot: Mawl
 
-The name "Pip" is a working name; other options are Bodhi, Timber, Bóbr and Chip. The final pick is the user's.
+Mawl is a soft lemon-lime mochi: a round blob with two round ears and a small paddle tail. No teeth and no species detail. It is ported from the user's approved mint reference and recolored with the palette in §3. Code: `apps/web/src/mascot/` (`Mawl.tsx`, `MawlAvatar.tsx`, `mawl.css`, `states.ts`, `mascot-state.ts`).
 
-- **Style:** small, flat vector, chunky rounded shapes, 2–3 tones, no outlines (or a 1.5 px darker-fur outline at small sizes). Big friendly eyes, two prominent cream teeth, a flat crosshatched tail. Reads well at 16 px (tray) up to 240 px (onboarding).
-- **States** (one Rive state machine with input `state`, plus SVG fallbacks):
+- **Style:** flat vector, a two-stop body gradient, no outlines. Short vertical-bar eyes, a small smile and pink blush. Readable from 16 px (tray, list icons) to 240 px (onboarding). Below 48 px it crops to the body and drops its effects and shadow; at 20 px or less the eyes get heavier.
+- **Drawing:** one inline SVG per instance with ids from `useId`, so several Mawls on a page never share a gradient or clip path. Each state turns on one set of eyes, one mouth and at most one effect (`POSES` in `Mawl.tsx`); the motion is CSS keyframes keyed on `data-state`, and face parts cross-fade over `dur.fast` when the state changes.
+- **States** (UI-REDESIGN.md §4):
 
 | State | When | Motion |
 |---|---|---|
-| `idle` | Nothing happening | Slow blink every 4–7 s, a tiny breathing bob |
-| `listening` | The user is typing | Ears perk, head tilts toward the composer |
-| `thinking` | Model is generating | Eyes look up, a small thought dot pulses |
-| `working` | Tools are running | Gnaws a little log; wood chips drift |
-| `waiting` | Needs approval or takeover | Holds up a small sign with "!" and a gentle wave |
-| `done` | Run succeeded | Tail-slap and a sparkle (`spring.bouncy`) |
-| `sleeping` | Profile idle or sandbox suspended | Curled up with "z" bubbles |
-| `error` | Run failed | Ears droop, a small sweat drop; recovers to idle |
+| `idle` | Nothing happening | Breathing squish, tail wag, a blink every ~3 s. At 64 px and up the eyes follow the pointer (at most once per frame) |
+| `listening` | The owner is typing | Eyes glance down at the composer, ears perk |
+| `thinking` | A run is queued or the model is generating | Head tilt, eyes up and to the side, wavy mouth, three bobbing dots |
+| `working` | Tools are running, or the context is compacting | Quick bob, tail slap, focused eyes, chips drift off |
+| `waiting` | Needs approval, takeover or a reply | A small "!" bubble and a slow wave of a raised paw |
+| `done` | A watched run just succeeded (2.4 s) | Hop with a ground shadow, happy eyes, open smile, sparkles |
+| `oops` | A watched run just failed (2.4 s) | Shake, round eyes, a sweat drop |
+| `sleepy` | The run is paused, or a computer is asleep | Slow deep breathing, closed eyes, floating "z" |
 
+- **Click:** a large Mawl hops once. Small ones (the rail) don't.
+- **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) freeze Mawl on its pose: no loops, no pointer follow, no hop, with every effect shown at rest.
+- **Simplified avatar:** `MawlAvatar` draws the body, ears and eyes only, never moves, and shows the state through its eyes. It wears the teammate's color at Mawl's lightness, or Mawl's own lime without one.
 - **Placement:**
-  - top of the rail (current focused teammate's state)
-  - empty states
+  - the sidebar or rail (the focused teammate's state)
+  - empty states and the new-chat landing
   - onboarding
   - desktop tray icon (monochrome glyph per state)
   - mobile tab-bar center
@@ -206,16 +214,7 @@ The name "Pip" is a working name; other options are Bodhi, Timber, Bóbr and Chi
 
 ### Image requests
 
-Ask the user for the images below. Until they arrive, the mockup uses an inline SVG placeholder beaver.
-
-1. **Mascot turnaround and state sheet:**
-   > "Cute minimal flat vector mascot of a small beaver named Pip for a calm productivity app. Chunky rounded geometric shapes, no outlines, 3-tone warm brown fur (#8B5E3C, #B07D52, #5B3D28), cream teeth (#FFF7E6), big friendly dark eyes, flat crosshatched paddle tail. Character sheet on a plain white background showing 8 poses in a grid: idle smiling, ears perked listening, looking up thinking with a small thought dot, gnawing a small log with wood chips, holding a tiny sign with an exclamation mark, happy tail slap with sparkle, curled up sleeping with z's, sad with droopy ears. Consistent proportions, Dribbble-quality, modern, simple, vector, no text, no gradients, no shadows."
-2. **App icon:**
-   > "App icon, rounded square, soft lake-blue (#3D8BFD) to lighter blue background with a subtle flowing water wave at the bottom, centered front-facing head of a cute minimal flat vector beaver (warm brown #8B5E3C, cream teeth), friendly smile, simple geometric shapes, no text, high-contrast silhouette that reads at 16px, modern macOS/iOS icon style."
-3. **Onboarding illustration:**
-   > "Wide minimal flat vector illustration, calm river scene in airy pale blues and white, a small cute beaver (warm brown, cream teeth) sitting on a little log lodge with a laptop, soft flowing wave lines, lots of negative space, gentle and friendly, no text, no gradients heavier than two-stop, modern productivity app onboarding style."
-
-Ask the user for a Rive file later; or build the state machine from the delivered sheet. Use https://rive.app, and don't write a custom animation runtime.
+Mawl is drawn in code from the reference, so no mascot sheet and no onboarding illustration are needed. Only the **app icon** is still pending: the user will generate it from a new prompt once Mawl is final, and the prompt will be added here then.
 
 ## 9. Components (inventory)
 
