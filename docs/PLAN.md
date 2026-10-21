@@ -258,7 +258,7 @@ Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESI
 ## Later (Should/Could from SPEC)
 S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S5 voice · S6 E2E relay · S7 cost dashboard · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds.
 
-Open note from P1.3b and P1.5: `@mawl/server#test` failed once under the full parallel gate (PGlite suites near `hookTimeout`), and the web suites time out under heavy machine load (2026-10-21). Find the cause when more PGlite suites are added.
+Open note from P1.3b and P1.5: `@mawl/server#test` failed once under the full parallel gate (PGlite suites near `hookTimeout`), and the web suites (shell, command palette, chat hooks) and `@mawl/core` `claude-code/workdir.test.ts` ("different per process", two fresh module imports) time out under heavy machine load; all pass alone (2026-10-21). Find the cause when more PGlite suites are added.
 
 ---
 
