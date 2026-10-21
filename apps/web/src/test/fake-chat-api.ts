@@ -29,7 +29,7 @@ export function profile(patch: Partial<Profile> = {}): Profile {
     id: `prof_${ulid()}` as ProfileId,
     name: 'Inbox Sweeper',
     slug: 'inbox-sweeper',
-    color: '#3D8BFD',
+    color: '#D8E88A',
     personaMd: '',
     modelMain: 'cred_01JTEST0000000000000000001:gpt-test',
     modelHelper: null,

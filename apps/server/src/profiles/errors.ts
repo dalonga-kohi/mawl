@@ -1,13 +1,18 @@
 import type { CredentialId } from '@mawl/contracts'
 
-/** Accent presets from DESIGN.md. New teammates rotate through them when no color is given. */
+/**
+ * The soft accent presets of DESIGN.md §3 (the same values as `accentPresets` in @mawl/ui), Lime
+ * first: the first teammate wears Mawl's own color. New teammates rotate through them when no color
+ * is given; a teammate's stored color is never rewritten. The avatar pins the tint's lightness, so
+ * every one keeps the mascot's eyes readable.
+ */
 export const ACCENT_PRESETS = [
-  '#3D8BFD',
-  '#3FA36B',
-  '#E09A1E',
-  '#EF6F5E',
-  '#8E6BE8',
-  '#5B6B82',
+  '#D8E88A',
+  '#A9D3F5',
+  '#F7C4A3',
+  '#CBB9F4',
+  '#F4B6C4',
+  '#B9C3CF',
 ] as const
 
 /** An explicit slug already belongs to another profile (archived ones keep theirs). */

@@ -45,7 +45,8 @@ export function describeProfileService(name: string, make: () => Promise<MadeSer
         expect(created).toMatchObject({
           name: 'Ada Lovelace',
           slug: 'ada-lovelace',
-          color: ACCENT_PRESETS[0],
+          // Mawl's own lime is the first teammate's color.
+          color: '#D8E88A',
           personaMd: '',
           modelMain: model(),
           modelHelper: null,
@@ -120,6 +121,16 @@ export function describeProfileService(name: string, make: () => Promise<MadeSer
           colors.push((await service().create({ name: `T${i}`, modelMain: model() })).color)
         }
         expect(colors).toEqual([...ACCENT_PRESETS, ACCENT_PRESETS[0]])
+      })
+
+      it('leaves a stored pre-redesign color alone when the teammate is read or edited', async () => {
+        const created = await service().create({
+          name: 'Old',
+          color: '#3D8BFD',
+          modelMain: model(),
+        })
+        await service().update(created.id, { name: 'Old timer' })
+        expect((await service().get(created.id)).color).toBe('#3D8BFD')
       })
 
       it('rejects an unknown credential in modelMain or modelHelper', async () => {

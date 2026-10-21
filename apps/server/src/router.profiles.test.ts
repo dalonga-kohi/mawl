@@ -13,7 +13,7 @@ const profile: Profile = {
   id: newId('profile'),
   name: 'Ada',
   slug: 'ada',
-  color: '#3D8BFD',
+  color: '#D8E88A',
   personaMd: '',
   modelMain: `${cred}:fake-echo`,
   modelHelper: null,

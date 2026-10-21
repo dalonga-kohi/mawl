@@ -21,7 +21,7 @@ export async function seedProfile(
     id,
     name: 'Ada',
     slug: `ada-${id.slice(-8).toLowerCase()}`,
-    color: '#3b82f6',
+    color: '#D8E88A',
     personaMd: over.personaMd ?? 'You are Ada.',
     modelMain: over.modelMain ?? `${newId('credential') as CredentialId}:fake`,
   })

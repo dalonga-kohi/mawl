@@ -10,7 +10,7 @@ export const profile = {
   id: id('prof'),
   name: 'Ada',
   slug: 'ada',
-  color: '#3b82f6',
+  color: '#D8E88A',
   personaMd: 'You are Ada.',
   modelMain: `${id('cred')}:claude-sonnet`,
   modelHelper: null,
