@@ -1,39 +1,40 @@
 # Mawl — Architecture
 
-Read alongside [SPEC.md](SPEC.md), [MEMORY.md](MEMORY.md) and [PLAN.md](PLAN.md). Library versions are targets; pin exact versions when scaffolding and check that each is current.
+Read alongside [SPEC.md](SPEC.md), [MEMORY.md](MEMORY.md), [PLAN.md](PLAN.md) and [REDESIGN.md](REDESIGN.md) (the desktop-first decision record, ADR R1–R14). Library versions are targets; pin exact versions when scaffolding and check that each is current. Sections marked *(planned)* describe the redesign target; *(as built)* describes code that exists.
 
 ## 1. System overview
 
 ```mermaid
 flowchart LR
   subgraph Clients
-    D[Desktop<br/>Tauri 2 + web UI]
-    W[Web UI<br/>served by server]
-    M[Mobile<br/>Expo]
-    TG[Telegram]
-    DC[Discord]
+    D[Desktop webview<br/>inside Mawl.exe]
+    W[Web UI<br/>headless mode]
+    TG[Telegram / Discord<br/>long polling]
+    M[Mobile, later<br/>Tailscale]
   end
 
-  subgraph Stack["docker compose (always on)"]
-    S[mawl-server<br/>Hono · oRPC · WS<br/>agent runtime · scheduler<br/>channel gateway · screen gateway]
-    PG[(Postgres 17<br/>pgvector · FTS)]
-    SB1[sandbox: profile A<br/>Xvfb · XFCE · Chromium<br/>x11vnc · Playwright MCP]
-    SB2[sandbox: profile B]
+  subgraph Host["Mawl.exe (Tauri 2, tray) — or headless: Docker / plain process"]
+    S[mawl-server sidecar<br/>Hono · oRPC · WS<br/>agent runtime · scheduler<br/>channel gateway · screen gateway]
+    PG[(Embedded Postgres 17<br/>pgvector · FTS)]
   end
 
-  LLM[(Model providers<br/>Anthropic · OpenAI<br/>OpenRouter · Ollama)]
+  subgraph Docker["Docker Desktop (optional, for computers)"]
+    C1[computer: terminal<br/>shell · files · headless browser]
+    C2[computer: desktop<br/>Xvfb · XFCE · Chromium · VNC]
+  end
+
+  LLM[(Model providers<br/>Anthropic · OpenAI · ChatGPT plan<br/>Claude plan · OpenRouter · Ollama)]
   MCPR[(Remote MCP servers)]
 
-  D & W & M -- HTTPS + WS<br/>LAN / Tailscale --> S
-  TG & DC <-- bot APIs --> S
+  D & W & M -- 127.0.0.1 + launch token / device auth --> S
+  TG <-- bot APIs --> S
   S <--> PG
-  S -- docker API via socket-proxy --> SB1 & SB2
-  S -- VNC / MCP / exec (internal net) --> SB1 & SB2
+  S -- dockerode over the named pipe;<br/>exec/attach streams only --> C1 & C2
   S --> LLM
   S --> MCPR
 ```
 
-**Principle: one brain, many faces.** All state and all agent execution live in `mawl-server` plus Postgres. Every client is a thin view over the same typed API and event stream, so agents keep running when every client is closed.
+**Principle: one brain, many faces.** All state and all agent execution live in `mawl-server` plus Postgres. Every client is a thin view over the same typed API and event stream. On the desktop, the brain runs inside the tray app, so closing the window never stops a teammate; only "Quit Mawl" does. Docker is needed only for computers.
 
 ## 2. Monorepo layout
 
@@ -44,14 +45,14 @@ mawl/
 ├─ apps/
 │  ├─ server/        Hono HTTP + oRPC + WebSocket; boots runtime, worker, gateways
 │  ├─ web/           React 19 + Vite + Tailwind v4 + Motion; the main UI
-│  ├─ desktop/       Tauri 2 shell (Rust minimal): window, tray, notifications, deep links, "manage stack"
+│  ├─ desktop/       Tauri 2 host (Rust): sidecar supervisor (server + embedded Postgres), tray, autostart, notifications, deep links
 │  └─ mobile/        Expo (React Native, New Arch) + Reanimated + expo-router
 ├─ packages/
 │  ├─ contracts/     zod schemas + oRPC router contract + event types (shared by all)
 │  ├─ core/          agent runtime: run loop, tool registry, policy engine, providers, MCP manager
 │  ├─ memory/        tiers, recall, compaction, consolidator (see MEMORY.md)
 │  ├─ db/            Drizzle schema + migrations (Postgres + pgvector)
-│  ├─ sandbox/       SandboxProvider interface + DockerProvider + screen gateway
+│  ├─ sandbox/       Computer manager: ComputerProvider interface + DockerProvider (exec transport) + screen gateway
 │  ├─ channels/      ChannelAdapter interface + telegram (grammY) + discord (discord.js)
 │  ├─ ui/            design tokens (CSS vars + TS), shared React components (web/desktop)
 │  ├─ ui-native/     RN components using the same tokens (mobile)
@@ -59,9 +60,10 @@ mawl/
 │  ├─ client/        typed API client + WS event store (TanStack Query), used by web & mobile
 │  └─ testkit/       fake LLM provider (scripted), fixtures, test containers helpers
 ├─ infra/
-│  ├─ compose/       docker-compose.yml, .env.example
-│  ├─ sandbox/       Dockerfile + supervisord for the computer image
-│  └─ install/       install.sh / install.ps1
+│  ├─ compose/       docker-compose.yml, .env.example (headless mode)
+│  ├─ docker/        server.Dockerfile (headless image)
+│  ├─ desktop/       embedded Postgres bundle recipe, pgvector build (pgvector/)
+│  └─ computer/      Dockerfiles for mawl-computer-terminal and mawl-computer-desktop
 ├─ design/           mockup + assets
 └─ docs/
 ```
@@ -75,16 +77,16 @@ mawl/
 | Tests | Vitest (unit/integration), Testcontainers (Postgres), Playwright (web e2e + visual), Maestro (mobile e2e, later) | TDD everywhere |
 | HTTP/API | Hono + oRPC (end-to-end types, OpenAPI out) + native WS | Small and fast; typed clients for web and mobile |
 | Auth | Single owner + paired devices. Device tokens (Ed25519 keypair per device, JWT session) | No accounts to create; per-device revocation |
-| DB | Postgres 17 + pgvector + built-in FTS (`tsvector`) via Drizzle | One service for relational, vector and BM25 |
+| DB | Postgres 17 + pgvector + built-in FTS (`tsvector`) via Drizzle. Desktop: embedded EDB 17.10 binaries run as a child of the server (REDESIGN §10.1); headless: the `pgvector/pgvector` image | One engine for relational, vector and BM25, the same in both modes |
 | Jobs | Graphile Worker (Postgres-backed queue + cron) | No Redis; durable, transactional |
 | Agent loop | Vercel AI SDK v7 (`ai@7`, spec LanguageModelV4; `ToolLoopAgent` / `streamText` with `stopWhen`, `tool({ needsApproval })`) wrapped by our `Run` engine; MCP via `@ai-sdk/mcp@2` | Multi-provider, tool approval hooks, stable MCP client. Tests use `@mawl/testkit` `fakeModel` (wraps `MockLanguageModelV4`) |
 | Providers | `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@openrouter/ai-sdk-provider`, `ollama-ai-provider-v2`, `@ai-sdk/openai-compatible` | Bring your own key, a local model, a ChatGPT plan (Sign in with ChatGPT), or a Claude plan through the unmodified Claude Code binary (own adapter over `@anthropic-ai/claude-agent-sdk`, see Provider registry) |
-| MCP | `@ai-sdk/mcp` `createMCPClient` (HTTP/SSE + stdio) | Stdio servers run *inside* the sandbox via exec |
-| Sandbox | Docker containers via `dockerode`, through `tecnativa/docker-socket-proxy` | The server never mounts the raw socket |
-| Desktop stream | x11vnc → websockify → **screen gateway** in server → `@novnc/novnc` RFB client | Simple and proven; upgrade path to neko/Selkies WebRTC |
-| Browser automation | `@playwright/mcp` running headed on the sandbox `DISPLAY` | You see what the agent does |
+| MCP | `@ai-sdk/mcp` `createMCPClient` (HTTP/SSE + stdio) | Stdio servers run *inside* the computer over `docker exec -i` |
+| Computers | Docker containers via `dockerode`: the Windows named pipe on desktop; `tecnativa/docker-socket-proxy` in headless mode | All traffic over exec/attach streams, no published ports (R6) |
+| Desktop stream | x11vnc in the container → exec-stream tunnel → **screen gateway** in server → `@novnc/novnc` RFB client | Simple and proven; upgrade path to neko/Selkies WebRTC |
+| Browser automation | `@playwright/mcp` inside the computer: headless on the terminal kind, headed on the desktop kind's `DISPLAY` | You see what the agent does; its reported locator code feeds the trace compiler |
 | Channels | grammY (Telegram), discord.js (Discord) | Mature and typed |
-| Desktop shell | Tauri 2 (+ plugins: notification, deep-link, single-instance, autostart, updater, shell) | Small and fast |
+| Desktop host | Tauri 2 (+ plugins: notification, deep-link, single-instance, autostart, updater, shell), NSIS per-user installer; server as a sidecar (packaging per D0.2) | Small and fast; one installer, no admin |
 | Mobile | Expo SDK (latest), expo-router, Reanimated, expo-notifications, expo-camera (QR), react-native-webview (noVNC) | Proven mobile path |
 | UI | React 19, Tailwind v4, Radix primitives (via shadcn-style local components), Motion, Lucide icons, Sonner (toasts), cmdk (command palette) | Use existing libraries; don't reinvent |
 | Mascot animation | Rive (`@rive-app/react-canvas`, `rive-react-native`) with an SVG + Motion fallback | One state machine for both platforms |
@@ -113,6 +115,7 @@ flowchart TB
 ```
 
 - A single Node process runs everything for v1: API, WS, worker, gateways. Its entrypoint can start them as separate roles later (`--role=api|worker|gateway`) for scaling or crash isolation. In compose, `restart: unless-stopped` plus a healthcheck supervises it.
+- **Desktop mode** *(planned, D1; REDESIGN §4)*. The Tauri supervisor spawns the server with a free loopback port and a per-launch token, passed through env or stdin, never argv. The server owns the embedded Postgres: `initdb` on first run (`--no-sync` into a staging dir, then renamed), spawn `postgres` on a free 127.0.0.1 port with a generated password stored under the data root, and `pg_ctl stop -m fast -w` on shutdown. Never spawn it `detached`: libuv's job object then takes Postgres down with a killed server, and WAL recovers. The server exits on stdin EOF (parent died). Data lives in `%LOCALAPPDATA%\Mawl\{pg,secrets,claude,logs,artifacts}`. The env table below gains `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` and the launch token; `DATABASE_URL` becomes optional in desktop mode.
 - **Runtime and config.**
   - Dev runs `tsx watch src/main.ts`. Production is one esbuild bundle, `apps/server/dist/server.mjs` (`pnpm --filter @mawl/server build`), with `@mawl/*` sources and npm deps inlined (only `pg-native` and `@anthropic-ai/claude-agent-sdk` are external) and the SQL migrations copied to `dist/drizzle`. Native Node type stripping is not used because workspace packages use extensionless imports. Start with `pnpm --filter @mawl/server start`.
   - Boot order: parse env, open logger, load or create the master key and the ChatGPT host id, open Postgres, run migrations (advisory-locked), run Graphile Worker's own migrations and start its worker, re-enqueue runs left `queued` or `running`, listen, log `listening`. SIGINT and SIGTERM stop the listener, abort running jobs (their runs stay `running` and resume on the next boot), stop the worker, close the database and exit 0. Any boot failure logs one `boot failed` line (error name, code, message; never the connection string) and exits 1.
@@ -237,15 +240,30 @@ A user can cancel a run from any non-terminal state (SPEC F6). Waiting states do
   - *Not yet.* Tools (P1.4), the add-provider UI and a "run `claude auth login`" hint on `not_signed_in` (P1.6), model listing (`supportedModels()`), and plan-usage display from `rate_limit_event`.
   The server (`apps/server/src/providers/`) owns persistence. `create` encrypts the secret (or an empty string when none) with AAD `provider_credentials:<id>`; reads select only `providerCredentialPublicColumns`; `resolveCredential(id)` decrypts for the run engine and is not exposed over RPC.
 
+### Loop, prompt, skills and MCP *(planned, D2)*
+
+The loop design is REDESIGN §5. In short:
+- A ReAct loop on this durable step engine, plus a steering queue and a follow-up queue (`run_inbox`, injected at step boundaries).
+- Truncated tool calls are failed, never executed.
+- A capped `finishTurn` hook (receipts plug in here), per-profile fallback models, and tool idempotency keys.
+- Approvals park the call and replay its exact stored arguments.
+- `delegate` subagents run inside the parent's turn.
+- The system prompt is versioned Markdown blocks in `packages/core/prompts/`, ordered stable to volatile, with snapshot tests.
+- Agent Skills `SKILL.md` with progressive disclosure.
+- MCP tools are deferred behind `tool_search` above 30 tools.
+
+The Claude plan provider is limited (REDESIGN §5.6).
+
 ### Tools
 
 | Group | Tools |
 |---|---|
-| Computer | `shell`, `read_file`, `write_file`, `list_files`, `computer_screenshot`, `computer_act` (batched xdotool actions), `open_url`, browser via Playwright MCP |
+| Computer | `shell` (with background jobs), `read_file`, `write_file`, `list_files`, `computer_screenshot`, `computer_act` (batched xdotool actions, desktop kind only), `open_url`, browser via Playwright MCP |
 | Web | `web_search` (provider-native or SearXNG/Brave key), `web_fetch` (to markdown) |
-| Memory | `memory_block_edit`, `remember`, `recall`, `session_search`, `skill_load`, `skill_propose` |
+| Memory | `memory_block_edit`, `remember`, `recall`, `session_search` |
+| Skills and tools | `skill_load`, `skill_propose`, `tool_search` |
 | Human | `ask_user`, `request_takeover`, `notify` |
-| Agency | `schedule_create/list/cancel`, `message_teammate` (S1) |
+| Agency | `delegate` (subagent), `schedule_create/list/cancel`, `message_teammate` (S1) |
 | MCP | Any connected server's tools, namespaced `mcp__<server>__<tool>` |
 
 Large tool outputs (over ~4k tokens) are stored as **artifacts**. The model gets a preview plus `artifact_id` and can page through the rest with `read_artifact`.
@@ -262,26 +280,39 @@ type ActionClass = 'read' | 'write_local' | 'send_message' | 'purchase' | 'delet
 - The user's rules come first, then profile defaults, then global defaults. `credential` and payments are always `handoff`, and the user cannot lower them.
 - **Sentinel (S2).** An optional second model reviews `send_message`/`external_post`/`purchase` calls against the user's intent and can escalate them to `ask`.
 
-## 6. Sandbox and screen gateway (`packages/sandbox`, `infra/sandbox`)
+## 6. Computers and screen gateway (`packages/sandbox`, `infra/computer`) *(planned, D3)*
 
 ```ts
-interface SandboxProvider {
-  ensure(profileId: string, spec: SandboxSpec): Promise<SandboxHandle>   // create or start
-  suspend(profileId: string): Promise<void>                               // stop when idle (home volume persists)
-  exec(h: SandboxHandle, cmd: string[], opts?: ExecOpts): AsyncIterable<ExecChunk>
-  vncEndpoint(h: SandboxHandle): Promise<{ host: string; port: number }>
-  status(h: SandboxHandle): Promise<SandboxStatus>
+interface ComputerProvider {
+  ensure(computerId: ComputerId, spec: ComputerSpec): Promise<ComputerHandle>  // pull image if needed, create or start
+  suspend(computerId: ComputerId): Promise<void>                               // stop when idle (home volume persists)
+  reset(computerId: ComputerId, opts: { wipeHome: boolean }): Promise<void>
+  exec(h: ComputerHandle, cmd: string[], opts?: ExecOpts): AsyncIterable<ExecChunk>
+  attachStdio(h: ComputerHandle, cmd: string[]): Promise<Duplex>              // MCP stdio, helper RPC, VNC tunnel
+  status(h: ComputerHandle): Promise<ComputerStatus>
+  engine(): Promise<EngineStatus>  // not_installed | not_running | ready (+ version), drives the Docker UX
 }
 ```
 
-- **Image `mawl/computer`.** Ubuntu 24.04 with:
-  - Xvfb `:1` (1280×800), XFCE (minimal), Chromium, xdotool, scrot
-  - x11vnc + websockify, Node 22 with `@playwright/mcp` running headed on `:1`
-  - a small `computer-agent` HTTP helper (screenshot/act/exec)
-  - supervisord to run everything, and a non-root user `mawl` with home on a named volume `mawl-home-<profile>`
-- **Network.** Sandboxes join an internal network `mawl-sbx`. Only the server can reach their VNC and helper ports, and nothing is published to the host. Egress is allowed, with an optional per-profile allowlist later.
-- **One sandbox per profile.** It starts on demand, auto-suspends after N idle minutes (default 20), and its home is checkpointed through the volume.
-- **Screen gateway.** `GET /screen/:profileId?ticket=` upgrades to WS and proxies the VNC bytes.
+- **Entity.** `computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)`. `profiles.computer_id` is nullable. A teammate can have no computer, its own, or one shared with others. Only Mawl computers are supported, never arbitrary containers.
+- **Image `mawl-computer-terminal`** (GHCR, pulled by digest). Debian slim with:
+  - bash, git, curl, python3, node, ripgrep, jq
+  - headless Chromium + `@playwright/mcp`
+  - the `computer-agent` helper (JSON-RPC over stdio: exec, files, background jobs)
+  - a non-root user `mawl` with home on a named volume `mawl-home-<computerId>`
+  - target size under 500 MB
+- **Image `mawl-computer-desktop`.** Builds on the terminal image, adding:
+  - Xvfb `:1` (1280×800), XFCE (minimal), Chromium headed (Playwright MCP on `:1`), xdotool, scrot
+  - x11vnc on the container's own loopback
+  - supervisord
+  - target size under 1.6 GB
+- **Transport (R6).** Nothing is published and container IPs are never used.
+  - The helper speaks over `docker exec -i` stdio, and so do stdio MCP servers.
+  - The VNC bytes go through an exec running a small TCP-to-stdio bridge to `localhost:5900` inside the container.
+  - Egress is allowed, with an optional per-computer allowlist later.
+- **Sharing.** Shell and files are concurrent. Desktop input needs a per-computer **input lease**: the agent holds it per `computer_act` batch, and the user's takeover outranks every agent.
+- **Lifecycle.** Starts on demand and auto-suspends after N idle minutes (default 20). "Reset" recreates the container and keeps the home, unless the user picks "wipe".
+- **Screen gateway.** `GET /screen/:computerId` upgrades to WS and proxies the tunnelled VNC bytes.
   - Tickets are short-lived (60 s, single use), issued over oRPC to an authenticated device, and arrive in the WS subprotocol header, never in a logged URL.
   - A ticket carries a capability: `view` or `control`. Only the holder of the **control lease** gets input forwarded. Everyone else is view-only, with input dropped server-side.
 - **Takeover protocol.**
@@ -314,9 +345,9 @@ interface ChannelAdapter {
   - Layout: three panes. A teammate list, the conversation, and a context panel (computer / memory / run details) that you can collapse.
   - Transport: one `@mawl/client` WebSocket to `/ws` on the page's own host (`wss://` on https pages), shared by every query and mutation. The browser never calls HTTP `/rpc`. In development Vite proxies `/rpc` and `/ws` to `127.0.0.1:7420` and keeps the `localhost:5173` Host, which the server's loopback allowlist accepts.
   - Views read through TanStack Query; views and components never fetch ad hoc. Heavy pages load on first visit through route code splitting (Settings today); Teammates, the landing page, stays in the main chunk.
-- **Desktop (`apps/desktop`).** Tauri loads the web build bundled with it and points it at the configured server URL (default `http://localhost:7420`).
-  - Native features: tray icon with the mascot state, native notifications, a global shortcut to a quick-ask popover, autostart, and deep links `mawl://`.
-  - A "Start my stack" helper runs `docker compose up -d` when Docker exists locally.
+- **Desktop (`apps/desktop`)** *(planned, D1)*. The Tauri app is the host. It supervises the server sidecar and points the webview at it with the launch token. Advanced: "connect to a remote Mawl" instead of the local server.
+  - Native features: tray icon with the mascot state, close-to-tray, "Quit Mawl", native notifications, a global shortcut to a quick-ask popover, autostart at login (on by default), single instance, deep links `mawl://`, and power events (resume from sleep → the scheduler's missed-run check).
+  - Startup: splash → `/healthz` → app. A crash loop (5 restarts in 5 minutes) shows an error screen with "copy diagnostics".
 - **Mobile (`apps/mobile`).**
   - Tabs: Teammates · Activity · Approvals · Settings.
   - Chat screen, and a Computer screen (noVNC in a WebView with touch→mouse mapping and a keyboard bar).
@@ -340,8 +371,12 @@ messages(id, thread_id, run_id, role, parts_json, token_count, created_at)
 runs(id, profile_id, thread_id, trigger{user|routine|heartbeat|teammate}, status, budget_json, usage_json, segment_no, created_at, started_at, ended_at, error)
 run_steps(id, run_id, idx, kind{model|tool}, input_json, output_ref, usage_json, created_at)
 artifacts(id, profile_id, run_id, mime, size_bytes, content bytea|path (exactly one), preview, token_count, created_at)
-approvals(id, run_id, tool, args_redacted_json, action_class, status, decided_by_device, decided_via_channel, created_at, decided_at)
-routines(id, profile_id, name, schedule{cron|rrule|nl_source}, prompt, delivery_channel, enabled, last_run_id)
+approvals(id, run_id, tool, tool_call_id, args_enc, args_hash, args_redacted_json, action_class, status, decided_by_device, decided_via_channel, created_at, decided_at)   -- approve replays args_enc byte for byte (R9)
+run_inbox(id, run_id, kind{steer|followup}, payload_json, created_at, consumed_at)     -- planned D2
+computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)   -- planned D3; profiles.computer_id nullable
+skills(id, profile_id, name, description, body_md, files_ref, source{user|proposed|plugin}, status, version, created_at)   -- planned D2
+routines(id, profile_id, name, trigger{cron|rrule|interval|once}, tz, nl_source, prompt, missed_policy{catch_up_once|skip|run_all}, receipt_json, delivery_channel, enabled, next_fire_at, last_run_id)   -- planned D5
+traces(id, routine_id, version, script_ref, holes_json, status, created_from_run_id, created_at)   -- planned D6
 mcp_servers(id, profile_id|null, name, transport, config_enc, enabled, tool_policy_json)
 channels(id, profile_id, kind, token_enc, allowlist_json, status)
 devices(id, name, pubkey, platform, last_seen_at, revoked_at)
@@ -387,11 +422,12 @@ All event types are defined as zod schemas in `packages/contracts`.
 ## 11. Security model
 
 - **Trust boundaries:**
-  - client ↔ server: device auth
-  - server ↔ sandbox: internal network; the sandbox is treated as untrusted
+  - webview ↔ local server: a per-launch random token, required on every `/rpc` call and on the `/ws` upgrade, on top of the Host and Origin checks *(planned, D1; closes the "any local page" gap noted in §10)*
+  - remote clients ↔ server: device auth (later)
+  - server ↔ computer: exec streams only; the computer is untrusted
   - server ↔ providers/MCP: TLS
-- The sandbox can never reach Postgres or the Docker proxy. These networks are kept separate.
-- Secrets are encrypted at rest with a key from the `mawl-secrets` volume, generated on first boot. Secrets are never logged and never sent to the model.
+- A computer can never reach Postgres (it listens on the host's loopback, which containers can't use), the Docker engine (no socket or pipe is mounted), or the server's API. It has no host bind mounts, only its named home volume.
+- Secrets are encrypted at rest with a master key generated on first boot: Windows Credential Manager on desktop *(planned, D1)*, the `mawl-secrets` volume in headless mode. Secrets are never logged and never sent to the model.
   - `master.key` is 32 random bytes, mode 0600 in a 0700 directory. It is created atomically (temp file then hard link, so concurrent first boots end with one key and readers never see a partial file). An existing file is never overwritten or repaired: a wrong-sized file aborts boot, because a new key would orphan every stored secret. On POSIX the directory is forced to 0700 and a key file with group or other permission bits logs a warning (boot continues). On Windows there is no mode check: protection relies on the ACL inherited from the user profile directory, so keep `MAWL_SECRETS_DIR` there.
   - Blob format: `0x01` (version) ‖ 24-byte random nonce ‖ XChaCha20-Poly1305 (IETF AEAD, libsodium) ciphertext+tag. The AAD is not stored; callers pass the owning row as `<table>:<id>` (for example `provider_credentials:<id>`), so a ciphertext copied to another row fails to decrypt. Every decrypt failure (tamper, wrong AAD, wrong key, unknown version, short blob) raises one `SecretDecryptError` with a fixed message and no detail.
 - Tool output and web content are treated as **data**. They are wrapped in `<untrusted>` tags in context, scanned for injection before a memory write, and their instructions are never followed blindly (mirrored in the system prompt).
@@ -400,7 +436,23 @@ All event types are defined as zod schemas in `packages/contracts`.
 
 ## 12. Deployment
 
-### Compose v1 (as built, P1.9)
+### Desktop (primary, planned D1)
+
+- One per-user NSIS installer built by the Tauri bundler, on a GitHub Actions Windows job.
+- It contains:
+  - the Tauri host
+  - the server sidecar (Node SEA or `node.exe` + `server.mjs`, **pending spike D0.2**)
+  - the web build
+  - the pruned EDB Postgres 17.10 binaries with an MSVC-built `vector.dll` (REDESIGN §10.1)
+- Where the Claude Code native binary lives (in the installer or downloaded on first use) is also pending D0.2.
+- Auto-update uses the Tauri updater against GitHub Releases.
+- Computer images are pulled from GHCR on first use, never built locally.
+
+### Headless (alternative)
+
+The same server bundle runs in Docker (compose below) or as a plain process (`MAWL_MODE=headless`, `DATABASE_URL` required) and serves the web app.
+
+### Compose v1 (as built, P1.9; the headless mode)
 
 `infra/compose/docker-compose.yml`, project `mawl`. Run it with `docker compose -f infra/compose/docker-compose.yml up -d --build` after copying `infra/compose/.env.example` to `.env` and setting `MAWL_DB_PASSWORD` (docs/RUNNING.md has the full steps).
 
@@ -413,9 +465,9 @@ All event types are defined as zod schemas in `packages/contracts`.
 - **Image.** Build context is the repo root (`.dockerignore` keeps `.git`, `.env*`, `node_modules`, `dist`, `docs`, `design` out). Two stages on `node:24-bookworm-slim`, pinned by digest (a test enforces it): `build` runs `pnpm install --frozen-lockfile` for the server and web, then builds both; `runtime` installs the Claude SDK for its architecture, copies `dist/server.mjs`, `dist/drizzle` and the web build to `/app/dist/web`, and runs as the non-root `node` user. `/secrets` and `/claude` are created owned by `node`, so fresh named volumes get the right owner. Environment: `MAWL_HOST=0.0.0.0`, `MAWL_SECRETS_DIR=/secrets`, `MAWL_SIWC_BIND_HOST=0.0.0.0`, `MAWL_CLAUDE_CONFIG_DIR=/claude`, `CLAUDE_CONFIG_DIR=/claude`, `NODE_ENV=production`. A `HEALTHCHECK` fetches `http://127.0.0.1:7420/healthz`. A cold build takes about a minute.
 - **Tests.** `scripts/compose.test.ts` checks the compose file and Dockerfile statically (loopback ports, named volumes, required password, healthcheck gate, digest pins). `apps/server/src/compose.smoke.test.ts` builds and boots the real stack under a throwaway project name, random host port and its own image tag, then checks `/healthz`, `/`, `/t`, an immutable asset, `health.get` over `/rpc` and `claude auth status` (logged out, config dir `/claude`). It skips without Docker locally and fails under `CI` or `MAWL_REQUIRE_DOCKER`.
 
-### Later (P4 and P8)
+### Later in headless mode (D3)
 
-The sandbox arrives with `dockerproxy` (`tecnativa/docker-socket-proxy`, containers/exec/images/networks/volumes only), separate `core` and `sbx` networks, an artifacts volume and a `computer-image` service under a `build` profile; the server image moves to GHCR. Sketch of the additions:
+Computers in headless mode need `dockerproxy` (`tecnativa/docker-socket-proxy`, containers/exec/images/networks/volumes only), because the server runs inside a container there. It also needs an artifacts volume, and the server image moves to GHCR. Sketch of the additions:
 
 ```yaml
 services:
@@ -424,27 +476,18 @@ services:
     environment: [CONTAINERS=1, POST=1, EXEC=1, IMAGES=1, NETWORKS=1, VOLUMES=1]
     volumes: [/var/run/docker.sock:/var/run/docker.sock:ro]
     networks: [core]
-  computer-image:          # build/pull only; containers are created per profile by the server
-    image: ghcr.io/<owner>/mawl-computer:latest
-    profiles: [build]
-networks: { core: {}, sbx: { internal: false } }
+networks: { core: {} }   # computers get no route to core; the server reaches them over exec streams
 ```
-
-`install.sh` / `install.ps1`:
-1. Check Docker.
-2. Download the compose file.
-3. Run `docker compose pull && up -d`.
-4. Open `http://localhost:7420`.
-
-The desktop app can run the same flow from its "Start my stack" button.
 ## 13. Key decisions (ADR summary)
 
 | # | Decision | Alternatives considered |
 |---|---|---|
-| 1 | Server-side brain in Docker; clients are thin | Embedded runtime in the desktop app (agents would stop when it quits) |
+| 1 | ~~Server-side brain in Docker~~ **Superseded by R1:** the desktop app hosts the server as a sidecar; clients stay thin; headless/Docker is the alternative | In-webview runtime (dies with the window) |
 | 2 | Tauri 2 desktop + Expo mobile, sharing `contracts`/`client`/tokens | Electron (heavier); Tauri mobile (less mature) |
 | 3 | Postgres + pgvector + FTS, with Graphile Worker | SQLite + sqlite-vec (simpler but weaker under concurrency); Redis queues |
 | 4 | Vercel AI SDK v7 core loop, our own Run engine | Claude Agent SDK (Anthropic-only); Mastra (heavier, opinionated memory) |
 | 5 | noVNC through an authenticated gateway first | neko/Selkies WebRTC (later), Guacamole (heavy) |
-| 6 | One sandbox per profile | One shared computer (anti-pattern) |
+| 6 | ~~One sandbox per profile~~ **Superseded by R4/R5:** `Computer` is its own entity (terminal or desktop); per teammate by default, sharing is explicit | One silently shared computer (anti-pattern) |
 | 7 | Our own memory layer inspired by Letta/mem0/Graphiti | Embedding mem0/Letta as a service (an extra stack, less control) |
+
+ADRs R1–R14 of the 2026-10 redesign live in [REDESIGN.md §3](REDESIGN.md#3-decisions-adr).

@@ -1,8 +1,9 @@
 # Mawl — guide for Claude
 
 Mawl is a self-hosted, always-on agent app ("AI teammates you own"). It has:
-- a Docker stack (server + Postgres + one sandbox computer per profile)
-- a Tauri 2 desktop app, an Expo mobile app, and Telegram/Discord channels
+- a Tauri 2 desktop app that hosts the server and an embedded Postgres (desktop-first, Windows first; see docs/REDESIGN.md), plus a headless/Docker mode
+- optional Docker computers for teammates (terminal or desktop kind)
+- later: Telegram/Discord channels and an Expo mobile app
 - a long-horizon memory system
 
 **Read before any work:**
@@ -10,6 +11,7 @@ Mawl is a self-hosted, always-on agent app ("AI teammates you own"). It has:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how
 - [docs/MEMORY.md](docs/MEMORY.md): memory and context
 - [docs/PLAN.md](docs/PLAN.md): what's next, with status
+- [docs/REDESIGN.md](docs/REDESIGN.md): the 2026-10 desktop-first decision record (wins over older docs where they disagree)
 - [docs/DESIGN.md](docs/DESIGN.md): look and feel
 
 ## Voice: caveman skill, always on (default mode)

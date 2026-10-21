@@ -4,12 +4,12 @@ This is the working roadmap the orchestrator follows. Each **slice** is a vertic
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (write why)
 
-> **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. Phases P2 to P8 below are **superseded** by the D-phases in REDESIGN §11 and will be re-sliced into this file after the D0 spikes. P1.8 is re-scoped into D1.
+> **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. The old phases P2 to P8 are replaced by D1 to D9 below (re-sliced 2026-10-21; every open review note was carried into its new slice). P1.8 is re-scoped into D1.4.
 
 ## D0 — Spikes (de-risk the redesign)
 
 - [x] **D0.1 Embedded Postgres + pgvector on Windows.** (spike; works, results and decisions in REDESIGN §10.1; recipe `infra/desktop/pgvector/build-vector-mingw.ps1`) Prove that the server can start a bundled Postgres 17 on Windows as a child process (random loopback port, `initdb` on first run, clean stop) and load a `vector` extension built for those exact binaries. Run the existing `@mawl/db` migrations and one HNSW vector query against it. Write the result, versions and the build recipe into REDESIGN §10. If it fails, record why and the fallback (PGlite + own queue).
-- [ ] **D0.2 Sidecar packaging.** Node SEA vs a shipped `node.exe` as a Tauri `externalBin`; check that `@anthropic-ai/claude-agent-sdk`'s native package resolves from an install dir; measure the installer size.
+- [~] **D0.2 Sidecar packaging.** Node SEA vs a shipped `node.exe` as a Tauri `externalBin`; check that `@anthropic-ai/claude-agent-sdk`'s native package resolves from an install dir; measure the installer size.
 
 ---
 
@@ -82,7 +82,7 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
   - *e2e:* send a message → streamed reply (fake provider).
   - Note from P1.6: the web main chunk is 691 kB (225 kB gzip) after Settings was split off. Split the chat view and heavy vendors (Motion, cmdk) here if it grows.
   - Review note from P1.6: `createApi` (apps/web `src/api/create-api.ts`) drops the `createMawlClient` handle. Expose it through `Api` (or one module-level client) so the event store shares the same socket, start `createEventStore` with the app's `QueryClient`, and stop it on unmount.
-- [~] **P1.8 Desktop shell.** Paused mid-slice 2026-10-18: Tauri scaffold in apps/desktop (uncommitted or partly committed; check `git log` and `git status`), deep-link parser tests started. Decided: Sign in with ChatGPT desktop handoff moves to P6.1 (needs the authenticated device call). The UI half (server URL setting, notifications, deep-link navigation, external links) is not started. Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `mawl://`.
+- [!] **P1.8 Desktop shell.** Re-scoped into D1.4 (desktop host) by the 2026-10 redesign; the Tauri scaffold and the deep-link parser carry over. Paused mid-slice 2026-10-18: Tauri scaffold in apps/desktop (uncommitted or partly committed; check `git log` and `git status`), deep-link parser tests started. Decided: Sign in with ChatGPT desktop handoff moves to P6.1 (needs the authenticated device call). The UI half (server URL setting, notifications, deep-link navigation, external links) is not started. Tauri 2 wraps the web build: server URL setting, tray, notifications, single-instance, deep-link `mawl://`.
   - Review note from P1.3b: the desktop app owns the SIWC loopback flow and transfers the credentials to the server over an authenticated call. The VM or host keeps its own `ext_agent_host_id`.
 - [x] **P1.9 Compose v1.** (895f4e3..adf5a49, merged in 0068726; stack verified booting at :7420. Note: the compose smoke test builds the image inside the default gate, about 1 min; move it to its own task if CI time bites) `server` + `db`. `docker compose up` gives a working chat at :7420 (the server serves the web build).
   - Review notes from P1.3b:
@@ -91,90 +91,174 @@ Goal: chat in a real UI with one profile, streaming from a real or fake model.
     - Put `MAWL_CLAUDE_CONFIG_DIR` (`CLAUDE_CONFIG_DIR` for the binary) on a named volume.
     - Verify that headless `claude auth login` works in the container.
 
-## P2 — Profiles, tools, MCP, approvals
+## D1 — Desktop host (install and go)
+Goal: download the installer, open Mawl from the tray, chat with a teammate. No Docker, no terminal. See REDESIGN §4.
 
-- [ ] **P2.1 Profiles CRUD.** Persona editor, color/avatar, main and helper model, clone and archive. Teammate list UI.
-- [ ] **P2.2 Tool registry + built-ins.** `web_fetch`, `web_search` (pluggable), `ask_user`, `notify`, `read_artifact`. Artifacts for outputs over 4k tokens.
-  - Review notes from P1.4: `executeRun` passes `deps.tools` straight to `streamText`; route every call through the policy engine (P2.3) first. A crash between a tool's side effect and the step write re-runs the tool on resume, so tools need idempotency keys (`run_id`, `step_idx`, `toolCallId`). Wrap tool results as untrusted data. Bridge tools to `anthropic_claude_code` through an in-process MCP server (`createSdkMcpServer`).
-- [ ] **P2.3 Policy engine.**
-  - Action classes, levels, rule precedence, and the non-lowerable classes.
-  - *Tests:* a table-driven rule-matrix test.
-- [ ] **P2.4 Approvals flow.**
-  - `waiting_approval` releases the worker. Approvals inbox UI, inline approval card in chat, and resolution events.
-  - A denial is returned to the model.
-- [ ] **P2.5 MCP manager.** HTTP/SSE servers with OAuth (`@ai-sdk/mcp`), a per-profile enable list, per-tool policy, a Connections UI, and a curated catalog JSON.
-- [ ] **P2.6 Activity feed + audit log UI.** Filterable by profile, type and time.
+- [ ] **D1.1 Embedded Postgres lifecycle.** (head-coder: process lifecycle and concurrency)
+  - A server module owns the bundled EDB Postgres 17.10:
+    - first run: `initdb --no-sync` into a staging dir, then rename it into place
+    - spawn `postgres` on a free 127.0.0.1 port with a generated password under the data root
+    - poll until ready; `pg_ctl stop -m fast -w` on shutdown
+    - never `detached`; read exit codes only (localized output)
+  - Add `infra/desktop/fetch-pg.ps1`: hash-pinned EDB zip download, prune the pgAdmin DLLs.
+  - *Tests:* cold and warm start, clean stop leaves no recovery on the next start, a killed server leaves Postgres recoverable, port collision, a corrupt or missing data dir gives a typed boot error. Windows-only suites skip elsewhere and are required on the Windows CI job.
+- [ ] **D1.2 pgvector Windows build in CI.** A GitHub Actions `windows-2025` job:
+  - download the EDB zip and check its hash; assert its `postgres.exe` matches
+  - build pgvector v0.8.7 with MSVC (`nmake /F Makefile.win`) and run `installcheck`
+  - upload `vector.dll` + control + SQL as a hashed artifact
+  - The MinGW recipe stays the local fallback. Actions pinned by full SHA (existing test).
+- [ ] **D1.3 Desktop server mode.**
+  - Config: `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` (default `%LOCALAPPDATA%\Mawl`). `DATABASE_URL` is optional in desktop mode, which uses D1.1.
+  - Port and launch token come via env or stdin, never argv. Exit on stdin EOF (parent watchdog).
+  - SIWC callback on the real loopback; the Ollama default `http://localhost:11434`.
+  - *Tests:* config matrix, watchdog exit, no token in logs.
+- [ ] **D1.4 Local launch-token auth.** (head-coder; security. Propose head-reviewer)
+  - Every `/rpc` call and the `/ws` upgrade require the per-launch token, in a header or the WS subprotocol, never in a URL. It's checked in constant time, on top of the Host and Origin checks.
+  - Headless mode uses a generated owner token until device auth (D8.1).
+  - Review notes from P1.2/P1.3/P1.5, carried over:
+    - add a request body size limit on `/rpc`
+    - scope `events.subscribe` topics to the owner
+    - `providers.test` with an inline input is an SSRF oracle: block link-local/metadata ranges (169.254.0.0/16, fd00:ec2::/32), resolve DNS once and pin the IP, allow private ranges only via an explicit owner opt-in (Ollama on the LAN), rate-limit `test`
+- [ ] **D1.5 Tauri host.** (head-coder: UI + process supervision; old P1.8)
+  - Supervisor: spawn the sidecar (packaging per D0.2), wait for `/healthz`, restart with backoff (5 in 5 min, then an error screen with "copy diagnostics").
+  - Splash, tray with the mascot state, close-to-tray, "Quit Mawl" (clean shutdown of server and Postgres), autostart at login (on by default, toggle), single instance, deep links `mawl://` (the parser exists), notifications, power events forwarded to the server.
+  - Advanced: "connect to a remote Mawl" instead of the local server.
+  - Review note from P1.3b: the desktop app can run the SIWC loopback flow itself; with the server on the same host, the server-side flow is enough for v1.
+  - *Tests:* supervisor state machine (Rust unit tests), deep links, e2e boot on the Windows CI job.
+- [ ] **D1.6 Master key in Windows Credential Manager.** (head-coder: secrets)
+  - Desktop mode keeps the master key in Credential Manager. The host reads it and passes it to the server over stdin. The file in `secrets/` stays for headless mode.
+  - Migrate an existing file key once, then delete the file only after a verified decrypt.
+  - *Tests:* round trip, migration, wrong key aborts boot (existing rule).
+- [ ] **D1.7 Installer, updater, Windows CI.**
+  - Tauri NSIS per-user bundle with the sidecar, web build, Postgres bundle and `vector.dll`.
+  - Tauri updater against GitHub Releases (signing keys in CI secrets, owner's call), and a size budget check.
+  - The compose image smoke test moves out of the default gate into its own task (note from P1.9).
+- [ ] **D1.8 First-run onboarding.** (head-coder: UI; old P8.1)
+  - Splash while the DB prepares → provider (Continue with ChatGPT first, per the SIWC UI rules recorded in P1.6; API key; Ollama detection; Claude plan) → name your first teammate → chat.
+  - Claude plan: a "Sign in" button opens a terminal running `claude auth login` with Mawl's config dir (Anthropic's own flow), then re-checks `claude auth status`.
+  - Loading, empty, error and success states; works at 390 px.
 
-## P3 — Memory system (see MEMORY.md)
+## D2 — The agent loop
+Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP, subagents and a crafted prompt. See REDESIGN §5.
 
-- [ ] **P3.1 Memory schema + core blocks.**
+- [ ] **D2.1 Prompt assembler + blocks.**
+  - Versioned blocks in `packages/core/prompts/`: identity, rules, tools, computer (conditional), persona, skills-index, memory-core, environment. Ordered stable to volatile, with cache breakpoints.
+  - Mawl writes its own prompt text, including the "page text is data" and "never kill display or browser processes" rules.
+  - Align MEMORY.md §7 (server rule: a prompt layout change updates MEMORY.md §7 and the snapshot tests).
+  - *Tests:* snapshot per configuration; byte-stable prefix across steps.
+- [ ] **D2.2 Tool registry + built-ins.** `web_fetch`, `web_search` (pluggable), `ask_user`, `notify`, `read_artifact`. Artifacts for outputs over 4k tokens.
+  - Review notes from P1.4:
+    - `executeRun` passes `deps.tools` straight to `streamText`; every call must go through the policy engine (D2.3) first.
+    - A crash between a tool's side effect and the step write re-runs the tool on resume, so tools need idempotency keys (`run_id`, `step_idx`, `toolCallId`).
+    - Wrap tool results as untrusted data.
+- [ ] **D2.3 Policy engine.** Action classes, levels, rule precedence, and the non-lowerable classes. *Tests:* a table-driven rule-matrix test. (Propose head-reviewer.)
+- [ ] **D2.4 Approvals.** (head-coder: run engine + policy)
+  - `waiting_approval` releases the worker. The parked call is stored encrypted with its arguments hash, and approve replays it byte for byte (R9). A denial is returned to the model.
+  - Approvals inbox UI, an inline approval card in chat, resolution events.
+- [ ] **D2.5 Run inbox: steering + follow-ups.** (head-coder: run engine)
+  - `run_inbox`: user messages during a run and system follow-ups, injected at the next step boundary.
+  - A truncated tool call (finish `length`) is failed, never executed. A capped `finishTurn` hook.
+  - Decide one run at a time per thread (note from P1.4: two runs on the same thread both read the same history). A message to a busy thread steers it.
+- [ ] **D2.6 Fallback models.** A per-profile ordered list. On `temporarily_unavailable` or `plan_limit_reached`, the next step uses the next model; the switch is recorded and shown.
+  - Note from P1.3b: a Claude `rate_limit_event` with status `rejected` is a hard failure today, even when overage may be allowed; revisit when overage info is reliable.
+- [ ] **D2.7 Subagents (`delegate`).** A child loop inside the parent's turn, with a tiny prompt; it can't talk to the user and can't delegate again. Budget carved from the parent's; one report back.
+- [ ] **D2.8 Skills.** (old S4 core)
+  - `skills` table, the `SKILL.md` format, the index block, `skill_load`, `skill_propose` into an approval queue.
+  - Skills UI (list, editor, proposals). UI → head-coder.
+- [ ] **D2.9 MCP manager + tool search.** (old P2.5)
+  - HTTP/SSE servers with OAuth (`@ai-sdk/mcp`), a per-profile enable list, per-tool policy, a Connections UI, and a curated catalog JSON.
+  - Above 30 tools, MCP tools are deferred behind `tool_search`.
+  - Stdio servers come with computers (D3.5).
+- [ ] **D2.10 Claude plan bridge.** (head-coder: providers + run engine; REDESIGN §5.6)
+  - Mawl tools via `createSdkMcpServer`, every handler through policy and step recording.
+  - Steering through streaming input (verify), approvals waiting inside the handler with a timeout that becomes a denial, and a "limited" label in the UI.
+- [ ] **D2.11 Teammates UI.** (old P2.1; head-coder: UI) Persona editor, color and avatar, main, helper and fallback models, clone and archive, a computer slot (filled by D3).
+- [ ] **D2.12 Activity feed + audit log UI.** (old P2.6) Filterable by profile, type and time.
+- [ ] **D2.13 Loop eval set.** About 20 fixed tasks (fake model in CI, real model by hand), scoring tool choice, approvals respected, steering honoured and prompt-injection resistance.
+
+## D3 — Computers
+Goal: give a teammate a terminal or desktop computer with one click, when Docker Desktop is installed. See REDESIGN §6.
+
+- [ ] **D3.1 Computer images.** `infra/computer/`: `mawl-computer-terminal` (under 500 MB) and `mawl-computer-desktop` (builds on terminal, under 1.6 GB), with the `computer-agent` helper (JSON-RPC over stdio). Published to GHCR by digest; image smoke test in CI.
+- [ ] **D3.2 Computer entity.** (head-coder: migration + contracts) `computers` table, nullable `profiles.computer_id`, contracts and RPC (`computers.list/create/attach/detach/reset/archive`), `computer.status` events.
+- [ ] **D3.3 DockerProvider + engine detection.** `dockerode` over the Windows named pipe (headless: socket proxy). Engine `not_installed | not_running | ready`, image pull with progress, `ensure`, `suspend`, `reset`, idle auto-suspend, home volumes.
+- [ ] **D3.4 Exec transport.** (head-coder: sandbox boundary) `attachStdio` for helper RPC, stdio MCP and the VNC tunnel. No published ports, no container IPs, no host mounts. *Tests:* a computer cannot reach Postgres, the engine or the API.
+- [ ] **D3.5 Computer tools.** `shell` (with background jobs that post follow-ups to the run inbox), file tools, browser via Playwright MCP (headless or headed), `computer_screenshot`, `computer_act` (desktop kind), plus stdio MCP servers inside the computer.
+- [ ] **D3.6 Docker UX + computer card.** (head-coder: UI) Per engine state: copy and action (install link, "start Docker Desktop", pull progress). Create, attach, share, reset and wipe flows.
+- [ ] **D3.7 Screen gateway + computer panel.** (head-coder: UI) Ticketed WS proxy over the exec tunnel (view/control capabilities, tickets in the subprotocol header), a noVNC RFB component, Watch / Take control / Give back, lease timer, the agent's "cursor ghost".
+- [ ] **D3.8 Takeover + input lease.** `waiting_takeover`, `request_takeover`, a per-computer input lease (agents per batch; the user outranks), notifications, the resume note to the agent.
+- [ ] **D3.9 Credential form.** Secure type-into-computer, with a redacted audit. (Propose head-reviewer.)
+
+## D4 — Memory system (see MEMORY.md)
+
+- [ ] **D4.1 Memory schema + core blocks.**
   - Blocks with caps and versions, `memory_block_edit` tool, frozen-per-segment rendering.
   - *Tests:* cap rejection; byte-stable prefix across edits.
-- [ ] **P3.2 Episodic log + `session_search`.** Episodes with FTS and artifact references.
-- [ ] **P3.3 Embedder + hybrid recall.**
+- [ ] **D4.2 Episodic log + `session_search`.** Episodes with FTS and artifact references.
+- [ ] **D4.3 Embedder + hybrid recall.**
   - Pluggable embedder, HNSW, RRF + rescoring + MMR, automatic injection.
   - *Tests:* the ranking math, plus a fixture corpus with expected top-k.
-- [ ] **P3.4 Fact extraction (warm path).** Extract → compare → ADD/UPDATE/INVALIDATE/NOOP, bi-temporal, injection scanner, `memory_ops` audit. Includes the golden set.
-- [ ] **P3.5 Compaction ladder.**
-  - Review notes from P1.4: resolve `contextWindow` per model id here. Two runs on the same thread can execute at once and both read the same history; decide whether a thread runs one run at a time.
+- [ ] **D4.4 Fact extraction (warm path).** Extract → compare → ADD/UPDATE/INVALIDATE/NOOP, bi-temporal, injection scanner, `memory_ops` audit. Includes the golden set.
+- [ ] **D4.5 Compaction ladder.**
+  - Review note from P1.4: resolve `contextWindow` per model id here.
   - L0–L3 with thresholds, pre-flush, checkpoints, segment rollover, and native Anthropic context editing when available.
   - *Tests:* survival ≥ 95%.
-- [ ] **P3.6 Sleep-time consolidator.** Dedupe, re-densify, digests, decay, and a "what changed overnight" record.
-- [ ] **P3.7 Memory UI.** Blocks, facts table, timeline, skills, history and undo, "used memories" on messages.
-- [ ] **P3.8 Long-horizon eval harness.** A simulated 3-day workload and a metrics report (runs nightly in CI with the fake model, manually with a real one).
+- [ ] **D4.6 Sleep-time consolidator.** Dedupe, re-densify, digests, decay, and a "what changed overnight" record.
+- [ ] **D4.7 Memory UI.** Blocks, facts table, timeline, skills, history and undo, "used memories" on messages.
+- [ ] **D4.8 Long-horizon eval harness.** A simulated 3-day workload and a metrics report (runs nightly in CI with the fake model, manually with a real one).
 
-## P4 — The computer (sandbox + live view + takeover)
+## D5 — Schedules and always-on
+Goal: teammates work on their own, reliably, on a laptop that sleeps. See REDESIGN §7.
 
-- [ ] **P4.1 Computer image.**
-  - `infra/sandbox/Dockerfile`: Xvfb, XFCE, Chromium, x11vnc, websockify, Playwright MCP headed, and the `computer-agent` helper, under supervisord.
-  - Image smoke test in CI.
-- [ ] **P4.2 DockerProvider.** `ensure` / `suspend` / `exec` / `status` via the socket-proxy, the internal network, the home volume, and idle auto-suspend.
-- [ ] **P4.3 Computer tools.** `shell`, file tools, `computer_screenshot`, `computer_act` (batched), browser via Playwright MCP over stdio-in-sandbox.
-- [ ] **P4.4 Screen gateway.** Ticketed WS proxy (view/control capabilities, tickets in the subprotocol header), input dropping for viewers.
-- [ ] **P4.5 Computer panel UI.**
-  - noVNC RFB component, Watch / Take control / Give back, lease timer.
-  - The agent's "cursor ghost" overlay showing its current action.
-- [ ] **P4.6 Takeover protocol + `request_takeover`.** The `waiting_takeover` state, notifications, the resume note to the agent.
-- [ ] **P4.7 Credential form.** Secure type-into-sandbox, with redacted audit.
+- [ ] **D5.1 Background runs UX.** (old P5.1) Pause, resume and cancel from anywhere, plus "Pause all teammates".
+  - Review notes from P1.4:
+    - Add a stale-run sweeper. A run stays `running` with no job after Graphile exhausts its 5 attempts on infra errors, after an enqueue failure right after `runs.start`, or after 30 resume requeues; today only boot recovery picks it up.
+    - A deterministic non-provider error from `createModel` retries 5 times before that; fail it as `internal_error` on the last attempt.
+- [ ] **D5.2 Routine engine.** (head-coder: jobs)
+  - Triggers: cron, RRULE, interval and one-shot, with a timezone and `next_fire_at`, on Graphile cron or our own scheduler loop (decide in the slice).
+  - Missed-run policy (`catch_up_once` default, `skip`, `run_all` capped at 10) on boot, on resume-from-sleep (power event plus a clock-jump check) and on a quit/relaunch.
+- [ ] **D5.3 Natural-language schedules.** The helper model parses to a trigger and always shows it back for confirmation.
+- [ ] **D5.4 Receipts.** A check script on the computer, a helper-model rubric, or "a delivered message exists". A failed receipt marks the run "needs attention".
+- [ ] **D5.5 Routines UI + delivery.** (head-coder: UI) List, editor, run history, the delivery channel, Windows notifications.
+- [ ] **D5.6 Heartbeat.** A per-profile special routine over the `heartbeat` block. It stays silent unless there is something to do (`NOTHING` or an action).
+- [ ] **D5.7 Schedule tools.** `schedule_create/list/cancel` for the agent (policy: `ask` by default).
 
-## P5 — Always on: background, routines, heartbeat
+## D6 — Trace compiler
+Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESIGN §8.
 
-- [ ] **P5.1 Background runs UX.** Pause, resume and cancel from anywhere, plus "Pause all teammates".
-  - Review notes from P1.4: add a stale-run sweeper. A run stays `running` with no job after Graphile exhausts its 5 attempts on infra errors, after an enqueue failure right after `runs.start`, or after 30 resume requeues; today only boot recovery picks it up. A deterministic non-provider error from `createModel` retries 5 times before that; fail it as `internal_error` on the last attempt.
-- [ ] **P5.2 Routines.**
-  - Cron or RRULE storage, a natural-language → schedule parser (helper model + confirmation), and Graphile cron.
-  - Routines UI with run history and a delivery channel.
-- [ ] **P5.3 Heartbeat.** A per-profile interval that reviews the `heartbeat` block. It stays silent unless there is something to do (the model must output either `NOTHING` or an action).
-- [ ] **P5.4 Schedule tools.** The agent can create, list and cancel its own routines (policy: `ask` by default).
+- [ ] **D6.1 Recording spike.** Verify that Playwright MCP reports the locator code for each action, and capture shell steps and judgment steps from the run's tool calls.
+- [ ] **D6.2 Compiler.** A run that passed its receipt becomes a versioned `traces` script with typed holes (model calls with narrow prompts, called only when needed, e.g. a non-empty diff).
+- [ ] **D6.3 Trace runner.** Run the script on the computer, the receipt still checks; cost and time shown against the model run.
+- [ ] **D6.4 Self-heal.** One failing step → the model proposes a replacement for that step only → continue → save a new version with a diff and an audit entry. After N failed heals, fall back to a full model run and notify.
+- [ ] **D6.5 Trace UI.** (head-coder: UI) Script view, versions and diffs, holes, "re-learn".
 
-## P6 — Mobile
+## D7 — Telegram & Discord
 
-- [ ] **P6.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings.
-  - Review notes from P1.2/P1.3: every `/rpc` procedure except `health.get` and `devices.pair` requires a device session (`providers.*` holds the owner's keys). Add a request body size limit on `/rpc`. Until then the server binds to `127.0.0.1` by default.
-  - `providers.test` with an inline input sends a key to any URL the caller picks (an SSRF oracle). With auth in place, also: block link-local/metadata ranges (169.254.0.0/16, fd00:ec2::/32), resolve DNS once and pin the IP (anti-rebinding), allow private ranges only through an explicit owner opt-in (Ollama on the LAN), and rate-limit `test`.
-  - Review notes from P1.5: `/ws` has no auth yet. The Host allowlist stops DNS rebinding, but any page served from loopback (any port) passes the origin check. Require a device session on the `/ws` upgrade, and scope `events.subscribe` topics to the device's owner.
-- [ ] **P6.2 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
-- [ ] **P6.3 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
-- [ ] **P6.4 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.
+- [ ] **D7.1 Channel adapter core.** Normalised inbound and outbound, thread mapping, owner pairing code, allowlist, token locks. Long polling only (no inbound networking).
+- [ ] **D7.2 Telegram (grammY).** Chat, inline approval buttons, commands, takeover deep link.
+- [ ] **D7.3 Discord (discord.js).** DM + mention, buttons, slash commands.
 
-## P7 — Telegram & Discord
+## D8 — Remote access + mobile
 
-- [ ] **P7.1 Channel adapter core.** Normalised inbound/outbound, thread mapping, owner pairing code, allowlist, token locks.
-- [ ] **P7.2 Telegram (grammY).** Chat, inline approval buttons, commands, takeover deep link.
-- [ ] **P7.3 Discord (discord.js).** DM + mention, buttons, slash commands.
+- [ ] **D8.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings. It builds on the D1.4 token: every `/rpc` procedure except `health.get` and `devices.pair` requires a session. (Propose head-reviewer.)
+- [ ] **D8.2 Tailscale.** Detect Tailscale, guide `tailscale serve` for the local server, and add its URL to the pairing QR. An own E2E relay is a stretch (S6).
+- [ ] **D8.3 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
+- [ ] **D8.4 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
+- [ ] **D8.5 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.
 
-## P8 — Polish & ship
+## D9 — Polish & ship
 
-- [ ] **P8.1 Onboarding.** Three steps with the beaver, provider key or Ollama detection, first teammate, phone pairing.
-  - Review note from P1.3b: offer "Continue with ChatGPT" first, following the SIWC UI rules recorded in P1.6.
-- [ ] **P8.2 Installer.** `install.sh` / `install.ps1`, generated secrets, and the desktop "Start my stack" button.
-- [ ] **P8.3 Mascot.** Rive state machine (8 states) on web, desktop tray and mobile.
-- [ ] **P8.4 Accessibility + reduced-motion audit**, visual-regression baseline, and performance budgets.
-- [ ] **P8.5 Docs site / README quick start**, release workflow (images to GHCR, Tauri bundles, EAS builds).
-- [ ] **P8.6 72 h soak test** with routines and heartbeat across two profiles.
+- [ ] **D9.1 Mascot.** Rive state machine (8 states) on web, the desktop tray and mobile.
+- [ ] **D9.2 Accessibility + reduced-motion audit**, visual-regression baseline, and performance budgets.
+- [ ] **D9.3 Local plugin import.** (S4) A folder or zip with skills, MCP configs, prompt blocks and routine templates, reviewed before install.
+- [ ] **D9.4 Docs site / README quick start**, and the release workflow (installer to GitHub Releases, headless image to GHCR, EAS builds).
+  - Eligibility check from P1.3b: a paid or remotely hosted distribution needs OpenAI's SIWC interest form, and the Claude plan provider must go if Mawl is ever distributed or multi-user.
+- [ ] **D9.5 72 h soak test** with routines, heartbeat, sleep and wake, and two teammates sharing a computer.
 
 ## Later (Should/Could from SPEC)
-S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S4 skill import + learned skills · S5 voice · S6 E2E relay · S7 cost dashboard · WebRTC streaming · remote sandbox providers.
+S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S5 voice · S6 E2E relay · S7 cost dashboard · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds.
+
+Open note from P1.3b and P1.5: `@mawl/server#test` failed once under the full parallel gate (PGlite suites near `hookTimeout`), and the web suites time out under heavy machine load (2026-10-21). Find the cause when more PGlite suites are added.
 
 ---
 
