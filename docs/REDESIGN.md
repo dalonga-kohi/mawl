@@ -58,13 +58,13 @@ flowchart LR
 
 ## 4. Desktop host details
 
-- **Sidecar.** Tauri `externalBin` ships `node.exe` (Node 24) plus `server.mjs`, or a Node SEA single executable (decide in the slice; SEA is preferred if the Claude Agent SDK's external native package still resolves). The supervisor:
+- **Sidecar.** Tauri `externalBin` ships `node.exe` (Node 24) as `mawl-server.exe`, plus `server.mjs` as a resource (decided in D0.2, §10.2). The supervisor:
   - picks a free loopback port and generates the launch token
   - passes both to the server through env or stdin (never argv, which shows up in process lists)
   - waits for `/healthz`, then points the webview at it
   - restarts the server with backoff (max 5 in 5 min, then an error screen with a "copy diagnostics" button)
 - **Watchdog.** The server exits when its parent dies (stdin EOF), so there are no orphaned servers or Postgres.
-- **Data.** `%LOCALAPPDATA%\Mawl\{pg,secrets,claude,logs,artifacts}`. The master key moves into Windows Credential Manager via Tauri (a file in `secrets/` stays the headless fallback).
+- **Data.** `%LOCALAPPDATA%\app.mawl.desktop\{pg-data,secrets,claude,logs,artifacts}` (Tauri's `app_local_data_dir`, separate from the install dir, §10.2). The master key moves into Windows Credential Manager via Tauri (a file in `secrets/` stays the headless fallback).
 - **Embedded Postgres.** Start on boot with a random port bound to 127.0.0.1, a generated superuser password, `initdb` on first run, and clean shutdown on quit. Upgrades between PG majors are a later problem (pin 17). Binaries, lifecycle and the pgvector build as proven in D0.1 (§10.1).
 - **Installer.** Tauri bundler, NSIS per-user install (no admin). Auto-update via the Tauri updater against GitHub Releases. Code signing is optional for a portfolio project (SmartScreen warns without it).
 - **First run.** Splash → provider (Continue with ChatGPT first, then an API key, Ollama detection, Claude plan) → name your teammate → done. Docker is offered later, from the teammate's computer card.
@@ -189,7 +189,39 @@ Do as much as the unmodified binary allows:
      - Warm start 0.3–0.9 s, stop about 0.5 s, migrations about 1.1 s.
      - Binaries 97 MB (37 MB zipped), `vector.dll` 277 KB, a fresh data dir 39 MB.
    - **Risk.** MinGW against MSVC headers is unsupported, so any PG or pgvector bump can add an ABI mismatch. That's why CI uses MSVC, and `--disable-auto-import` turns most mismatches into link errors.
-2. **Sidecar packaging.** Node SEA vs a shipped `node.exe`, and whether the Claude Agent SDK's native package resolves from the install dir. Installer size target: under 200 MB without the Claude binary, which is downloaded on first use if the owner picks the Claude plan.
+2. **Sidecar packaging. Done (D0.2, 2026-10-21).** A full `tauri build --bundles nsis` worked on this machine.
+   - **Ship `node.exe`, not a SEA.**
+     - Node 24.19 SEA runs CommonJS only (`mainFormat: "module"` is ignored). It needs an extra CJS pass, an `import.meta.url` shim and `useCodeCache: false`.
+     - Startup is the same: warm `/healthz` in about 0.6–1.2 s, a cold DB with migrations in 1.7 s, about 90 MB working set either way.
+     - Postject breaks the OpenJS Authenticode signature.
+     - **Decision:** the signed `node.exe` renamed `mawl-server-<triple>.exe` as the Tauri `externalBin` (installed as `$INSTDIR\mawl-server.exe`), plus `server\server.mjs`, `drizzle\` and `web\` as resources. Revisit SEA when an LTS Node ships ESM SEA.
+   - **Claude Agent SDK.**
+     - It resolves and spawns from an install-dir layout (`claude.exe` 2.1.302; `auth status` shows logged out on an empty config dir).
+     - Its JS bundles cleanly with esbuild (1.28 MB) and works with an explicit `pathToClaudeCodeExecutable`. **Decision:** bundle it, drop it from esbuild `external`, and always pass the path.
+     - **The Claude binary is not in the installer** (126 MB packed, 277 MB unpacked). On first choice of the Claude plan, download the npm tarball of the pinned SDK's exact platform package, verify its sha512 against the lockfile's, and extract it to `<data>\claude\<ver>\claude.exe` (about 1 s). It stays the unmodified binary.
+   - **Supervisor (Rust).**
+     - `std::process::Command`; the shell plugin isn't needed.
+     - `env_clear()` plus an allowlist; `CREATE_NO_WINDOW`.
+     - The launch token on stdin's first line (never argv).
+     - stdin is held open as the watchdog. Today the server ignores EOF: D1.3 fixes that.
+     - A kill-on-close **job object**, so the server and Postgres die with `Mawl.exe` and updates can replace files. The NSIS installer only checks `Mawl.exe` itself.
+   - **Data dir ≠ install dir.** A `currentUser` NSIS install goes to `%LOCALAPPDATA%\Mawl`, which would collide with the data layout. **Decision:** data lives in Tauri's `app_local_data_dir` (`%LOCALAPPDATA%\app.mawl.desktop\{pg-data,secrets,claude,logs,artifacts}`), which the uninstaller's "delete app data" option already targets. Postgres binaries are an install resource (`pg\`).
+   - **Postgres needs the VC++ runtime** (`VCRUNTIME140`, `VCRUNTIME140_1`, `MSVCP140`). Ship it app-local in `pg\bin`. `node.exe` has no CRT dependency.
+   - **Toolchain.** The local rustc host is `x86_64-pc-windows-gnu`, so the local sidecar suffix is `-gnu`. Releases build on MSVC in CI (`-x86_64-pc-windows-msvc`); MinGW also warns about merged manifests. `bundle.useLocalToolsDir: true` keeps NSIS 3.11 and `nsis_tauri_utils` 0.5.3 inside the target dir. Versions: tauri 2.12.1, tauri-build 2.7.1, cli 2.12.1.
+   - **Sizes.**
+
+     | Part | Size |
+     |---|---|
+     | `node.exe` | 88.5 MB |
+     | `server.mjs` | 4.3 MB |
+     | web | 1.2 MB |
+     | Postgres, pruned (no wx, locale, `.lib`) | 60.5 MB |
+     | `vector.dll` | 0.27 MB |
+     | `Mawl.exe` | 23.7 MB |
+     | **Installer** | **46.35 MiB** (137.8 MiB with Claude) |
+     | Installed on disk | about 196 MB |
+
+     A cold build takes about 6 min.
 3. **Exec-stream VNC tunnel** latency on Docker Desktop (WSL2 backend).
 4. **Sleep and wake detection** reliability on Windows.
 

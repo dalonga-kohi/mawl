@@ -9,7 +9,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 ## D0 — Spikes (de-risk the redesign)
 
 - [x] **D0.1 Embedded Postgres + pgvector on Windows.** (spike; works, results and decisions in REDESIGN §10.1; recipe `infra/desktop/pgvector/build-vector-mingw.ps1`) Prove that the server can start a bundled Postgres 17 on Windows as a child process (random loopback port, `initdb` on first run, clean stop) and load a `vector` extension built for those exact binaries. Run the existing `@mawl/db` migrations and one HNSW vector query against it. Write the result, versions and the build recipe into REDESIGN §10. If it fails, record why and the fallback (PGlite + own queue).
-- [~] **D0.2 Sidecar packaging.** Node SEA vs a shipped `node.exe` as a Tauri `externalBin`; check that `@anthropic-ai/claude-agent-sdk`'s native package resolves from an install dir; measure the installer size.
+- [x] **D0.2 Sidecar packaging.** (spike; `node.exe` sidecar, the SDK JS bundled, the Claude binary downloaded on first use, a 46 MiB installer; results in REDESIGN §10.2) Node SEA vs a shipped `node.exe` as a Tauri `externalBin`; check that `@anthropic-ai/claude-agent-sdk`'s native package resolves from an install dir; measure the installer size.
 
 ---
 
@@ -108,8 +108,10 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
   - upload `vector.dll` + control + SQL as a hashed artifact
   - The MinGW recipe stays the local fallback. Actions pinned by full SHA (existing test).
 - [ ] **D1.3 Desktop server mode.**
-  - Config: `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` (default `%LOCALAPPDATA%\Mawl`). `DATABASE_URL` is optional in desktop mode, which uses D1.1.
-  - Port and launch token come via env or stdin, never argv. Exit on stdin EOF (parent watchdog).
+  - Config: `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` (Tauri's `app_local_data_dir`, `%LOCALAPPDATA%\app.mawl.desktop`, never the install dir). `DATABASE_URL` is optional in desktop mode, which uses D1.1 with binaries from `MAWL_PG_ROOT` (the install's `pg\`).
+  - Port via env, launch token on stdin's first line, never argv. Exit on stdin EOF (parent watchdog; D0.2 saw the server ignore EOF today).
+  - Build: bundle `@anthropic-ai/claude-agent-sdk` JS into `server.mjs` (drop it from esbuild `external`) and always pass `pathToClaudeCodeExecutable`.
+  - The Claude binary on first use: download the pinned platform package tarball, verify the lockfile sha512, extract to `<data>\claude\<ver>\`. Never modified (Anthropic terms).
   - SIWC callback on the real loopback; the Ollama default `http://localhost:11434`.
   - *Tests:* config matrix, watchdog exit, no token in logs.
 - [ ] **D1.4 Local launch-token auth.** (head-coder; security. Propose head-reviewer)
@@ -120,7 +122,7 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
     - scope `events.subscribe` topics to the owner
     - `providers.test` with an inline input is an SSRF oracle: block link-local/metadata ranges (169.254.0.0/16, fd00:ec2::/32), resolve DNS once and pin the IP, allow private ranges only via an explicit owner opt-in (Ollama on the LAN), rate-limit `test`
 - [ ] **D1.5 Tauri host.** (head-coder: UI + process supervision; old P1.8)
-  - Supervisor: spawn the sidecar (packaging per D0.2), wait for `/healthz`, restart with backoff (5 in 5 min, then an error screen with "copy diagnostics").
+  - Supervisor: spawn `mawl-server.exe` (renamed `node.exe`, Tauri `externalBin`) on `server\server.mjs` with `std::process::Command` (no shell plugin), `env_clear()` plus an allowlist, `CREATE_NO_WINDOW`, a kill-on-close job object, and stdin held open (token on the first line). Wait for `/healthz`, restart with backoff (5 in 5 min, then an error screen with "copy diagnostics").
   - Splash, tray with the mascot state, close-to-tray, "Quit Mawl" (clean shutdown of server and Postgres), autostart at login (on by default, toggle), single instance, deep links `mawl://` (the parser exists), notifications, power events forwarded to the server.
   - Advanced: "connect to a remote Mawl" instead of the local server.
   - Review note from P1.3b: the desktop app can run the SIWC loopback flow itself; with the server on the same host, the server-side flow is enough for v1.
@@ -130,7 +132,8 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
   - Migrate an existing file key once, then delete the file only after a verified decrypt.
   - *Tests:* round trip, migration, wrong key aborts boot (existing rule).
 - [ ] **D1.7 Installer, updater, Windows CI.**
-  - Tauri NSIS per-user bundle with the sidecar, web build, Postgres bundle and `vector.dll`.
+  - Tauri NSIS per-user bundle (`bundle.useLocalToolsDir: true`) with the sidecar, `server.mjs`, `drizzle\`, the web build, the pruned Postgres bundle, `vector.dll` and the app-local VC++ runtime (`VCRUNTIME140`, `VCRUNTIME140_1`, `MSVCP140` in `pg\bin`). Budget: installer ≤ 60 MiB (D0.2 measured 46.35).
+  - Release builds on MSVC in CI (sidecar suffix `-x86_64-pc-windows-msvc`); local dev may use the `-gnu` host. Updates need the job object (D1.5) so the sidecar and Postgres are gone before files are replaced.
   - Tauri updater against GitHub Releases (signing keys in CI secrets, owner's call), and a size budget check.
   - The compose image smoke test moves out of the default gate into its own task (note from P1.9).
 - [ ] **D1.8 First-run onboarding.** (head-coder: UI; old P8.1)

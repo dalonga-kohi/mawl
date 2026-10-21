@@ -86,7 +86,7 @@ mawl/
 | Desktop stream | x11vnc in the container → exec-stream tunnel → **screen gateway** in server → `@novnc/novnc` RFB client | Simple and proven; upgrade path to neko/Selkies WebRTC |
 | Browser automation | `@playwright/mcp` inside the computer: headless on the terminal kind, headed on the desktop kind's `DISPLAY` | You see what the agent does; its reported locator code feeds the trace compiler |
 | Channels | grammY (Telegram), discord.js (Discord) | Mature and typed |
-| Desktop host | Tauri 2 (+ plugins: notification, deep-link, single-instance, autostart, updater, shell), NSIS per-user installer; server as a sidecar (packaging per D0.2) | Small and fast; one installer, no admin |
+| Desktop host | Tauri 2.12 (+ plugins: notification, deep-link, single-instance, autostart, updater), NSIS per-user installer; `node.exe` sidecar spawned by a Rust supervisor (REDESIGN §10.2) | Small and fast; one installer of about 46 MiB, no admin |
 | Mobile | Expo SDK (latest), expo-router, Reanimated, expo-notifications, expo-camera (QR), react-native-webview (noVNC) | Proven mobile path |
 | UI | React 19, Tailwind v4, Radix primitives (via shadcn-style local components), Motion, Lucide icons, Sonner (toasts), cmdk (command palette) | Use existing libraries; don't reinvent |
 | Mascot animation | Rive (`@rive-app/react-canvas`, `rive-react-native`) with an SVG + Motion fallback | One state machine for both platforms |
@@ -115,7 +115,7 @@ flowchart TB
 ```
 
 - A single Node process runs everything for v1: API, WS, worker, gateways. Its entrypoint can start them as separate roles later (`--role=api|worker|gateway`) for scaling or crash isolation. In compose, `restart: unless-stopped` plus a healthcheck supervises it.
-- **Desktop mode** *(planned, D1; REDESIGN §4)*. The Tauri supervisor spawns the server with a free loopback port and a per-launch token, passed through env or stdin, never argv. The server owns the embedded Postgres: `initdb` on first run (`--no-sync` into a staging dir, then renamed), spawn `postgres` on a free 127.0.0.1 port with a generated password stored under the data root, and `pg_ctl stop -m fast -w` on shutdown. Never spawn it `detached`: libuv's job object then takes Postgres down with a killed server, and WAL recovers. The server exits on stdin EOF (parent died). Data lives in `%LOCALAPPDATA%\Mawl\{pg,secrets,claude,logs,artifacts}`. The env table below gains `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` and the launch token; `DATABASE_URL` becomes optional in desktop mode.
+- **Desktop mode** *(planned, D1; REDESIGN §4)*. The Tauri supervisor spawns the server with a free loopback port and a per-launch token, passed through env or stdin, never argv. The server owns the embedded Postgres: `initdb` on first run (`--no-sync` into a staging dir, then renamed), spawn `postgres` on a free 127.0.0.1 port with a generated password stored under the data root, and `pg_ctl stop -m fast -w` on shutdown. Never spawn it `detached`: libuv's job object then takes Postgres down with a killed server, and WAL recovers. The server exits on stdin EOF (parent died). Data lives in `%LOCALAPPDATA%\app.mawl.desktop\{pg-data,secrets,claude,logs,artifacts}` (Tauri's `app_local_data_dir`), separate from the install dir with its `pg\` binaries. The env table below gains `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` and the launch token (stdin first line); `DATABASE_URL` becomes optional in desktop mode. The supervisor spawns the server with `env_clear()` plus an allowlist, `CREATE_NO_WINDOW` and a kill-on-close job object (REDESIGN §10.2).
 - **Runtime and config.**
   - Dev runs `tsx watch src/main.ts`. Production is one esbuild bundle, `apps/server/dist/server.mjs` (`pnpm --filter @mawl/server build`), with `@mawl/*` sources and npm deps inlined (only `pg-native` and `@anthropic-ai/claude-agent-sdk` are external) and the SQL migrations copied to `dist/drizzle`. Native Node type stripping is not used because workspace packages use extensionless imports. Start with `pnpm --filter @mawl/server start`.
   - Boot order: parse env, open logger, load or create the master key and the ChatGPT host id, open Postgres, run migrations (advisory-locked), run Graphile Worker's own migrations and start its worker, re-enqueue runs left `queued` or `running`, listen, log `listening`. SIGINT and SIGTERM stop the listener, abort running jobs (their runs stay `running` and resume on the next boot), stop the worker, close the database and exit 0. Any boot failure logs one `boot failed` line (error name, code, message; never the connection string) and exits 1.
@@ -441,10 +441,11 @@ All event types are defined as zod schemas in `packages/contracts`.
 - One per-user NSIS installer built by the Tauri bundler, on a GitHub Actions Windows job.
 - It contains:
   - the Tauri host
-  - the server sidecar (Node SEA or `node.exe` + `server.mjs`, **pending spike D0.2**)
+  - the server sidecar: signed `node.exe` as `mawl-server.exe` + `server.mjs` (with the Claude Agent SDK JS bundled in), `drizzle\`
   - the web build
-  - the pruned EDB Postgres 17.10 binaries with an MSVC-built `vector.dll` (REDESIGN §10.1)
-- Where the Claude Code native binary lives (in the installer or downloaded on first use) is also pending D0.2.
+  - the pruned EDB Postgres 17.10 binaries with an MSVC-built `vector.dll` (REDESIGN §10.1) and the app-local VC++ runtime
+- About 46 MiB in total (REDESIGN §10.2).
+- The Claude Code native binary is not in the installer. It is downloaded on first use of the Claude plan, checked against the lockfile's sha512, and run unmodified from the data dir.
 - Auto-update uses the Tauri updater against GitHub Releases.
 - Computer images are pulled from GHCR on first use, never built locally.
 
