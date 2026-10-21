@@ -4,6 +4,13 @@ This is the working roadmap the orchestrator follows. Each **slice** is a vertic
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (write why)
 
+> **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. Phases P2 to P8 below are **superseded** by the D-phases in REDESIGN §11 and will be re-sliced into this file after the D0 spikes. P1.8 is re-scoped into D1.
+
+## D0 — Spikes (de-risk the redesign)
+
+- [~] **D0.1 Embedded Postgres + pgvector on Windows.** Prove that the server can start a bundled Postgres 17 on Windows as a child process (random loopback port, `initdb` on first run, clean stop) and load a `vector` extension built for those exact binaries. Run the existing `@mawl/db` migrations and one HNSW vector query against it. Write the result, versions and the build recipe into REDESIGN §10. If it fails, record why and the fallback (PGlite + own queue).
+- [ ] **D0.2 Sidecar packaging.** Node SEA vs a shipped `node.exe` as a Tauri `externalBin`; check that `@anthropic-ai/claude-agent-sdk`'s native package resolves from an install dir; measure the installer size.
+
 ---
 
 ## P0 — Foundation

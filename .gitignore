@@ -28,6 +28,8 @@ playwright-report/
 
 # Mawl local runtime state (master key, etc.)
 .mawl/
+# pre-rename name of the same directory
+.faire/
 
 # Compose secrets
 infra/compose/.env
