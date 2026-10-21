@@ -13,7 +13,7 @@ import { CredentialRow } from './CredentialRow.tsx'
 import { CHATGPT_SETTINGS_URL } from './copy.ts'
 import { providerKeys, useCatalog, useCredentials } from './queries.ts'
 
-const card = 'rounded-lg bg-surface px-[18px] py-1 shadow-1'
+const card = 'rounded-card bg-surface px-[18px] py-1 shadow-1'
 
 /** SIWC asks for a recognisable "Continue with ChatGPT" control; it reads as a sign-in, not a Mawl action. */
 function ChatGptButton({
@@ -37,7 +37,7 @@ function ChatGptButton({
 function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex items-center gap-2 rounded-sm bg-surface-2 py-1 pr-1 pl-3">
+    <div className="flex items-center gap-2 rounded-pill bg-surface-2 py-1 pr-1 pl-3.5">
       <code className="flex-1 overflow-x-auto font-mono text-small whitespace-nowrap">
         {command}
       </code>

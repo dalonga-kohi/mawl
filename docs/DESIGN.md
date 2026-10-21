@@ -2,7 +2,7 @@
 
 > Calm, lowkey, gentle and a little playful. The UI stays quiet so the work and the mascot can speak.
 
-> **2026-10-21 redesign: [UI-REDESIGN.md](UI-REDESIGN.md) wins over this file** on palette, mascot (now **Mawl**, a lemon-lime mochi, not the brown beaver Pip), shape (everything round), shell layout and the shadcn component base. Sections 3, 5 (layout), 6 (avatars), 8 and 9 are being rewritten slice by slice (PLAN U1 to U7).
+> **2026-10-21 redesign: [UI-REDESIGN.md](UI-REDESIGN.md) wins over this file** on palette, mascot (now **Mawl**, a lemon-lime mochi, not the brown beaver Pip), shape (everything round), shell layout and the shadcn component base. Sections 3, 5 (layout), 6 (avatars), 8 and 9 are being rewritten slice by slice (PLAN U1 to U7). Since U1, §3 (colors and accent) and §5 (shape and elevation) follow the redesign.
 
 The reference mood is the airy blue/white Telegram concepts plus a quiet dark mode. They show direction only; we don't copy them. When you do frontend work, apply the **ui-taste**, **frontend-design** and **ui-ux-pro-max** skills on top of this document. This document wins on any conflict.
 
@@ -26,54 +26,61 @@ Mawl, a soft lemon-lime mochi, keeps watch while your teammates work, and you ch
 
 All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @mawl/ui generate`. Components never use raw hex.
 
-### Neutrals: light ("Mist")
+### Neutrals: light ("Cream")
 | Token | Hex | Use |
 |---|---|---|
-| `--bg` | `#F5F7FA` | App background |
+| `--bg` | `#FAF8F4` | App background |
 | `--surface` | `#FFFFFF` | Panels, cards, composer |
-| `--surface-2` | `#EEF2F6` | Sidebar, hover fills, input bg |
-| `--line` | `#E1E6EC` | Hairlines (use sparingly) |
-| `--text` | `#17202B` | Primary text (15.3:1 on bg) |
-| `--text-2` | `#5A6675` | Secondary text (5.45:1 on bg) |
-| `--text-3` | `#8A95A3` | Placeholder, meta, disabled (3.0:1 on surface only; 2.8:1 on bg). Never for body text |
+| `--surface-2` | `#F2EFE8` | Sidebar, hover fills, tab tracks |
+| `--line` | `#E7E3DA` | Hairlines (use sparingly) |
+| `--text` | `#1D1B16` | Primary text (16.2:1 on bg) |
+| `--text-2` | `#5E5A50` | Secondary text (6.5:1 on bg) |
+| `--text-3` | `#8C877B` | Placeholder, meta, disabled (3.6:1 on surface). Never for body text |
 
-### Neutrals: dark ("Night river")
+### Neutrals: dark ("Ink")
+Near-black and neutral, not blue. Surfaces separate by a step in lightness and a 1 px `--line` hairline, never by shadows.
+
 | Token | Hex |
 |---|---|
-| `--bg` | `#0F141A` |
-| `--surface` | `#161C24` |
-| `--surface-2` | `#1D2530` |
-| `--line` | `#26303C` |
-| `--text` | `#E8EDF3` |
-| `--text-2` | `#A3AEBB` |
-| `--text-3` | `#6E7A88` |
+| `--bg` | `#0B0B0D` |
+| `--surface` | `#131315` |
+| `--surface-2` | `#1B1B1E` |
+| `--line` | `#26262A` |
+| `--text` | `#ECECEE` |
+| `--text-2` | `#A6A6AD` |
+| `--text-3` | `#6F6F77` |
 
 ### Accent (user-selectable)
-The user picks the accent in Settings → Appearance. The default is **Lake**.
+The user picks the accent in Settings → Appearance. The default is **Lime**, Mawl's own color. Every preset is a soft, light color of about the same lightness, so filled buttons keep the preset as their fill and take ink text.
 
-| Preset | Hex | Mood |
-|---|---|---|
-| **Lake** (default) | `#3D8BFD` | Airy, trustworthy (reference blue) |
-| Moss | `#3FA36B` | Calm, natural |
-| Amber | `#E09A1E` | Warm, energetic |
-| Coral | `#EF6F5E` | Friendly |
-| Plum | `#8E6BE8` | Playful |
-| Slate | `#5B6B82` | Ultra-lowkey |
-| Custom | any | A color picker; the engine checks contrast |
+| Preset | Base (fill) | `--accent-ink`, light | Mood |
+|---|---|---|---|
+| **Lime** (default) | `#D8E88A` | `#687309` | Mawl's pistachio; fresh, gentle |
+| Sky | `#A9D3F5` | `#4A718E` | Airy, calm |
+| Peach | `#F7C4A3` | `#906346` | Warm, friendly |
+| Lilac | `#CBB9F4` | `#76649A` | Playful |
+| Rose | `#F4B6C4` | `#945D6A` | Soft, kind |
+| Slate | `#B9C3CF` | `#666D78` | Ultra-lowkey |
+| Custom | any | derived | A color picker; the engine checks contrast |
+
+Ink on every preset fill is 9.6:1 or better; every light `--accent-ink` is about 5.2:1 on the surface. In dark mode the presets are already light enough, so the base doubles as the ink. The pre-redesign presets (Lake, Moss, Amber, Coral, Plum and the old dark Slate) are retired: a saved preference that still holds one of them, by color, id or name, loads as Lime (`apps/web/src/appearance/prefs.ts`).
 
 **The accent engine** (`packages/ui/accent.ts`, using `culori`) turns one hex into a scale. It converts the hex to OKLCH and generates:
 - `--accent` (base)
 - `--accent-hover` (L −4%)
 - `--accent-press` (L −8%)
-- `--accent-soft` (base at 12% alpha over surface; used for selection and tinted bubbles)
-- `--accent-softer` (6%)
-- `--accent-ring` (40% alpha)
-- `--accent-fill`: background for filled buttons and the send button. It is the base accent, darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Lake `#3D8BFD` only reaches 3.3:1 with white, so its fill is about `#2473E3`. For light accents like Amber, the engine keeps the base and switches the text to ink instead, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press` (they are darker, and ink loses contrast as the fill darkens). Otherwise (Coral, for example) the fill is darkened until white passes. Hover and press are derived from the fill.
-- `--on-accent`: the text color on `--accent-fill`, white or `--text`, whichever passes 4.5:1
-- `--accent-ink`: the accent as small text or a link on `--surface`. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on the theme's surface.
-- `--accent` (base) is used for text links, icons, focus rings, selection and tints. When it is used as text on `--surface` it must reach 3:1 for large/UI text. For small text, use `--accent-ink`.
+- `--accent-soft`: the base mixed over the surface, 24% in light and 14% in dark (soft accents barely tint a light surface at less). Used for selection, the current nav item and user bubbles.
+- `--accent-softer`: half of that (12% light, 7% dark)
+- `--accent-ring`: the focus ring, mixed from `--accent-ink` (100% light, 80% dark), so it reaches 3:1 on bg and surface even for pastel accents
+- `--accent-fill`: background for filled buttons and the send button. For light accents (all presets), the engine keeps the base and switches the text to ink, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press` (they are darker, and ink loses contrast as the fill darkens). Otherwise (a mid blue like `#3D8BFD`, or a coral) the fill is darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Hover and press are derived from the fill.
+- `--on-accent`: the text color on `--accent-fill`, white or ink (`--text` of the light theme), whichever passes 4.5:1
+- `--accent-ink`: the accent as small text, an icon or a link. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on bg, surface, surface-2 and the soft tint.
+- `--accent` (base) is for fills, tints and decoration. With soft accents it is too light to read on a light surface, so text, icons and rings always use `--accent-ink`.
 
 In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are all derived from that raised base. The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
+
+### shadcn/ui variables
+`apps/web/src/styles.css` maps shadcn's semantic variables onto these tokens, so a component taken from the shadcn registry already speaks Mawl: `--background` → `--bg`, `--foreground` → `--text`, `--card`/`--popover` → `--surface`, `--primary` → `--accent-fill`, `--primary-foreground` → `--on-accent`, `--secondary`/`--muted` → `--surface-2`, `--muted-foreground` → `--text-2`, `--destructive` → `--danger`, `--border`/`--input` → `--line`, `--ring` → `--accent-ring`, `--radius` → `--r-card`. shadcn's own `--accent` (a neutral hover fill) is not aliased: `--accent` is Mawl's brand color, and that role is `--secondary`. A test (`apps/web/src/ui/theme.test.ts`) keeps the mapping and the no-raw-hex rule honest.
 
 ### Semantic (fixed, never accent-driven)
 - `--ok` `#007A4A` light, `#32A16A` dark
@@ -128,17 +135,20 @@ Rules:
 ## 5. Space, shape, elevation
 
 - **Spacing:** 4 px base grid. Tokens 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 56.
-- **Radii, by hierarchy:**
-  - `--r-xs` 6 for chips and badges
-  - `--r-sm` 10 for inputs and buttons
-  - `--r-md` 14 for cards and messages
-  - `--r-lg` 20 for panels and sheets
-  - `--r-xl` 28 for the window and the mobile sheet
-  - `999` for pills, avatars and toggles
+- **Radii: everything is round** (UI-REDESIGN §2).
+  - `--r-pill` 999 for every interactive control: buttons, inputs and selects, tabs, chips, badges, toggles, avatars. Icon buttons and the send button are circles.
+  - `--r-xs` 8 for inline code, `kbd` and skeleton lines
+  - `--r-sm` 12 for menu rows and code blocks inside a card
+  - `--r-md` 18 for message bubbles, notices, menus and textareas
+  - `--r-card` 24 for cards
+  - `--r-panel` 28 for panels and side sheets
+  - `--r-dialog` 32 for dialogs, the window and the mobile sheet
+  - Nested surfaces follow outer = inner + padding (a menu of 12 px rows with 6 px padding is 18).
 - **Elevation:** avoid it mostly. Use surface contrast before shadows.
-  - `--shadow-1: 0 1px 2px rgb(16 24 40 / .05)` for the composer and popovers
-  - `--shadow-2: 0 8px 24px -8px rgb(16 24 40 / .12)` for menus, dialogs and the floating computer preview
-  - Dark mode uses a 1 px `--line` border instead of shadows.
+  - `--shadow-1: 0 1px 2px rgb(29 27 22 / .05)` for the composer, selected rows and popovers
+  - `--shadow-2: 0 12px 32px -12px rgb(29 27 22 / .16)` for menus, dialogs and the floating computer preview
+  - Dark mode uses a 1 px `--line` hairline instead of shadows.
+  - Overlays behind dialogs, sheets and the palette are a soft wash of the background (`bg/70` with a 2 px blur), not grey.
 - **Layout (desktop):**
   1. Rail, 64 px: icons for Teammates, Activity, Approvals, Memory, Routines, Settings, with the mascot at the top.
   2. Teammate list, 280 px.
@@ -218,7 +228,7 @@ Mawl is drawn in code from the reference, so no mascot sheet and no onboarding i
 
 ## 9. Components (inventory)
 
-Build on Radix primitives in local shadcn-style components.
+Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
 
 - **Navigation:** Rail, TeammateList (row: avatar, name, last activity line, time, unread pill, live dot), CommandPalette (cmdk).
 - **Chat:**

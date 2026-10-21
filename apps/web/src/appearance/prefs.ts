@@ -1,4 +1,10 @@
-import { applyAccent, defaultAccent, deriveAccent } from '@mawl/ui'
+import {
+  accentPresets,
+  applyAccent,
+  defaultAccent,
+  deriveAccent,
+  retiredAccentPresets,
+} from '@mawl/ui'
 
 /** `system` leaves `data-theme` off, so the `prefers-color-scheme` media query in tokens.css decides. */
 export type ThemePref = 'system' | 'light' | 'dark'
@@ -35,6 +41,23 @@ export function isAccentHex(value: unknown): value is string {
   }
 }
 
+const retiredHexes = new Set<string>(retiredAccentPresets.map((p) => p.hex))
+const matchesPreset = (value: string, p: { id: string; name: string }) =>
+  value.toLowerCase() === p.id || value.toLowerCase() === p.name.toLowerCase()
+
+/**
+ * Reads a saved accent. Retired presets (by color, id or name) fall back to the default; a current
+ * preset id or name resolves to its color; any other valid hex is a custom color and is kept.
+ */
+function storedAccent(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_APPEARANCE.accent
+  const preset = accentPresets.find((p) => matchesPreset(value, p))
+  if (preset) return preset.hex
+  if (!isAccentHex(value)) return DEFAULT_APPEARANCE.accent
+  const hex = value.toUpperCase()
+  return retiredHexes.has(hex) ? DEFAULT_APPEARANCE.accent : hex
+}
+
 const isThemePref = (value: unknown): value is ThemePref =>
   typeof value === 'string' && (THEME_PREFS as readonly string[]).includes(value)
 
@@ -54,7 +77,7 @@ export function loadAppearance(storage: ReadStorage): Appearance {
   const value = raw as Record<string, unknown>
   return {
     theme: isThemePref(value.theme) ? value.theme : DEFAULT_APPEARANCE.theme,
-    accent: isAccentHex(value.accent) ? value.accent.toUpperCase() : DEFAULT_APPEARANCE.accent,
+    accent: storedAccent(value.accent),
     reduceMotion:
       typeof value.reduceMotion === 'boolean'
         ? value.reduceMotion

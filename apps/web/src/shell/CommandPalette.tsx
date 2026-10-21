@@ -72,11 +72,14 @@ export function CommandPalette() {
         {paletteOpen ? (
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
-              <motion.div className="fixed inset-0 z-40 bg-text/20" {...overlayFade} />
+              <motion.div
+                className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]"
+                {...overlayFade}
+              />
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined}>
               <motion.div
-                className="fixed top-[12vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-lg bg-surface shadow-2"
+                className="fixed top-[12vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-dialog bg-surface shadow-2"
                 initial={{ opacity: 0, scale: 0.98, y: -6 }}
                 animate={{ opacity: 1, scale: 1, y: 0, transition: transitions.gentle }}
                 exit={{ opacity: 0, scale: 0.98, transition: transitions.exit }}

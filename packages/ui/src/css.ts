@@ -1,6 +1,6 @@
-import { accentScaleKeys, accentVarName, deriveAccent } from './accent.ts'
+import { accentScaleKeys, accentTints, accentVarName, deriveAccent } from './accent.ts'
 import { dur, ease } from './motion.ts'
-import { accentPresets, mascot, neutrals, semantic } from './palette.ts'
+import { defaultAccent, mascot, neutrals, semantic } from './palette.ts'
 import { radii, shadows, spacing } from './space.ts'
 import { fontFamilies, typeScale } from './type.ts'
 
@@ -9,8 +9,6 @@ type Decl = readonly [name: string, value: string]
 const kebab = (s: string) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase()
 const entries = (obj: Record<string, string>, prefix = '--'): Decl[] =>
   Object.entries(obj).map(([k, v]) => [`${prefix}${kebab(k)}`, v])
-
-const lake = accentPresets[0].hex
 
 /** Public accent var -> scale entry. The suffix names are owned by accentVarName(). */
 const publicAccentVars = [
@@ -22,10 +20,10 @@ const publicAccentVars = [
   ['--accent-ink', 'accentInk'],
 ] as const
 
-/** Default (Lake) values for both scales. applyAccent() overrides them at runtime. */
+/** Default (Lime) values for both scales. applyAccent() overrides them at runtime. */
 function accentScaleDecls(): Decl[] {
   return (['light', 'dark'] as const).flatMap((theme) => {
-    const scale = deriveAccent(lake, theme)
+    const scale = deriveAccent(defaultAccent.hex, theme)
     return accentScaleKeys.map((key): Decl => [accentVarName(theme, key), scale[key]])
   })
 }
@@ -34,25 +32,26 @@ function accentScaleDecls(): Decl[] {
 function accentDecls(theme: 'light' | 'dark'): Decl[] {
   return publicAccentVars.map(([name, key]): Decl => [name, `var(${accentVarName(theme, key)})`])
 }
+/** Derived from the live accent and surface, so they follow theme and user accent changes. */
+const mix = (token: string, pct: number, over: string) =>
+  `color-mix(in oklab, var(--${token}) ${pct}%, ${over})`
+
 /** Tokens that differ between light and dark. Both dark blocks are built from this one list. */
 function themeDecls(theme: 'light' | 'dark'): Decl[] {
+  const tint = accentTints[theme]
   return [
     ...entries(neutrals[theme]),
     ...entries(semantic[theme]),
     ...accentDecls(theme),
+    ['--accent-soft', mix('accent', tint.soft, 'var(--surface)')],
+    ['--accent-softer', mix('accent', tint.softer, 'var(--surface)')],
+    ['--accent-ring', mix('accent-ink', tint.ring, 'transparent')],
     ['--shadow-1', shadows[theme].shadow1],
     ['--shadow-2', shadows[theme].shadow2],
   ]
 }
 
-/** Derived from the live accent and surface, so they follow theme and user accent changes. */
-const mix = (token: string, pct: number, over: string) =>
-  `color-mix(in oklab, var(--${token}) ${pct}%, ${over})`
-
 const derivedDecls: Decl[] = [
-  ['--accent-soft', mix('accent', 12, 'var(--surface)')],
-  ['--accent-softer', mix('accent', 6, 'var(--surface)')],
-  ['--accent-ring', mix('accent', 40, 'transparent')],
   ['--info', 'var(--accent)'],
   ['--ok-soft', mix('ok', 12, 'var(--surface)')],
   ['--warn-soft', mix('warn', 12, 'var(--surface)')],

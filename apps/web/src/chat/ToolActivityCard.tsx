@@ -91,7 +91,7 @@ export function ToolActivityCard({ steps }: { steps: ToolStep[] }) {
   const running = steps.some((s) => !s.result)
   const summary = toolSummary(steps)
   return (
-    <div className="max-w-[60ch] overflow-hidden rounded-md bg-surface shadow-1">
+    <div className="max-w-[60ch] overflow-hidden rounded-card bg-surface shadow-1">
       <button
         type="button"
         aria-expanded={open}

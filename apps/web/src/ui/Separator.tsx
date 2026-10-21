@@ -1,0 +1,24 @@
+import { Separator as SeparatorPrimitive } from 'radix-ui'
+import type { ComponentProps } from 'react'
+import { cn } from './cn.ts'
+
+/** A hairline. Use it only when the break carries information (DESIGN §2: few borders). */
+export function Separator({
+  className,
+  orientation = 'horizontal',
+  decorative = true,
+  ...props
+}: ComponentProps<typeof SeparatorPrimitive.Root>) {
+  return (
+    <SeparatorPrimitive.Root
+      data-slot="separator"
+      decorative={decorative}
+      orientation={orientation}
+      className={cn(
+        'shrink-0 bg-line data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
+        className,
+      )}
+      {...props}
+    />
+  )
+}

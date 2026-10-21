@@ -12,13 +12,13 @@ describe('settings, appearance', () => {
   it('starts from the stored preferences', async () => {
     localStorage.setItem(
       APPEARANCE_STORAGE_KEY,
-      JSON.stringify({ theme: 'dark', accent: '#8E6BE8', reduceMotion: true }),
+      JSON.stringify({ theme: 'dark', accent: '#CBB9F4', reduceMotion: true }),
     )
     await renderApp('/settings')
     expect(root.getAttribute('data-theme')).toBe('dark')
     expect(root.classList.contains('reduce-motion')).toBe(true)
     expect(screen.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByRole('radio', { name: 'Plum' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('radio', { name: 'Lilac' }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Reduce motion' }).getAttribute('aria-checked')).toBe(
       'true',
     )
@@ -37,10 +37,10 @@ describe('settings, appearance', () => {
   it('changes the accent from a preset swatch', async () => {
     const { user } = await renderApp('/settings')
     const before = root.style.getPropertyValue('--accent-light-accent')
-    await user.click(screen.getByRole('radio', { name: 'Moss' }))
-    expect(screen.getByRole('radio', { name: 'Moss' }).getAttribute('aria-checked')).toBe('true')
+    await user.click(screen.getByRole('radio', { name: 'Sky' }))
+    expect(screen.getByRole('radio', { name: 'Sky' }).getAttribute('aria-checked')).toBe('true')
     expect(root.style.getPropertyValue('--accent-light-accent')).not.toBe(before)
-    expect(stored().accent).toBe('#3FA36B')
+    expect(stored().accent).toBe('#A9D3F5')
   })
 
   it('accepts a custom accent color', async () => {
@@ -49,7 +49,7 @@ describe('settings, appearance', () => {
       target: { value: '#12a4b0' },
     })
     expect(stored().accent).toBe('#12A4B0')
-    expect(screen.getByRole('radio', { name: 'Lake' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('radio', { name: 'Lime' }).getAttribute('aria-checked')).toBe('false')
   })
 
   it('toggles reduced motion', async () => {

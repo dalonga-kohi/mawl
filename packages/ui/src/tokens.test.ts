@@ -30,13 +30,13 @@ describe('space and shape tokens', () => {
     expect(spacing).toEqual([4, 8, 12, 16, 20, 24, 32, 40, 56])
   })
 
-  it('has radii by hierarchy plus a pill', () => {
-    expect(radii).toEqual({ xs: 6, sm: 10, md: 14, lg: 20, xl: 28, pill: 999 })
+  it('has round radii by hierarchy plus a pill', () => {
+    expect(radii).toEqual({ xs: 8, sm: 12, md: 18, card: 24, panel: 28, dialog: 32, pill: 999 })
   })
 
-  it('has two shadows per DESIGN, and dark mode swaps them for a hairline', () => {
-    expect(shadows.light.shadow1).toBe('0 1px 2px rgb(16 24 40 / .05)')
-    expect(shadows.light.shadow2).toBe('0 8px 24px -8px rgb(16 24 40 / .12)')
+  it('has two warm shadows in light, and dark mode swaps them for a hairline', () => {
+    expect(shadows.light.shadow1).toBe('0 1px 2px rgb(29 27 22 / .05)')
+    expect(shadows.light.shadow2).toBe('0 12px 32px -12px rgb(29 27 22 / .16)')
     expect(shadows.dark.shadow1).toBe('0 0 0 1px var(--line)')
     expect(shadows.dark.shadow2).toBe('0 0 0 1px var(--line)')
   })

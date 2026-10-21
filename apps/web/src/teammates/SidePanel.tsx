@@ -37,7 +37,10 @@ function SheetPanel({ children }: { children: ReactNode }) {
         {panelOpen ? (
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
-              <motion.div className="fixed inset-0 z-40 bg-text/20" {...overlayFade} />
+              <motion.div
+                className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]"
+                {...overlayFade}
+              />
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined}>
               <motion.div

@@ -1,7 +1,7 @@
-import { converter, wcagContrast } from 'culori'
+import { converter, formatHex, interpolate, wcagContrast } from 'culori'
 import { describe, expect, it } from 'vitest'
-import { applyAccent, deriveAccent, InvalidColorError } from './accent.ts'
-import { accentPresets, neutrals, type ThemeName } from './palette.ts'
+import { accentTints, applyAccent, deriveAccent, InvalidColorError } from './accent.ts'
+import { accentPresets, ink, neutrals, type ThemeName } from './palette.ts'
 
 const toOklch = converter('oklch')
 const themes: ThemeName[] = ['light', 'dark']
@@ -63,7 +63,7 @@ describe('deriveAccent contrast guarantees', () => {
 })
 
 describe('deriveAccent shape', () => {
-  it('darkens Lake into a fill near #2B6FE6 that keeps the hue and takes white text', () => {
+  it('darkens a mid blue (the retired Lake) into a fill near #2B6FE6 that keeps the hue and takes white text', () => {
     const s = deriveAccent('#3D8BFD', 'light')
     expect(s.onAccent.toLowerCase()).toBe('#ffffff')
     expect(wcagContrast('#ffffff', s.accentFill)).toBeGreaterThanOrEqual(4.5)
@@ -76,10 +76,23 @@ describe('deriveAccent shape', () => {
     expect(wcagContrast(s.accentFill, '#2B6FE6')).toBeLessThan(1.3)
   })
 
-  it('keeps a light base like Amber and switches the text to ink', () => {
+  it('keeps a light base like amber and switches the text to ink', () => {
     const s = deriveAccent('#E09A1E', 'light')
     expect(s.accentFill.toLowerCase()).toBe('#e09a1e')
-    expect(s.onAccent.toLowerCase()).toBe('#17202b')
+    expect(s.onAccent).toBe(ink)
+  })
+
+  it('keeps Lime as the fill in both themes, with ink text and a darker olive accent-ink', () => {
+    for (const theme of themes) {
+      const s = deriveAccent('#D8E88A', theme)
+      expect(s.accentFill.toLowerCase(), theme).toBe('#d8e88a')
+      expect(s.onAccent, theme).toBe(ink)
+    }
+    const light = deriveAccent('#D8E88A', 'light')
+    const base = toOklch('#D8E88A')
+    const lightInk = toOklch(light.accentInk)
+    expect(lightInk?.l).toBeLessThan(base?.l ?? 0)
+    expect(Math.abs((lightInk?.h ?? 0) - (base?.h ?? 0))).toBeLessThanOrEqual(12)
   })
 
   it('raises the dark-theme base to OKLCH L >= 0.68', () => {
@@ -167,6 +180,90 @@ describe('dark derivation starts from the lifted base', () => {
     for (const hex of hexes) {
       expect(toOklch(deriveAccent(hex, 'dark').accentInk)?.l, hex).toBeGreaterThanOrEqual(0.68)
     }
+  })
+})
+
+describe('accent tints and the focus ring', () => {
+  // Mirrors `color-mix(in oklab, <fg> <pct>%, <bg>)` from tokens.css.
+  const mix = (fg: string, bg: string, pct: number) =>
+    formatHex(interpolate([bg, fg], 'oklab')(pct / 100))
+  const rand = prng(42)
+  const hexes = [
+    ...accentPresets.map((p) => p.hex),
+    '#000000',
+    '#FFFFFF',
+    '#FFFF00',
+    '#0000FF',
+    '#3D8BFD',
+    ...Array.from({ length: 200 }, () => randomHex(rand)),
+  ]
+
+  it('keeps accent-ink at 4.5:1 on bg, surface, surface-2 and the soft tint', () => {
+    const failures: string[] = []
+    for (const hex of hexes) {
+      for (const theme of themes) {
+        const s = deriveAccent(hex, theme)
+        const n = neutrals[theme]
+        const soft = mix(s.accent, n.surface, accentTints[theme].soft)
+        for (const [name, bg] of [
+          ['bg', n.bg],
+          ['surface', n.surface],
+          ['surface-2', n.surface2],
+          ['soft', soft],
+        ] as const) {
+          const c = wcagContrast(s.accentInk, bg)
+          if (c < 4.5) failures.push(`${hex} ${theme} ink/${name} ${c.toFixed(2)}`)
+        }
+      }
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('keeps body text at 4.5:1 on the soft tint (user bubbles, selection)', () => {
+    const failures: string[] = []
+    for (const hex of hexes) {
+      for (const theme of themes) {
+        const n = neutrals[theme]
+        const soft = mix(deriveAccent(hex, theme).accent, n.surface, accentTints[theme].soft)
+        const c = wcagContrast(n.text, soft)
+        if (c < 4.5) failures.push(`${hex} ${theme} ${c.toFixed(2)}`)
+      }
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('makes the soft tint of every preset visibly distinct from the surface', () => {
+    const toLab = converter('oklab')
+    for (const p of accentPresets) {
+      for (const theme of themes) {
+        const n = neutrals[theme]
+        const soft = mix(deriveAccent(p.hex, theme).accent, n.surface, accentTints[theme].soft)
+        const a = toLab(soft)
+        const b = toLab(n.surface)
+        const d = Math.hypot(
+          (a?.l ?? 0) - (b?.l ?? 0),
+          (a?.a ?? 0) - (b?.a ?? 0),
+          (a?.b ?? 0) - (b?.b ?? 0),
+        )
+        expect(d, `${p.name} ${theme}`).toBeGreaterThanOrEqual(0.03)
+      }
+    }
+  })
+
+  it('draws the focus ring at 3:1 against bg and surface (WCAG non-text contrast)', () => {
+    const failures: string[] = []
+    for (const hex of hexes) {
+      for (const theme of themes) {
+        const s = deriveAccent(hex, theme)
+        const n = neutrals[theme]
+        for (const bg of [n.bg, n.surface]) {
+          const ring = mix(s.accentInk, bg, accentTints[theme].ring)
+          const c = wcagContrast(ring, bg)
+          if (c < 3) failures.push(`${hex} ${theme} ${bg} ${c.toFixed(2)}`)
+        }
+      }
+    }
+    expect(failures).toEqual([])
   })
 })
 

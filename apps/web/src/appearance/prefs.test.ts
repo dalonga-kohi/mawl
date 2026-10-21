@@ -1,4 +1,4 @@
-import { accentPresets, defaultAccent } from '@mawl/ui'
+import { accentPresets, defaultAccent, retiredAccentPresets } from '@mawl/ui'
 import { describe, expect, it } from 'vitest'
 import {
   APPEARANCE_STORAGE_KEY,
@@ -27,7 +27,7 @@ const throwingStorage = {
 }
 
 describe('loadAppearance', () => {
-  it('defaults to the system theme, the Lake accent and full motion', () => {
+  it('defaults to the system theme, the Lime accent and full motion', () => {
     expect(DEFAULT_APPEARANCE).toEqual({
       theme: 'system',
       accent: defaultAccent.hex,
@@ -57,19 +57,58 @@ describe('loadAppearance', () => {
   })
 
   it('rejects a theme outside system, light and dark', () => {
-    const stored = JSON.stringify({ theme: 'sepia', accent: '#3FA36B', reduceMotion: true })
+    const stored = JSON.stringify({ theme: 'sepia', accent: '#12A4B0', reduceMotion: true })
     expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: stored }))).toEqual({
       theme: 'system',
-      accent: '#3FA36B',
+      accent: '#12A4B0',
       reduceMotion: true,
     })
+  })
+})
+
+describe('loadAppearance, retired accent presets', () => {
+  const load = (accent: unknown) =>
+    loadAppearance(
+      memoryStorage({
+        [APPEARANCE_STORAGE_KEY]: JSON.stringify({ theme: 'dark', accent, reduceMotion: true }),
+      }),
+    ).accent
+
+  it('moves a saved retired preset color (any case) to Lime and keeps the other fields', () => {
+    for (const p of retiredAccentPresets) {
+      expect(load(p.hex), p.name).toBe(defaultAccent.hex)
+      expect(load(p.hex.toLowerCase()), p.name).toBe(defaultAccent.hex)
+    }
+    const stored = JSON.stringify({ theme: 'dark', accent: '#3D8BFD', reduceMotion: true })
+    expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: stored }))).toEqual({
+      theme: 'dark',
+      accent: defaultAccent.hex,
+      reduceMotion: true,
+    })
+  })
+
+  it('moves a saved retired preset name or id to Lime', () => {
+    for (const value of ['lake', 'Lake', 'moss', 'Amber', 'coral', 'plum']) {
+      expect(load(value), value).toBe(defaultAccent.hex)
+    }
+  })
+
+  it('resolves a saved current preset name or id to its color', () => {
+    const sky = accentPresets.find((p) => p.id === 'sky')
+    expect(load('sky')).toBe(sky?.hex)
+    expect(load('Sky')).toBe(sky?.hex)
+  })
+
+  it('keeps a saved custom color and every current preset color', () => {
+    expect(load('#12a4b0')).toBe('#12A4B0')
+    for (const p of accentPresets) expect(load(p.hex), p.name).toBe(p.hex)
   })
 })
 
 describe('saveAppearance', () => {
   it('round-trips through loadAppearance', () => {
     const storage = memoryStorage()
-    const prefs = { theme: 'light', accent: '#8E6BE8', reduceMotion: true } as const
+    const prefs = { theme: 'light', accent: '#CBB9F4', reduceMotion: true } as const
     saveAppearance(storage, prefs)
     expect(loadAppearance(storage)).toEqual(prefs)
   })
@@ -98,8 +137,8 @@ describe('applyAppearance', () => {
 
   it('writes both accent scales so a theme flip needs no JavaScript', () => {
     const root = document.createElement('div')
-    const moss = accentPresets.find((p) => p.id === 'moss')
-    applyAppearance(root, { ...DEFAULT_APPEARANCE, accent: moss?.hex ?? '' })
+    const sky = accentPresets.find((p) => p.id === 'sky')
+    applyAppearance(root, { ...DEFAULT_APPEARANCE, accent: sky?.hex ?? '' })
     expect(root.style.getPropertyValue('--accent-light-accent')).not.toBe('')
     expect(root.style.getPropertyValue('--accent-dark-fill')).not.toBe('')
   })

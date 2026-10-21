@@ -15,7 +15,7 @@ function RailLink({ item }: { item: NavItem }) {
         to={item.to}
         aria-label={item.label}
         className={cx(
-          'accent-tween grid size-11 place-items-center rounded-sm text-text-2',
+          'accent-tween grid size-11 place-items-center rounded-pill text-text-2',
           'hover:bg-surface-2 hover:text-text active:scale-[.94]',
           'aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent-ink',
         )}
@@ -36,7 +36,7 @@ function SearchButton() {
         aria-label="Search or jump to"
         onClick={() => setPaletteOpen(true)}
         className={cx(
-          'grid size-11 place-items-center rounded-sm text-text-2',
+          'grid size-11 place-items-center rounded-pill text-text-2',
           'hover:bg-surface-2 hover:text-text active:scale-[.94]',
         )}
       >
@@ -60,7 +60,7 @@ export function Rail() {
         'md:order-none md:flex-col md:justify-start md:gap-1.5 md:border-t-0 md:border-r md:px-0 md:py-3.5',
       )}
     >
-      <div className="mb-2.5 hidden size-12 place-items-center rounded-md bg-accent-softer md:grid">
+      <div className="mb-2.5 hidden size-11 place-items-center rounded-pill bg-accent-softer md:grid">
         <Mawl size={40} state={mascot} />
       </div>
       {MAIN_NAV.map((item) => (

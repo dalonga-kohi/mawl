@@ -75,7 +75,7 @@ export function TeammateList({ variant = 'column' }: { variant?: 'column' | 'scr
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        className="mx-3 mb-2.5 flex h-[38px] pointer-coarse:h-11 items-center gap-2 rounded-sm bg-surface px-2.5 text-left text-small text-text-2 transition-colors duration-[120ms] hover:text-text"
+        className="mx-3 mb-2.5 flex h-[38px] pointer-coarse:h-11 items-center gap-2 rounded-pill bg-surface px-3.5 text-left text-small text-text-2 transition-colors duration-[120ms] hover:text-text"
       >
         <Search className="size-[18px]" aria-hidden="true" />
         <span className="flex-1">Search or jump to…</span>

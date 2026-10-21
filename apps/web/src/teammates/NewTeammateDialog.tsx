@@ -10,6 +10,8 @@ import { toast } from 'sonner'
 import { errorCode } from '../api/providers-api.ts'
 import { useCredentials } from '../settings/models/queries.ts'
 import { Button, buttonClass } from '../ui/Button.tsx'
+import { cn } from '../ui/cn.ts'
+import { Textarea } from '../ui/Input.tsx'
 import { fieldClass, Modal } from '../ui/Modal.tsx'
 import { useCreateProfile } from './queries.ts'
 
@@ -107,7 +109,7 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
           autoComplete="off"
           aria-invalid={Boolean(errors.name)}
           aria-describedby={errors.name ? `${ids.name}-error` : undefined}
-          className={`${fieldClass} h-11`}
+          className={cn(fieldClass, 'h-11')}
         />
         {error(ids.name, errors.name)}
       </div>
@@ -119,7 +121,7 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
           id={ids.credential}
           value={credentialId}
           onChange={(e) => pickCredential(e.target.value)}
-          className={`${fieldClass} h-11`}
+          className={cn(fieldClass, 'h-11')}
         >
           {usable.map((c) => (
             <option key={c.id} value={c.id}>
@@ -144,7 +146,7 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
           spellCheck={false}
           aria-invalid={Boolean(errors.model)}
           aria-describedby={errors.model ? `${ids.model}-error` : undefined}
-          className={`${fieldClass} h-11 font-mono text-small`}
+          className={cn(fieldClass, 'h-11 font-mono text-small')}
         />
         {error(ids.model, errors.model)}
       </div>
@@ -152,13 +154,12 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
         <label htmlFor={ids.job} className="text-small font-semibold text-text-2">
           Job (optional)
         </label>
-        <textarea
+        <Textarea
           id={ids.job}
           value={job}
           onChange={(e) => setJob(e.target.value)}
           rows={3}
           placeholder="Keep my inbox tidy and draft replies to clients. Never send without asking."
-          className={`${fieldClass} resize-none py-2.5`}
         />
         <p className="text-small text-text-2">One or two sentences. You can change it later.</p>
       </div>

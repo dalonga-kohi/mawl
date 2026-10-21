@@ -84,7 +84,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     <div className="px-3 pt-2 pb-3 md:px-5 md:pb-4">
       <form
         onSubmit={submit}
-        className="mx-auto flex max-w-[76ch] items-end gap-2 rounded-lg bg-surface py-2 pr-2 pl-3.5 shadow-[var(--shadow-1),0_0_0_1px_var(--line)] transition-shadow duration-[200ms] focus-within:shadow-[0_0_0_2px_var(--accent-ring)]"
+        className="mx-auto flex max-w-[76ch] items-end gap-2 rounded-card bg-surface py-2 pr-2 pl-3.5 shadow-[var(--shadow-1),0_0_0_1px_var(--line)] transition-shadow duration-[200ms] focus-within:shadow-[0_0_0_2px_var(--accent-ring)]"
       >
         <label className="flex min-w-0 flex-1">
           <span className="sr-only">{label}</span>
@@ -115,7 +115,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               aria-label="Stop"
               onClick={onStop}
               disabled={stopping}
-              className="grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-sm bg-surface-2 text-text hover:bg-line disabled:opacity-50"
+              className="grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-pill bg-surface-2 text-text hover:bg-line disabled:opacity-50"
               {...press}
             >
               <Square className="size-3.5 fill-current" aria-hidden="true" />
@@ -127,7 +127,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             aria-label="Send"
             disabled={!canSend}
             className={cx(
-              'accent-tween grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-sm bg-accent-fill text-on-accent',
+              'accent-tween grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-pill bg-accent-fill text-on-accent',
               'hover:bg-accent-hover active:bg-accent-press disabled:cursor-default disabled:opacity-45',
             )}
             {...press}

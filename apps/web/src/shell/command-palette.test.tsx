@@ -58,9 +58,9 @@ describe('command palette', () => {
   it('changes the accent', async () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Control>}k{/Control}')
-    await user.keyboard('coral')
+    await user.keyboard('peach')
     await user.keyboard('{Enter}')
-    expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').accent).toBe('#EF6F5E')
+    expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').accent).toBe('#F7C4A3')
   })
 
   it('says so when nothing matches', async () => {
