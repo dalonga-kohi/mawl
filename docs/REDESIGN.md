@@ -65,7 +65,7 @@ flowchart LR
   - restarts the server with backoff (max 5 in 5 min, then an error screen with a "copy diagnostics" button)
 - **Watchdog.** The server exits when its parent dies (stdin EOF), so there are no orphaned servers or Postgres.
 - **Data.** `%LOCALAPPDATA%\Mawl\{pg,secrets,claude,logs,artifacts}`. The master key moves into Windows Credential Manager via Tauri (a file in `secrets/` stays the headless fallback).
-- **Embedded Postgres.** Start on boot with a random port bound to 127.0.0.1, a generated superuser password, `initdb` on first run, and clean shutdown on quit. Upgrades between PG majors are a later problem (pin 17).
+- **Embedded Postgres.** Start on boot with a random port bound to 127.0.0.1, a generated superuser password, `initdb` on first run, and clean shutdown on quit. Upgrades between PG majors are a later problem (pin 17). Binaries, lifecycle and the pgvector build as proven in D0.1 (§10.1).
 - **Installer.** Tauri bundler, NSIS per-user install (no admin). Auto-update via the Tauri updater against GitHub Releases. Code signing is optional for a portfolio project (SmartScreen warns without it).
 - **First run.** Splash → provider (Continue with ChatGPT first, then an API key, Ollama detection, Claude plan) → name your teammate → done. Docker is offered later, from the teammate's computer card.
 
@@ -165,7 +165,30 @@ Do as much as the unmodified binary allows:
 
 ## 10. Risks and spikes (do first)
 
-1. **pgvector on Windows.** Build `vector.dll` against the exact embedded PG 17 binaries in CI, load it, and run the memory-vector queries. If it fails, fall back to PGlite + our own job queue + an in-process bus (about one more hard slice).
+1. **pgvector on Windows. Done (D0.1, 2026-10-21): it works, and R2 holds.**
+   - **Binaries.** PostgreSQL 17.10 (MSVC 19.44). The npm `embedded-postgres` / `@embedded-postgres/windows-x64` 17.10.0-beta.17 ship a `postgres.exe` byte-identical to EDB `postgresql-17.10-1-windows-x64-binaries.zip` (SHA256 `F9AAFCA58E7026A1EF2CAEEE711ACF761671E57904D430ADC85F468374F5A821`).
+     - The npm package is beta-only with a single maintainer, and has no `include/`, `pg_config` or `postgres.lib`.
+     - **Decision:** take the EDB zip directly, pinned by hash. Prune the pgAdmin wxWidgets DLLs (about 13 MB).
+   - **Lifecycle: our own thin wrapper (~60 lines), not the library's.**
+     - Steps: `initdb --auth=scram-sha-256 --username=mawl --pwfile` (a generated 256-bit password, stored under the data root, never in `%TEMP%`), then spawn `postgres -D … -p <free port> -c listen_addresses=127.0.0.1`, poll with `pg` until it's ready, and stop with `pg_ctl stop -m fast -w`.
+     - The library's `stop()` on Windows is `taskkill /f /t`, so every next start runs crash recovery.
+     - `pg_ctl start` from Node hangs on inherited handles.
+     - Never spawn with `detached: true`: libuv's kill-on-close job object takes Postgres down with a killed server, and WAL recovers on the next start (tested).
+     - `pg_ctl` output is localized, so read exit codes only.
+   - **pgvector v0.8.7** (`f37c13f6`) from the official tag, against the EDB 17.10-1 headers and `postgres.lib`.
+     - Production: MSVC `nmake /F Makefile.win` in a GitHub Actions `windows-2025` job (download + hash the EDB zip, assert the `postgres.exe` hash, build, `installcheck`, upload the artifact and hash it, since the PE timestamp makes it non-reproducible).
+     - Local fallback (no MSVC on the dev machine): MinGW gcc with `-DHAVE_X86_64_POPCNTQ -Dpg_strtof=strtof -Wl,--disable-auto-import`. Without these flags the backend crashes on `CREATE EXTENSION`, because the headers branch on `_MSC_VER`. Recipe: [infra/desktop/pgvector/build-vector-mingw.ps1](../infra/desktop/pgvector/build-vector-mingw.ps1). pgvector's own `installcheck`: 14/14 pass.
+   - **Checks.**
+     - The repo's 6 migrations apply.
+     - HNSW `vector_cosine_ops` on 2000 × 384-d: the plan uses the index, top-5 takes about 1 ms, recall@10 is 0.93–0.995 at the default `ef_search`.
+     - `halfvec`, `sparsevec` and `bit` work. Bad input errors cleanly and the backend survives.
+     - The stop is clean, with no recovery on restart.
+     - No firewall or Defender prompt (loopback only).
+   - **Numbers.**
+     - Cold `initdb`: 17–34 s with fsync, about 4 s with `--no-sync`. **Decision:** `initdb --no-sync` into a staging dir, then rename it into place behind the first-run splash.
+     - Warm start 0.3–0.9 s, stop about 0.5 s, migrations about 1.1 s.
+     - Binaries 97 MB (37 MB zipped), `vector.dll` 277 KB, a fresh data dir 39 MB.
+   - **Risk.** MinGW against MSVC headers is unsupported, so any PG or pgvector bump can add an ABI mismatch. That's why CI uses MSVC, and `--disable-auto-import` turns most mismatches into link errors.
 2. **Sidecar packaging.** Node SEA vs a shipped `node.exe`, and whether the Claude Agent SDK's native package resolves from the install dir. Installer size target: under 200 MB without the Claude binary, which is downloaded on first use if the owner picks the Claude plan.
 3. **Exec-stream VNC tunnel** latency on Docker Desktop (WSL2 backend).
 4. **Sleep and wake detection** reliability on Windows.
