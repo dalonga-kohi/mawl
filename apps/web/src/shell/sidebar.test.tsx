@@ -1,10 +1,19 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import { MotionGlobalConfig } from 'motion/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { profile, thread } from '../test/fake-chat-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
 
-beforeEach(() => stubViewport(1440))
-afterEach(() => vi.restoreAllMocks())
+// The sidebar slides and fades out; under load the real animation clock can outlast a waitFor.
+// Skipping Motion's animations makes the exit finish on the next frame, whatever the machine does.
+beforeEach(() => {
+  MotionGlobalConfig.skipAnimations = true
+  stubViewport(1440)
+})
+afterEach(() => {
+  MotionGlobalConfig.skipAnimations = false
+  vi.restoreAllMocks()
+})
 
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 const scout = () => profile({ name: 'Scout', slug: 'scout' })
