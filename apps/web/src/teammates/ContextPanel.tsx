@@ -2,7 +2,7 @@ import type { Run } from '@mawl/contracts'
 import { Tabs } from 'radix-ui'
 import { useState } from 'react'
 import { failureCopy } from '../chat/run-copy.ts'
-import { Beaver } from '../mascot/Beaver.tsx'
+import { Mawl } from '../mascot/Mawl.tsx'
 
 const TABS = [
   { id: 'computer', label: 'Computer' },
@@ -80,7 +80,7 @@ export function ContextPanelBody({ run }: { run?: Run | undefined }) {
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-3.5">
         <Tabs.Content value="computer" className="flex flex-col gap-3 outline-none">
           <div className="grid aspect-[16/10] place-items-center rounded-md bg-surface-2">
-            <Beaver size={56} state="sleeping" />
+            <Mawl size={56} state="sleepy" />
           </div>
           <p className={note}>The computer starts when a teammate needs it.</p>
         </Tabs.Content>

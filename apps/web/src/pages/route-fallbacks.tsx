@@ -27,7 +27,7 @@ export function RouteError({ reset }: Pick<ErrorComponentProps, 'error' | 'reset
     <EmptyState
       title="This page didn't load"
       headingLevel={1}
-      mascot="error"
+      mascot="oops"
       action={
         <Button variant="primary" onClick={reset}>
           Try again

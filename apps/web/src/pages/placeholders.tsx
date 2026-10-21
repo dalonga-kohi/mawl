@@ -10,7 +10,7 @@ import { PageShell } from './PageShell.tsx'
 
 export const ActivityPage = () => (
   <PageShell title="Activity" description="Everything your teammates do, in plain sentences.">
-    <EmptyState title="Nothing yet" mascot="sleeping">
+    <EmptyState title="Nothing yet" mascot="sleepy">
       Activity shows up here once a teammate starts working.
     </EmptyState>
   </PageShell>
@@ -58,7 +58,7 @@ export const NotFoundPage = () => (
   <EmptyState
     title="Nothing lives here"
     headingLevel={1}
-    mascot="error"
+    mascot="oops"
     action={
       <Link to="/t" className={buttonClass('primary')}>
         Go to Teammates

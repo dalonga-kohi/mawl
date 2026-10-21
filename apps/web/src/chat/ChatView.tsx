@@ -12,9 +12,9 @@ import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveStatus, useRunText } from '../api/ApiProvider.tsx'
 import { errorCode } from '../api/providers-api.ts'
-import type { MascotState } from '../mascot/Beaver.tsx'
-import { Beaver } from '../mascot/Beaver.tsx'
+import { Mawl } from '../mascot/Mawl.tsx'
 import { useMascotState } from '../mascot/mascot-state.ts'
+import type { MascotState } from '../mascot/states.ts'
 import { enter, transitions } from '../motion/presets.ts'
 import { useShell } from '../shell/ShellContext.tsx'
 import { MEDIUM, useMediaQuery } from '../shell/use-media-query.ts'
@@ -68,7 +68,7 @@ export function ChatView() {
     return (
       <EmptyState
         title="Can't reach your teammates"
-        mascot="error"
+        mascot="oops"
         action={<Button onClick={() => void profiles.refetch()}>Try again</Button>}
       >
         The Mawl server didn't answer. Check that it's running, then try again.
@@ -272,7 +272,7 @@ function Conversation({
         {threadParam === undefined && threads.isError ? (
           <EmptyState
             title="Couldn't load your conversations"
-            mascot="error"
+            mascot="oops"
             action={<Button onClick={() => void threads.refetch()}>Try again</Button>}
           >
             The Mawl server didn't send this teammate's conversations. Check that it's running.
@@ -282,7 +282,7 @@ function Conversation({
         ) : messagesQuery.isError ? (
           <EmptyState
             title="Couldn't load this conversation"
-            mascot="error"
+            mascot="oops"
             action={<Button onClick={() => void messagesQuery.refetch()}>Try again</Button>}
           >
             The Mawl server didn't send the messages. Check that it's running.
@@ -559,7 +559,7 @@ function ChatEmpty({
   return (
     <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6 text-center">
       <div className="flex max-w-[44ch] flex-col items-center gap-2">
-        <Beaver size={112} state={mascot} />
+        <Mawl size={112} state={mascot} />
         <h2 className="mt-2 font-display text-title">{`Ask ${name} anything`}</h2>
         <p className="text-text-2">
           Give it a job in a sentence or two. It keeps working on your server, even if you close

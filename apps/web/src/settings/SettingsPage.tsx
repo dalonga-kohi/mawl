@@ -174,7 +174,7 @@ export function SettingsPage() {
           </Setting>
           <Setting
             title="Accent color"
-            description="Tints buttons, selection and highlights. Pip stays brown."
+            description="Tints buttons, selection and highlights. Mawl keeps its own lime."
           >
             <AccentControl />
           </Setting>

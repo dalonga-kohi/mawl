@@ -106,7 +106,7 @@ export function TeammatesIndex() {
         ) : profiles.isError ? (
           <EmptyState
             title="Can't reach your teammates"
-            mascot="error"
+            mascot="oops"
             action={<Button onClick={() => void profiles.refetch()}>Try again</Button>}
           >
             The Mawl server didn't answer. Check that it's running, then try again.

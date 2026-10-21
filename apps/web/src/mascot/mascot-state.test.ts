@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { deriveMascotState } from './mascot-state.ts'
+import { MASCOT_STATES } from './states.ts'
+
+describe('MASCOT_STATES', () => {
+  it('lists the eight Mawl states from UI-REDESIGN §4', () => {
+    expect([...MASCOT_STATES].sort()).toEqual(
+      ['done', 'idle', 'listening', 'oops', 'sleepy', 'thinking', 'waiting', 'working'].sort(),
+    )
+  })
+})
 
 describe('deriveMascotState', () => {
   it('rests when nothing happens and listens while the owner types', () => {
@@ -22,7 +31,7 @@ describe('deriveMascotState', () => {
 
   it('celebrates or droops right after a run ends, then settles', () => {
     expect(deriveMascotState({ run: 'succeeded', justEnded: true })).toBe('done')
-    expect(deriveMascotState({ run: 'failed', justEnded: true })).toBe('error')
+    expect(deriveMascotState({ run: 'failed', justEnded: true })).toBe('oops')
     expect(deriveMascotState({ run: 'succeeded' })).toBe('idle')
     expect(deriveMascotState({ run: 'failed' })).toBe('idle')
     expect(deriveMascotState({ run: 'cancelled', justEnded: true })).toBe('idle')
@@ -32,7 +41,7 @@ describe('deriveMascotState', () => {
     expect(deriveMascotState({ run: 'running', typing: true })).toBe('thinking')
   })
 
-  it('sleeps when paused', () => {
-    expect(deriveMascotState({ run: 'paused' })).toBe('sleeping')
+  it('gets sleepy when paused', () => {
+    expect(deriveMascotState({ run: 'paused' })).toBe('sleepy')
   })
 })

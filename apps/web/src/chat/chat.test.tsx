@@ -14,7 +14,7 @@ beforeEach(() => stubViewport(1440))
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
 function railMascot() {
-  return document.querySelector('nav[aria-label="Main"] .beaver')?.getAttribute('data-state')
+  return document.querySelector('nav[aria-label="Main"] .mawl')?.getAttribute('data-state')
 }
 
 describe('teammates landing', () => {
@@ -160,7 +160,7 @@ describe('chat', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toMatch(/reached your plan's usage limit/)
     expect(within(alert).getByRole('link', { name: 'Open model settings' })).toBeTruthy()
-    await waitFor(() => expect(railMascot()).toBe('error'))
+    await waitFor(() => expect(railMascot()).toBe('oops'))
   })
 
   it('keeps the draft and says why when sending fails', async () => {
