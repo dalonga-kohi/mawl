@@ -31,6 +31,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -283,6 +284,22 @@ export const events = pgTable(
     index('events_profile_id_idx').on(t.profileId, t.id),
     index('events_run_id_idx').on(t.runId, t.id),
   ],
+)
+
+/**
+ * The owner's own profile: one row per install (the id is pinned to 1), written by `user.update`.
+ * Both texts are the owner's words and later feed the `human` core memory block (MEMORY.md); they
+ * are data, never instructions. No secret ever lives here.
+ */
+export const userProfile = pgTable(
+  'user_profile',
+  {
+    id: smallint('id').primaryKey().default(1),
+    name: text('name').notNull().default(''),
+    personalContext: text('personal_context').notNull().default(''),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('user_profile_single_row_check', sql`${t.id} = 1`)],
 )
 
 /**

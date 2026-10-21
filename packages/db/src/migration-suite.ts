@@ -24,6 +24,7 @@ import {
   runTrigger,
   stepKind,
   threads,
+  userProfile,
 } from './schema.ts'
 
 const enumNames = new Set(
@@ -40,6 +41,7 @@ const schemaTables = {
   runSteps,
   artifacts,
   events,
+  userProfile,
 }
 
 export type TestDb = PgDatabase<PgQueryResultHKT, typeof schemaNs>
@@ -124,8 +126,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           m.db,
           sql`select count(*)::int as n from information_schema.tables where table_schema = 'public'`,
         )
-        // 9 tables (the drizzle journal lives in schema "drizzle").
-        expect(row?.n).toBe(9)
+        // 10 tables (the drizzle journal lives in schema "drizzle").
+        expect(row?.n).toBe(10)
       } finally {
         await m.close()
       }
@@ -744,6 +746,21 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         for (const [name, cols] of Object.entries(expected)) {
           expect(def(name), name).toContain(cols)
         }
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('keeps the owner profile to one row with empty defaults', async () => {
+      const m = await fresh()
+      try {
+        expect(await m.db.select().from(userProfile)).toEqual([])
+        await m.db.insert(userProfile).values({})
+        const [row] = await m.db.select().from(userProfile)
+        expect(row).toMatchObject({ id: 1, name: '', personalContext: '' })
+        expect(row?.updatedAt).toBeInstanceOf(Date)
+        await expectPgError(m.db.insert(userProfile).values({}), UNIQUE)
+        await expectPgError(m.db.insert(userProfile).values({ id: 2 }), CHECK)
       } finally {
         await m.close()
       }

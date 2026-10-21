@@ -43,6 +43,13 @@
       "when": 1792323038802,
       "tag": "0005_run_active_ms",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792625877449,
+      "tag": "0006_user_profile",
+      "breakpoints": true
     }
   ]
 }

@@ -63,6 +63,7 @@ describe('table columns (ARCHITECTURE section 9)', () => {
       'content created_at id mime path preview profile_id run_id size_bytes token_count',
     ],
     ['events', schema.events, 'created_at id payload_json profile_id run_id type'],
+    ['user_profile', schema.userProfile, 'id name personal_context updated_at'],
   ] as const)('%s', (name, table, cols) => {
     expect(getTableConfig(table).name).toBe(name)
     expect(columnsOf(table)).toEqual(cols.split(' ').sort())
