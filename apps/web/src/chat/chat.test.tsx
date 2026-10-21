@@ -92,7 +92,7 @@ describe('chat', () => {
   it('sends a message and streams the reply until it is stored', async () => {
     const fake = fakeApi({ profiles: [sweeper()] })
     const { user, router } = await renderApp('/t/inbox-sweeper', fake.api)
-    expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: "What's next?" })).toBeTruthy()
 
     const box = screen.getByLabelText('Message Inbox Sweeper')
     await user.type(box, 'Say hello{Enter}')
@@ -178,9 +178,9 @@ describe('chat', () => {
   it('fills the composer from a suggestion', async () => {
     const fake = fakeApi({ profiles: [sweeper()] })
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
-    await user.click(await screen.findByRole('button', { name: 'What can you help me with?' }))
+    await user.click(await screen.findByRole('button', { name: 'Plan my week' }))
     const box = screen.getByLabelText('Message Inbox Sweeper') as HTMLTextAreaElement
-    expect(box.value).toBe('What can you help me with?')
+    expect(box.value).toBe('Plan my week')
     expect(document.activeElement).toBe(box)
     expect(fake.chat.started).toEqual([])
   })
@@ -248,7 +248,7 @@ describe('chat', () => {
 
     await user.click(screen.getByRole('button', { name: /Conversation: Older chat/ }))
     await user.click(await screen.findByRole('menuitem', { name: 'New chat' }))
-    expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: "What's next?" })).toBeTruthy()
   })
 
   it('says it is getting started while the send is in flight', async () => {
@@ -322,10 +322,10 @@ describe('chat', () => {
     expect(
       await screen.findByRole('heading', { name: "Couldn't load your conversations" }),
     ).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: "What's next?" })).toBeNull()
     fake.chat.threadsError = null
     await user.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: "What's next?" })).toBeTruthy()
   })
 
   it('says so when the teammate does not exist', async () => {

@@ -1,4 +1,4 @@
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Paperclip, Plus, Square } from 'lucide-react'
 import { motion } from 'motion/react'
 import {
   type FormEvent,
@@ -8,8 +8,14 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react'
-import { press } from '../motion/presets.ts'
+import { transitions } from '../motion/presets.ts'
 import { cx } from '../ui/cx.ts'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/DropdownMenu.tsx'
 import { Tooltip } from '../ui/Tooltip.tsx'
 
 const MAX_HEIGHT = 200
@@ -35,8 +41,16 @@ interface ComposerProps {
   onFocusChange?: (focused: boolean) => void
 }
 
+/** The send and stop circles press a little deeper than ordinary buttons. */
+const circlePress = { whileTap: { scale: 0.94 }, transition: transitions.snappy } as const
+
+const circle =
+  'grid size-11 shrink-0 place-items-center rounded-pill accent-tween disabled:cursor-default'
+
 /**
- * Autosizing input, model chip and the send button, which turns into Stop while the teammate works.
+ * The pill composer (UI-REDESIGN.md §2): a round `+` menu, the autosizing input, the model chip and
+ * a round send button that turns into Stop while the teammate works. The container's 28 px radius is
+ * a pill at its one-line height of 56 px and reads as a soft card once the text wraps.
  * Enter sends and Shift+Enter adds a line; Enter that confirms an IME composition never sends.
  */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
@@ -81,61 +95,97 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }
 
   return (
-    <div className="px-3 pt-2 pb-3 md:px-5 md:pb-4">
-      <form
-        onSubmit={submit}
-        className="mx-auto flex max-w-[76ch] items-end gap-2 rounded-card bg-surface py-2 pr-2 pl-3.5 shadow-[var(--shadow-1),0_0_0_1px_var(--line)] transition-shadow duration-[200ms] focus-within:shadow-[0_0_0_2px_var(--accent-ring)]"
-      >
-        <label className="flex min-w-0 flex-1">
-          <span className="sr-only">{label}</span>
-          <textarea
-            ref={area}
-            rows={1}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            onFocus={() => onFocusChange?.(true)}
-            onBlur={() => onFocusChange?.(false)}
-            placeholder={placeholder}
-            className="max-h-[200px] min-h-9 w-full resize-none bg-transparent py-1.5 text-body text-text outline-none placeholder:text-text-3"
-          />
-        </label>
-        {model ? (
-          <span
-            title="This teammate's model"
-            className="mb-1.5 hidden h-7 max-w-[22ch] items-center truncate rounded-pill bg-surface-2 px-2.5 font-mono text-micro text-text-2 md:inline-flex"
-          >
-            {model}
-          </span>
-        ) : null}
-        {busy ? (
-          <Tooltip label="Stop">
-            <motion.button
-              type="button"
-              aria-label="Stop"
-              onClick={onStop}
-              disabled={stopping}
-              className="grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-pill bg-surface-2 text-text hover:bg-line disabled:opacity-50"
-              {...press}
-            >
-              <Square className="size-3.5 fill-current" aria-hidden="true" />
-            </motion.button>
-          </Tooltip>
-        ) : (
+    <form
+      onSubmit={submit}
+      className={cx(
+        'flex w-full items-end gap-1 rounded-panel bg-surface p-1.5',
+        'shadow-[0_0_0_1px_var(--line),var(--shadow-1)] transition-shadow duration-(--dur-base) ease-out',
+        'focus-within:shadow-[0_0_0_1px_var(--accent-ring),0_0_0_4px_var(--accent-softer)]',
+      )}
+    >
+      <AddMenu />
+      <label className="flex min-w-0 flex-1">
+        <span className="sr-only">{label}</span>
+        <textarea
+          ref={area}
+          rows={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => onFocusChange?.(false)}
+          placeholder={placeholder}
+          className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-1 py-2.5 text-body text-text outline-none placeholder:text-text-3"
+        />
+      </label>
+      {model ? (
+        <span
+          title="This teammate's model"
+          className="mb-2 hidden h-7 max-w-[22ch] shrink-0 items-center truncate rounded-pill bg-surface-2 px-2.5 font-mono text-micro text-text-2 md:inline-flex"
+        >
+          {model}
+        </span>
+      ) : null}
+      {busy ? (
+        <Tooltip label="Stop" side="top">
           <motion.button
-            type="submit"
-            aria-label="Send"
-            disabled={!canSend}
+            type="button"
+            aria-label="Stop"
+            onClick={onStop}
+            disabled={stopping}
             className={cx(
-              'accent-tween grid size-9 pointer-coarse:size-11 shrink-0 place-items-center rounded-pill bg-accent-fill text-on-accent',
-              'hover:bg-accent-hover active:bg-accent-press disabled:cursor-default disabled:opacity-45',
+              circle,
+              'bg-accent-fill text-on-accent hover:bg-accent-hover active:bg-accent-press',
+              'disabled:bg-surface-2 disabled:text-text-3',
             )}
-            {...press}
+            {...circlePress}
           >
-            <ArrowUp className="size-[18px]" aria-hidden="true" />
+            <Square className="size-3.5 fill-current" aria-hidden="true" />
           </motion.button>
-        )}
-      </form>
-    </div>
+        </Tooltip>
+      ) : (
+        <motion.button
+          type="submit"
+          aria-label="Send"
+          disabled={!canSend}
+          className={cx(
+            circle,
+            'bg-accent-fill text-on-accent hover:bg-accent-hover active:bg-accent-press',
+            'disabled:bg-surface-2 disabled:text-text-3',
+          )}
+          {...circlePress}
+        >
+          <ArrowUp className="size-5" aria-hidden="true" />
+        </motion.button>
+      )}
+    </form>
   )
 })
+
+/**
+ * The `+` menu. Attachments have no upload path on the server yet, so the one item is shown
+ * disabled rather than hidden: the control stays honest about what it will do.
+ */
+function AddMenu() {
+  return (
+    <DropdownMenu>
+      <Tooltip label="Add to message" side="top">
+        <DropdownMenuTrigger
+          aria-label="Add to message"
+          className={cx(
+            circle,
+            'text-text-2 hover:bg-surface-2 hover:text-text active:scale-[.94] data-[state=open]:bg-surface-2',
+          )}
+        >
+          <Plus className="size-5" aria-hidden="true" />
+        </DropdownMenuTrigger>
+      </Tooltip>
+      <DropdownMenuContent side="top" align="start" sideOffset={10}>
+        <DropdownMenuItem disabled>
+          <Paperclip aria-hidden="true" />
+          Attach files, soon
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

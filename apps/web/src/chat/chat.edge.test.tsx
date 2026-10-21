@@ -229,7 +229,7 @@ describe('chat edge cases', () => {
   it('shows Reconnecting… in the header while the live stream is down', async () => {
     const fake = fakeApi({ profiles: [sweeper()] })
     await renderApp('/t/inbox-sweeper', fake.api)
-    await screen.findByRole('heading', { name: 'Ask Inbox Sweeper anything' })
+    await screen.findByRole('heading', { name: "What's next?" })
     fake.server.setLiveStatus('reconnecting')
     expect(await screen.findByText('Reconnecting…')).toBeTruthy()
     fake.server.setLiveStatus('live')

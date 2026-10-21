@@ -51,22 +51,28 @@ function preview(value: Json): string {
   return text.length > 600 ? `${text.slice(0, 600)}…` : text
 }
 
-function StatusIcon({ steps }: { steps: ToolStep[] }) {
-  const running = steps.some((s) => !s.result)
-  const failed = steps.some((s) => s.result?.isError)
+type StepStatus = 'running' | 'failed' | 'done'
+
+function statusOf(steps: ToolStep[]): StepStatus {
+  if (steps.some((s) => !s.result)) return 'running'
+  return steps.some((s) => s.result?.isError) ? 'failed' : 'done'
+}
+
+/** Spinner while working, then a check (or an alert) that pops in with `spring.bouncy`. */
+function StatusIcon({ status }: { status: StepStatus }) {
   return (
     <span
       className={cx(
-        'grid size-[26px] shrink-0 place-items-center rounded-[8px] [&_svg]:size-[15px] [&_svg]:stroke-[2.4]',
-        running
+        'grid size-6 shrink-0 place-items-center rounded-pill [&_svg]:size-3.5 [&_svg]:stroke-[2.4]',
+        status === 'running'
           ? 'bg-accent-soft text-accent-ink'
-          : failed
+          : status === 'failed'
             ? 'bg-warn-soft text-warn'
             : 'bg-ok-soft text-ok',
       )}
     >
-      {running ? (
-        <span className="size-3.5 animate-spin rounded-pill border-2 border-current border-r-transparent" />
+      {status === 'running' ? (
+        <span className="size-3 animate-spin rounded-pill border-2 border-current border-r-transparent" />
       ) : (
         <motion.span
           key="done"
@@ -74,42 +80,55 @@ function StatusIcon({ steps }: { steps: ToolStep[] }) {
           animate={{ scale: 1, transition: transitions.bouncy }}
           className="grid place-items-center"
         >
-          {failed ? <TriangleAlert aria-hidden="true" /> : <Check aria-hidden="true" />}
+          {status === 'failed' ? (
+            <TriangleAlert aria-hidden="true" />
+          ) : (
+            <Check aria-hidden="true" />
+          )}
         </motion.span>
       )}
     </span>
   )
 }
 
+const codeBox =
+  'max-h-40 overflow-auto rounded-sm px-3 py-2 font-mono text-micro whitespace-pre-wrap'
+
 /**
- * DESIGN.md §9: one collapsed sentence about what the teammate did with its tools; the steps,
- * arguments and results are one tap away. A thin shimmer runs while a tool is still working.
+ * DESIGN.md §9: one round pill that says what the teammate did with its tools; the steps,
+ * arguments and results are one tap away in a card below it. A thin shimmer runs along the pill
+ * while a tool is still working. Stored tool parts carry no timings, so no duration is shown.
  */
-export function ToolActivityCard({ steps }: { steps: ToolStep[] }) {
+export function ToolActivity({ steps }: { steps: ToolStep[] }) {
   const [open, setOpen] = useState(false)
   const bodyId = useId()
-  const running = steps.some((s) => !s.result)
+  const status = statusOf(steps)
   const summary = toolSummary(steps)
   return (
-    <div className="max-w-[60ch] overflow-hidden rounded-card bg-surface shadow-1">
+    <div className="flex flex-col items-start gap-2">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => setOpen(!open)}
-        className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-[120ms] hover:bg-accent-softer focus-visible:outline-offset-[-2px]"
+        className={cx(
+          'accent-tween relative flex h-9 max-w-full items-center gap-2 overflow-hidden rounded-pill bg-surface py-1 pr-3 pl-1.5 text-left',
+          'text-small text-text-2 shadow-[0_0_0_1px_var(--line)] hover:bg-surface-2 hover:text-text active:scale-[.97] pointer-coarse:h-11',
+        )}
       >
-        <StatusIcon steps={steps} />
-        <span className="min-w-0 flex-1 truncate text-small font-semibold">{summary}</span>
+        <StatusIcon status={status} />
+        <span className="min-w-0 truncate">{summary}</span>
         <ChevronDown
           aria-hidden="true"
           className={cx(
-            'size-4 shrink-0 text-text-2 transition-transform duration-[200ms]',
+            'size-4 shrink-0 transition-transform duration-(--dur-base) ease-out',
             open && 'rotate-180',
           )}
         />
+        {status === 'running' ? (
+          <span className="tool-shimmer absolute inset-x-4 bottom-0 h-px" aria-hidden="true" />
+        ) : null}
       </button>
-      {running ? <div className="tool-shimmer h-0.5" aria-hidden="true" /> : null}
       <AnimatePresence initial={false}>
         {open ? (
           <motion.div
@@ -117,26 +136,29 @@ export function ToolActivityCard({ steps }: { steps: ToolStep[] }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1, transition: transitions.gentle }}
             exit={{ height: 0, opacity: 0, transition: transitions.exit }}
-            className="overflow-hidden"
+            className="w-full max-w-[60ch] overflow-hidden"
           >
-            <ol className="flex flex-col gap-3 px-3.5 pt-1 pb-3.5 pl-[50px] text-small text-text-2">
+            <ol className="flex flex-col gap-4 rounded-card bg-surface p-4 text-small text-text-2 shadow-[0_0_0_1px_var(--line)]">
               {steps.map((s) => (
-                <li key={s.call.toolCallId} className="flex flex-col gap-1.5">
-                  <span className="font-semibold text-text">{capital(toolLabel(s.call.tool))}</span>
-                  <pre className="max-h-40 overflow-auto rounded-xs bg-surface-2 px-2 py-1.5 font-mono text-micro whitespace-pre-wrap">
-                    {preview(s.call.args)}
-                  </pre>
+                <li key={s.call.toolCallId} className="flex flex-col gap-2">
+                  <span className="flex items-center gap-2">
+                    <StatusIcon status={statusOf([s])} />
+                    <span className="font-semibold text-text">
+                      {capital(toolLabel(s.call.tool))}
+                    </span>
+                  </span>
+                  <pre className={cx(codeBox, 'bg-surface-2')}>{preview(s.call.args)}</pre>
                   {s.result ? (
                     <pre
                       className={cx(
-                        'max-h-40 overflow-auto rounded-xs px-2 py-1.5 font-mono text-micro whitespace-pre-wrap',
+                        codeBox,
                         s.result.isError ? 'bg-warn-soft text-warn' : 'bg-surface-2',
                       )}
                     >
                       {preview(s.result.result)}
                     </pre>
                   ) : (
-                    <span>Working…</span>
+                    <span className="pl-8">Working…</span>
                   )}
                 </li>
               ))}

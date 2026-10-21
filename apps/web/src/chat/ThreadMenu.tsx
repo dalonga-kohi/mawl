@@ -25,14 +25,14 @@ export function ThreadMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex h-8 pointer-coarse:h-11 max-w-full min-w-0 items-center gap-1 rounded-pill px-2.5 -ml-2.5 text-small text-text-2 transition-colors duration-[120ms] hover:bg-surface-2 hover:text-text data-[state=open]:bg-surface-2"
+        className="flex h-9 max-w-[38vw] min-w-0 shrink items-center gap-1 rounded-pill px-3 text-small text-text-2 transition-colors duration-(--dur-fast) hover:bg-surface-2 hover:text-text active:scale-[.97] data-[state=open]:bg-surface-2 pointer-coarse:h-11 md:max-w-[22ch]"
         aria-label={`Conversation: ${title}. Switch conversation`}
       >
         <span className="truncate">{title}</span>
         <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="start"
+        align="end"
         collisionPadding={16}
         className="max-h-[min(420px,var(--radix-dropdown-menu-content-available-height))] w-[min(320px,calc(100vw-32px))]"
       >

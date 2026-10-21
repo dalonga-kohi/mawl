@@ -7,7 +7,15 @@ import {
   type ThreadId,
 } from '@mawl/contracts'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowDown, CircleAlert, CircleStop } from 'lucide-react'
+import {
+  ArrowDown,
+  CalendarDays,
+  CircleAlert,
+  CircleStop,
+  FileText,
+  type LucideIcon,
+  PenLine,
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveStatus, useRunText } from '../api/ApiProvider.tsx'
@@ -15,7 +23,8 @@ import { errorCode } from '../api/providers-api.ts'
 import { Mawl } from '../mascot/Mawl.tsx'
 import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
-import { enter, transitions } from '../motion/presets.ts'
+import { enter, press, transitions } from '../motion/presets.ts'
+import { useProfile } from '../profile/useProfile.ts'
 import { useShell } from '../shell/ShellContext.tsx'
 import { ShowSidebarButton } from '../shell/ShowSidebarButton.tsx'
 import { ContextPanelBody } from '../teammates/ContextPanel.tsx'
@@ -28,22 +37,25 @@ import {
   useThreads,
 } from '../teammates/queries.ts'
 import { SidePanel } from '../teammates/SidePanel.tsx'
-import { TeammateAvatar } from '../teammates/TeammateAvatar.tsx'
 import { PanelToggle } from '../teammates/TeammatesView.tsx'
 import { Button, buttonClass, IconButton } from '../ui/Button.tsx'
 import { cx } from '../ui/cx.ts'
 import { EmptyState } from '../ui/EmptyState.tsx'
 import { Composer, type ComposerHandle } from './Composer.tsx'
 import { Markdown } from './Markdown.tsx'
-import { MessageItem, UserBubble } from './MessageItem.tsx'
+import { MessageItem, UserBubble, userText } from './MessageItem.tsx'
 import { failureCopy, isActive, statusLine } from './run-copy.ts'
 import { ThreadMenu } from './ThreadMenu.tsx'
 
-const SUGGESTIONS = [
-  'What can you help me with?',
-  'Make a short plan for my day',
-  'Explain something to me simply',
+/** The new-chat suggestions. Picking one fills the composer; the owner still sends it. */
+const SUGGESTIONS: { text: string; icon: LucideIcon }[] = [
+  { text: 'Plan my week', icon: CalendarDays },
+  { text: 'Summarize something', icon: FileText },
+  { text: 'Draft a reply', icon: PenLine },
 ]
+
+/** The chat column: messages, the landing and the composer share one width. */
+const COLUMN = 'mx-auto w-full max-w-[720px]'
 
 /** Within this many pixels of the bottom, new text keeps the view pinned to the latest message. */
 const PIN_SLACK = 80
@@ -54,6 +66,12 @@ function pendingRunOf(messages: Message[]): RunId | undefined {
   if (!lastUser?.runId) return undefined
   const replied = messages.some((m) => m.role === 'assistant' && m.runId === lastUser.runId)
   return replied ? undefined : lastUser.runId
+}
+
+/** "What's next, Sam?" from the owner's profile name; just "What's next?" without one. */
+export function greeting(ownerName: string): string {
+  const first = ownerName.trim().split(/\s+/)[0]
+  return first ? `What's next, ${first}?` : "What's next?"
 }
 
 /** `/t/$slug`: a teammate's conversation. */
@@ -101,7 +119,8 @@ function Conversation({
   threadParam: string | undefined
 }) {
   const navigate = useNavigate()
-  const { setMascot } = useShell()
+  const { setMascot, compact } = useShell()
+  const { profile: owner } = useProfile()
   const threads = useThreads(profile.id)
   // No param: the latest conversation, or a new one when there is none yet.
   const threadId: ThreadId | undefined =
@@ -148,7 +167,7 @@ function Conversation({
   const live = useLiveStatus()
 
   const mascot = useMascotState({
-    run: run?.status,
+    run: starting ? 'queued' : run?.status,
     typing: focused && draft.trim().length > 0,
   })
   useEffect(() => setMascot(mascot), [mascot, setMascot])
@@ -209,51 +228,71 @@ function Conversation({
     if (runId) cancel.mutate(runId)
   }
 
+  // A failed run is retried by sending the owner's last words again.
+  const lastPrompt = (() => {
+    const last = messages.findLast((m) => m.role === 'user')
+    return last ? userText(last) : pending?.prompt
+  })()
+  const retry = lastPrompt && !active ? () => send(lastPrompt) : undefined
+
   const model = parseModelRef(profile.modelMain)?.modelId
   // A disabled query (new chat, no thread yet) stays pending in TanStack Query v5.
   const settled = threadId === undefined || !messagesQuery.isPending
   const empty = !resolving && settled && messages.length === 0 && !pending
   const loading = resolving || (threadId !== undefined && messagesQuery.isPending)
+  const threadsFailed = threadParam === undefined && threads.isError
+  const landing = empty && !threadsFailed && !messagesQuery.isError
+  // One id per conversation: the landing's big Mawl and the header's small one are the same Mawl.
+  const mawlId = `chat-mawl-${profile.id}`
 
   const header = (
-    <header className="flex min-h-[68px] items-center gap-3 px-3 py-3 md:px-5">
+    <header className="flex min-h-16 items-center gap-2 px-3 py-2 md:px-4">
       <ShowSidebarButton />
-
-      <TeammateAvatar color={profile.color} size={40} state={mascot} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="truncate text-heading">{profile.name}</h1>
-          <span className="flex shrink-0 items-center gap-1.5 text-small text-text-2">
-            {active ? <span className="live-dot" aria-hidden="true" /> : null}
+      {landing ? null : (
+        <motion.span
+          layoutId={mawlId}
+          transition={transitions.gentle}
+          className="grid size-10 shrink-0 place-items-center"
+        >
+          <Mawl size={34} state={mascot} />
+        </motion.span>
+      )}
+      <div className={cx('flex min-w-0 flex-1 flex-col', landing && 'pl-1')}>
+        <h1 className="truncate text-heading">{profile.name}</h1>
+        <p className="flex min-w-0 items-center gap-1.5 text-micro text-text-2">
+          {active ? <span className="live-dot shrink-0" aria-hidden="true" /> : null}
+          <span className="truncate">
             {live === 'reconnecting'
               ? 'Reconnecting…'
               : statusLine(starting ? 'queued' : run?.status, text.length > 0)}
           </span>
-        </div>
-        <ThreadMenu
-          threads={threads.data ?? []}
-          current={threadId}
-          onPick={(id) =>
-            void navigate({
-              to: '/t/$slug',
-              params: { slug: profile.slug },
-              search: { thread: id },
-            })
-          }
-          onNew={() => {
-            void navigate({
-              to: '/t/$slug',
-              params: { slug: profile.slug },
-              search: { thread: 'new' },
-            })
-            composer.current?.focus()
-          }}
-        />
+        </p>
       </div>
+      <ThreadMenu
+        threads={threads.data ?? []}
+        current={threadId}
+        onPick={(id) =>
+          void navigate({
+            to: '/t/$slug',
+            params: { slug: profile.slug },
+            search: { thread: id },
+          })
+        }
+        onNew={() => {
+          void navigate({
+            to: '/t/$slug',
+            params: { slug: profile.slug },
+            search: { thread: 'new' },
+          })
+          composer.current?.focus()
+        }}
+      />
       <PanelToggle />
     </header>
   )
 
+  // Children keep their positions (header, body, composer, suggestions, announcer), so the
+  // composer is the same element on the landing and docked: it keeps its text and focus.
   return (
     <>
       <section
@@ -261,7 +300,7 @@ function Conversation({
         aria-label={`Chat with ${profile.name}`}
       >
         {header}
-        {threadParam === undefined && threads.isError ? (
+        {threadsFailed ? (
           <EmptyState
             title="Couldn't load your conversations"
             mascot="oops"
@@ -280,13 +319,11 @@ function Conversation({
             The Mawl server didn't send the messages. Check that it's running.
           </EmptyState>
         ) : empty ? (
-          <ChatEmpty
-            name={profile.name}
+          <Landing
+            greeting={greeting(owner.name)}
             mascot={mascot}
-            onPick={(s) => {
-              setDraft(s)
-              composer.current?.focus()
-            }}
+            mascotSize={compact ? 88 : 120}
+            layoutId={mawlId}
           />
         ) : (
           <MessageScroller
@@ -302,38 +339,58 @@ function Conversation({
             <RunTail
               run={run}
               text={text}
-              starting={pending !== null && pending.runId === undefined}
+              starting={starting}
               name={profile.name}
+              onRetry={retry}
             />
           </MessageScroller>
         )}
-        <AnimatePresence>
-          {sendError ? (
-            <motion.p
-              role="alert"
-              {...enter}
-              className="mx-auto mt-1 flex w-[min(76ch,calc(100%-24px))] items-start gap-2 rounded-md bg-danger-soft px-3 py-2 text-small text-danger"
-            >
-              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {sendError}
-            </motion.p>
-          ) : null}
-        </AnimatePresence>
-        <Composer
-          ref={composer}
-          value={draft}
-          onChange={setDraft}
-          onSend={() => send(draft)}
-          onStop={stop}
-          busy={active}
-          sending={start.isPending}
-          // Stop needs the run's id, which arrives with the send's answer.
-          stopping={cancel.isPending || runId === undefined}
-          label={`Message ${profile.name}`}
-          placeholder={`Ask ${profile.name} to do something`}
-          model={model}
-          onFocusChange={setFocused}
-        />
+        <motion.div
+          layout="position"
+          transition={{ layout: transitions.gentle }}
+          className={cx(
+            'px-3 md:px-6',
+            landing ? 'pt-2' : 'pt-1 pb-[max(12px,env(safe-area-inset-bottom))] md:pb-5',
+          )}
+        >
+          <div className={cx(COLUMN, 'flex flex-col gap-2')}>
+            <AnimatePresence>
+              {sendError ? (
+                <motion.p
+                  role="alert"
+                  {...enter}
+                  className="flex items-start gap-2 rounded-card bg-danger-soft px-4 py-2.5 text-small text-danger"
+                >
+                  <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  {sendError}
+                </motion.p>
+              ) : null}
+            </AnimatePresence>
+            <Composer
+              ref={composer}
+              value={draft}
+              onChange={setDraft}
+              onSend={() => send(draft)}
+              onStop={stop}
+              busy={active}
+              sending={start.isPending}
+              // Stop needs the run's id, which arrives with the send's answer.
+              stopping={cancel.isPending || runId === undefined}
+              label={`Message ${profile.name}`}
+              placeholder={`Ask ${profile.name} to do something`}
+              model={model}
+              onFocusChange={setFocused}
+            />
+          </div>
+        </motion.div>
+        {landing ? (
+          <Suggestions
+            onPick={(s) => {
+              setDraft(s)
+              composer.current?.focus()
+            }}
+          />
+        ) : null}
         <Announcer run={run} name={profile.name} />
       </section>
       <SidePanel>
@@ -343,23 +400,75 @@ function Conversation({
   )
 }
 
+/**
+ * The top half of a new chat: a large Mawl and one line. The composer sits in the middle of the
+ * view and the suggestions below it, so the three read as one centered column.
+ */
+function Landing({
+  greeting,
+  mascot,
+  mascotSize,
+  layoutId,
+}: {
+  greeting: string
+  mascot: MascotState
+  mascotSize: number
+  layoutId: string
+}) {
+  return (
+    <section
+      aria-label="New chat"
+      className="flex min-h-0 flex-1 flex-col items-center justify-end gap-3 overflow-hidden px-6 pb-5 text-center"
+    >
+      <motion.div layoutId={layoutId} transition={transitions.gentle}>
+        <Mawl size={mascotSize} state={mascot} />
+      </motion.div>
+      <h2 className="font-display text-title md:text-display">{greeting}</h2>
+    </section>
+  )
+}
+
+function Suggestions({ onPick }: { onPick: (suggestion: string) => void }) {
+  return (
+    <div className="flex flex-[1.25] justify-center overflow-hidden px-4 pt-4 pb-6">
+      <ul className="flex h-fit flex-wrap justify-center gap-2" aria-label="Suggestions">
+        {SUGGESTIONS.map(({ text, icon: Icon }) => (
+          <li key={text}>
+            <motion.button
+              type="button"
+              onClick={() => onPick(text)}
+              {...press}
+              className="flex h-9 items-center gap-2 rounded-pill px-3.5 text-small text-text-2 shadow-[0_0_0_1px_var(--line)] transition-colors duration-(--dur-fast) hover:bg-surface-2 hover:text-text pointer-coarse:h-11"
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {text}
+            </motion.button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /** What follows the last user message: the streaming reply, a failure, or a stop note. */
 function RunTail({
   run,
   text,
   starting,
   name,
+  onRetry,
 }: {
   run: Run | undefined
   text: string
   starting: boolean
   name: string
+  onRetry: (() => void) | undefined
 }) {
   if (starting) return <Thinking name={name} />
   if (!run) return null
   if (text && run.status === 'cancelled') {
     return (
-      <motion.div {...enter} className="flex flex-col gap-2">
+      <motion.div {...enter} className="flex max-w-[68ch] flex-col gap-2">
         <div className="text-text-2">
           <Markdown text={text} />
         </div>
@@ -376,14 +485,14 @@ function RunTail({
         {...enter}
         aria-label={`${name} is replying`}
         aria-busy={isActive(run.status)}
-        className={cx('flex flex-col gap-2.5', isActive(run.status) && 'stream-caret')}
+        className={cx('flex max-w-[68ch] flex-col gap-3', isActive(run.status) && 'stream-caret')}
       >
         <Markdown text={text} />
       </motion.article>
     )
   }
   if (isActive(run.status)) return <Thinking name={name} />
-  if (run.status === 'failed') return <RunFailure run={run} />
+  if (run.status === 'failed') return <RunFailure run={run} onRetry={onRetry} />
   if (run.status === 'cancelled') {
     return (
       <motion.p {...enter} className="flex items-center gap-1.5 text-small text-text-2">
@@ -415,27 +524,30 @@ function Thinking({ name }: { name: string }) {
   )
 }
 
-function RunFailure({ run }: { run: Run }) {
+function RunFailure({ run, onRetry }: { run: Run; onRetry: (() => void) | undefined }) {
   const copy = failureCopy(run.error)
   return (
     <motion.div
       {...enter}
       role="alert"
-      className="flex max-w-[60ch] items-start gap-3 rounded-md bg-danger-soft p-3.5 text-danger"
+      className="flex max-w-[68ch] items-start gap-3 rounded-card bg-danger-soft p-4 text-danger"
     >
       <CircleAlert className="mt-0.5 size-[18px] shrink-0" aria-hidden="true" />
       <div className="flex min-w-0 flex-col gap-1">
         <p className="font-semibold">{copy.title}</p>
         <p className="text-small">{copy.hint}</p>
-        {copy.action === 'models' ? (
-          <Link
-            to="/settings"
-            hash="models"
-            className="mt-1 w-fit text-small font-semibold underline underline-offset-2"
-          >
-            Open model settings
-          </Link>
-        ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {onRetry ? (
+            <Button size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          ) : null}
+          {copy.action === 'models' ? (
+            <Link to="/settings" hash="models" className={buttonClass('ghost', 'sm')}>
+              Open model settings
+            </Link>
+          ) : null}
+        </div>
       </div>
     </motion.div>
   )
@@ -478,7 +590,7 @@ function MessageScroller({
   loadingEarlier: boolean
   onLoadEarlier: () => void
 }) {
-  const box = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLElement>(null)
   const [pinned, setPinned] = useState(true)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `follow` is the trigger by design.
@@ -489,15 +601,19 @@ function MessageScroller({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div
+      {/* Not a live region: the Announcer speaks for it, once per reply. */}
+      <section
         ref={box}
+        aria-label="Messages"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+        tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget
           setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < PIN_SLACK)
         }}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-offset-[-2px]"
       >
-        <div className="mx-auto flex w-full max-w-[76ch] flex-col gap-5 px-4 py-6 md:px-6">
+        <div className={cx(COLUMN, 'flex flex-col gap-7 px-4 pt-4 pb-8 md:px-6')}>
           {canLoadEarlier ? (
             <Button
               size="sm"
@@ -511,7 +627,7 @@ function MessageScroller({
           ) : null}
           {children}
         </div>
-      </div>
+      </section>
       <AnimatePresence>
         {pinned ? null : (
           <motion.div
@@ -523,7 +639,7 @@ function MessageScroller({
             <IconButton
               label="Jump to latest"
               tooltipSide="top"
-              className="bg-surface shadow-2"
+              className="bg-surface text-text shadow-[0_0_0_1px_var(--line),var(--shadow-2)] hover:bg-surface"
               onClick={() => {
                 const el = box.current
                 if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
@@ -539,53 +655,19 @@ function MessageScroller({
   )
 }
 
-function ChatEmpty({
-  name,
-  mascot,
-  onPick,
-}: {
-  name: string
-  mascot: MascotState
-  onPick: (suggestion: string) => void
-}) {
-  return (
-    <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6 text-center">
-      <div className="flex max-w-[44ch] flex-col items-center gap-2">
-        <Mawl size={112} state={mascot} />
-        <h2 className="mt-2 font-display text-title">{`Ask ${name} anything`}</h2>
-        <p className="text-text-2">
-          Give it a job in a sentence or two. It keeps working on your server, even if you close
-          this window.
-        </p>
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {SUGGESTIONS.map((s) => (
-            <motion.button
-              key={s}
-              type="button"
-              onClick={() => onPick(s)}
-              whileTap={{ scale: 0.96 }}
-              className="h-8 pointer-coarse:h-11 rounded-pill bg-surface-2 px-3 text-small font-semibold text-text-2 transition-colors duration-[120ms] hover:bg-accent-soft hover:text-accent-ink"
-            >
-              {s}
-            </motion.button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function MessagesSkeleton() {
   return (
-    <div
-      aria-hidden="true"
-      className="mx-auto flex w-full max-w-[76ch] flex-1 flex-col gap-5 px-4 py-6 md:px-6"
-    >
-      <span className="h-10 w-2/5 animate-pulse self-end rounded-md bg-surface-2" />
-      <span className="flex flex-col gap-2">
+    <div aria-hidden="true" className={cx(COLUMN, 'flex flex-1 flex-col gap-7 px-4 pt-4 md:px-6')}>
+      <span className="h-11 w-2/5 animate-pulse self-end rounded-card bg-surface-2" />
+      <span className="flex flex-col gap-2.5">
         <span className="h-3 w-11/12 animate-pulse rounded-xs bg-surface-2" />
         <span className="h-3 w-4/5 animate-pulse rounded-xs bg-surface-2" />
         <span className="h-3 w-3/5 animate-pulse rounded-xs bg-surface-2" />
+      </span>
+      <span className="h-11 w-1/3 animate-pulse self-end rounded-card bg-surface-2" />
+      <span className="flex flex-col gap-2.5">
+        <span className="h-3 w-10/12 animate-pulse rounded-xs bg-surface-2" />
+        <span className="h-3 w-2/3 animate-pulse rounded-xs bg-surface-2" />
       </span>
     </div>
   )
@@ -594,8 +676,8 @@ function MessagesSkeleton() {
 function ChatSkeleton() {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-busy="true">
-      <div className="flex min-h-[68px] items-center gap-3 px-5">
-        <span className="size-10 animate-pulse rounded-sm bg-surface-2" />
+      <div className="flex min-h-16 items-center gap-3 px-4">
+        <span className="size-9 animate-pulse rounded-pill bg-surface-2" />
         <span className="h-4 w-40 animate-pulse rounded-xs bg-surface-2" />
       </div>
       <MessagesSkeleton />
