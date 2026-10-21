@@ -1,14 +1,18 @@
+import type { ProviderCredential } from '@mawl/contracts'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { APPEARANCE_STORAGE_KEY } from '../appearance/prefs.ts'
 import { PROFILE_STORAGE_KEY } from '../profile/profile-prefs.ts'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
+import { credential } from '../test/fake-providers-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
 
 beforeAll(async () => {
   await import('./ChatView.tsx')
 })
 beforeEach(() => stubViewport(1440))
+
+const CRED = 'cred_01JTEST0000000000000000001' as ProviderCredential['id']
 
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
@@ -72,10 +76,45 @@ describe('composer', () => {
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     const send = (await screen.findByRole('button', { name: 'Send' })) as HTMLButtonElement
     expect(send.className).toMatch(/rounded-pill/)
-    expect(send.className).toMatch(/(^|\s)size-11(\s|$)/)
+    expect(send.className).toMatch(/(^|\s)size-8(\s|$)/)
     expect(send.disabled).toBe(true)
     await user.type(screen.getByLabelText('Message Inbox Sweeper'), 'hi')
     expect(send.disabled).toBe(false)
+  })
+
+  it('keeps a 44 px touch target on coarse pointers without a bigger circle', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    await renderApp('/t/inbox-sweeper', fake.api)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    expect(send.className).toMatch(/pointer-coarse:before:/)
+    const add = screen.getByRole('button', { name: 'Add to message' })
+    expect(add.className).toMatch(/(^|\s)size-8(\s|$)/)
+    expect(add.className).toMatch(/rounded-pill/)
+  })
+
+  it('has no model chip in the composer; the header shows a quiet model pill', async () => {
+    const fake = fakeApi({
+      profiles: [sweeper()],
+      credentials: [credential({ id: CRED, label: 'Test provider' })],
+    })
+    await renderApp('/t/inbox-sweeper', fake.api)
+    await screen.findByRole('heading', { name: "What's next?" })
+    const form = screen.getByLabelText('Message Inbox Sweeper').closest('form')
+    expect(form?.textContent).not.toContain('gpt-test')
+    const header = document.querySelector('section[aria-label^="Chat with"] header')
+    const pill = within(header as HTMLElement).getByText('gpt-test')
+    expect(pill.tagName).toBe('SPAN')
+    expect(pill.closest('button, a')).toBeNull()
+    await waitFor(() => expect(pill.getAttribute('title')).toBe('Test provider / gpt-test'))
+  })
+
+  it('still shows the model pill once the conversation is docked', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'hi{Enter}')
+    await waitFor(() => expect(screen.queryByRole('heading', { name: "What's next?" })).toBeNull())
+    const header = document.querySelector('section[aria-label^="Chat with"] header')
+    expect(within(header as HTMLElement).getByText('gpt-test')).toBeTruthy()
   })
 
   it('turns the send button into a round stop button while the reply streams', async () => {

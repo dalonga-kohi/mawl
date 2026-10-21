@@ -25,6 +25,7 @@ import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
 import { enter, press, transitions } from '../motion/presets.ts'
 import { useProfile } from '../profile/useProfile.ts'
+import { useCredentials } from '../settings/models/queries.ts'
 import { useShell } from '../shell/ShellContext.tsx'
 import { ShowSidebarButton } from '../shell/ShowSidebarButton.tsx'
 import { ContextPanelBody } from '../teammates/ContextPanel.tsx'
@@ -122,6 +123,7 @@ function Conversation({
   const { setMascot, compact } = useShell()
   const { profile: owner } = useProfile()
   const threads = useThreads(profile.id)
+  const credentials = useCredentials()
   // No param: the latest conversation, or a new one when there is none yet.
   const threadId: ThreadId | undefined =
     threadParam === 'new'
@@ -235,7 +237,10 @@ function Conversation({
   })()
   const retry = lastPrompt && !active ? () => send(lastPrompt) : undefined
 
-  const model = parseModelRef(profile.modelMain)?.modelId
+  const modelRef = parseModelRef(profile.modelMain)
+  const model = modelRef?.modelId
+  const credentialLabel = credentials.data?.find((c) => c.id === modelRef?.credentialId)?.label
+  const modelTitle = credentialLabel ? `${credentialLabel} / ${model}` : model
   // A disabled query (new chat, no thread yet) stays pending in TanStack Query v5.
   const settled = threadId === undefined || !messagesQuery.isPending
   const empty = !resolving && settled && messages.length === 0 && !pending
@@ -268,6 +273,14 @@ function Conversation({
           </span>
         </p>
       </div>
+      {model ? (
+        <span
+          title={modelTitle}
+          className="hidden h-7 max-w-[20ch] shrink-0 items-center truncate rounded-pill px-2.5 font-mono text-micro text-text-2 transition-colors duration-(--dur-fast) hover:bg-surface-2 md:inline-flex"
+        >
+          {model}
+        </span>
+      ) : null}
       <ThreadMenu
         threads={threads.data ?? []}
         current={threadId}
@@ -378,7 +391,6 @@ function Conversation({
               stopping={cancel.isPending || runId === undefined}
               label={`Message ${profile.name}`}
               placeholder={`Ask ${profile.name} to do something`}
-              model={model}
               onFocusChange={setFocused}
             />
           </div>

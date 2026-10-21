@@ -36,8 +36,6 @@ interface ComposerProps {
   stopping: boolean
   placeholder: string
   label: string
-  /** Shown as a quiet chip: which model answers. */
-  model?: string | undefined
   onFocusChange?: (focused: boolean) => void
 }
 
@@ -45,28 +43,16 @@ interface ComposerProps {
 const circlePress = { whileTap: { scale: 0.94 }, transition: transitions.snappy } as const
 
 const circle =
-  'grid size-11 shrink-0 place-items-center rounded-pill accent-tween disabled:cursor-default'
+  'relative grid size-8 shrink-0 place-items-center rounded-pill accent-tween disabled:cursor-default pointer-coarse:before:absolute pointer-coarse:before:-inset-1.5'
 
 /**
- * The pill composer (UI-REDESIGN.md §2): a round `+` menu, the autosizing input, the model chip and
- * a round send button that turns into Stop while the teammate works. The container's 28 px radius is
- * a pill at its one-line height of 56 px and reads as a soft card once the text wraps.
+ * The pill composer (UI-REDESIGN.md §2): a round `+` menu, the autosizing input and
+ * a round 32 px send button that turns into Stop while the teammate works. The container's 28 px
+ * radius is a pill at its one-line height of 44 px and reads as a soft card once the text wraps.
  * Enter sends and Shift+Enter adds a line; Enter that confirms an IME composition never sends.
  */
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  {
-    value,
-    onChange,
-    onSend,
-    onStop,
-    busy,
-    sending,
-    stopping,
-    placeholder,
-    label,
-    model,
-    onFocusChange,
-  },
+  { value, onChange, onSend, onStop, busy, sending, stopping, placeholder, label, onFocusChange },
   ref,
 ) {
   const area = useRef<HTMLTextAreaElement>(null)
@@ -114,17 +100,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           onFocus={() => onFocusChange?.(true)}
           onBlur={() => onFocusChange?.(false)}
           placeholder={placeholder}
-          className="max-h-[200px] min-h-11 w-full resize-none bg-transparent px-1 py-2.5 text-body text-text outline-none placeholder:text-text-3"
+          className="max-h-[200px] min-h-8 w-full resize-none bg-transparent px-1 py-1 text-body text-text outline-none placeholder:text-text-3"
         />
       </label>
-      {model ? (
-        <span
-          title="This teammate's model"
-          className="mb-2 hidden h-7 max-w-[22ch] shrink-0 items-center truncate rounded-pill bg-surface-2 px-2.5 font-mono text-micro text-text-2 md:inline-flex"
-        >
-          {model}
-        </span>
-      ) : null}
       {busy ? (
         <Tooltip label="Stop" side="top">
           <motion.button
@@ -139,7 +117,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             )}
             {...circlePress}
           >
-            <Square className="size-3.5 fill-current" aria-hidden="true" />
+            <Square className="size-3 fill-current" aria-hidden="true" />
           </motion.button>
         </Tooltip>
       ) : (
@@ -154,7 +132,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           )}
           {...circlePress}
         >
-          <ArrowUp className="size-5" aria-hidden="true" />
+          <ArrowUp className="size-4" aria-hidden="true" />
         </motion.button>
       )}
     </form>
@@ -176,7 +154,7 @@ function AddMenu() {
             'text-text-2 hover:bg-surface-2 hover:text-text active:scale-[.94] data-[state=open]:bg-surface-2',
           )}
         >
-          <Plus className="size-5" aria-hidden="true" />
+          <Plus className="size-[18px]" aria-hidden="true" />
         </DropdownMenuTrigger>
       </Tooltip>
       <DropdownMenuContent side="top" align="start" sideOffset={10}>
