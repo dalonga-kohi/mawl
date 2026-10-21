@@ -26,16 +26,24 @@ export const SAVE_FAILED = "Couldn't save your profile. Check that the Mawl serv
 /**
  * Reads the server profile. The first successful read also settles the one-time move of a
  * browser-only profile (from before profiles lived on the server): when the server has none and
- * this browser does, it is pushed up once. A failed push keeps the browser copy and is retried on
- * the next read. TanStack Query runs one fetch per key at a time, so the push never doubles.
+ * this browser does, it is pushed up once. Just before pushing, the server is read again and the
+ * push is dropped if the profile is no longer empty, a save has settled the move, or this read was
+ * cancelled (a save cancels it), so a stale read can never overwrite what the owner just saved.
+ * A failed push keeps showing the browser copy and leaves the marker unset, so the next app load
+ * tries again. TanStack Query runs one fetch per key at a time, so the push never doubles.
  */
-async function fetchProfile(user: UserApi): Promise<UserProfile> {
+async function fetchProfile(user: UserApi, signal: AbortSignal): Promise<UserProfile> {
   const server = await user.get()
   const store = storage()
   if (!isMigrated(store)) {
     const local = loadProfile(store)
     if (isEmptyProfile(server) && !isEmptyProfile(local)) {
       try {
+        const current = await user.get()
+        if (!isEmptyProfile(current) || isMigrated(store) || signal.aborted) {
+          saveProfile(store, current)
+          return current
+        }
         const saved = await user.update(local)
         markMigrated(store)
         saveProfile(store, saved)
@@ -49,7 +57,6 @@ async function fetchProfile(user: UserApi): Promise<UserProfile> {
   saveProfile(store, server)
   return server
 }
-
 /**
  * The owner's name and personal context. The server is the source of truth; until it answers (or
  * when it can't be reached) the copy cached in this browser is shown, so the greeting and the
@@ -64,7 +71,7 @@ export function useProfile() {
   const [cached] = useState(() => loadProfile(storage()))
   const query = useQuery({
     queryKey: keys.user(),
-    queryFn: () => fetchProfile(user),
+    queryFn: ({ signal }) => fetchProfile(user, signal),
     placeholderData: cached,
   })
   return {
@@ -82,6 +89,8 @@ export function useSaveProfile() {
   return useMutation({
     mutationFn: (next: UserProfile) => user.update(next),
     onMutate: async (next) => {
+      // A save settles the one-time move at once, so a read still in flight cannot push over it.
+      markMigrated(storage())
       await client.cancelQueries({ queryKey: keys.user() })
       const previous = client.getQueryData<UserProfile>(keys.user())
       client.setQueryData<UserProfile>(keys.user(), {

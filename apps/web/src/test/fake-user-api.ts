@@ -15,9 +15,11 @@ export function fakeUserApi(initial: UserProfile = { name: '', personalContext: 
   const api: UserApi = {
     get: async () => {
       state.gets++
+      // The answer is fixed when the call starts, like a response already on the wire.
+      const snapshot = { ...state.profile }
       if (state.getGate) await state.getGate
       if (state.getError) throw state.getError
-      return { ...state.profile }
+      return snapshot
     },
     update: async (input) => {
       if (state.updateGate) await state.updateGate

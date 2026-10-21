@@ -91,6 +91,47 @@ describe('owner profile, one-time move from this browser', () => {
     expect(localStorage.getItem(PROFILE_MIGRATED_KEY)).toBeNull()
     expect(cached()).toEqual({ name: 'Sam', context: '' })
   })
+
+  it('leaves the move marker unset after a failed push so the next load retries', async () => {
+    legacy('Sam')
+    const fake = fakeApi()
+    fake.user.updateError = new Error('Failed to fetch')
+    const first = await renderApp('/approvals', fake.api)
+    await waitFor(() => expect(fake.user.gets).toBeGreaterThan(0))
+    expect(await profileButton(/Sam/)).toBeTruthy()
+    expect(localStorage.getItem(PROFILE_MIGRATED_KEY)).toBeNull()
+    first.unmount()
+
+    fake.user.updateError = null
+    await renderApp('/approvals', fake.api)
+    await waitFor(() => expect(fake.user.updates).toEqual([{ name: 'Sam', personalContext: '' }]))
+    expect(localStorage.getItem(PROFILE_MIGRATED_KEY)).toBe('1')
+  })
+
+  it('does not push the browser copy over a profile the owner saved while the read was in flight', async () => {
+    legacy('Sam')
+    const fake = fakeApi()
+    const held = gate()
+    const saving = gate()
+    fake.user.getGate = held.promise
+    fake.user.updateGate = saving.promise
+    const { user } = await renderApp('/approvals', fake.api)
+    const dialog = await openDialog(user, /Sam/)
+    const name = within(dialog).getByLabelText('Name')
+    await user.clear(name)
+    await user.type(name, 'Ada')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await within(dialog).findByRole('button', { name: 'Saving…' })
+
+    // The stale read (the server was empty when it started) lands while the save is in flight.
+    held.open()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    saving.open()
+    await waitFor(() => expect(fake.user.updates).toHaveLength(1))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(fake.user.updates).toEqual([{ name: 'Ada', personalContext: '' }])
+    expect(fake.user.profile.name).toBe('Ada')
+  })
 })
 
 describe('profile dialog, saving', () => {
