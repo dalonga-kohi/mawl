@@ -38,10 +38,27 @@ export const MemoryPage = () => (
   </PageShell>
 )
 
+// U5 fills this page with Connections, Skills and Plugins tabs.
+export const ToolsPage = () => (
+  <PageShell title="Tools" description="What your teammates can reach and use.">
+    <EmptyState
+      title="Tools are on their way"
+      mascot="working"
+      action={
+        <Link to="/connections" className={buttonClass('soft')}>
+          Open connections
+        </Link>
+      }
+    >
+      Connections, skills and plugins live here soon.
+    </EmptyState>
+  </PageShell>
+)
+
 export const RoutinesPage = () => (
-  <PageShell title="Routines" description="Work that happens on its own, on a schedule you set.">
-    <EmptyState title="No routines yet" mascot="idle">
-      A routine is a task on repeat, like a morning inbox sweep with a summary to your phone.
+  <PageShell title="Scheduled" description="Work that happens on its own, on a schedule you set.">
+    <EmptyState title="Nothing scheduled yet" mascot="idle">
+      A scheduled task repeats on its own, like a morning inbox sweep with a summary to your phone.
     </EmptyState>
   </PageShell>
 )

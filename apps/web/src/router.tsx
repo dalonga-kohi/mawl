@@ -16,6 +16,7 @@ import {
   MemoryPage,
   NotFoundPage,
   RoutinesPage,
+  ToolsPage,
 } from './pages/placeholders.tsx'
 import { RouteError, RoutePending } from './pages/route-fallbacks.tsx'
 import { Shell } from './shell/Shell.tsx'
@@ -66,6 +67,7 @@ const routeTree = rootRoute.addChildren([
   page('/approvals', ApprovalsPage),
   page('/memory', MemoryPage),
   page('/routines', RoutinesPage),
+  page('/tools', ToolsPage),
   page('/connections', ConnectionsPage),
   page('/settings', SettingsPage),
 ])
