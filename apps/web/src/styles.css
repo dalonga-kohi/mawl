@@ -226,6 +226,60 @@
   }
 }
 
+/*
+ * Scrollbars (DESIGN.md §5): slim round overlay thumbs that appear while a scroller is hovered,
+ * focused or scrolling. Chromium and WebView2 use the ::-webkit-scrollbar path; Firefox and Safari
+ * get the standard properties below. Never both: Chromium would ignore the pseudo-elements.
+ */
+@layer base {
+  * {
+    --thumb: color-mix(in srgb, var(--text-3) 0%, transparent);
+  }
+  *:hover,
+  *:focus-within {
+    --thumb: color-mix(in srgb, var(--text-3) 45%, transparent);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background: transparent;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: var(--thumb);
+    background-clip: padding-box;
+    transition: background-color 200ms var(--ease-out);
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: color-mix(in srgb, var(--text-2) 55%, transparent);
+  }
+  /* Calm layout: no jump when a scrollbar appears on the long views. */
+  [aria-label="Messages"],
+  .page-scroll {
+    scrollbar-gutter: stable;
+  }
+  /* A scroller at its end never drags the page behind it. */
+  [role="dialog"],
+  [role="menu"],
+  [role="listbox"] {
+    overscroll-behavior: contain;
+  }
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--thumb) transparent;
+  }
+}
 /* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
    MotionConfig; this freezes CSS animation. Mawl holds its pose on its own (mascot/mawl.css). */
 @media (prefers-reduced-motion: reduce) {

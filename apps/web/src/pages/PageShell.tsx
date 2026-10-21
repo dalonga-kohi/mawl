@@ -12,7 +12,7 @@ export function PageShell({
   children: ReactNode
 }) {
   return (
-    <section className="min-h-0 flex-1 overflow-y-auto px-4 pt-5 pb-10 md:px-[clamp(16px,4vw,48px)]">
+    <section className="page-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-5 pb-10 md:px-[clamp(16px,4vw,48px)]">
       <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6">
         <header className="flex items-start gap-2">
           {/* Renders nothing while the sidebar is in view. */}

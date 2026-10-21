@@ -74,7 +74,7 @@ export function ContextPanelBody({ run }: { run?: Run | undefined }) {
           </TabsTrigger>
         ))}
       </TabsList>
-      <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-3.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain p-3.5">
         <TabsContent value="computer" className="flex flex-col gap-3">
           <div className="flex flex-col items-center gap-3 px-2 py-8 text-center">
             <IconTile icon={Monitor} />

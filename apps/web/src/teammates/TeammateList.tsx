@@ -119,7 +119,7 @@ export function TeammateList({ onNewTeammate }: { onNewTeammate: () => void }) {
     ))
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 pb-2">
       {pinnedProfiles.length > 0 ? (
         <section aria-label="Pinned" className="flex flex-col gap-1">
           <h2 className={headingClass}>Pinned</h2>

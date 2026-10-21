@@ -90,3 +90,16 @@ describe('token discipline', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('scrollbars', () => {
+  it('draws slim round overlay thumbs that appear on hover, with the standard path only as a fallback', () => {
+    expect(styles).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*999px/)
+    expect(styles).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*background-clip:\s*padding-box/)
+    expect(styles).toMatch(/\*:hover,\s*\*:focus-within\s*\{\s*--thumb:/)
+    // Chromium ignores the pseudo-elements once scrollbar-color is set, so it stays in @supports not.
+    const fallback = styles.indexOf('@supports not selector(::-webkit-scrollbar)')
+    expect(fallback).toBeGreaterThan(-1)
+    expect(styles.indexOf('scrollbar-color')).toBeGreaterThan(fallback)
+    expect(styles.slice(0, fallback)).not.toMatch(/scrollbar-color/)
+  })
+})

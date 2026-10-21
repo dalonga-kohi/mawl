@@ -642,7 +642,7 @@ function MessageScroller({
               className="bg-surface text-text shadow-[0_0_0_1px_var(--line),var(--shadow-2)] hover:bg-surface"
               onClick={() => {
                 const el = box.current
-                if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+                if (el) el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() })
                 setPinned(true)
               }}
             >
@@ -653,6 +653,17 @@ function MessageScroller({
       </AnimatePresence>
     </div>
   )
+}
+
+/**
+ * Smooth only for the owner's own jump to latest, never for stick-to-bottom while streaming. The OS
+ * setting and the in-app toggle (a class on <html>) both turn it off.
+ */
+function scrollBehavior(): 'smooth' | 'auto' {
+  const reduced =
+    document.documentElement.classList.contains('reduce-motion') ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return reduced ? 'auto' : 'smooth'
 }
 
 function MessagesSkeleton() {

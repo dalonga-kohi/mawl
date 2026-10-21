@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { APPEARANCE_STORAGE_KEY } from '../appearance/prefs.ts'
 import { PROFILE_STORAGE_KEY } from '../profile/profile-prefs.ts'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
@@ -190,6 +191,36 @@ describe('scroll to bottom', () => {
     log.scrollTo = () => {}
     await user.click(jump)
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull())
+  })
+
+  it.each([
+    ['smooth', false],
+    ['auto', true],
+  ] as const)('jumps with %s scrolling when reduced motion is %s', async (behavior, reduced) => {
+    // The provider owns the class on <html>, so set the stored preference it reads.
+    localStorage.setItem(
+      APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ theme: 'light', accent: '#CBB9F4', reduceMotion: reduced }),
+    )
+    try {
+      const p = sweeper()
+      const fake = fakeApi({ profiles: [p] })
+      const t = thread(p.id)
+      fake.chat.threads.push(t)
+      fake.chat.messages.push(message(t.id, 'user', 'one'), message(t.id, 'assistant', 'two'))
+      const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+      const log = await screen.findByRole('region', { name: 'Messages' })
+      Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 2000 })
+      Object.defineProperty(log, 'clientHeight', { configurable: true, value: 500 })
+      log.scrollTop = 100
+      fireEvent.scroll(log)
+      const scrollTo = vi.fn()
+      log.scrollTo = scrollTo
+      await user.click(await screen.findByRole('button', { name: 'Jump to latest' }))
+      expect(scrollTo).toHaveBeenCalledWith({ top: 2000, behavior })
+    } finally {
+      localStorage.removeItem(APPEARANCE_STORAGE_KEY)
+    }
   })
 })
 
