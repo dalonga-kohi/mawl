@@ -1,5 +1,5 @@
-import { Link, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { PanelLeftClose, Search, SquarePen, User } from 'lucide-react'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { PanelLeftClose, Search, Settings, User } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { Mawl } from '../mascot/Mawl.tsx'
@@ -7,14 +7,13 @@ import { transitions } from '../motion/presets.ts'
 import { ProfileDialog } from '../profile/ProfileDialog.tsx'
 import { useProfile } from '../profile/useProfile.ts'
 import { NewTeammateDialog } from '../teammates/NewTeammateDialog.tsx'
-import { useProfiles } from '../teammates/queries.ts'
 import { TeammateList } from '../teammates/TeammateList.tsx'
-import { Button, buttonVariants } from '../ui/Button.tsx'
+import { buttonVariants } from '../ui/Button.tsx'
 import { cn } from '../ui/cn.ts'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/Sheet.tsx'
 import { Tooltip } from '../ui/Tooltip.tsx'
 import { paletteShortcutLabel } from './CommandPalette.tsx'
-import { MAIN_NAV, type NavItem, SETTINGS_NAV } from './nav.ts'
+import { MAIN_NAV, type NavItem } from './nav.ts'
 import { useShell } from './ShellContext.tsx'
 import { sidebarShortcutLabel } from './shortcuts.ts'
 
@@ -77,59 +76,54 @@ function Header() {
   )
 }
 
+/** One compact row: the profile button fills it, the Settings gear sits at the right. */
 function Footer() {
   const { profile } = useProfile()
   const [editing, setEditing] = useState(false)
   return (
-    <div className="flex flex-col gap-0.5 pt-1">
-      <NavLink item={SETTINGS_NAV} />
+    <div className="flex items-center gap-1 pt-1">
       <button
         type="button"
-        className={cn(rowClass, 'h-14 pointer-coarse:h-14')}
+        className={cn(
+          'accent-tween flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-pill pr-3 pl-1.5 text-left text-heading text-text',
+          'hover:bg-surface-2 active:scale-[.97] pointer-coarse:h-12',
+        )}
         onClick={() => setEditing(true)}
       >
         <span
           aria-hidden="true"
-          className="grid size-9 shrink-0 place-items-center rounded-pill bg-accent-soft text-heading text-accent-ink"
+          className="grid size-8 shrink-0 place-items-center rounded-pill bg-accent-soft text-heading text-accent-ink"
         >
           {profile.name ? (
             profile.name.slice(0, 1).toUpperCase()
           ) : (
-            <User className="size-[18px]! text-accent-ink!" />
+            <User className="size-4 text-accent-ink" />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate">{profile.name || 'Set your name'}</span>
-          <span className="block truncate text-small text-text-3">Your profile</span>
-        </span>
+        <span className="min-w-0 flex-1 truncate">{profile.name || 'Set your name'}</span>
       </button>
+      <Tooltip label="Settings" side="top">
+        <Link
+          to="/settings"
+          aria-label="Settings"
+          className={cn(
+            buttonVariants({ variant: 'ghost', size: 'icon' }),
+            'aria-[current=page]:bg-surface-2 aria-[current=page]:text-accent-ink',
+          )}
+        >
+          <Settings aria-hidden="true" />
+        </Link>
+      </Tooltip>
       <ProfileDialog open={editing} onOpenChange={setEditing} />
     </div>
   )
 }
 
 function SidebarBody() {
-  const navigate = useNavigate()
-  const profiles = useProfiles()
-  const { slug } = useParams({ strict: false })
   const [creating, setCreating] = useState(false)
-  const target = profiles.data?.find((p) => p.slug === slug) ?? profiles.data?.[0]
-
-  const newChat = () => {
-    if (!target) {
-      setCreating(true)
-      return
-    }
-    void navigate({ to: '/t/$slug', params: { slug: target.slug }, search: { thread: 'new' } })
-  }
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 pt-3.5 pr-1 pb-3 pl-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 pt-3.5 pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-3">
       <Header />
-      <Button variant="primary" className="w-full" disabled={profiles.isPending} onClick={newChat}>
-        <SquarePen aria-hidden="true" />
-        New chat
-      </Button>
       <nav aria-label="Main" className="flex flex-col gap-0.5">
         <SearchRow />
         {MAIN_NAV.map((item) => (
@@ -146,7 +140,6 @@ function SidebarBody() {
     </div>
   )
 }
-
 /**
  * The one navigation surface: a 280 px column that hides completely, or below 760 px a drawer from
  * the left (UI-REDESIGN.md §5). There is no icon rail and no bottom tab bar.
@@ -185,7 +178,7 @@ export function Sidebar() {
         <motion.aside
           key="sidebar"
           aria-label="Sidebar"
-          className="shrink-0 overflow-hidden"
+          className="shrink-0 overflow-hidden border-r border-line"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: SIDEBAR_WIDTH, opacity: 1, transition: transitions.gentle }}
           exit={{ width: 0, opacity: 0, transition: transitions.exit }}

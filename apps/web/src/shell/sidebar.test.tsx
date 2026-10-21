@@ -12,11 +12,11 @@ const scout = () => profile({ name: 'Scout', slug: 'scout' })
 const sidebar = () => screen.getByRole('complementary', { name: 'Sidebar' })
 
 describe('sidebar', () => {
-  it('shows the Mawl wordmark, New chat and the nav in order', async () => {
+  it('shows the Mawl wordmark and the nav in order, with no New chat button', async () => {
     await renderApp('/t')
     const bar = sidebar()
     expect(within(bar).getByText('Mawl')).toBeTruthy()
-    expect(within(bar).getByRole('button', { name: 'New chat' })).toBeTruthy()
+    expect(within(bar).queryByRole('button', { name: 'New chat' })).toBeNull()
     const nav = within(bar).getByRole('navigation', { name: 'Main' })
     const labels = [...nav.querySelectorAll('a, button')].map((el) => el.textContent?.trim())
     expect(labels).toEqual([expect.stringMatching(/^Search/), 'Tools', 'Scheduled', 'Approvals'])
@@ -40,14 +40,24 @@ describe('sidebar', () => {
     expect(within(nav).getByRole('link', { name: 'Tools' }).getAttribute('aria-current')).toBeNull()
   })
 
-  it('puts Settings and the profile row at the bottom', async () => {
+  it('ends with one row: the profile button and a Settings gear', async () => {
     const { user, router } = await renderApp('/t')
-    expect(within(sidebar()).getByRole('button', { name: /Set your name/ })).toBeTruthy()
-    await user.click(within(sidebar()).getByRole('link', { name: 'Settings' }))
+    const profile = within(sidebar()).getByRole('button', { name: /Set your name/ })
+    const gear = within(sidebar()).getByRole('link', { name: 'Settings' })
+    expect(profile.parentElement).toBe(gear.parentElement)
+    expect(gear.textContent?.trim()).toBe('')
+    await user.click(gear)
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings'))
+    expect(
+      within(sidebar()).getByRole('link', { name: 'Settings' }).getAttribute('aria-current'),
+    ).toBe('page')
+  })
+
+  it('is flat: no floating rounded panel around the view', async () => {
+    await renderApp('/t')
+    expect(document.querySelector('.rounded-panel')).toBeNull()
   })
 })
-
 describe('hiding the sidebar', () => {
   it('hides with the button, shows again from the page header, and remembers', async () => {
     const { user, unmount } = await renderApp('/t')
@@ -172,21 +182,6 @@ describe('teammates in the sidebar', () => {
     await waitFor(() =>
       expect(within(sidebar()).queryByRole('region', { name: 'Pinned' })).toBeNull(),
     )
-  })
-
-  it('starts a new chat with the open teammate', async () => {
-    const fake = fakeApi({ profiles: [sweeper(), scout()] })
-    const { user, router } = await renderApp('/t/scout', fake.api)
-    await user.click(within(sidebar()).getByRole('button', { name: 'New chat' }))
-    await waitFor(() => expect(router.state.location.search).toMatchObject({ thread: 'new' }))
-    expect(router.state.location.pathname).toBe('/t/scout')
-  })
-
-  it('opens the new teammate dialog from New chat when nobody exists', async () => {
-    const { user } = await renderApp('/approvals')
-    await within(sidebar()).findByText('Your teammates will be listed here.')
-    await user.click(within(sidebar()).getByRole('button', { name: 'New chat' }))
-    expect(await screen.findByRole('dialog', { name: 'New teammate' })).toBeTruthy()
   })
 })
 
