@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DbHandle } from '@faire/db'
+import type { DbHandle } from '@mawl/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app.ts'
 import { ConfigError, parseConfig } from './config.ts'
@@ -22,7 +22,7 @@ function capture() {
 
 let dir: string
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'faire-edge-'))
+  dir = await mkdtemp(join(tmpdir(), 'mawl-edge-'))
 })
 afterEach(async () => {
   vi.useRealTimers()
@@ -167,11 +167,11 @@ describe('app edge cases', () => {
 describe('config edge cases', () => {
   const base = { DATABASE_URL: 'postgres://u:hunter2@h/d' }
   it.each(['0', '65536', '-1', '80.5', 'abc', '1e3', ' 80', '99999999999999999999'])(
-    'rejects FAIRE_PORT=%s without echoing the DATABASE_URL password',
+    'rejects MAWL_PORT=%s without echoing the DATABASE_URL password',
     (port) => {
       let err: unknown
       try {
-        parseConfig({ ...base, FAIRE_PORT: port })
+        parseConfig({ ...base, MAWL_PORT: port })
       } catch (e) {
         err = e
       }
@@ -181,8 +181,8 @@ describe('config edge cases', () => {
     },
   )
 
-  it.each(['65535', '1'])('accepts boundary FAIRE_PORT=%s', (port) => {
-    expect(parseConfig({ ...base, FAIRE_PORT: port }).port).toBe(Number(port))
+  it.each(['65535', '1'])('accepts boundary MAWL_PORT=%s', (port) => {
+    expect(parseConfig({ ...base, MAWL_PORT: port }).port).toBe(Number(port))
   })
 
   it.each(['verbose', 'INFO', 'warning', ' info'])('rejects LOG_LEVEL=%s', (level) => {
@@ -339,7 +339,7 @@ describe('startServer edge cases', () => {
     }
   }
   const config = (over: object = {}) => ({
-    databaseUrl: 'postgres://faire:s3cr3t-pw@db/faire',
+    databaseUrl: 'postgres://mawl:s3cr3t-pw@db/mawl',
     host: '127.0.0.1',
     port: 0,
     secretsDir: join(dir, 'secrets'),

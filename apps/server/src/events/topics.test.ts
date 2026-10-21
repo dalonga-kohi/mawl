@@ -1,4 +1,4 @@
-import { newId, type ProfileId, profileTopic, type RunId, runTopic } from '@faire/contracts'
+import { newId, type ProfileId, profileTopic, type RunId, runTopic } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { topicFilter } from './topics.ts'
 

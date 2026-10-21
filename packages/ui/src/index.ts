@@ -1,4 +1,4 @@
-export const packageName = '@faire/ui'
+export const packageName = '@mawl/ui'
 
 export * from './accent.ts'
 export * from './css.ts'

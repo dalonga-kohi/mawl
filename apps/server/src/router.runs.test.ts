@@ -1,4 +1,4 @@
-import { newId, type Run } from '@faire/contracts'
+import { newId, type Run } from '@mawl/contracts'
 import { call } from '@orpc/server'
 import { describe, expect, it, vi } from 'vitest'
 import { unusedProviders } from './providers/test-util.ts'

@@ -1,4 +1,4 @@
-import { newId } from '@faire/contracts'
+import { newId } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { createDeltaCoalescer } from './deltas.ts'
 import { fakeTimers } from './test-util.ts'

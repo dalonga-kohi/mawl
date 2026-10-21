@@ -65,6 +65,6 @@ export const NotFoundPage = () => (
       </Link>
     }
   >
-    This address doesn't match a page in Faire.
+    This address doesn't match a page in Mawl.
   </EmptyState>
 )

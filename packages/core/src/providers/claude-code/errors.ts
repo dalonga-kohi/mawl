@@ -1,4 +1,4 @@
-import type { ProviderFailureReason } from '@faire/contracts'
+import type { ProviderFailureReason } from '@mawl/contracts'
 import { ProviderFailureError } from '../failure.ts'
 
 const REASONS: Record<string, ProviderFailureReason> = {

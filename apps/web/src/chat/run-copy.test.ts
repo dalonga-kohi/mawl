@@ -1,4 +1,4 @@
-import { RunErrorCode, RunStatus } from '@faire/contracts'
+import { RunErrorCode, RunStatus } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { failureCopy, isActive, statusLine } from './run-copy.ts'
 
@@ -16,7 +16,7 @@ describe('run copy', () => {
   })
 
   it('falls back to a server error line when the code is missing', () => {
-    expect(failureCopy(null).title).toMatch(/Faire server/)
+    expect(failureCopy(null).title).toMatch(/Mawl server/)
   })
 
   it('treats only succeeded, failed and cancelled as finished', () => {

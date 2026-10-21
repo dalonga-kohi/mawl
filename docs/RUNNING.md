@@ -1,6 +1,6 @@
-# Running Faire
+# Running Mawl
 
-Faire runs as two containers: the server (which also serves the web app) and Postgres. This page gets you from a clone to a signed-in app. Compose v1 is for one person on one computer; the ports are bound to that computer's loopback address.
+Mawl runs as two containers: the server (which also serves the web app) and Postgres. This page gets you from a clone to a signed-in app. Compose v1 is for one person on one computer; the ports are bound to that computer's loopback address.
 
 ## What you need
 
@@ -16,12 +16,12 @@ All commands run from the repo root. The `docker compose` commands are the same 
 
    ```bash
    # bash (macOS, Linux, Git Bash, WSL)
-   printf 'FAIRE_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > infra/compose/.env
+   printf 'MAWL_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > infra/compose/.env
    ```
 
    ```powershell
    # PowerShell 7 or Windows PowerShell 5.1: 48 hex characters, UTF-8 without a byte-order mark
-   $pw = [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower(); [System.IO.File]::WriteAllText((Join-Path $PWD 'infra/compose/.env'), "FAIRE_DB_PASSWORD=$pw`n", [System.Text.UTF8Encoding]::new($false))
+   $pw = [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLower(); [System.IO.File]::WriteAllText((Join-Path $PWD 'infra/compose/.env'), "MAWL_DB_PASSWORD=$pw`n", [System.Text.UTF8Encoding]::new($false))
    ```
 
    Hex keeps the password to letters and digits, which matters because it becomes part of a URL. `.env` is ignored by git, and compose refuses to start without the password.
@@ -46,13 +46,13 @@ Open Settings, then Models, and choose Sign in with ChatGPT. The page opens Chat
 
 ## Sign in with a Claude plan (Claude Code)
 
-Faire never handles your Claude login. You sign in to the Claude Code binary inside the server container, and Faire runs that binary:
+Mawl never handles your Claude login. You sign in to the Claude Code binary inside the server container, and Mawl runs that binary:
 
 ```bash
 docker compose -f infra/compose/docker-compose.yml exec server claude auth login
 ```
 
-(From inside `infra/compose` you can drop the `-f` option.) The command prints a `https://claude.com/cai/oauth/authorize?...` link and then waits at `Paste code here if prompted >`. Open the link in any browser, sign in, copy the code the page shows and paste it into the terminal. No port needs to be open for this. The login is stored on the `faire-claude` volume, so it survives restarts and rebuilds.
+(From inside `infra/compose` you can drop the `-f` option.) The command prints a `https://claude.com/cai/oauth/authorize?...` link and then waits at `Paste code here if prompted >`. Open the link in any browser, sign in, copy the code the page shows and paste it into the terminal. No port needs to be open for this. The login is stored on the `mawl-claude` volume, so it survives restarts and rebuilds.
 
 Check it with:
 
@@ -60,7 +60,7 @@ Check it with:
 docker compose -f infra/compose/docker-compose.yml exec server claude auth status
 ```
 
-Back in Settings, add a Claude Code provider. A signed-out binary shows as "not signed in". An API key or token in the environment is refused, because Faire only uses the plan sign-in.
+Back in Settings, add a Claude Code provider. A signed-out binary shows as "not signed in". An API key or token in the environment is refused, because Mawl only uses the plan sign-in.
 
 ## Everyday commands
 
@@ -78,8 +78,8 @@ The services restart by themselves after a reboot or a crash (`restart: unless-s
 
 | Variable (`infra/compose/.env`) | Meaning |
 |---|---|
-| `FAIRE_DB_PASSWORD` | Required. Password of the compose database. |
-| `FAIRE_ALLOWED_ORIGINS` | Optional. Extra browser origins, comma-separated, such as `https://faire.example.com`. Without it only localhost and loopback addresses can open the app. |
+| `MAWL_DB_PASSWORD` | Required. Password of the compose database. |
+| `MAWL_ALLOWED_ORIGINS` | Optional. Extra browser origins, comma-separated, such as `https://mawl.example.com`. Without it only localhost and loopback addresses can open the app. |
 
 Everything else the server reads is in [ARCHITECTURE.md](ARCHITECTURE.md) section 4.
 
@@ -89,17 +89,17 @@ Three named volumes hold your state:
 
 | Volume | Holds |
 |---|---|
-| `faire_faire-db` | The database: profiles, runs, memory, saved providers. |
-| `faire_faire-secrets` | The master key that encrypts stored credentials, and the ChatGPT host id. |
-| `faire_faire-claude` | The Claude Code login. |
+| `mawl_mawl-db` | The database: profiles, runs, memory, saved providers. |
+| `mawl_mawl-secrets` | The master key that encrypts stored credentials, and the ChatGPT host id. |
+| `mawl_mawl-claude` | The Claude Code login. |
 
-Keep `faire_faire-secrets` together with `faire_faire-db`: the database cannot decrypt its credentials without that key.
+Keep `mawl_mawl-secrets` together with `mawl_mawl-db`: the database cannot decrypt its credentials without that key.
 
-To wipe everything and start from nothing, run `docker compose -f infra/compose/docker-compose.yml down -v`. This deletes all three volumes, and it cannot be undone. Then run the first-start steps again. If you change `FAIRE_DB_PASSWORD` after the first start, the database keeps the old password, so a reset is the simple fix.
+To wipe everything and start from nothing, run `docker compose -f infra/compose/docker-compose.yml down -v`. This deletes all three volumes, and it cannot be undone. Then run the first-start steps again. If you change `MAWL_DB_PASSWORD` after the first start, the database keeps the old password, so a reset is the simple fix.
 
 ## Troubleshooting
 
 - Port 7420 or 1455 is already in use (compose reports `ports are not available` or `address already in use`): stop the program that holds the port, then run `up -d` again. To find it, run `lsof -i :7420` in bash, or in PowerShell `Get-NetTCPConnection -LocalPort 7420,1455 -State Listen | Select-Object LocalPort, OwningProcess` and then `Get-Process -Id <OwningProcess>`. Do not move the ports in the compose file: the ChatGPT sign-in redirect only works on 1455.
-- `set FAIRE_DB_PASSWORD in infra/compose/.env`: step 1 was skipped, or the file is not in `infra/compose/`.
+- `set MAWL_DB_PASSWORD in infra/compose/.env`: step 1 was skipped, or the file is not in `infra/compose/`.
 - The page does not load: run `docker compose -f infra/compose/docker-compose.yml ps` and `logs server`. A server that keeps restarting prints one `boot failed` line with the reason.
-- "Host not allowed" or a blocked WebSocket from another address: add that address to `FAIRE_ALLOWED_ORIGINS`. Reaching the server from other computers is not supported yet, because there is no device sign-in (planned in P6.1).
+- "Host not allowed" or a blocked WebSocket from another address: add that address to `MAWL_ALLOWED_ORIGINS`. Reaching the server from other computers is not supported yet, because there is no device sign-in (planned in P6.1).

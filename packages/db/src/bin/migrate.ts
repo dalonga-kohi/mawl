@@ -1,4 +1,4 @@
-// Applies committed migrations to $DATABASE_URL: `pnpm --filter @faire/db db:migrate`.
+// Applies committed migrations to $DATABASE_URL: `pnpm --filter @mawl/db db:migrate`.
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { migrate } from '../migrate.ts'

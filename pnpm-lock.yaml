@@ -37,13 +37,13 @@ importers:
 
   apps/server:
     dependencies:
-      '@faire/contracts':
+      '@mawl/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@faire/core':
+      '@mawl/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@faire/db':
+      '@mawl/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@hono/node-server':
@@ -89,10 +89,10 @@ importers:
       '@electric-sql/pglite-pgvector':
         specifier: 0.0.11
         version: 0.0.11(@electric-sql/pglite@0.5.10)
-      '@faire/client':
+      '@mawl/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@faire/testkit':
+      '@mawl/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit
       '@types/pg':
@@ -113,13 +113,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@faire/client':
+      '@mawl/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@faire/contracts':
+      '@mawl/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@faire/ui':
+      '@mawl/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@fontsource-variable/bricolage-grotesque':
@@ -215,7 +215,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@faire/contracts':
+      '@mawl/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@orpc/client':
@@ -231,7 +231,7 @@ importers:
         specifier: 5.104.4
         version: 5.104.4
     devDependencies:
-      '@faire/testkit':
+      '@mawl/testkit':
         specifier: workspace:*
         version: link:../testkit
 
@@ -264,7 +264,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.135.0
         version: 0.135.0(zod@4.6.7)
-      '@faire/contracts':
+      '@mawl/contracts':
         specifier: workspace:*
         version: link:../contracts
       '@modelcontextprotocol/sdk':
@@ -286,13 +286,13 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
-      '@faire/testkit':
+      '@mawl/testkit':
         specifier: workspace:*
         version: link:../testkit
 
   packages/db:
     dependencies:
-      '@faire/contracts':
+      '@mawl/contracts':
         specifier: workspace:*
         version: link:../contracts
       drizzle-orm:
@@ -308,7 +308,7 @@ importers:
       '@electric-sql/pglite-pgvector':
         specifier: 0.0.11
         version: 0.0.11(@electric-sql/pglite@0.5.10)
-      '@faire/testkit':
+      '@mawl/testkit':
         specifier: workspace:*
         version: link:../testkit
       '@types/pg':

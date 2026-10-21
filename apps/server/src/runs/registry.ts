@@ -1,4 +1,4 @@
-import type { RunId } from '@faire/contracts'
+import type { RunId } from '@mawl/contracts'
 
 /**
  * The runs this process is executing right now, each with the controller that stops it.

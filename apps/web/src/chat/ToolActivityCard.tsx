@@ -1,4 +1,4 @@
-import type { Json, MessagePart } from '@faire/contracts'
+import type { Json, MessagePart } from '@mawl/contracts'
 import { Check, ChevronDown, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useId, useState } from 'react'

@@ -1,4 +1,4 @@
-import { applyAccent, defaultAccent, deriveAccent } from '@faire/ui'
+import { applyAccent, defaultAccent, deriveAccent } from '@mawl/ui'
 
 /** `system` leaves `data-theme` off, so the `prefers-color-scheme` media query in tokens.css decides. */
 export type ThemePref = 'system' | 'light' | 'dark'
@@ -12,7 +12,7 @@ export interface Appearance {
 }
 
 /** Per-viewer convenience only: until settings sync from the server (P6.2) this lives in the browser. */
-export const APPEARANCE_STORAGE_KEY = 'faire.appearance'
+export const APPEARANCE_STORAGE_KEY = 'mawl.appearance'
 
 export const DEFAULT_APPEARANCE: Appearance = Object.freeze({
   theme: 'system',

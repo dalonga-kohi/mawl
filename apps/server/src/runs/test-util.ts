@@ -5,8 +5,8 @@ import {
   type ProfileId,
   type RunId,
   type ThreadId,
-} from '@faire/contracts'
-import { schema } from '@faire/db'
+} from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import type { ProvidersDb } from '../providers/types.ts'
 import type { RunService } from './service.ts'
 

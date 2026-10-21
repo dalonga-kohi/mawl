@@ -152,7 +152,7 @@ export const ProviderCredentialInput = z
       })
     }
     if (v.provider === 'anthropic_claude_code') {
-      // Faire never holds a Claude credential: the owner signs in with `claude auth login`.
+      // Mawl never holds a Claude credential: the owner signs in with `claude auth login`.
       for (const field of ['secret', 'baseUrl'] as const) {
         if (v[field] !== undefined) {
           ctx.addIssue({
@@ -178,7 +178,7 @@ export const ProviderTestFailure = z.enum([
   'unreachable',
   'rate_limited',
   'unexpected_response',
-  // Claude subscription only: the Claude Code binary has no login, or uses a login Faire refuses.
+  // Claude subscription only: the Claude Code binary has no login, or uses a login Mawl refuses.
   'not_signed_in',
   'wrong_auth_method',
 ])

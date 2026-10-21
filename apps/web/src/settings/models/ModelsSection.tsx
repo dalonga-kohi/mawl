@@ -1,4 +1,4 @@
-import type { ProviderCredential } from '@faire/contracts'
+import type { ProviderCredential } from '@mawl/contracts'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -15,7 +15,7 @@ import { providerKeys, useCatalog, useCredentials } from './queries.ts'
 
 const card = 'rounded-lg bg-surface px-[18px] py-1 shadow-1'
 
-/** SIWC asks for a recognisable "Continue with ChatGPT" control; it reads as a sign-in, not a Faire action. */
+/** SIWC asks for a recognisable "Continue with ChatGPT" control; it reads as a sign-in, not a Mawl action. */
 function ChatGptButton({
   signIn,
   label = 'Continue with ChatGPT',
@@ -56,7 +56,7 @@ function CopyCommand({ command }: { command: string }) {
   )
 }
 
-/** Faire never sees Claude credentials: the owner signs in to Claude Code itself on the server. */
+/** Mawl never sees Claude credentials: the owner signs in to Claude Code itself on the server. */
 function ClaudePlanSteps({ onClose }: { onClose: () => void }) {
   const { providers } = useApi()
   const client = useQueryClient()
@@ -77,10 +77,10 @@ function ClaudePlanSteps({ onClose }: { onClose: () => void }) {
       </div>
       <ol className="flex list-decimal flex-col gap-3 pl-5 text-small text-text-2">
         <li className="flex flex-col gap-2">
-          <span>On the computer running Faire, open a terminal and sign in to Claude Code:</span>
+          <span>On the computer running Mawl, open a terminal and sign in to Claude Code:</span>
           <CopyCommand command="claude auth login" />
           <span>
-            Running Faire in Docker? Use{' '}
+            Running Mawl in Docker? Use{' '}
             <code className="font-mono text-micro text-text">
               docker compose exec server claude auth login
             </code>
@@ -88,7 +88,7 @@ function ClaudePlanSteps({ onClose }: { onClose: () => void }) {
           </span>
         </li>
         <li className="flex flex-col items-start gap-2">
-          <span>Then add it here. Faire checks the sign-in before every run.</span>
+          <span>Then add it here. Mawl checks the sign-in before every run.</span>
           <Button variant="primary" size="sm" disabled={add.isPending} onClick={() => add.mutate()}>
             Add Claude plan
           </Button>
@@ -96,7 +96,7 @@ function ClaudePlanSteps({ onClose }: { onClose: () => void }) {
       </ol>
       {add.isError ? (
         <p role="alert" className="text-small text-danger">
-          Couldn't add it. Check that the Faire server is running.
+          Couldn't add it. Check that the Mawl server is running.
         </p>
       ) : null}
     </motion.div>
@@ -157,7 +157,7 @@ export function ModelsSection() {
     body = (
       <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-3.5">
         <p className="text-small text-text-2">
-          Couldn't reach the Faire server. Check that it's running, then try again.
+          Couldn't reach the Mawl server. Check that it's running, then try again.
         </p>
         <Button size="sm" variant="soft" onClick={() => void credentials.refetch()}>
           Try again
@@ -243,7 +243,7 @@ export function ModelsSection() {
           className="flex items-start justify-between gap-3 rounded-md bg-warn-soft px-3.5 py-3"
         >
           <p className="text-small text-text">
-            Faire couldn't confirm that ChatGPT revoked its access. Revoke it in{' '}
+            Mawl couldn't confirm that ChatGPT revoked its access. Revoke it in{' '}
             <a
               href={CHATGPT_SETTINGS_URL}
               target="_blank"

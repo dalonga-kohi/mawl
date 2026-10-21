@@ -1,4 +1,4 @@
-import { type Profile, parseModelRef } from '@faire/contracts'
+import { type Profile, parseModelRef } from '@mawl/contracts'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search } from 'lucide-react'
 import { useState } from 'react'

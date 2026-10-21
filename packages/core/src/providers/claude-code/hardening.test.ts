@@ -1,5 +1,5 @@
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
-import type { ProviderTestResult } from '@faire/contracts'
+import type { ProviderTestResult } from '@mawl/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderFailureError } from '../failure.ts'
 import { testClaudeCodeLogin } from './auth-status.ts'

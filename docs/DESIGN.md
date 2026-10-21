@@ -1,4 +1,4 @@
-# Faire — Design System
+# Mawl — Design System
 
 > Calm, lowkey, gentle and a little playful. The UI stays quiet so the work and the beaver can speak.
 
@@ -6,7 +6,7 @@ The reference mood is the airy blue/white Telegram concepts plus a quiet dark mo
 
 ## 1. Concept: "the lodge by the river"
 
-A beaver builds a lodge in a quiet river. Faire's teammates work in their lodge, and you check in from the bank. That gives us:
+A beaver builds a lodge in a quiet river. Mawl's teammates work in their lodge, and you check in from the bank. That gives us:
 - **Water** (cool, airy neutrals and a soft blue default accent): the calm surface.
 - **Wood** (the beaver's warm brown, used *only* on the mascot and a few tiny highlights): warmth and character.
 - **One memorable element:** the mascot, plus a soft river *wave* line that appears at moments of transition (onboarding, the empty states, the bottom of the mobile login). Everything else stays disciplined.
@@ -22,7 +22,7 @@ A beaver builds a lodge in a quiet river. Faire's teammates work in their lodge,
 
 ## 3. Color
 
-All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @faire/ui generate`. Components never use raw hex.
+All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @mawl/ui generate`. Components never use raw hex.
 
 ### Neutrals: light ("Mist")
 | Token | Hex | Use |

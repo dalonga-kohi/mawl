@@ -65,14 +65,14 @@ const isSet = (v: string | undefined) => v !== undefined && v !== '' && v !== '0
 
 /**
  * What to do about a Postgres suite: run when Docker is up; otherwise skip locally, but fail
- * when CI or FAIRE_REQUIRE_DOCKER is set, so CI can never go green by skipping.
+ * when CI or MAWL_REQUIRE_DOCKER is set, so CI can never go green by skipping.
  */
 export function dockerPolicy(
   available: boolean,
   env: Record<string, string | undefined> = process.env,
 ): 'run' | 'skip' | 'fail' {
   if (available) return 'run'
-  return isSet(env.CI) || isSet(env.FAIRE_REQUIRE_DOCKER) ? 'fail' : 'skip'
+  return isSet(env.CI) || isSet(env.MAWL_REQUIRE_DOCKER) ? 'fail' : 'skip'
 }
 
 let defaultAvailability: Promise<boolean> | undefined
@@ -100,7 +100,7 @@ export interface WithPostgresOptions {
  * the connection url.
  *
  * Without Docker the suite is skipped and one line saying why is written to stderr (once per
- * suite), unless CI or FAIRE_REQUIRE_DOCKER is set, in which case the suite fails.
+ * suite), unless CI or MAWL_REQUIRE_DOCKER is set, in which case the suite fails.
  *
  * beforeAll cannot skip in Vitest 5 (its context has no skip), so the skip happens in
  * beforeEach via TestContext.skip.
@@ -114,7 +114,7 @@ export function withPostgres(opts: WithPostgresOptions = {}): () => string {
     const policy = dockerPolicy(available, opts.env)
     if (policy === 'fail') {
       throw new Error(
-        'Docker is required (CI or FAIRE_REQUIRE_DOCKER is set) but is not available for Postgres tests',
+        'Docker is required (CI or MAWL_REQUIRE_DOCKER is set) but is not available for Postgres tests',
       )
     }
     if (policy === 'skip') {

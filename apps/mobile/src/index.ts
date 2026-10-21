@@ -1,1 +1,1 @@
-export const packageName = '@faire/mobile'
+export const packageName = '@mawl/mobile'

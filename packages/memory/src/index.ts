@@ -1,1 +1,1 @@
-export const packageName = '@faire/memory'
+export const packageName = '@mawl/memory'

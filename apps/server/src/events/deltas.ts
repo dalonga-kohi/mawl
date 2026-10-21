@@ -1,4 +1,4 @@
-import type { ProfileId, RunId } from '@faire/contracts'
+import type { ProfileId, RunId } from '@mawl/contracts'
 import { realTimers, type TimerPort } from './timers.ts'
 
 /** At most one delta per run in this window. */

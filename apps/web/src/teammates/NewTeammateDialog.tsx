@@ -3,7 +3,7 @@ import {
   formatModelRef,
   type ProviderCredential,
   type ProviderKind,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -13,7 +13,7 @@ import { Button, buttonClass } from '../ui/Button.tsx'
 import { fieldClass, Modal } from '../ui/Modal.tsx'
 import { useCreateProfile } from './queries.ts'
 
-/** A sensible first model per provider, where Faire knows one; otherwise the owner types it. */
+/** A sensible first model per provider, where Mawl knows one; otherwise the owner types it. */
 const SUGGESTED_MODEL: Partial<Record<ProviderKind, string>> = {
   anthropic: 'claude-sonnet-5-5',
   anthropic_claude_code: 'claude-sonnet-5-5',
@@ -79,8 +79,8 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
                 : errorCode(err) === 'VALIDATION'
                   ? "The server didn't accept these details. Check each field and try again."
                   : errorCode(err) === undefined
-                    ? "Couldn't reach the Faire server. Check that it's running, then try again."
-                    : "Faire couldn't create this teammate. Try again.",
+                    ? "Couldn't reach the Mawl server. Check that it's running, then try again."
+                    : "Mawl couldn't create this teammate. Try again.",
           }),
       },
     )
@@ -195,7 +195,7 @@ export function NewTeammateDialog({
         <p className="text-small text-text-2">Loading your model connections…</p>
       ) : credentials.isError ? (
         <p role="alert" className="rounded-md bg-danger-soft p-3 text-small text-danger">
-          Couldn't load your model connections. Check that the Faire server is running.
+          Couldn't load your model connections. Check that the Mawl server is running.
         </p>
       ) : usable.length === 0 ? (
         <div className="flex flex-col gap-4">

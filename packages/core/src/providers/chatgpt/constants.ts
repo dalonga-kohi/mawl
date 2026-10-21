@@ -12,7 +12,7 @@ export const RESOURCE = 'https://api.openai.com/v1'
 
 /** Stands in for a client id on first sign-in only. OpenAI issues the real `oaiapp_...` id. */
 export const DYNAMIC_CLIENT_ID = 'dynamic_agent_client'
-export const AGENT_NAME_HINT = 'Faire'
+export const AGENT_NAME_HINT = 'Mawl'
 
 export const DIRECT_SCOPE = 'chatgpt.tokens.use.direct'
 export const SCOPES = [

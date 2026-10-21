@@ -1,4 +1,4 @@
-import type { CredentialId } from '@faire/contracts'
+import type { CredentialId } from '@mawl/contracts'
 import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, credential, fakeProvidersApi } from '../test/fake-providers-api.ts'
@@ -28,7 +28,7 @@ describe('settings, models: empty and failure states', () => {
     const fake = fakeProvidersApi()
     fake.state.listError = new Error('Failed to fetch')
     const { user } = await renderApp('/settings', { providers: fake.api })
-    expect(await within(models()).findByText(/Couldn't reach the Faire server/)).toBeTruthy()
+    expect(await within(models()).findByText(/Couldn't reach the Mawl server/)).toBeTruthy()
     fake.state.listError = null
     await user.click(within(models()).getByRole('button', { name: 'Try again' }))
     expect(await within(models()).findByText('No model connected yet.')).toBeTruthy()

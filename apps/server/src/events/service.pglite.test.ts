@@ -1,4 +1,4 @@
-import type { LenientEnvelope, ProfileId, Topic } from '@faire/contracts'
+import type { LenientEnvelope, ProfileId, Topic } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
 import { insertEvent } from '../runs/repo.ts'

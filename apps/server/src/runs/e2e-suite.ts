@@ -1,10 +1,10 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { contract, RunId } from '@faire/contracts'
-import type { ResolvedModel } from '@faire/core'
-import { createDb, migrate, schema } from '@faire/db'
-import { fakeModel, type Turn } from '@faire/testkit'
+import type { contract, RunId } from '@mawl/contracts'
+import type { ResolvedModel } from '@mawl/core'
+import { createDb, migrate, schema } from '@mawl/db'
+import { fakeModel, type Turn } from '@mawl/testkit'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import { RPCLink as WsLink } from '@orpc/client/websocket'
@@ -28,7 +28,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
     const servers: RunningServer[] = []
 
     beforeEach(async () => {
-      dir = await mkdtemp(join(tmpdir(), 'faire-run-e2e-'))
+      dir = await mkdtemp(join(tmpdir(), 'mawl-run-e2e-'))
     })
     afterEach(async () => {
       for (const s of servers.splice(0)) await s.stop()
@@ -166,7 +166,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
     it('a model that is not configured fails the run with a closed code, not the job', async () => {
       const { url, handle, profileId } = await seededDatabase()
       await handle.close()
-      const { ModelNotConfiguredError } = await import('@faire/core')
+      const { ModelNotConfiguredError } = await import('@mawl/core')
       const server = await startServer(
         {
           databaseUrl: url,

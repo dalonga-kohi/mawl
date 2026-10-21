@@ -31,7 +31,7 @@ describe('createLanguageModel for anthropic_claude_code', () => {
     expect(createLanguageModel(conn, 'sonnet').specificationVersion).toBe('v4')
   })
 
-  it('ignores a stored secret or base url: the Claude login is never Faire’s to hold', async () => {
+  it('ignores a stored secret or base url: the Claude login is never Mawl’s to hold', async () => {
     const fq = fakeQuery([msg.success()])
     const model = createLanguageModel(
       { kind: 'anthropic_claude_code', baseUrl: 'https://evil.example', secret: 'sk-ant-oat01-x' },

@@ -1,4 +1,4 @@
-import { type Json, newId } from '@faire/contracts'
+import { type Json, newId } from '@mawl/contracts'
 import { and, eq, gt, type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,

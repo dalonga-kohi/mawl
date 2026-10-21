@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { validateManifest } from './validate-manifest'
 
 const good = {
-  name: '@faire/core',
+  name: '@mawl/core',
   private: true,
   type: 'module',
   exports: { '.': './src/index.ts' },
@@ -14,9 +14,9 @@ describe('validateManifest', () => {
     expect(validateManifest('packages/core', good)).toEqual([])
   })
 
-  it('rejects a name that is not @faire/<dir>', () => {
+  it('rejects a name that is not @mawl/<dir>', () => {
     expect(validateManifest('packages/core', { ...good, name: 'core' })).toContain(
-      'name must be @faire/core',
+      'name must be @mawl/core',
     )
   })
 

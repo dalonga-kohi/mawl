@@ -1,4 +1,4 @@
-import type { RunStatus } from '@faire/contracts'
+import type { RunStatus } from '@mawl/contracts'
 import { useEffect, useRef, useState } from 'react'
 import type { MascotState } from './Beaver.tsx'
 

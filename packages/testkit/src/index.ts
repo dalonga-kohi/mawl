@@ -1,4 +1,4 @@
-export const packageName = '@faire/testkit'
+export const packageName = '@mawl/testkit'
 export type {
   FakeModel,
   FakeModelOptions,

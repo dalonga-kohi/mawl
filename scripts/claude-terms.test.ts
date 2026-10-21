@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * Anthropic's terms allow a Claude subscription only through Claude Code's own sign-in flow
- * (code.claude.com/docs/en/legal-and-compliance). Faire therefore never reads, copies or parses
+ * (code.claude.com/docs/en/legal-and-compliance). Mawl therefore never reads, copies or parses
  * Claude credentials and never takes a Claude token. This guard keeps code from drifting there:
  * the strings below may appear in docs and in the negative tests that prove they are dropped.
  */
@@ -24,7 +24,7 @@ const SELF = 'scripts/claude-terms.test.ts'
 const DOCS = ['docs/', '.claude/', 'CLAUDE.md']
 const CLAUDE_CODE_DIR = 'packages/core/src/providers/claude-code/'
 // The repo's own CI runs Anthropic's claude-code-action with a token from `claude setup-token`.
-// That is Claude Code's own flow on GitHub, not Faire touching a login, so only this file may
+// That is Claude Code's own flow on GitHub, not Mawl touching a login, so only this file may
 // name the token.
 const CLAUDE_WORKFLOW = '.github/workflows/claude.yml'
 
@@ -41,7 +41,7 @@ const rules: Array<{ term: string; allowedIn: string[] }> = [
 ]
 
 /**
- * Source patterns that would mean Faire touches a Claude login: env tokens (dot or bracket
+ * Source patterns that would mean Mawl touches a Claude login: env tokens (dot or bracket
  * access), any file read or open, the home-directory credential location, and the OS keychains.
  * Returns the names of the patterns that match; empty means clean.
  */

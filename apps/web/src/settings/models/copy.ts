@@ -1,4 +1,4 @@
-import type { ChatGptSignInFailure, ProviderKind, ProviderTestFailure } from '@faire/contracts'
+import type { ChatGptSignInFailure, ProviderKind, ProviderTestFailure } from '@mawl/contracts'
 
 /** Plain-language results of a connection check. Errors say how to fix the problem. */
 export function testFailureText(reason: ProviderTestFailure, kind: ProviderKind): string {
@@ -14,11 +14,11 @@ export function testFailureText(reason: ProviderTestFailure, kind: ProviderKind)
         ? "You've used your ChatGPT plan's limit for now."
         : 'The provider is limiting requests for this key. Try again in a minute.'
     case 'unexpected_response':
-      return "The provider answered in a way Faire didn't expect. Check the address."
+      return "The provider answered in a way Mawl didn't expect. Check the address."
     case 'not_signed_in':
-      return "Claude Code isn't signed in. Run claude auth login on the computer running Faire."
+      return "Claude Code isn't signed in. Run claude auth login on the computer running Mawl."
     case 'wrong_auth_method':
-      return 'Claude Code is set up with an API key or token, not your Claude plan. Faire only uses the plan sign-in.'
+      return 'Claude Code is set up with an API key or token, not your Claude plan. Mawl only uses the plan sign-in.'
   }
 }
 

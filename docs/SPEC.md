@@ -1,6 +1,6 @@
-# Faire — Product Spec
+# Mawl — Product Spec
 
-> **Faire** (French: *to do, to make*). AI teammates you own. They work on your machine and keep working while you sleep.
+> **Mawl** (French: *to do, to make*). AI teammates you own. They work on your machine and keep working while you sleep.
 
 Status: v0.1 draft · Last updated: 2026-10-17
 
@@ -8,7 +8,7 @@ Status: v0.1 draft · Last updated: 2026-10-17
 
 Most hosted agent products pick the model for you, run in someone else's cloud, share one computer across every bot, and hide what the agent remembers. Self-hosted options exist, but they still ask for a lot of setup and treat memory, the visible computer, mobile control and chat channels as separate add-ons.
 
-Faire is a single self-hosted product with:
+Mawl is a single self-hosted product with:
 - **Your keys, your model, your machine.** Any provider: Anthropic, OpenAI, OpenRouter, or a local model through Ollama.
 - **Always on.** Agents run in a Docker stack, so closing the app doesn't stop them.
 - **A computer you can watch.** Each profile has a sandboxed Linux desktop. You can watch it live and take control.
@@ -33,7 +33,7 @@ Faire is a single self-hosted product with:
 - **Computer:** the profile's sandbox container. It has a desktop, browser, shell and files.
 - **Takeover:** the user takes an exclusive control lease on the computer.
 - **Approval:** a pending action that needs a human decision under the policy.
-- **Channel:** a place you talk to Faire: the desktop/web app, the mobile app, Telegram, or Discord.
+- **Channel:** a place you talk to Mawl: the desktop/web app, the mobile app, Telegram, or Discord.
 
 ## 4. Feature list (MoSCoW)
 
@@ -124,7 +124,7 @@ Multi-tenant SaaS hosting · Windows/macOS sandbox images · training or fine-tu
 ## 7. Non-goals and anti-patterns we deliberately avoid
 
 - Opaque memory you can't view or edit.
-- All bots sharing one computer and its sign-ins. Faire gives each profile its own container.
+- All bots sharing one computer and its sign-ins. Mawl gives each profile its own container.
 - Model lock-in.
 - Dashboards cluttered with stats. Calm first.
 

@@ -25,8 +25,8 @@ const db = compose.services.db as Service
 const server = compose.services.server as Service
 
 describe('infra/compose/docker-compose.yml', () => {
-  it('is the faire project with exactly a db and a server service', () => {
-    expect(compose.name).toBe('faire')
+  it('is the mawl project with exactly a db and a server service', () => {
+    expect(compose.name).toBe('mawl')
     expect(Object.keys(compose.services).sort()).toEqual(['db', 'server'])
   })
 
@@ -37,20 +37,16 @@ describe('infra/compose/docker-compose.yml', () => {
   })
 
   it('keeps the database, secrets and Claude login on named volumes', () => {
-    expect(Object.keys(compose.volumes).sort()).toEqual([
-      'faire-claude',
-      'faire-db',
-      'faire-secrets',
-    ])
-    expect(db.volumes).toEqual(['faire-db:/var/lib/postgresql/data'])
-    expect(server.volumes).toEqual(['faire-secrets:/secrets', 'faire-claude:/claude'])
+    expect(Object.keys(compose.volumes).sort()).toEqual(['mawl-claude', 'mawl-db', 'mawl-secrets'])
+    expect(db.volumes).toEqual(['mawl-db:/var/lib/postgresql/data'])
+    expect(server.volumes).toEqual(['mawl-secrets:/secrets', 'mawl-claude:/claude'])
   })
 
-  it('requires FAIRE_DB_PASSWORD instead of defaulting it', () => {
-    expect(db.environment?.POSTGRES_PASSWORD).toMatch(/^\$\{FAIRE_DB_PASSWORD:\?[^}]+\}$/)
+  it('requires MAWL_DB_PASSWORD instead of defaulting it', () => {
+    expect(db.environment?.POSTGRES_PASSWORD).toMatch(/^\$\{MAWL_DB_PASSWORD:\?[^}]+\}$/)
     expect(server.environment?.DATABASE_URL).toBe(
       // biome-ignore lint/suspicious/noTemplateCurlyInString: compose interpolation, not a JS template
-      'postgres://faire:${FAIRE_DB_PASSWORD}@db:5432/faire',
+      'postgres://mawl:${MAWL_DB_PASSWORD}@db:5432/mawl',
     )
     // Nothing else may hold a password literal.
     expect(read('infra/compose/docker-compose.yml')).not.toMatch(/^\s*POSTGRES_PASSWORD:\s*[^$\s]/m)
@@ -63,7 +59,7 @@ describe('infra/compose/docker-compose.yml', () => {
 
   it('pins the database image and builds the server from the repo root', () => {
     expect(db.image).toBe('pgvector/pgvector:0.8.7-pg17')
-    expect(server.image).toBe('faire-server:local')
+    expect(server.image).toBe('mawl-server:local')
     expect(server.build).toEqual({ context: '../..', dockerfile: 'infra/docker/server.Dockerfile' })
   })
 
@@ -71,7 +67,7 @@ describe('infra/compose/docker-compose.yml', () => {
     expect(db.restart).toBe('unless-stopped')
     expect(server.restart).toBe('unless-stopped')
     // biome-ignore lint/suspicious/noTemplateCurlyInString: compose interpolation, not a JS template
-    expect(server.environment?.FAIRE_ALLOWED_ORIGINS).toBe('${FAIRE_ALLOWED_ORIGINS:-}')
+    expect(server.environment?.MAWL_ALLOWED_ORIGINS).toBe('${MAWL_ALLOWED_ORIGINS:-}')
   })
 })
 
@@ -84,7 +80,7 @@ describe('server process lifecycle', () => {
 
 describe('infra/compose/.env.example', () => {
   it('documents the required password without a value, and git ignores the real .env', () => {
-    expect(read('infra/compose/.env.example')).toMatch(/^FAIRE_DB_PASSWORD=$/m)
+    expect(read('infra/compose/.env.example')).toMatch(/^MAWL_DB_PASSWORD=$/m)
     expect(read('.gitignore')).toMatch(/^infra\/compose\/\.env$/m)
   })
 })
@@ -101,10 +97,10 @@ describe('infra/docker/server.Dockerfile', () => {
   it('runs as the node user with the runtime environment and healthcheck the compose file relies on', () => {
     expect(dockerfile).toMatch(/^USER node$/m)
     for (const env of [
-      'FAIRE_HOST=0.0.0.0',
-      'FAIRE_SECRETS_DIR=/secrets',
-      'FAIRE_SIWC_BIND_HOST=0.0.0.0',
-      'FAIRE_CLAUDE_CONFIG_DIR=/claude',
+      'MAWL_HOST=0.0.0.0',
+      'MAWL_SECRETS_DIR=/secrets',
+      'MAWL_SIWC_BIND_HOST=0.0.0.0',
+      'MAWL_CLAUDE_CONFIG_DIR=/claude',
       'CLAUDE_CONFIG_DIR=/claude',
       'NODE_ENV=production',
     ]) {
@@ -132,7 +128,7 @@ describe('infra/docker/server.Dockerfile', () => {
 
   it('keeps secrets and local state out of the build context', () => {
     const ignore = read('.dockerignore')
-    for (const entry of ['.git', '.faire', '.env', '**/node_modules', '**/dist']) {
+    for (const entry of ['.git', '.mawl', '.env', '**/node_modules', '**/dist']) {
       expect(ignore).toMatch(new RegExp(`^${entry.replace(/[*.]/g, '\\$&')}$`, 'm'))
     }
   })

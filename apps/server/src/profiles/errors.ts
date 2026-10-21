@@ -1,4 +1,4 @@
-import type { CredentialId } from '@faire/contracts'
+import type { CredentialId } from '@mawl/contracts'
 
 /** Accent presets from DESIGN.md. New teammates rotate through them when no color is given. */
 export const ACCENT_PRESETS = [

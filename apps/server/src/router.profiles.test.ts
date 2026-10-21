@@ -1,4 +1,4 @@
-import { newId, type Profile } from '@faire/contracts'
+import { newId, type Profile } from '@mawl/contracts'
 import { call } from '@orpc/server'
 import { describe, expect, it, vi } from 'vitest'
 import { SlugTakenError, UnknownCredentialError } from './profiles/errors.ts'

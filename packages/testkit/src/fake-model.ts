@@ -172,7 +172,7 @@ export function fakeModelFrom(
   const record = (kind: RecordedCall['kind'], options: CallOptions) =>
     calls.push({ kind, prompt: options.prompt, tools: options.tools, options })
   const model = new MockLanguageModelV4({
-    provider: opts.provider ?? 'faire-fake',
+    provider: opts.provider ?? 'mawl-fake',
     modelId: opts.modelId ?? 'fake-model',
     doGenerate: async (options) => {
       record('generate', options)
@@ -244,7 +244,7 @@ export function fakeModel(script: Turn[], opts: FakeModelOptions = {}): FakeMode
   }
 
   const model = new MockLanguageModelV4({
-    provider: opts.provider ?? 'faire-fake',
+    provider: opts.provider ?? 'mawl-fake',
     modelId: opts.modelId ?? 'fake-model',
     doGenerate: async (options) => {
       const t = take('generate', options)

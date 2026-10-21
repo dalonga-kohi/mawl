@@ -1,4 +1,4 @@
-import { accentPresets } from '@faire/ui'
+import { accentPresets } from '@mawl/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
 import { Laptop, Moon, PanelRight, Search, Sun, Wind } from 'lucide-react'

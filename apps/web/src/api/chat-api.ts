@@ -7,7 +7,7 @@ import type {
   RunId,
   Thread,
   ThreadId,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import type { QueryClient } from '@tanstack/react-query'
 
 /** What the teammate views need from `profiles.*`. */
@@ -40,7 +40,7 @@ export type LiveStatus = 'idle' | 'live' | 'reconnecting' | 'stopped'
 
 /**
  * The live event stream as the views see it: streamed run text plus the connection state. The app
- * backs it with the @faire/client event store, which also invalidates queries as events arrive.
+ * backs it with the @mawl/client event store, which also invalidates queries as events arrive.
  */
 export interface LiveStore {
   start(): void

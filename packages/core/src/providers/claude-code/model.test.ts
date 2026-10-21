@@ -2,7 +2,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { LanguageModelV4CallOptions, LanguageModelV4StreamPart } from '@ai-sdk/provider'
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
-import type { ProviderTestResult } from '@faire/contracts'
+import type { ProviderTestResult } from '@mawl/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderFailureError } from '../failure.ts'
 import { __resetClaudeLoginCache, createClaudeCodeModel } from './model.ts'
@@ -80,7 +80,7 @@ describe('Claude Code language model: query options', () => {
     const cwd = fq.calls[0]?.options.cwd
     expect(cwd).toBeTypeOf('string')
     expect(cwd).not.toBe(process.cwd())
-    expect(cwd).toContain('faire-claude-code')
+    expect(cwd).toContain('mawl-claude-code')
   })
 
   it('defaults to one private per-process temp dir shared by every call', async () => {
@@ -96,13 +96,13 @@ describe('Claude Code language model: query options', () => {
     const dirs = new Set([...a.calls, ...b.calls].map((c) => c.options.cwd))
     expect(dirs.size).toBe(1)
     const [dir] = [...dirs]
-    expect(dir?.startsWith(join(tmpdir(), 'faire-claude-code-'))).toBe(true)
-    expect(dir).not.toBe(join(tmpdir(), 'faire-claude-code'))
+    expect(dir?.startsWith(join(tmpdir(), 'mawl-claude-code-'))).toBe(true)
+    expect(dir).not.toBe(join(tmpdir(), 'mawl-claude-code'))
   })
 
   it('uses an injected work dir as given', async () => {
     const fq = fakeQuery(happy())
-    const dir = join(tmpdir(), 'faire-injected-test-dir')
+    const dir = join(tmpdir(), 'mawl-injected-test-dir')
     await readAll((await model(fq, { workDir: dir }).doStream(userPrompt('hi'))).stream)
     expect(fq.calls[0]?.options.cwd).toBe(dir)
   })

@@ -61,21 +61,21 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string({ error: 'is required' }).refine(isPostgresUrl, {
     error: 'must be a valid postgres:// or postgresql:// URL',
   }),
-  FAIRE_HOST: optional(z.string().min(1).default('127.0.0.1')),
-  FAIRE_PORT: port(7420),
-  FAIRE_SECRETS_DIR: optional(z.string().min(1).default('.faire/secrets')),
+  MAWL_HOST: optional(z.string().min(1).default('127.0.0.1')),
+  MAWL_PORT: port(7420),
+  MAWL_SECRETS_DIR: optional(z.string().min(1).default('.mawl/secrets')),
   // Loopback port and bind address for the Sign in with ChatGPT callback. In Docker bind 0.0.0.0
   // inside the container and publish it on the host as 127.0.0.1:<port>:<port> only.
-  FAIRE_SIWC_PORT: port(1455),
-  FAIRE_SIWC_BIND_HOST: optional(z.string().min(1).default('127.0.0.1')),
+  MAWL_SIWC_PORT: port(1455),
+  MAWL_SIWC_BIND_HOST: optional(z.string().min(1).default('127.0.0.1')),
   // Claude subscription via the Claude Code binary. The config dir holds the owner's own
-  // `claude auth login` (Faire never reads it); the path overrides the binary the SDK bundles.
-  FAIRE_CLAUDE_CONFIG_DIR: optional(absolutePath().optional()),
-  FAIRE_CLAUDE_CODE_PATH: optional(absolutePath().optional()),
+  // `claude auth login` (Mawl never reads it); the path overrides the binary the SDK bundles.
+  MAWL_CLAUDE_CONFIG_DIR: optional(absolutePath().optional()),
+  MAWL_CLAUDE_CODE_PATH: optional(absolutePath().optional()),
   // Built web app to serve. Unset: `web` beside the bundle when it exists, else none (dev uses Vite).
-  FAIRE_WEB_DIR: optional(absolutePath().optional()),
+  MAWL_WEB_DIR: optional(absolutePath().optional()),
   // Extra browser origins allowed to open the WebSocket (same-host, loopback and Tauri always are).
-  FAIRE_ALLOWED_ORIGINS: optional(originList()),
+  MAWL_ALLOWED_ORIGINS: optional(originList()),
   LOG_LEVEL: optional(
     z.enum(LOG_LEVELS, { error: `must be one of ${LOG_LEVELS.join(', ')}` }).default('info'),
   ),
@@ -118,15 +118,15 @@ export function parseConfig(env: Record<string, string | undefined> = process.en
   const v = parsed.data
   return {
     databaseUrl: v.DATABASE_URL,
-    host: v.FAIRE_HOST,
-    port: v.FAIRE_PORT,
-    secretsDir: v.FAIRE_SECRETS_DIR,
-    siwcPort: v.FAIRE_SIWC_PORT,
-    siwcHost: v.FAIRE_SIWC_BIND_HOST,
-    claudeConfigDir: v.FAIRE_CLAUDE_CONFIG_DIR,
-    claudeCodePath: v.FAIRE_CLAUDE_CODE_PATH,
-    webDir: v.FAIRE_WEB_DIR,
-    allowedOrigins: v.FAIRE_ALLOWED_ORIGINS,
+    host: v.MAWL_HOST,
+    port: v.MAWL_PORT,
+    secretsDir: v.MAWL_SECRETS_DIR,
+    siwcPort: v.MAWL_SIWC_PORT,
+    siwcHost: v.MAWL_SIWC_BIND_HOST,
+    claudeConfigDir: v.MAWL_CLAUDE_CONFIG_DIR,
+    claudeCodePath: v.MAWL_CLAUDE_CODE_PATH,
+    webDir: v.MAWL_WEB_DIR,
+    allowedOrigins: v.MAWL_ALLOWED_ORIGINS,
     logLevel: v.LOG_LEVEL,
   }
 }

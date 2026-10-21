@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    faire_desktop_lib::run()
+    mawl_desktop_lib::run()
 }

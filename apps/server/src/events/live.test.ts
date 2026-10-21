@@ -1,4 +1,4 @@
-import { type LenientEnvelope, newId } from '@faire/contracts'
+import { type LenientEnvelope, newId } from '@mawl/contracts'
 import { describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'

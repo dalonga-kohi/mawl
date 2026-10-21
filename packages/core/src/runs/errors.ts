@@ -1,4 +1,4 @@
-import type { RunErrorCode } from '@faire/contracts'
+import type { RunErrorCode } from '@mawl/contracts'
 import { ProviderFailureError } from '../providers/failure.ts'
 
 /** The profile's model ref does not parse, or its credential does not exist. */

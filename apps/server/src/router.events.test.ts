@@ -1,4 +1,4 @@
-import { type LenientEnvelope, newId } from '@faire/contracts'
+import { type LenientEnvelope, newId } from '@mawl/contracts'
 import { call } from '@orpc/server'
 import { describe, expect, it, vi } from 'vitest'
 import {

@@ -1,5 +1,5 @@
-import { type CredentialId, contract } from '@faire/contracts'
-import { PROVIDER_DESCRIPTORS } from '@faire/core'
+import { type CredentialId, contract } from '@mawl/contracts'
+import { PROVIDER_DESCRIPTORS } from '@mawl/core'
 import { call, isProcedure, traverseContractProcedures } from '@orpc/server'
 import { describe, expect, it } from 'vitest'
 import {

@@ -44,7 +44,7 @@ describe('socketUrl', () => {
   })
 
   it('uses wss:// for an https page, keeping host and port', () => {
-    expect(socketUrl('https://faire.example.com:8443')).toBe('wss://faire.example.com:8443/ws')
+    expect(socketUrl('https://mawl.example.com:8443')).toBe('wss://mawl.example.com:8443/ws')
   })
 
   it('ignores any path on the origin', () => {

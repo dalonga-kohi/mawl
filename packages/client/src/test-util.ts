@@ -1,8 +1,8 @@
-import { type LenientEnvelope, newId, type ProfileId } from '@faire/contracts'
+import { type LenientEnvelope, newId, type ProfileId } from '@mawl/contracts'
 import { createORPCClient } from '@orpc/client'
 import { createTanstackQueryUtils } from '@orpc/tanstack-query'
 import { QueryClient } from '@tanstack/query-core'
-import type { FaireClient } from './client.ts'
+import type { MawlClient } from './client.ts'
 import type { EventsApi, EventsSubscribeInput } from './event-store.ts'
 
 /** One open `events.subscribe` call the test controls. */
@@ -99,7 +99,7 @@ export function wire(
 
 /** Query utils whose client never reaches a network: only the keys matter in tests. */
 export function keyUtils() {
-  const client = createORPCClient<FaireClient>({
+  const client = createORPCClient<MawlClient>({
     call: async () => {
       throw new Error('no network in tests')
     },

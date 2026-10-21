@@ -33,7 +33,7 @@ describe('buildClaudeEnv', () => {
         NODE_EXTRA_CA_CERTS: '/ca.pem',
         LANG: 'en_US.UTF-8',
         SECRET_THING: 'nope',
-        FAIRE_MASTER_KEY: 'nope',
+        MAWL_MASTER_KEY: 'nope',
       },
     })
     expect(env).toEqual({
@@ -51,7 +51,7 @@ describe('buildClaudeEnv', () => {
     expect(buildClaudeEnv({ env: { PATH: undefined, HOME: '' } })).toEqual({})
   })
 
-  it('sets CLAUDE_CONFIG_DIR from the Faire option, which wins over an inherited one', () => {
+  it('sets CLAUDE_CONFIG_DIR from the Mawl option, which wins over an inherited one', () => {
     expect(
       buildClaudeEnv({ env: { CLAUDE_CONFIG_DIR: '/inherited' }, configDir: '/data/claude' }),
     ).toEqual({ CLAUDE_CONFIG_DIR: '/data/claude' })

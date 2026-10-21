@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite-pgvector'
-import type { contract } from '@faire/contracts'
-import { migrationsFolder, schema } from '@faire/db'
+import type { contract } from '@mawl/contracts'
+import { migrationsFolder, schema } from '@mawl/db'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -51,7 +51,7 @@ describe('providers over RPC (app + PGlite)', () => {
     })
     rpc = createORPCClient(
       new RPCLink({
-        url: 'http://faire.test/rpc',
+        url: 'http://mawl.test/rpc',
         fetch: async (request) => {
           const res = await app.request(request)
           wire.push(await res.clone().text())

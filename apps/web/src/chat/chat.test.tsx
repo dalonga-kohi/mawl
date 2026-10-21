@@ -1,4 +1,4 @@
-import type { ThreadId } from '@faire/contracts'
+import type { ThreadId } from '@mawl/contracts'
 import { screen, waitFor, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
@@ -169,9 +169,7 @@ describe('chat', () => {
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     const box = await screen.findByLabelText('Message Inbox Sweeper')
     await user.type(box, 'hello{Enter}')
-    expect((await screen.findByRole('alert')).textContent).toMatch(
-      /Couldn't reach the Faire server/,
-    )
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Couldn't reach the Mawl server/)
     expect((box as HTMLTextAreaElement).value).toBe('hello')
     expect(screen.queryByText('Sending…')).toBeNull()
   })

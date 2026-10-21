@@ -6,7 +6,7 @@ import {
   RunStatus,
   RunTrigger,
   StepKind,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import * as schema from './schema.ts'

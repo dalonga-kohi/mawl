@@ -1,4 +1,4 @@
-<title>Faire Mockup</title>
+<title>Mawl Mockup</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -438,7 +438,7 @@ p{margin:0}
 <header class="toolbar">
   <div class="brand">
     <svg class="beaver" width="40" height="40" viewBox="0 0 120 120" data-state="idle" data-beaver aria-hidden="true"></svg>
-    <div><div class="wordmark">Faire</div><small>Interactive mockup, sample data</small></div>
+    <div><div class="wordmark">Mawl</div><small>Interactive mockup, sample data</small></div>
   </div>
   <div class="tb-controls">
     <div class="seg" role="group" aria-label="Mockup view" id="viewSeg">
@@ -561,7 +561,7 @@ function applyAccent(hex){
   root.style.setProperty('--on-accent', rgbToHex(on));
   root.style.setProperty('--accent-ink', rgbToHex(accentInk));
   document.querySelectorAll('[data-sw]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.sw.toUpperCase()===hex.toUpperCase())));
-  try{ localStorage.setItem('faire-accent', hex); }catch(e){}
+  try{ localStorage.setItem('mawl-accent', hex); }catch(e){}
 }
 function swatchHTML(big){
   return PRESETS.map(([n,h])=>`<button class="sw" style="--c:${h}" data-sw="${h}" aria-label="${n}" title="${n}" aria-pressed="false"></button>`).join('')
@@ -705,7 +705,7 @@ function page(){
   if(state.view==='memory') return `<section class="page"><div class="page-head"><div><h1>Memory</h1><p>What ${MATES[0].name} remembers. Edit anything; your edits always win.</p></div><button class="btn soft sm" data-toast="Exported MEMORY.md and USER.md">Export</button></div>
     <div class="overnight">${beaverSVG(44,'done')}<p><strong>Overnight, Pip tidied up:</strong> merged 3 duplicate facts, retired 1 outdated one, and shortened your profile block. <button class="btn ghost sm" data-toast="Overnight changes undone">${ic('undo')}Undo</button></p></div>
     <div class="group-label">Always in mind</div>
-    <div class="grid-2">${[['About you',812,1500,'Works in Warsaw time. Prefers short, warm replies. Never send on weekends.'],['Projects',1240,2000,'Acme renewal (Nora Lind), Q4 pricing review, Faire beta.'],['Current task',612,1500,'Weekday sweep. Archive noise, draft client replies.'],['Note to future self',1980,2500,'Nora usually replies within 2 hours. Check the order form before Friday.']].map(([t,a,b,p])=>`<div class="card block-card"><h3>${t}<small>${a.toLocaleString('en')} / ${b.toLocaleString('en')}</small></h3><p>${p}</p><div class="meter"><span class="fill" style="width:${Math.round(a/b*100)}%;${a/b>.75?'background:var(--warn)':''}"></span></div></div>`).join('')}</div>
+    <div class="grid-2">${[['About you',812,1500,'Works in Warsaw time. Prefers short, warm replies. Never send on weekends.'],['Projects',1240,2000,'Acme renewal (Nora Lind), Q4 pricing review, Mawl beta.'],['Current task',612,1500,'Weekday sweep. Archive noise, draft client replies.'],['Note to future self',1980,2500,'Nora usually replies within 2 hours. Check the order form before Friday.']].map(([t,a,b,p])=>`<div class="card block-card"><h3>${t}<small>${a.toLocaleString('en')} / ${b.toLocaleString('en')}</small></h3><p>${p}</p><div class="meter"><span class="fill" style="width:${Math.round(a/b*100)}%;${a/b>.75?'background:var(--warn)':''}"></span></div></div>`).join('')}</div>
     <div class="group-label">Facts</div>
     <div class="card">
       <div class="fact"><div><div class="t">The Acme renewal covers 2 new seats from Nov 1</div><div class="m">Since Oct 15 · from "Q4 renewal" thread · used 3 times</div></div><span class="tagx ok">current</span></div>
@@ -721,7 +721,7 @@ function page(){
       ['heart','Heartbeat','Home Admin · checks its list every 30 minutes, stays quiet unless needed',true],
       ['clock','Weekly review','Code Gardener · Sundays at 18:00 · paused',false]
     ].map(([i,t,p,on],n)=>`<div class="routine"><span class="ri">${ic(i)}</span><div style="min-width:0"><h3>${t}</h3><p>${p}</p></div><button class="toggle" role="switch" aria-checked="${on}" aria-label="${t} on" id="rt-${n}"></button></div>`).join('')}</div></section>`;
-  if(state.view==='settings') return `<section class="page"><div class="page-head"><div><h1>Settings</h1><p>Make Faire yours.</p></div></div>
+  if(state.view==='settings') return `<section class="page"><div class="page-head"><div><h1>Settings</h1><p>Make Mawl yours.</p></div></div>
     <div class="group-label">Appearance</div>
     <div class="card"><div class="setting"><div><h3>Accent color</h3><p>Tints buttons, selection and highlights. Pip stays brown.</p></div><div class="big-swatches" data-swatches-big>${swatchHTML(true)}</div></div>
       <div class="setting"><div><h3>Reduce motion</h3><p>Swap springs and the mascot's animations for simple fades.</p></div><button class="toggle" role="switch" aria-checked="${state.reduce}" id="reduceToggle" aria-label="Reduce motion"></button></div></div>
@@ -729,7 +729,7 @@ function page(){
     <div class="card"><div class="setting"><div class="provider"><span class="prov-logo">A</span><div><h3>Anthropic</h3><p>Main: Claude Sonnet · Helper: Claude Haiku</p></div></div><span class="tagx ok">connected</span></div>
       <div class="setting"><div class="provider"><span class="prov-logo">O</span><div><h3>Ollama on this machine</h3><p>Found llama3.3 and nomic-embed-text</p></div></div><span class="tagx ok">connected</span></div></div>
     <div class="group-label">Phone and chat apps</div>
-    <div class="card"><div class="setting" style="align-items:flex-start"><div style="max-width:42ch"><h3>Pair your phone</h3><p>Scan with the Faire app. Works on your home network, or anywhere with Tailscale. The code expires in 5 minutes.</p></div><div class="qr" aria-label="Pairing code (sample)">${qr()}</div></div>
+    <div class="card"><div class="setting" style="align-items:flex-start"><div style="max-width:42ch"><h3>Pair your phone</h3><p>Scan with the Mawl app. Works on your home network, or anywhere with Tailscale. The code expires in 5 minutes.</p></div><div class="qr" aria-label="Pairing code (sample)">${qr()}</div></div>
       <div class="setting"><div><h3>Telegram</h3><p>@pip_inbox_bot · only you can talk to it</p></div><span class="tagx ok">connected</span></div>
       <div class="setting"><div><h3>Discord</h3><p>Not connected</p></div><button class="btn soft sm" data-toast="Paste a bot token to connect Discord">${ic('plug')}Connect</button></div></div></section>`;
   return '';
@@ -741,7 +741,7 @@ function qr(){ let s=''; let seed=7; const rnd=()=>{seed=(seed*9301+49297)%23328
 
 function onboarding(step){
   const steps = [
-    `<div class="onb-step">${beaverSVG(150,'idle','')}<h1>Meet Pip. Pip builds things while you're away.</h1><p>Faire gives you teammates that run on your own machine, with your own model. Setup takes about three minutes.</p><button class="btn primary" data-onb="1">Get started</button></div>`,
+    `<div class="onb-step">${beaverSVG(150,'idle','')}<h1>Meet Pip. Pip builds things while you're away.</h1><p>Mawl gives you teammates that run on your own machine, with your own model. Setup takes about three minutes.</p><button class="btn primary" data-onb="1">Get started</button></div>`,
     `<div class="onb-step">${beaverSVG(96,'listening')}<h1>Connect a model</h1><p>Your key stays on this machine. You can add more providers later.</p>
       <div class="prov-grid">${[['Anthropic','Claude'],['OpenAI','GPT'],['OpenRouter','Many models'],['Ollama','Found on this machine']].map(([n,s],i)=>`<button class="prov-opt" aria-pressed="${i===0}" data-prov><span class="prov-logo">${n[0]}</span><span><b>${n}</b><small>${s}</small></span></button>`).join('')}</div>
       <div class="field"><label for="apikey">API key</label><input id="apikey" type="password" autocomplete="off" placeholder="Paste your key"><span class="help">We check it with one small request.</span></div>
@@ -751,8 +751,8 @@ function onboarding(step){
       <div class="field"><label for="tjob">What should it do?</label><input id="tjob" value="Keep my inbox calm and draft replies for me to approve"></div>
       <div class="chips" style="justify-content:center">${['Research assistant','Home admin','Code gardener'].map(s=>`<button class="chip">${s}</button>`).join('')}</div>
       <button class="btn primary" data-onb="3">Create teammate</button></div>`,
-    `<div class="onb-step">${beaverSVG(96,'done')}<h1>Take it with you</h1><p>Scan with the Faire app to chat, approve and watch from your phone.</p><div class="qr" aria-label="Pairing code (sample)">${qr()}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn primary" data-onb-done>Open Faire</button><button class="btn ghost" data-onb-done>Skip for now</button></div></div>`
+    `<div class="onb-step">${beaverSVG(96,'done')}<h1>Take it with you</h1><p>Scan with the Mawl app to chat, approve and watch from your phone.</p><div class="qr" aria-label="Pairing code (sample)">${qr()}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn primary" data-onb-done>Open Mawl</button><button class="btn ghost" data-onb-done>Skip for now</button></div></div>`
   ];
   return `<div class="window no-list" style="grid-template-columns:minmax(0,1fr)"><section class="onb"><div class="onb-top"><span class="dots" aria-label="Step ${step+1} of 4">${[0,1,2,3].map(i=>`<i class="${i===step?'on':''}"></i>`).join('')}</span>${step>0?`<button class="btn ghost sm" data-onb="${step-1}">Back</button>`:'<span></span>'}</div>
     <div class="onb-stage">${steps[step]}</div>
@@ -883,7 +883,7 @@ mq.addEventListener && mq.addEventListener('change', ()=>applyAccent(state.accen
 window.addEventListener('resize', ()=>{ moveThumb(document.getElementById('viewSeg')); moveThumb(document.getElementById('themeSeg')); });
 
 /* ---------------- boot ---------------- */
-try{ const a=localStorage.getItem('faire-accent'); if(a && /^#[0-9a-f]{6}$/i.test(a)) state.accent=a; }catch(e){}
+try{ const a=localStorage.getItem('mawl-accent'); if(a && /^#[0-9a-f]{6}$/i.test(a)) state.accent=a; }catch(e){}
 if(window.innerWidth < 640){ state.mode='phone'; document.querySelectorAll('#viewSeg button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.mode==='phone'))); }
 hydrateIcons(document); render();
 requestAnimationFrame(()=>{ moveThumb(document.getElementById('viewSeg')); moveThumb(document.getElementById('themeSeg')); });

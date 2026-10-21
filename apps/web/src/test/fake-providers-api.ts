@@ -5,7 +5,7 @@ import type {
   ProviderCredentialInput,
   ProviderDescriptor,
   ProviderTestResult,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import type { ProvidersApi } from '../api/providers-api.ts'
 
 const caps = {

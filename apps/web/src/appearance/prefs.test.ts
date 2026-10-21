@@ -1,4 +1,4 @@
-import { accentPresets, defaultAccent } from '@faire/ui'
+import { accentPresets, defaultAccent } from '@mawl/ui'
 import { describe, expect, it } from 'vitest'
 import {
   APPEARANCE_STORAGE_KEY,

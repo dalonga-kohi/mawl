@@ -1,5 +1,5 @@
-import { newId, Run, type RunId } from '@faire/contracts'
-import { schema } from '@faire/db'
+import { newId, Run, type RunId } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { asc, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.ts'

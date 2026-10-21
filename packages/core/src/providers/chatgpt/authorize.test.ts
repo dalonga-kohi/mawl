@@ -23,7 +23,7 @@ describe('buildAuthorizeUrl', () => {
     expect(`${url.origin}${url.pathname}`).toBe('https://auth.openai.com/api/accounts/authorize')
     const p = url.searchParams
     expect(p.get('client_id')).toBe('dynamic_agent_client')
-    expect(p.get('agent_name_hint')).toBe('Faire')
+    expect(p.get('agent_name_hint')).toBe('Mawl')
     expect(p.get('ext_agent_host_id')).toBe(HOST_ID)
     expect(p.get('response_type')).toBe('code')
     expect(p.get('redirect_uri')).toBe('http://127.0.0.1:1455/auth/callback')

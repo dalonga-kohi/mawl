@@ -1,4 +1,4 @@
-import { ThreadId } from '@faire/contracts'
+import { ThreadId } from '@mawl/contracts'
 import {
   createBrowserHistory,
   createMemoryHistory,

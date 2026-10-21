@@ -10,7 +10,7 @@ import type {
   LanguageModelV4Usage,
 } from '@ai-sdk/provider'
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
-import type { ProviderFailureReason, ProviderTestResult } from '@faire/contracts'
+import type { ProviderFailureReason, ProviderTestResult } from '@mawl/contracts'
 import { ProviderFailureError } from '../failure.ts'
 import { testClaudeCodeLogin } from './auth-status.ts'
 import { defaultClaudeQuery } from './default-query.ts'
@@ -25,9 +25,9 @@ export interface ClaudeCodeModelOptions {
   modelId: string
   /** Injected in tests; defaults to the SDK's `query`, loaded lazily. */
   query?: ClaudeQueryFn
-  /** Faire's FAIRE_CLAUDE_CONFIG_DIR: where the owner's `claude auth login` keeps its login. */
+  /** Mawl's MAWL_CLAUDE_CONFIG_DIR: where the owner's `claude auth login` keeps its login. */
   configDir?: string | undefined
-  /** Faire's FAIRE_CLAUDE_CODE_PATH. Without it the SDK uses the binary it bundles. */
+  /** Mawl's MAWL_CLAUDE_CODE_PATH. Without it the SDK uses the binary it bundles. */
   pathToClaudeCodeExecutable?: string | undefined
   /**
    * Empty directory the binary runs in, created (recursively) if missing. Without it, one private
@@ -96,7 +96,7 @@ function defaultWorkDir(): Promise<string> {
         if (!isMissing(err) && !(await previousFailed(previous))) throw err
       }
     }
-    return mkdtemp(join(tmpdir(), 'faire-claude-code-'))
+    return mkdtemp(join(tmpdir(), 'mawl-claude-code-'))
   })()
   // Set synchronously so concurrent callers chain on this one attempt.
   defaultWorkDirPromise = next
@@ -184,7 +184,7 @@ function mapFinish(stopReason: string | null | undefined): LanguageModelV4Finish
 
 /**
  * A text-only AI SDK model over the unmodified Claude Code binary, signed in by the owner with
- * `claude auth login`. Faire never sees the login: it only spawns the binary with a clean
+ * `claude auth login`. Mawl never sees the login: it only spawns the binary with a clean
  * environment, no tools, no setting sources and no session.
  */
 export function createClaudeCodeModel(opts: ClaudeCodeModelOptions): LanguageModelV4 {

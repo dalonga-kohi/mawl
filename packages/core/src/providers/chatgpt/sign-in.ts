@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import type { ChatGptSignInFailure } from '@faire/contracts'
+import type { ChatGptSignInFailure } from '@mawl/contracts'
 import { buildAuthorizeUrl, redirectUri } from './authorize.ts'
 import { DYNAMIC_CLIENT_ID } from './constants.ts'
 import { IdTokenError, type IdTokenKeys, verifyIdToken } from './id-token.ts'

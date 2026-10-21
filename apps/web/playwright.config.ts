@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// Browser e2e: the Vite app talks to a real faire-server (on a throwaway Postgres) whose runs are
+// Browser e2e: the Vite app talks to a real mawl-server (on a throwaway Postgres) whose runs are
 // answered by a scripted echo model, so no API key or network is needed. See
 // apps/server/src/e2e/. Run it with `pnpm test:e2e`; it is not part of the turbo gate.
 const SERVER_PORT = 7421
@@ -25,11 +25,11 @@ export default defineConfig({
   webServer: [
     {
       // Container pull plus boot can be slow on a cold machine.
-      command: 'pnpm --filter @faire/server e2e:serve',
+      command: 'pnpm --filter @mawl/server e2e:serve',
       url: `${SERVER_URL}/healthz`,
       timeout: 120_000,
       reuseExistingServer: !process.env.CI,
-      env: { FAIRE_E2E: '1', FAIRE_PORT: String(SERVER_PORT) },
+      env: { MAWL_E2E: '1', MAWL_PORT: String(SERVER_PORT) },
       stdout: 'ignore',
       stderr: 'pipe',
     },
@@ -38,7 +38,7 @@ export default defineConfig({
       url: WEB_URL,
       timeout: 60_000,
       reuseExistingServer: !process.env.CI,
-      env: { FAIRE_DEV_SERVER: SERVER_URL },
+      env: { MAWL_DEV_SERVER: SERVER_URL },
     },
   ],
 })

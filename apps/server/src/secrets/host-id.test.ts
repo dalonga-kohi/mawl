@@ -6,7 +6,7 @@ import { HOST_ID_FILE, HostIdError, loadOrCreateHostId } from './host-id.ts'
 
 let dir: string
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'faire-hostid-'))
+  dir = await mkdtemp(join(tmpdir(), 'mawl-hostid-'))
 })
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
@@ -45,7 +45,7 @@ describe('loadOrCreateHostId', () => {
   })
 
   it('does not derive from anything user identifying: two servers get different ids', async () => {
-    const other = await mkdtemp(join(tmpdir(), 'faire-hostid-'))
+    const other = await mkdtemp(join(tmpdir(), 'mawl-hostid-'))
     try {
       expect(await loadOrCreateHostId(other)).not.toBe(await loadOrCreateHostId(dir))
     } finally {

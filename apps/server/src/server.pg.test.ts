@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { contract } from '@faire/contracts'
-import { withPostgres } from '@faire/testkit'
+import type { contract } from '@mawl/contracts'
+import { withPostgres } from '@mawl/testkit'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -14,7 +14,7 @@ describe('server against real Postgres', () => {
   const databaseUrl = withPostgres()
 
   it('migrates, answers /healthz 200, serves health.get over RPC and stops cleanly', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'faire-pg-boot-'))
+    const dir = await mkdtemp(join(tmpdir(), 'mawl-pg-boot-'))
     const server = await startServer(
       {
         databaseUrl: databaseUrl(),

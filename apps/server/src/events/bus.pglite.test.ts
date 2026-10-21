@@ -1,5 +1,5 @@
-import type { LenientEnvelope, ProfileId } from '@faire/contracts'
-import { schema } from '@faire/db'
+import type { LenientEnvelope, ProfileId } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
 import { insertEvent } from '../runs/repo.ts'
@@ -164,13 +164,13 @@ describe('event bus on PGlite', () => {
     await bus.start()
     const row = (id: number) => ({ id, profileId, type: 'notify', payload: notifyPayload })
     await env.db.insert(events).values(row(2))
-    await env.client.query(`select pg_notify('faire_events', '{}')`)
+    await env.client.query(`select pg_notify('mawl_events', '{}')`)
     await vi.waitFor(() => expect(timers.pending.map((t) => t.ms)).toEqual([250]))
     expect(ids()).toEqual([])
 
     // The transaction holding id 1 commits late.
     await env.db.insert(events).values(row(1))
-    await env.client.query(`select pg_notify('faire_events', '{}')`)
+    await env.client.query(`select pg_notify('mawl_events', '{}')`)
     await vi.waitFor(() => expect(ids()).toEqual(['1', '2']))
   })
 
@@ -179,7 +179,7 @@ describe('event bus on PGlite', () => {
     await bus.start()
     // id 1 is burnt (a rolled-back transaction), id 2 is real.
     await env.db.insert(events).values({ id: 2, profileId, type: 'notify', payload: notifyPayload })
-    await env.client.query(`select pg_notify('faire_events', '{}')`)
+    await env.client.query(`select pg_notify('mawl_events', '{}')`)
     await vi.waitFor(() => expect(timers.pending).toHaveLength(1))
     timers.advance(1000)
     await vi.waitFor(() => expect(timers.pending).toHaveLength(1))

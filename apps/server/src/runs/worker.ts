@@ -1,4 +1,4 @@
-import { RunId } from '@faire/contracts'
+import { RunId } from '@mawl/contracts'
 import {
   ABORT_SHUTDOWN,
   type Clock,
@@ -6,8 +6,8 @@ import {
   type ProfileRecord,
   type ResolvedModel,
   type RunRecord,
-} from '@faire/core'
-import { type DbHandle, schema } from '@faire/db'
+} from '@mawl/core'
+import { type DbHandle, schema } from '@mawl/db'
 import { inArray } from 'drizzle-orm'
 import { Logger as GraphileLogger, type LogLevel, run, runMigrations } from 'graphile-worker'
 import { z } from 'zod'

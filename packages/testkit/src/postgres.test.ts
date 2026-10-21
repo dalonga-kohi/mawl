@@ -75,13 +75,13 @@ describe('dockerPolicy', () => {
     expect(dockerPolicy(false, { CI: 'true' })).toBe('fail')
   })
 
-  it('fails instead of skipping when FAIRE_REQUIRE_DOCKER is set', () => {
-    expect(dockerPolicy(false, { FAIRE_REQUIRE_DOCKER: '1' })).toBe('fail')
+  it('fails instead of skipping when MAWL_REQUIRE_DOCKER is set', () => {
+    expect(dockerPolicy(false, { MAWL_REQUIRE_DOCKER: '1' })).toBe('fail')
   })
 
   it('treats empty, 0 and false as not set', () => {
     for (const v of ['', '0', 'false']) {
-      expect(dockerPolicy(false, { CI: v, FAIRE_REQUIRE_DOCKER: v })).toBe('skip')
+      expect(dockerPolicy(false, { CI: v, MAWL_REQUIRE_DOCKER: v })).toBe('skip')
     }
   })
 })

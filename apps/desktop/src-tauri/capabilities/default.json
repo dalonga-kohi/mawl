@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities of the main Faire window. No filesystem, no shell.",
+  "description": "Capabilities of the main Mawl window. No filesystem, no shell.",
   "windows": ["main"],
   "permissions": [
     "core:default",

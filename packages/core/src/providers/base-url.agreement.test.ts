@@ -1,4 +1,4 @@
-import { ProviderCredentialInput } from '@faire/contracts'
+import { ProviderCredentialInput } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { resolveBaseUrl } from './descriptors.ts'
 

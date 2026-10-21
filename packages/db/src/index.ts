@@ -4,7 +4,7 @@ import pg from 'pg'
 import { migrate, migrationsFolder } from './migrate.ts'
 import * as schema from './schema.ts'
 
-export const packageName = '@faire/db'
+export const packageName = '@mawl/db'
 
 export { migrate, migrationsFolder, schema }
 

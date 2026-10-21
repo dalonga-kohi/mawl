@@ -3,7 +3,7 @@ import {
   ProviderCredentialInput as ProviderCredentialInputSchema,
   type ProviderDescriptor,
   type ProviderKind,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { useMutation } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -76,8 +76,8 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
           errorCode(e) === 'VALIDATION'
             ? "The server didn't accept these details. Check each field and try again."
             : errorCode(e) === undefined
-              ? "Couldn't reach the Faire server. Check that it's running, then try again."
-              : "Faire couldn't save this connection. Try again.",
+              ? "Couldn't reach the Mawl server. Check that it's running, then try again."
+              : "Mawl couldn't save this connection. Try again.",
       }),
   })
 
@@ -108,7 +108,7 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
         else if (field === 'label') next.label ??= 'Keep the name under 80 characters.'
         else if (field === 'secret') next.secret ??= 'That key is too long.'
         // Fail closed on anything the form has no field for.
-        else next.form ??= 'Faire refused these details. Check each field and try again.'
+        else next.form ??= 'Mawl refused these details. Check each field and try again.'
       }
     }
     setErrors(next)
@@ -183,7 +183,7 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
           fieldError(ids.secret, errors.secret)
         ) : (
           <p id={`${ids.secret}-help`} className="text-small text-text-2">
-            Stays on your Faire server, encrypted. Faire checks it with one small request.
+            Stays on your Mawl server, encrypted. Mawl checks it with one small request.
           </p>
         )}
       </div>

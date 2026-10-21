@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import type { ProviderTestResult } from '@faire/contracts'
+import type { ProviderTestResult } from '@mawl/contracts'
 import { z } from 'zod'
 import { buildClaudeEnv } from './env.ts'
 

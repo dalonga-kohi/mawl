@@ -8,7 +8,7 @@ import {
   type ProviderCredentialRemoved,
   type ProviderFailureReason,
   type ProviderTestResult,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import {
   type ClaudeLoginTestOptions,
   type ClaudeQueryFn,
@@ -16,8 +16,8 @@ import {
   type ProviderConnection,
   ProviderFailureError,
   testCredential,
-} from '@faire/core'
-import { schema } from '@faire/db'
+} from '@mawl/core'
+import { schema } from '@mawl/db'
 import { asc, eq } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import { type SecretBox, SecretDecryptError } from '../secrets/index.ts'

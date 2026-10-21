@@ -42,12 +42,12 @@ describe('redactDeep', () => {
   it('scrubs userinfo from urls in string values', () => {
     const out = JSON.stringify(
       redactDeep({
-        msg: 'connect postgres://faire:pw123@db:5432/faire failed; also https://u:p2@h/x',
+        msg: 'connect postgres://mawl:pw123@db:5432/mawl failed; also https://u:p2@h/x',
       }),
     )
     expect(out).not.toContain('pw123')
     expect(out).not.toContain('p2@')
-    expect(out).toContain('postgres://faire:[Redacted]@db:5432/faire')
+    expect(out).toContain('postgres://mawl:[Redacted]@db:5432/mawl')
   })
 
   it('scrubs bearer tokens and known api key prefixes in strings', () => {

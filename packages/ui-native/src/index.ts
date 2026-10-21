@@ -1,1 +1,1 @@
-export const packageName = '@faire/ui-native'
+export const packageName = '@mawl/ui-native'

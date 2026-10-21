@@ -5,8 +5,8 @@ import {
   type ProfileId,
   type RunId,
   type Topic,
-} from '@faire/contracts'
-import { schema } from '@faire/db'
+} from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { and, asc, gt, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'

@@ -7,7 +7,7 @@ import type {
   StepKind,
   ThreadId,
   Usage,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import type { LanguageModel, ModelMessage, ToolSet } from 'ai'
 
 /** The run row, as the engine needs it. */

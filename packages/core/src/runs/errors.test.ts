@@ -1,4 +1,4 @@
-import { ProviderFailureReason } from '@faire/contracts'
+import { ProviderFailureReason } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { ProviderFailureError } from '../providers/failure.ts'
 import { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'

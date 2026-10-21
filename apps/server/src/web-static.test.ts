@@ -16,7 +16,7 @@ describe('serving the web build', () => {
   let webDir: string
 
   beforeAll(async () => {
-    base = await mkdtemp(join(tmpdir(), 'faire-web-'))
+    base = await mkdtemp(join(tmpdir(), 'mawl-web-'))
     webDir = join(base, 'web')
     await mkdir(join(webDir, 'assets'), { recursive: true })
     await writeFile(join(webDir, 'index.html'), INDEX)

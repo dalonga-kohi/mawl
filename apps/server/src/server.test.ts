@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CreateDbOptions, DbHandle } from '@faire/db'
+import type { CreateDbOptions, DbHandle } from '@mawl/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
 import { createLogger } from './logger.ts'
@@ -10,7 +10,7 @@ import { startServer } from './server.ts'
 
 let dir: string
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'faire-boot-'))
+  dir = await mkdtemp(join(tmpdir(), 'mawl-boot-'))
 })
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
@@ -33,7 +33,7 @@ function fakes(
 }
 
 const config = (): Config => ({
-  databaseUrl: 'postgres://faire:s3cr3t-pw@db/faire',
+  databaseUrl: 'postgres://mawl:s3cr3t-pw@db/mawl',
   host: '127.0.0.1',
   port: 0,
   secretsDir: join(dir, 'secrets'),

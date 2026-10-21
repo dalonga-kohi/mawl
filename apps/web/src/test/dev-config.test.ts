@@ -15,21 +15,21 @@ afterEach(() => {
 
 describe('web dev server config', () => {
   it('proxies /rpc and /ws to the local server on 7420 by default', async () => {
-    vi.stubEnv('FAIRE_DEV_SERVER', '')
+    vi.stubEnv('MAWL_DEV_SERVER', '')
     expect(await devProxy()).toEqual({
       '/rpc': 'http://127.0.0.1:7420',
       '/ws': { target: 'ws://127.0.0.1:7420', ws: true },
     })
   })
 
-  it('follows FAIRE_DEV_SERVER, deriving the ws scheme', async () => {
-    vi.stubEnv('FAIRE_DEV_SERVER', 'http://127.0.0.1:7421')
+  it('follows MAWL_DEV_SERVER, deriving the ws scheme', async () => {
+    vi.stubEnv('MAWL_DEV_SERVER', 'http://127.0.0.1:7421')
     expect(await devProxy()).toEqual({
       '/rpc': 'http://127.0.0.1:7421',
       '/ws': { target: 'ws://127.0.0.1:7421', ws: true },
     })
-    vi.stubEnv('FAIRE_DEV_SERVER', 'https://faire.example')
-    expect((await devProxy())['/ws']).toEqual({ target: 'wss://faire.example', ws: true })
+    vi.stubEnv('MAWL_DEV_SERVER', 'https://mawl.example')
+    expect((await devProxy())['/ws']).toEqual({ target: 'wss://mawl.example', ws: true })
   })
 
   it('keeps Playwright specs out of Vitest', async () => {

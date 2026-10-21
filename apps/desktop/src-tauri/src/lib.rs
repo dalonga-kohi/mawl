@@ -11,7 +11,7 @@ use tauri_plugin_deep_link::DeepLinkExt;
 
 const MAIN_WINDOW: &str = "main";
 /// The web app listens for this event and routes to the path in the payload.
-const NAVIGATE_EVENT: &str = "faire://navigate";
+const NAVIGATE_EVENT: &str = "mawl://navigate";
 
 /// The in-app path of a link that launched the app. The window cannot listen yet at that point,
 /// so the web app asks for it once after it has registered its listener.
@@ -43,7 +43,7 @@ fn open_deep_link(app: &AppHandle, url: &str) {
 pub fn run() {
     tauri::Builder::default()
         // Registered first, as the single-instance docs require. With the `deep-link` feature the
-        // plugin forwards a `faire://` argument of the second launch to `on_open_url` below.
+        // plugin forwards a `mawl://` argument of the second launch to `on_open_url` below.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main_window(app);
         }))
@@ -75,12 +75,12 @@ pub fn run() {
                 }
             });
 
-            let open = MenuItemBuilder::with_id("open", "Open Faire").build(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit Faire").build(app)?;
+            let open = MenuItemBuilder::with_id("open", "Open Mawl").build(app)?;
+            let quit = MenuItemBuilder::with_id("quit", "Quit Mawl").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
 
             let mut tray = TrayIconBuilder::with_id("main")
-                .tooltip("Faire")
+                .tooltip("Mawl")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -115,5 +115,5 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running Faire");
+        .expect("error while running Mawl");
 }

@@ -5,10 +5,10 @@ import {
   RUN_TERMINAL_STATUSES,
   type RunId,
   type Topic,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { ORPCError } from '@orpc/client'
 import type { QueryClient } from '@tanstack/query-core'
-import type { FaireQueryUtils } from './client.ts'
+import type { MawlQueryUtils } from './client.ts'
 
 export interface EventsSubscribeInput {
   topics: Topic[]
@@ -29,7 +29,7 @@ export interface EventStoreOptions {
   events: EventsApi
   queryClient: QueryClient
   /** Builds the query keys to invalidate. */
-  utils: FaireQueryUtils
+  utils: MawlQueryUtils
   /** Defaults to every profile. */
   topics?: Topic[]
   /** For backoff jitter, in [0, 1). Defaults to Math.random. */

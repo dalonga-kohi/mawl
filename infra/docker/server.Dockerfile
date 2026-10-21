@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# Faire server image: the esbuild bundle, its SQL migrations, the built web app, and the Claude
+# Mawl server image: the esbuild bundle, its SQL migrations, the built web app, and the Claude
 # Code native binary. Build context is the repository root:
-#   docker build -f infra/docker/server.Dockerfile -t faire-server:local .
+#   docker build -f infra/docker/server.Dockerfile -t mawl-server:local .
 # Debian (glibc), not Alpine: the Claude Agent SDK ships a glibc binary per CPU architecture.
 
 # ---- build: install the workspace, build the web app and the server bundle ----
@@ -10,16 +10,16 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 CI=true
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@10.18.0 --activate
 COPY . .
-RUN pnpm install --frozen-lockfile --filter @faire/server... --filter @faire/web...
-RUN pnpm --filter @faire/web build && pnpm --filter @faire/server build
+RUN pnpm install --frozen-lockfile --filter @mawl/server... --filter @mawl/web...
+RUN pnpm --filter @mawl/web build && pnpm --filter @mawl/server build
 
 # ---- runtime: bundle + web + the Claude Code binary, as the non-root `node` user ----
 FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS runtime
 ENV NODE_ENV=production \
-    FAIRE_HOST=0.0.0.0 \
-    FAIRE_SECRETS_DIR=/secrets \
-    FAIRE_SIWC_BIND_HOST=0.0.0.0 \
-    FAIRE_CLAUDE_CONFIG_DIR=/claude \
+    MAWL_HOST=0.0.0.0 \
+    MAWL_SECRETS_DIR=/secrets \
+    MAWL_SIWC_BIND_HOST=0.0.0.0 \
+    MAWL_CLAUDE_CONFIG_DIR=/claude \
     CLAUDE_CONFIG_DIR=/claude
 WORKDIR /app
 
@@ -38,7 +38,7 @@ COPY --from=build /repo/apps/server/dist/ /app/dist/
 COPY --from=build /repo/apps/web/dist/ /app/dist/web/
 
 # CLAUDE_CONFIG_DIR is for the shell: `docker compose exec server claude auth login` must write to the
-# same directory the server hands to the binary it spawns (FAIRE_CLAUDE_CONFIG_DIR), and the volume.
+# same directory the server hands to the binary it spawns (MAWL_CLAUDE_CONFIG_DIR), and the volume.
 # Named volumes copy this ownership when they are first created.
 RUN mkdir -p /secrets /claude && chown node:node /secrets /claude
 USER node

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { checkHost } from './host.ts'
 
-const policy = { bindHost: '192.168.1.5', allowedOrigins: ['https://faire.example.com:8443'] }
+const policy = { bindHost: '192.168.1.5', allowedOrigins: ['https://mawl.example.com:8443'] }
 
 describe('checkHost', () => {
   it.each([
@@ -14,8 +14,8 @@ describe('checkHost', () => {
     '[::1]:7420',
     '[::1]',
     '192.168.1.5:7420',
-    'faire.example.com:7420',
-    'faire.example.com',
+    'mawl.example.com:7420',
+    'mawl.example.com',
   ])('accepts the Host %s', (host) => {
     expect(checkHost(host, policy)).toEqual({ ok: true })
   })

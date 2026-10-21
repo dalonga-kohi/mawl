@@ -26,8 +26,8 @@ playwright-report/
 .claude/settings.local.json
 .claude/worktrees/
 
-# Faire local runtime state (master key, etc.)
-.faire/
+# Mawl local runtime state (master key, etc.)
+.mawl/
 
 # Compose secrets
 infra/compose/.env

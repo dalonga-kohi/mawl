@@ -1,8 +1,8 @@
-# Faire 🦫
+# Mawl 🦫
 
 **AI teammates you own.** They run on your machine, use your keys and your model, and keep working while you sleep.
 
-Faire is a self-hosted, always-on agent app:
+Mawl is a self-hosted, always-on agent app:
 - **Any model.** Anthropic, OpenAI, OpenRouter, or a local model through Ollama.
 - **A computer you can watch.** Each teammate has its own sandboxed Linux desktop. Watch it live and take control.
 - **Memory that lasts.** Long-horizon memory you can see and edit, with automatic context management.
@@ -17,11 +17,11 @@ Faire is a self-hosted, always-on agent app:
 docker compose -f infra/compose/docker-compose.yml up -d --build
 ```
 
-Set `FAIRE_DB_PASSWORD` in `infra/compose/.env` first (copy `.env.example`), then open http://localhost:7420. [docs/RUNNING.md](docs/RUNNING.md) covers sign-in with ChatGPT or Claude Code, logs and reset.
+Set `MAWL_DB_PASSWORD` in `infra/compose/.env` first (copy `.env.example`), then open http://localhost:7420. [docs/RUNNING.md](docs/RUNNING.md) covers sign-in with ChatGPT or Claude Code, logs and reset.
 
 ## Docs
 - [Spec](docs/SPEC.md) · [Architecture](docs/ARCHITECTURE.md) · [Memory](docs/MEMORY.md) · [Plan](docs/PLAN.md) · [Design](docs/DESIGN.md)
 - Interactive mockup: [design/mockup/index.html](design/mockup/index.html)
 
-## Working on Faire with Claude Code
+## Working on Mawl with Claude Code
 See [CLAUDE.md](CLAUDE.md). The main session orchestrates, and subagents in `.claude/agents/` (explorer, coder and head-coder, runner, test-author, reviewer and head-reviewer, advisor) implement each slice in a TDD loop.

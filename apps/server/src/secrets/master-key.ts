@@ -38,7 +38,7 @@ async function readKey(file: string): Promise<Uint8Array> {
   if (bytes.length !== MASTER_KEY_BYTES) {
     throw new MasterKeyError(
       `Master key file ${file} must be exactly ${MASTER_KEY_BYTES} bytes (found ${bytes.length}). ` +
-        'Restore it from backup; Faire will not overwrite it.',
+        'Restore it from backup; Mawl will not overwrite it.',
     )
   }
   return new Uint8Array(bytes)

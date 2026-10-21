@@ -7,11 +7,11 @@ import type {
   ProviderCredentialRemoved,
   ProviderDescriptor,
   ProviderTestResult,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 
 /**
  * What the Models settings need from the server. The app implements it with the typed client from
- * @faire/client; tests pass an in-memory fake. Errors carry the oRPC `code` (for example
+ * @mawl/client; tests pass an in-memory fake. Errors carry the oRPC `code` (for example
  * `SIGN_IN_UNAVAILABLE`), never provider text.
  */
 export interface ProvidersApi {

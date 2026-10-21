@@ -2,7 +2,7 @@ import { rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider'
-import type { ProviderTestResult } from '@faire/contracts'
+import type { ProviderTestResult } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderFailureError } from '../failure.ts'
 import { fakeQuery, msg } from './test-util.ts'
@@ -43,7 +43,7 @@ describe('claude work dir (hardening)', () => {
     for (const dir of [first, second]) {
       expect(dirname(dir)).toBe(tmpdir())
       // mkdtemp appends six random characters to the prefix.
-      expect(basename(dir)).toMatch(/^faire-claude-code-[A-Za-z0-9]{6}$/)
+      expect(basename(dir)).toMatch(/^mawl-claude-code-[A-Za-z0-9]{6}$/)
       expect((await stat(dir)).isDirectory()).toBe(true)
     }
   })
@@ -55,7 +55,7 @@ describe('claude work dir (hardening)', () => {
 
   it('is not the fixed path an earlier version used', async () => {
     const dir = await runOnce(await freshModelModule())
-    expect(dir).not.toBe(join(tmpdir(), 'faire-claude-code'))
+    expect(dir).not.toBe(join(tmpdir(), 'mawl-claude-code'))
   })
 
   it('creates the dir once for concurrent first calls in one process', async () => {
@@ -118,7 +118,7 @@ describe('claude work dir (hardening)', () => {
         modelId: 'sonnet',
         query: fq.query,
         checkLogin: okLogin,
-        ...(fn === 'mkdir' ? { workDir: join(tmpdir(), 'faire-injected-fail') } : {}),
+        ...(fn === 'mkdir' ? { workDir: join(tmpdir(), 'mawl-injected-fail') } : {}),
       })
       const err = await m.doGenerate(prompt).then(
         () => undefined,

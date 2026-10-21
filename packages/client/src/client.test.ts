@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFaireClient } from './client.ts'
+import { createMawlClient } from './client.ts'
 
 type Listener = (event: { data?: unknown }) => void
 
@@ -42,10 +42,10 @@ class FakeSocket {
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
-describe('createFaireClient', () => {
+describe('createMawlClient', () => {
   const make = () => {
     FakeSocket.instances = []
-    return createFaireClient({
+    return createMawlClient({
       url: 'ws://127.0.0.1:7420/ws',
       WebSocket: FakeSocket as never,
     })
@@ -102,7 +102,7 @@ describe('createFaireClient', () => {
     const original = (globalThis as { WebSocket?: unknown }).WebSocket
     ;(globalThis as { WebSocket?: unknown }).WebSocket = undefined
     try {
-      expect(() => createFaireClient({ url: 'ws://x/ws' })).toThrow('No WebSocket implementation')
+      expect(() => createMawlClient({ url: 'ws://x/ws' })).toThrow('No WebSocket implementation')
     } finally {
       ;(globalThis as { WebSocket?: unknown }).WebSocket = original
     }

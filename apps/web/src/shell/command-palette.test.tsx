@@ -60,7 +60,7 @@ describe('command palette', () => {
     await user.keyboard('{Control>}k{/Control}')
     await user.keyboard('coral')
     await user.keyboard('{Enter}')
-    expect(JSON.parse(localStorage.getItem('faire.appearance') ?? '{}').accent).toBe('#EF6F5E')
+    expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').accent).toBe('#EF6F5E')
   })
 
   it('says so when nothing matches', async () => {

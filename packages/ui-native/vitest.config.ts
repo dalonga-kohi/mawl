@@ -1,5 +1,5 @@
 import { defineProject } from 'vitest/config'
 
 export default defineProject({
-  test: { name: '@faire/ui-native' },
+  test: { name: '@mawl/ui-native' },
 })

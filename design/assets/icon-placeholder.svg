@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <title>Faire app icon (placeholder)</title>
+  <title>Mawl app icon (placeholder)</title>
   <!-- PLACEHOLDER app icon: a plain Lake-accent square with an F. Replace with the real icon (PLAN: waiting for image). -->
   <rect width="1024" height="1024" rx="224" fill="#3D8BFD"/>
   <path fill="#FFFFFF" d="M352 256h352v112H480v96h200v112H480v192H352z"/>

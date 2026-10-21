@@ -6,7 +6,7 @@ import { loadOrCreateMasterKey, MasterKeyError } from './master-key.ts'
 
 let root: string
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'faire-key-'))
+  root = await mkdtemp(join(tmpdir(), 'mawl-key-'))
 })
 afterEach(async () => {
   await rm(root, { recursive: true, force: true })

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDb } from '@faire/db'
+import { createDb } from '@mawl/db'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildServer } from '../build.ts'
 
@@ -24,7 +24,7 @@ export function describeBundleOnPostgres(adminUrl: () => string): void {
     let out: string
 
     beforeAll(async () => {
-      out = await mkdtemp(join(tmpdir(), 'faire-build-pg-'))
+      out = await mkdtemp(join(tmpdir(), 'mawl-build-pg-'))
       await buildServer({ outdir: out })
     }, 60_000)
 
@@ -46,9 +46,9 @@ export function describeBundleOnPostgres(adminUrl: () => string): void {
         env: {
           PATH: process.env.PATH ?? '',
           DATABASE_URL: u.toString(),
-          FAIRE_SECRETS_DIR: join(out, 'secrets'),
-          FAIRE_PORT: String(port),
-          FAIRE_SIWC_PORT: String(await freePort()),
+          MAWL_SECRETS_DIR: join(out, 'secrets'),
+          MAWL_PORT: String(port),
+          MAWL_SIWC_PORT: String(await freePort()),
         },
       })
       const chunks: string[] = []

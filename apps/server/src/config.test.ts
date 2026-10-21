@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
-const URL_WITH_PASSWORD = 'postgres://faire:s3cr3t-pw@db:5432/faire'
+const URL_WITH_PASSWORD = 'postgres://mawl:s3cr3t-pw@db:5432/mawl'
 
 describe('parseConfig', () => {
   it('applies defaults', () => {
@@ -10,7 +10,7 @@ describe('parseConfig', () => {
       databaseUrl: URL_WITH_PASSWORD,
       host: '127.0.0.1',
       port: 7420,
-      secretsDir: '.faire/secrets',
+      secretsDir: '.mawl/secrets',
       siwcPort: 1455,
       siwcHost: '127.0.0.1',
       claudeConfigDir: undefined,
@@ -24,14 +24,14 @@ describe('parseConfig', () => {
     expect(
       parseConfig({
         DATABASE_URL: 'postgresql://u:p@h/d',
-        FAIRE_HOST: '0.0.0.0',
-        FAIRE_PORT: '8080',
-        FAIRE_SECRETS_DIR: '/secrets',
-        FAIRE_SIWC_PORT: '1456',
-        FAIRE_SIWC_BIND_HOST: '0.0.0.0',
-        FAIRE_CLAUDE_CONFIG_DIR: '/data/claude',
-        FAIRE_CLAUDE_CODE_PATH: '/opt/claude',
-        FAIRE_ALLOWED_ORIGINS: 'https://faire.example.com, http://192.168.1.5:5173',
+        MAWL_HOST: '0.0.0.0',
+        MAWL_PORT: '8080',
+        MAWL_SECRETS_DIR: '/secrets',
+        MAWL_SIWC_PORT: '1456',
+        MAWL_SIWC_BIND_HOST: '0.0.0.0',
+        MAWL_CLAUDE_CONFIG_DIR: '/data/claude',
+        MAWL_CLAUDE_CODE_PATH: '/opt/claude',
+        MAWL_ALLOWED_ORIGINS: 'https://mawl.example.com, http://192.168.1.5:5173',
         LOG_LEVEL: 'debug',
       }),
     ).toEqual({
@@ -43,13 +43,13 @@ describe('parseConfig', () => {
       siwcHost: '0.0.0.0',
       claudeConfigDir: '/data/claude',
       claudeCodePath: '/opt/claude',
-      allowedOrigins: ['https://faire.example.com', 'http://192.168.1.5:5173'],
+      allowedOrigins: ['https://mawl.example.com', 'http://192.168.1.5:5173'],
       logLevel: 'debug',
     })
   })
 
   it('treats empty strings as unset for optional variables', () => {
-    const cfg = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, FAIRE_PORT: '', LOG_LEVEL: '' })
+    const cfg = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, MAWL_PORT: '', LOG_LEVEL: '' })
     expect(cfg.port).toBe(7420)
     expect(cfg.logLevel).toBe('info')
   })
@@ -57,14 +57,14 @@ describe('parseConfig', () => {
   it('treats empty Claude variables as unset', () => {
     const cfg = parseConfig({
       DATABASE_URL: URL_WITH_PASSWORD,
-      FAIRE_CLAUDE_CONFIG_DIR: '',
-      FAIRE_CLAUDE_CODE_PATH: '',
+      MAWL_CLAUDE_CONFIG_DIR: '',
+      MAWL_CLAUDE_CODE_PATH: '',
     })
     expect(cfg.claudeConfigDir).toBeUndefined()
     expect(cfg.claudeCodePath).toBeUndefined()
   })
 
-  it.each(['FAIRE_CLAUDE_CONFIG_DIR', 'FAIRE_CLAUDE_CODE_PATH'])(
+  it.each(['MAWL_CLAUDE_CONFIG_DIR', 'MAWL_CLAUDE_CODE_PATH'])(
     'rejects a relative %s, names it and does not echo the value',
     (name) => {
       const run = () => parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, [name]: 'rel/secret-dir' })
@@ -78,8 +78,8 @@ describe('parseConfig', () => {
     const abs = resolve('claude-abs')
     const cfg = parseConfig({
       DATABASE_URL: URL_WITH_PASSWORD,
-      FAIRE_CLAUDE_CONFIG_DIR: abs,
-      FAIRE_CLAUDE_CODE_PATH: abs,
+      MAWL_CLAUDE_CONFIG_DIR: abs,
+      MAWL_CLAUDE_CODE_PATH: abs,
     })
     expect(cfg.claudeConfigDir).toBe(abs)
     expect(cfg.claudeCodePath).toBe(abs)
@@ -88,22 +88,22 @@ describe('parseConfig', () => {
     expect(none.claudeCodePath).toBeUndefined()
   })
 
-  it('reads FAIRE_WEB_DIR as an absolute path, unset when empty or absent', () => {
+  it('reads MAWL_WEB_DIR as an absolute path, unset when empty or absent', () => {
     const abs = resolve('web-build')
     const base = { DATABASE_URL: URL_WITH_PASSWORD }
-    expect(parseConfig({ ...base, FAIRE_WEB_DIR: abs }).webDir).toBe(abs)
-    expect(parseConfig({ ...base, FAIRE_WEB_DIR: '' }).webDir).toBeUndefined()
+    expect(parseConfig({ ...base, MAWL_WEB_DIR: abs }).webDir).toBe(abs)
+    expect(parseConfig({ ...base, MAWL_WEB_DIR: '' }).webDir).toBeUndefined()
     expect(parseConfig(base).webDir).toBeUndefined()
-    const run = () => parseConfig({ ...base, FAIRE_WEB_DIR: 'rel/web' })
-    expect(run).toThrow(/FAIRE_WEB_DIR: must be an absolute path/)
+    const run = () => parseConfig({ ...base, MAWL_WEB_DIR: 'rel/web' })
+    expect(run).toThrow(/MAWL_WEB_DIR: must be an absolute path/)
     expect(run).not.toThrow(/rel\/web/)
   })
 
-  it('parses FAIRE_ALLOWED_ORIGINS as a trimmed list and treats empty as none', () => {
+  it('parses MAWL_ALLOWED_ORIGINS as a trimmed list and treats empty as none', () => {
     const base = { DATABASE_URL: URL_WITH_PASSWORD }
-    expect(parseConfig({ ...base, FAIRE_ALLOWED_ORIGINS: '' }).allowedOrigins).toEqual([])
+    expect(parseConfig({ ...base, MAWL_ALLOWED_ORIGINS: '' }).allowedOrigins).toEqual([])
     expect(
-      parseConfig({ ...base, FAIRE_ALLOWED_ORIGINS: ' https://a.example/ ,,tauri://localhost' })
+      parseConfig({ ...base, MAWL_ALLOWED_ORIGINS: ' https://a.example/ ,,tauri://localhost' })
         .allowedOrigins,
     ).toEqual(['https://a.example', 'tauri://localhost'])
   })
@@ -111,17 +111,17 @@ describe('parseConfig', () => {
   it('rejects an allowed origin that is not a bare origin, naming the variable but not the value', () => {
     for (const bad of [
       '*',
-      'faire.example.com',
+      'mawl.example.com',
       'https://a.example/path',
       'https://a.example?x=1',
     ]) {
       let message = ''
       try {
-        parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, FAIRE_ALLOWED_ORIGINS: bad })
+        parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, MAWL_ALLOWED_ORIGINS: bad })
       } catch (err) {
         message = (err as Error).message
       }
-      expect(message).toContain('FAIRE_ALLOWED_ORIGINS')
+      expect(message).toContain('MAWL_ALLOWED_ORIGINS')
       expect(message).not.toContain(bad)
     }
   })
@@ -132,12 +132,12 @@ describe('parseConfig', () => {
   })
 
   it.each([
-    ['FAIRE_PORT', '99999'],
-    ['FAIRE_PORT', 'abc'],
-    ['FAIRE_PORT', '0'],
-    ['FAIRE_SIWC_PORT', '0'],
-    ['FAIRE_SIWC_PORT', '70000'],
-    ['FAIRE_SIWC_PORT', 'abc'],
+    ['MAWL_PORT', '99999'],
+    ['MAWL_PORT', 'abc'],
+    ['MAWL_PORT', '0'],
+    ['MAWL_SIWC_PORT', '0'],
+    ['MAWL_SIWC_PORT', '70000'],
+    ['MAWL_SIWC_PORT', 'abc'],
     ['LOG_LEVEL', 'loud'],
   ])('rejects %s=%s and names the variable', (name, value) => {
     expect(() => parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, [name]: value })).toThrow(
@@ -147,9 +147,9 @@ describe('parseConfig', () => {
 
   it('never puts values in the error, including the database password', () => {
     for (const env of [
-      { DATABASE_URL: 'mysql://faire:s3cr3t-pw@db/faire' },
-      { DATABASE_URL: 'postgres://faire:s3cr3t-pw@[bad/faire' },
-      { DATABASE_URL: URL_WITH_PASSWORD, FAIRE_PORT: 'hunter2-port' },
+      { DATABASE_URL: 'mysql://mawl:s3cr3t-pw@db/mawl' },
+      { DATABASE_URL: 'postgres://mawl:s3cr3t-pw@[bad/mawl' },
+      { DATABASE_URL: URL_WITH_PASSWORD, MAWL_PORT: 'hunter2-port' },
       { DATABASE_URL: URL_WITH_PASSWORD, LOG_LEVEL: 'hunter2-level' },
     ]) {
       let message = ''
@@ -165,16 +165,16 @@ describe('parseConfig', () => {
   })
 
   it('lists every bad variable at once', () => {
-    expect(() => parseConfig({ FAIRE_PORT: 'x', LOG_LEVEL: 'y' })).toThrow(
-      /DATABASE_URL[\s\S]*FAIRE_PORT[\s\S]*LOG_LEVEL|FAIRE_PORT[\s\S]*LOG_LEVEL[\s\S]*DATABASE_URL/,
+    expect(() => parseConfig({ MAWL_PORT: 'x', LOG_LEVEL: 'y' })).toThrow(
+      /DATABASE_URL[\s\S]*MAWL_PORT[\s\S]*LOG_LEVEL|MAWL_PORT[\s\S]*LOG_LEVEL[\s\S]*DATABASE_URL/,
     )
   })
 })
 
 describe('parseConfig with the real process.env', () => {
   it('never throws text containing the DATABASE_URL password from the environment', () => {
-    vi.stubEnv('DATABASE_URL', 'postgres://faire:env-s3cr3t@db:5432/faire')
-    vi.stubEnv('FAIRE_PORT', 'not-a-port')
+    vi.stubEnv('DATABASE_URL', 'postgres://mawl:env-s3cr3t@db:5432/mawl')
+    vi.stubEnv('MAWL_PORT', 'not-a-port')
     try {
       let text = ''
       try {
@@ -182,7 +182,7 @@ describe('parseConfig with the real process.env', () => {
       } catch (e) {
         text = `${(e as Error).message}${(e as Error).stack}${JSON.stringify((e as ConfigError).issues)}`
       }
-      expect(text).toContain('FAIRE_PORT')
+      expect(text).toContain('MAWL_PORT')
       expect(text).not.toContain('env-s3cr3t')
     } finally {
       vi.unstubAllEnvs()

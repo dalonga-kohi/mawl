@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { withPostgres } from '@faire/testkit'
+import { withPostgres } from '@mawl/testkit'
 import { describe, expect, it } from 'vitest'
 import { createDb, migrate, migrationsFolder } from './index.ts'
 import { describeMigrations } from './migration-suite.ts'

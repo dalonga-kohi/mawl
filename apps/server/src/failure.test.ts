@@ -21,10 +21,10 @@ describe('describeFailure', () => {
 
   it('includes the reason for our own error classes', () => {
     expect(
-      describeFailure(new ConfigError([{ name: 'FAIRE_PORT', message: 'must be 1-65535' }])),
+      describeFailure(new ConfigError([{ name: 'MAWL_PORT', message: 'must be 1-65535' }])),
     ).toMatchObject({
       errName: 'ConfigError',
-      reason: expect.stringContaining('FAIRE_PORT'),
+      reason: expect.stringContaining('MAWL_PORT'),
     })
     expect(describeFailure(new MasterKeyError('bad key file'))).toMatchObject({
       errName: 'MasterKeyError',

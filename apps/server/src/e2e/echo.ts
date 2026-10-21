@@ -1,11 +1,11 @@
-import { ProviderFailureError, type ResolvedModel, type RunRecord } from '@faire/core'
-import { fakeModelFrom } from '@faire/testkit'
+import { ProviderFailureError, type ResolvedModel, type RunRecord } from '@mawl/core'
+import { fakeModelFrom } from '@mawl/testkit'
 
 // Dev and test only. Nothing in the production entry (src/main.ts) imports this file, and a
 // build test checks that the marker below never reaches dist/server.mjs.
 
 /** Model id of the scripted model. Doubles as the marker the bundle test looks for. */
-export const ECHO_MODEL_ID = 'faire-e2e-echo-model'
+export const ECHO_MODEL_ID = 'mawl-e2e-echo-model'
 /** Label of the credential the e2e server seeds, so the UI can pick it. */
 export const E2E_CREDENTIAL_LABEL = 'E2E fake model'
 

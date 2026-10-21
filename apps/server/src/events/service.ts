@@ -1,4 +1,4 @@
-import type { LenientEnvelope, Topic } from '@faire/contracts'
+import type { LenientEnvelope, Topic } from '@mawl/contracts'
 import type { EventBus } from './bus.ts'
 import { topicFilter } from './topics.ts'
 

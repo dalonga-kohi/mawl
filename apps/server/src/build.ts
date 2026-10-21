@@ -1,4 +1,4 @@
-// Production bundle: `pnpm --filter @faire/server build` -> dist/server.mjs (+ dist/drizzle).
+// Production bundle: `pnpm --filter @mawl/server build` -> dist/server.mjs (+ dist/drizzle).
 // Workspace packages are plain TypeScript with extensionless imports, so they are bundled in;
 // npm dependencies are bundled too, which keeps the runtime image to one file plus the SQL.
 import { cp, mkdir, readFile, rm } from 'node:fs/promises'
@@ -34,7 +34,7 @@ export async function buildServer({
     // The Claude Agent SDK locates its native binary beside itself in node_modules, so it must
     // stay a real install next to the bundle (P1.9 ships node_modules for it), never inlined.
     external: ['pg-native', '@anthropic-ai/claude-agent-sdk'],
-    define: { __FAIRE_VERSION__: JSON.stringify(pkg.version) },
+    define: { __MAWL_VERSION__: JSON.stringify(pkg.version) },
     // CommonJS dependencies (pg, pino) call require() on node builtins.
     banner: {
       js: "import { createRequire as __createRequire } from 'node:module';const require = __createRequire(import.meta.url);",

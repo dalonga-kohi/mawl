@@ -1,5 +1,5 @@
 {
-  "name": "@faire/db",
+  "name": "@mawl/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,14 +13,14 @@
     "db:migrate": "node src/bin/migrate.ts"
   },
   "dependencies": {
-    "@faire/contracts": "workspace:*",
+    "@mawl/contracts": "workspace:*",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.10",
     "@electric-sql/pglite-pgvector": "0.0.11",
-    "@faire/testkit": "workspace:*",
+    "@mawl/testkit": "workspace:*",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11"
   }

@@ -1,5 +1,5 @@
-import type { CredentialId } from '@faire/contracts'
-import type { schema } from '@faire/db'
+import type { CredentialId } from '@mawl/contracts'
+import type { schema } from '@mawl/db'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 
 /** Works with node-postgres in production and PGlite in tests. */

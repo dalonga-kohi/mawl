@@ -1,4 +1,4 @@
-import type { ProviderCredential, ProviderDescriptor, ProviderTestResult } from '@faire/contracts'
+import type { ProviderCredential, ProviderDescriptor, ProviderTestResult } from '@mawl/contracts'
 import { useMutation } from '@tanstack/react-query'
 import { AlertDialog } from 'radix-ui'
 import { useState } from 'react'
@@ -83,14 +83,14 @@ export function CredentialRow({
       if (!removed.revoked) onSignedOutUnconfirmed()
       else toast(isChatGpt ? 'Signed out of ChatGPT' : `${credential.label} removed`)
     },
-    onError: () => toast("Couldn't remove it. Check that the Faire server is running."),
+    onError: () => toast("Couldn't remove it. Check that the Mawl server is running."),
   })
 
   // The second line says what the connection is, without repeating the name.
   const providerName = isChatGpt
     ? (credential.accountEmail ?? 'ChatGPT account')
     : credential.provider === 'anthropic_claude_code'
-      ? 'Claude Code on the Faire server'
+      ? 'Claude Code on the Mawl server'
       : descriptor && descriptor.label !== credential.label
         ? descriptor.label
         : descriptor?.keyRequired === false
@@ -169,7 +169,7 @@ export function CredentialRow({
       {check.data ? <TestResultLine result={check.data} credential={credential} /> : null}
       {check.isError ? (
         <p role="alert" className="text-small text-danger">
-          Couldn't run the check. Make sure the Faire server is running.
+          Couldn't run the check. Make sure the Mawl server is running.
         </p>
       ) : null}
 
@@ -182,8 +182,8 @@ export function CredentialRow({
             </AlertDialog.Title>
             <AlertDialog.Description className="text-small text-text-2">
               {isChatGpt
-                ? 'Faire asks ChatGPT to revoke its access and forgets the sign-in. Teammates using it stop until you connect a model again.'
-                : 'Faire deletes the stored key. Teammates using it stop until you connect a model again.'}
+                ? 'Mawl asks ChatGPT to revoke its access and forgets the sign-in. Teammates using it stop until you connect a model again.'
+                : 'Mawl deletes the stored key. Teammates using it stop until you connect a model again.'}
             </AlertDialog.Description>
             <div className="flex justify-end gap-2 pt-1">
               <AlertDialog.Cancel asChild>

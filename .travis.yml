@@ -15,7 +15,7 @@ env:
   global:
     - CI=1
     # The Testcontainers suites must run here, never skip.
-    - FAIRE_REQUIRE_DOCKER=1
+    - MAWL_REQUIRE_DOCKER=1
     - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     - TURBO_CACHE_DIR=.turbo/cache
 
@@ -47,6 +47,6 @@ jobs:
     - stage: e2e
       name: browser e2e
       before_script:
-        - pnpm --filter @faire/web exec playwright install --with-deps chromium
+        - pnpm --filter @mawl/web exec playwright install --with-deps chromium
       script:
         - pnpm test:e2e

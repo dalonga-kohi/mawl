@@ -4,7 +4,7 @@ export type OriginCheck =
 
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 
-/** Lowercase, no trailing slash: how origins in `FAIRE_ALLOWED_ORIGINS` and headers are compared. */
+/** Lowercase, no trailing slash: how origins in `MAWL_ALLOWED_ORIGINS` and headers are compared. */
 export function normalizeOrigin(value: string): string {
   return value.trim().toLowerCase().replace(/\/+$/, '')
 }
@@ -14,7 +14,7 @@ export function normalizeOrigin(value: string): string {
  * handshake, and a page on another site must not be able to talk to a server on the owner's
  * network. A missing Origin means a non-browser client and passes (device auth is P6.1).
  * Allowed: the same host as the request, loopback on any port, the Tauri webview, and the
- * origins the owner lists in `FAIRE_ALLOWED_ORIGINS`.
+ * origins the owner lists in `MAWL_ALLOWED_ORIGINS`.
  */
 export function checkOrigin(input: {
   origin: string | undefined

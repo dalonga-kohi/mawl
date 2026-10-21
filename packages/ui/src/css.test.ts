@@ -150,7 +150,7 @@ describe('generateTokensCss', () => {
       expect(defined.has(m[1] as string), m[1]).toBe(true)
   })
 
-  it('matches the committed src/tokens.css (run `pnpm --filter @faire/ui generate` after changes)', () => {
+  it('matches the committed src/tokens.css (run `pnpm --filter @mawl/ui generate` after changes)', () => {
     const onDisk = readFileSync(new URL('./tokens.css', import.meta.url), 'utf8')
     expect(onDisk).toBe(css)
   })

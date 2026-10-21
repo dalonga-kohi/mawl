@@ -6,8 +6,8 @@ import {
   type RunId,
   type RunStatus,
   type Usage,
-} from '@faire/contracts'
-import { fakeModel, fixedClock } from '@faire/testkit'
+} from '@mawl/contracts'
+import { fakeModel, fixedClock } from '@mawl/testkit'
 import type { ModelMessage } from 'ai'
 import type {
   AppendResult,

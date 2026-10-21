@@ -1,4 +1,4 @@
-import type { ProviderTestResult } from '@faire/contracts'
+import type { ProviderTestResult } from '@mawl/contracts'
 import { type ClaudeLoginTestOptions, testClaudeCodeLogin } from './claude-code/auth-status.ts'
 import { type ProviderConnection, resolveBaseUrl } from './descriptors.ts'
 

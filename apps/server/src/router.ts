@@ -1,5 +1,5 @@
-import { type CredentialId, contract, type RunStatus } from '@faire/contracts'
-import { listProviderDescriptors } from '@faire/core'
+import { type CredentialId, contract, type RunStatus } from '@mawl/contracts'
+import { listProviderDescriptors } from '@mawl/core'
 import { implement, ORPCError } from '@orpc/server'
 import {
   type ConnectionState,
@@ -103,7 +103,7 @@ const profileErrors =
 
 /**
  * Every procedure in the contract must appear here: this object is type-checked against the
- * contract, so adding a procedure to `@faire/contracts` fails the build until it is stubbed
+ * contract, so adding a procedure to `@mawl/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
 export function createRouter({ version, providers, runs, events, profiles }: RouterDeps) {

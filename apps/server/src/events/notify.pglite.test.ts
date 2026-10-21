@@ -1,4 +1,4 @@
-import { schema } from '@faire/db'
+import { schema } from '@mawl/db'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { insertEvent, recordEvent } from '../runs/repo.ts'
 import { seedProfile } from '../runs/test-util.ts'

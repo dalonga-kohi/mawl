@@ -1,9 +1,9 @@
 export type HostCheck = { ok: true } | { ok: false; reason: 'host_not_allowed' }
 
 export interface HostPolicy {
-  /** The address the listener binds to (`FAIRE_HOST`). Wildcards like 0.0.0.0 never match a Host. */
+  /** The address the listener binds to (`MAWL_HOST`). Wildcards like 0.0.0.0 never match a Host. */
   bindHost: string
-  /** `FAIRE_ALLOWED_ORIGINS`: the owner's own hostnames. */
+  /** `MAWL_ALLOWED_ORIGINS`: the owner's own hostnames. */
   allowedOrigins: readonly string[]
 }
 
@@ -26,7 +26,7 @@ function hostnameOf(value: string): string | undefined {
  * DNS rebinding guard. A page on `evil.example` can make its name resolve to 127.0.0.1 and then
  * talk to the server as same-origin, so the Origin check alone is not enough: the `Host` header
  * (which the browser sets from the page's name) must be one of ours. Allowed: loopback names,
- * the bind address, and the hosts of `FAIRE_ALLOWED_ORIGINS`. The port is not compared.
+ * the bind address, and the hosts of `MAWL_ALLOWED_ORIGINS`. The port is not compared.
  */
 export function checkHost(host: string | undefined, policy: HostPolicy): HostCheck {
   const deny = { ok: false, reason: 'host_not_allowed' } as const

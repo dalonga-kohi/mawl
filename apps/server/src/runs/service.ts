@@ -10,9 +10,9 @@ import {
   type RunStatus,
   type Thread,
   type ThreadId,
-} from '@faire/contracts'
-import type { RunStore } from '@faire/core'
-import { schema } from '@faire/db'
+} from '@mawl/contracts'
+import type { RunStore } from '@mawl/core'
+import { schema } from '@mawl/db'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'

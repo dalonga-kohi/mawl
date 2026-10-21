@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { CALLBACK_PATH } from '@faire/core'
+import { CALLBACK_PATH } from '@mawl/core'
 
 export interface LoopbackListener {
   /** The port actually bound (differs from the request when 0 was asked for). */
@@ -32,11 +32,11 @@ export type StartListener = (options: LoopbackListenerOptions) => Promise<Loopba
  */
 const PAGE = `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Faire</title>
+<head><meta charset="utf-8"><title>Mawl</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:28rem;padding:1.5rem}</style>
 </head>
-<body><main><h1>You can close this window</h1><p>Return to Faire to continue.</p></main></body>
+<body><main><h1>You can close this window</h1><p>Return to Mawl to continue.</p></main></body>
 </html>
 `
 

@@ -12,7 +12,7 @@ const tokens: TokenManager = {
 const conn = { kind: 'openai_chatgpt', baseUrl: null, secret: null } as const
 
 const PROMPT = [
-  { role: 'system' as const, content: 'You are Faire.' },
+  { role: 'system' as const, content: 'You are Mawl.' },
   { role: 'user' as const, content: [{ type: 'text' as const, text: 'hi' }] },
 ]
 

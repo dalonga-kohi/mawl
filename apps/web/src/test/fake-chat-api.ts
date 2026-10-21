@@ -8,7 +8,7 @@ import type {
   RunId,
   Thread,
   ThreadId,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import type { QueryClient } from '@tanstack/react-query'
 import type {
   LiveStatus,

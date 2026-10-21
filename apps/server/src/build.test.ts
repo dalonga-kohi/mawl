@@ -12,7 +12,7 @@ describe('production bundle', () => {
   let bundle: string
 
   beforeAll(async () => {
-    out = await mkdtemp(join(tmpdir(), 'faire-build-'))
+    out = await mkdtemp(join(tmpdir(), 'mawl-build-'))
     await buildServer({ outdir: out })
     bundle = join(out, 'server.mjs')
   }, 60_000)
@@ -24,8 +24,8 @@ describe('production bundle', () => {
   it('writes a single server.mjs with workspace packages inlined', () => {
     expect(existsSync(bundle)).toBe(true)
     const source = readFileSync(bundle, 'utf8')
-    expect(source).not.toMatch(/from\s*["']@faire\//)
-    expect(source).not.toMatch(/import\(["']@faire\//)
+    expect(source).not.toMatch(/from\s*["']@mawl\//)
+    expect(source).not.toMatch(/import\(["']@mawl\//)
   })
 
   it('keeps the Claude Agent SDK external: it finds its native binary from its own install path', () => {
@@ -40,7 +40,7 @@ describe('production bundle', () => {
     const source = readFileSync(bundle, 'utf8')
     expect(source).not.toContain(ECHO_MODEL_ID)
     expect(source).not.toContain(E2E_CREDENTIAL_LABEL)
-    expect(source).not.toContain('FAIRE_E2E')
+    expect(source).not.toContain('MAWL_E2E')
   })
 
   it('bakes in the package version', () => {
@@ -56,8 +56,8 @@ describe('production bundle', () => {
     const { code, output } = await runNode([bundle], {
       cwd: out,
       env: {
-        DATABASE_URL: 'postgres://faire:hunter2-pw@127.0.0.1:1/faire',
-        FAIRE_SECRETS_DIR: join(out, 'secrets'),
+        DATABASE_URL: 'postgres://mawl:hunter2-pw@127.0.0.1:1/mawl',
+        MAWL_SECRETS_DIR: join(out, 'secrets'),
       },
     })
     expect(code).toBe(1)

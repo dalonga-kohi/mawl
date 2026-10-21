@@ -1,11 +1,11 @@
-// Dev and test only: `pnpm --filter @faire/server e2e:serve` (run with tsx, never bundled).
+// Dev and test only: `pnpm --filter @mawl/server e2e:serve` (run with tsx, never bundled).
 // Boots the real server on a throwaway Postgres whose runs are answered by a scripted model,
-// so browser e2e needs no API key and no network. Refuses to start without FAIRE_E2E=1.
+// so browser e2e needs no API key and no network. Refuses to start without MAWL_E2E=1.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDb, migrate, schema } from '@faire/db'
-import { startPostgres } from '@faire/testkit'
+import { createDb, migrate, schema } from '@mawl/db'
+import { startPostgres } from '@mawl/testkit'
 import { and, desc, eq } from 'drizzle-orm'
 import { installLifecycle } from '../lifecycle.ts'
 import { createLogger } from '../logger.ts'
@@ -20,16 +20,16 @@ const DEFAULT_PORT = 7421
 try {
   assertE2eEnv(process.env)
 } catch (err) {
-  process.stderr.write(`${err instanceof Error ? err.message : 'FAIRE_E2E=1 is required'}\n`)
+  process.stderr.write(`${err instanceof Error ? err.message : 'MAWL_E2E=1 is required'}\n`)
   process.exit(1)
 }
 
-const port = Number(process.env.FAIRE_PORT ?? DEFAULT_PORT)
+const port = Number(process.env.MAWL_PORT ?? DEFAULT_PORT)
 const logger = createLogger({ level: 'info' })
 
 async function boot() {
   const postgres = await startPostgres()
-  const secretsDir = await mkdtemp(join(tmpdir(), 'faire-e2e-'))
+  const secretsDir = await mkdtemp(join(tmpdir(), 'mawl-e2e-'))
   const handle = createDb(postgres.url)
   let server: Awaited<ReturnType<typeof startServer>> | undefined
   const stopAll = async () => {

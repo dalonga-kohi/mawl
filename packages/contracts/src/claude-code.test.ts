@@ -15,7 +15,7 @@ describe('anthropic_claude_code provider kind', () => {
     expect(r.success).toBe(true)
   })
 
-  it('rejects a secret: Faire never accepts a Claude token', () => {
+  it('rejects a secret: Mawl never accepts a Claude token', () => {
     const r = ProviderCredentialInput.safeParse({
       provider: 'anthropic_claude_code',
       label: 'x',

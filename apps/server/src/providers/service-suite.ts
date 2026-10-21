@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { ProviderCredential, type ProviderCredentialInput } from '@faire/contracts'
-import { schema } from '@faire/db'
+import { ProviderCredential, type ProviderCredentialInput } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { count, eq } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'

@@ -1,5 +1,5 @@
-import { createDb, migrate } from '@faire/db'
-import { withPostgres } from '@faire/testkit'
+import { createDb, migrate } from '@mawl/db'
+import { withPostgres } from '@mawl/testkit'
 import { describe } from 'vitest'
 import { describeProfileService } from '../profiles/service-suite.ts'
 import { describeBundleOnPostgres } from './bundle-suite.ts'

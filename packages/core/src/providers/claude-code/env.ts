@@ -1,8 +1,8 @@
 /**
  * Variables the Claude Code subprocess may inherit. Everything else is dropped, so a stray
- * ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN or CLAUDE_CODE_USE_* in Faire's own environment can
+ * ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN or CLAUDE_CODE_USE_* in Mawl's own environment can
  * never make the binary bill another account. The subscription login lives in the config dir
- * (CLAUDE_CONFIG_DIR, else the home directory), which the binary reads itself: Faire does not.
+ * (CLAUDE_CONFIG_DIR, else the home directory), which the binary reads itself: Mawl does not.
  */
 const ALLOWED = new Set(
   [
@@ -34,7 +34,7 @@ const ALLOWED = new Set(
 export interface ClaudeEnvOptions {
   /** Defaults to `process.env`, read at call time. */
   env?: Record<string, string | undefined>
-  /** Faire's own setting (FAIRE_CLAUDE_CONFIG_DIR). Wins over an inherited CLAUDE_CONFIG_DIR. */
+  /** Mawl's own setting (MAWL_CLAUDE_CONFIG_DIR). Wins over an inherited CLAUDE_CONFIG_DIR. */
   configDir?: string | undefined
 }
 

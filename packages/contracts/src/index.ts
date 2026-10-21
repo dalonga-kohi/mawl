@@ -1,4 +1,4 @@
-export const packageName = '@faire/contracts'
+export const packageName = '@mawl/contracts'
 
 export * from './entities'
 export * from './enums'

@@ -34,7 +34,7 @@ export function RouteError({ reset }: Pick<ErrorComponentProps, 'error' | 'reset
         </Button>
       }
     >
-      Check that the Faire server is running. If it was just updated, reload the app.
+      Check that the Mawl server is running. If it was just updated, reload the app.
     </EmptyState>
   )
 }

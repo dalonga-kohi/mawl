@@ -18,7 +18,7 @@ const { loadOrCreateMasterKey } = await import('./master-key.ts')
 
 let dir: string
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'faire-key-fb-'))
+  dir = await mkdtemp(join(tmpdir(), 'mawl-key-fb-'))
 })
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })

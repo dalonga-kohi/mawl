@@ -1,4 +1,4 @@
-import type { RunStatus } from '@faire/contracts'
+import type { RunStatus } from '@mawl/contracts'
 
 export type EntityKind = 'profile' | 'thread' | 'run' | 'message'
 

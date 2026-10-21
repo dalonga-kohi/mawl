@@ -1,4 +1,4 @@
-import type { Profile, ProviderCredential } from '@faire/contracts'
+import type { Profile, ProviderCredential } from '@mawl/contracts'
 import { QueryClient } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

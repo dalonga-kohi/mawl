@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite-pgvector'
-import type { contract } from '@faire/contracts'
-import { migrationsFolder, schema } from '@faire/db'
+import type { contract } from '@mawl/contracts'
+import { migrationsFolder, schema } from '@mawl/db'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -39,7 +39,7 @@ describe('Sign in with ChatGPT over RPC (app + PGlite)', () => {
       checkDb: async () => {},
     })
     return createORPCClient<ContractRouterClient<typeof contract>>(
-      new RPCLink({ url: 'http://faire.test/rpc', fetch: async (request) => app.request(request) }),
+      new RPCLink({ url: 'http://mawl.test/rpc', fetch: async (request) => app.request(request) }),
     )
   }
 

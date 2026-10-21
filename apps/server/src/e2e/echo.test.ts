@@ -1,4 +1,4 @@
-import { ProviderFailureError, type RunRecord } from '@faire/core'
+import { ProviderFailureError, type RunRecord } from '@mawl/core'
 import { describe, expect, it } from 'vitest'
 import { createEchoResolver, E2E_CREDENTIAL_LABEL, ECHO_MODEL_ID, SLOW_TEXT } from './echo.ts'
 
@@ -29,7 +29,7 @@ async function deltas(model: unknown, prompt: string, max = Number.POSITIVE_INFI
 
 describe('e2e echo model', () => {
   it('names itself so the production bundle can be checked for it', () => {
-    expect(ECHO_MODEL_ID).toBe('faire-e2e-echo-model')
+    expect(ECHO_MODEL_ID).toBe('mawl-e2e-echo-model')
     expect(E2E_CREDENTIAL_LABEL).toBe('E2E fake model')
   })
 

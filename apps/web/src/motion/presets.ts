@@ -1,8 +1,8 @@
-import { durSeconds, ease, spring } from '@faire/ui'
+import { durSeconds, ease, spring } from '@mawl/ui'
 import type { Transition } from 'motion/react'
 
 /**
- * Motion presets built from the @faire/ui tokens (DESIGN.md §7). MotionConfig turns every one of
+ * Motion presets built from the @mawl/ui tokens (DESIGN.md §7). MotionConfig turns every one of
  * them into an instant change when reduced motion is on, so callers never branch on it.
  */
 export const transitions = {

@@ -1,4 +1,4 @@
-import { accentPresets } from '@faire/ui'
+import { accentPresets } from '@mawl/ui'
 import { Laptop, Moon, Sun } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { RadioGroup, Switch } from 'radix-ui'
@@ -163,7 +163,7 @@ const groupLabel = 'text-small font-semibold text-text-2'
 
 export function SettingsPage() {
   return (
-    <PageShell title="Settings" description="Make Faire yours.">
+    <PageShell title="Settings" description="Make Mawl yours.">
       <section aria-labelledby="appearance" className="flex max-w-[860px] flex-col gap-2.5">
         <h2 id="appearance" className={groupLabel}>
           Appearance

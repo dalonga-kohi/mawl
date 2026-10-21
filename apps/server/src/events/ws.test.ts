@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { type contract, type LenientEnvelope, newId } from '@faire/contracts'
+import { type contract, type LenientEnvelope, newId } from '@mawl/contracts'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/websocket'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -118,8 +118,8 @@ describe('WebSocket hub', () => {
   )
 
   it('accepts an origin from the allow list', async () => {
-    const { open } = await setup(['https://faire.example.com'])
-    const ws = open('/ws', 'https://faire.example.com')
+    const { open } = await setup(['https://mawl.example.com'])
+    const ws = open('/ws', 'https://mawl.example.com')
     cleanup.push(async () => ws.terminate())
     expect(await outcome(ws)).toBe('open')
   })
@@ -132,10 +132,10 @@ describe('WebSocket hub', () => {
     )
   })
 
-  it.each(['localhost:7420', 'dev.localhost', '[::1]:7420', 'faire.example.com:7420'])(
+  it.each(['localhost:7420', 'dev.localhost', '[::1]:7420', 'mawl.example.com:7420'])(
     'accepts the Host %s',
     async (host) => {
-      const { open } = await setup(['https://faire.example.com'])
+      const { open } = await setup(['https://mawl.example.com'])
       const ws = open('/ws', undefined, host)
       cleanup.push(async () => ws.terminate())
       expect(await outcome(ws)).toBe('open')

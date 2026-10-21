@@ -1,4 +1,4 @@
-import type { Run } from '@faire/contracts'
+import type { Run } from '@mawl/contracts'
 import { Tabs } from 'radix-ui'
 import { useState } from 'react'
 import { failureCopy } from '../chat/run-copy.ts'

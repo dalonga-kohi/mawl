@@ -1,4 +1,4 @@
-import { type CredentialId, type ProviderCredential, parseModelRef } from '@faire/contracts'
+import { type CredentialId, type ProviderCredential, parseModelRef } from '@mawl/contracts'
 import {
   ModelNotConfiguredError,
   PROVIDER_DESCRIPTORS,
@@ -6,7 +6,7 @@ import {
   ProviderFailureError,
   type ResolvedModel,
   type RunRecord,
-} from '@faire/core'
+} from '@mawl/core'
 import { CredentialNotFoundError, CredentialUnreadableError } from '../providers/types.ts'
 
 /** The slice of the provider service the run engine needs. */

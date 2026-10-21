@@ -86,7 +86,7 @@ export function attachWsHub(options: WsHubOptions): WsHub {
 
     let pathname: string
     try {
-      pathname = new URL(req.url ?? '/', 'http://faire.invalid').pathname
+      pathname = new URL(req.url ?? '/', 'http://mawl.invalid').pathname
     } catch {
       logger.warn({ reason: 'bad_url' }, 'websocket upgrade rejected')
       return void reject(socket, 400, 'Bad Request')

@@ -1,7 +1,7 @@
 import pg from 'pg'
 
 /** The Postgres channel `insertEvent` notifies on. The payload is just `{"id": <event id>}`. */
-export const EVENTS_CHANNEL = 'faire_events'
+export const EVENTS_CHANNEL = 'mawl_events'
 
 export interface NotificationConnection {
   /** Stops listening and releases the connection. Safe to call after the connection died. */

@@ -1,4 +1,4 @@
-import type { ProviderKind } from '@faire/contracts'
+import type { ProviderKind } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { createLanguageModel } from './create-model.ts'
 

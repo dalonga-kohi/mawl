@@ -1,5 +1,5 @@
-import { type CredentialId, newId, Profile, type ProfileId } from '@faire/contracts'
-import { schema } from '@faire/db'
+import { type CredentialId, newId, Profile, type ProfileId } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { MadeServiceDb } from '../providers/service-suite.ts'
 import { EntityNotFoundError } from '../runs/errors.ts'

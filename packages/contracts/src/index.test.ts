@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { packageName } from './index'
 
-describe('@faire/contracts', () => {
+describe('@mawl/contracts', () => {
   it('exposes its package name', () => {
-    expect(packageName).toBe('@faire/contracts')
+    expect(packageName).toBe('@mawl/contracts')
   })
 })

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { checkOrigin } from './origin.ts'
 
-const HOST = 'faire.home.lan:7420'
+const HOST = 'mawl.home.lan:7420'
 
 describe('checkOrigin', () => {
   it.each([
     ['no Origin header (non-browser client)', undefined, HOST, []],
-    ['same host as the request', 'http://faire.home.lan:7420', HOST, []],
-    ['same host, different case', 'http://FAIRE.home.lan:7420', HOST, []],
-    ['https on the same host', 'https://faire.home.lan:7420', HOST, []],
+    ['same host as the request', 'http://mawl.home.lan:7420', HOST, []],
+    ['same host, different case', 'http://MAWL.home.lan:7420', HOST, []],
+    ['https on the same host', 'https://mawl.home.lan:7420', HOST, []],
     ['localhost with a dev port', 'http://localhost:5173', HOST, []],
     ['localhost over https', 'https://localhost:3000', HOST, []],
     ['localhost without a port', 'http://localhost', HOST, []],
@@ -18,16 +18,16 @@ describe('checkOrigin', () => {
     ['Tauri on Windows (http)', 'http://tauri.localhost', HOST, []],
     ['Tauri on Windows (https)', 'https://tauri.localhost', HOST, []],
     [
-      'an origin from FAIRE_ALLOWED_ORIGINS',
-      'https://faire.example.com',
+      'an origin from MAWL_ALLOWED_ORIGINS',
+      'https://mawl.example.com',
       HOST,
-      ['https://faire.example.com'],
+      ['https://mawl.example.com'],
     ],
     [
       'an allowed origin with a trailing slash in the list',
-      'https://faire.example.com',
+      'https://mawl.example.com',
       HOST,
-      ['https://faire.example.com/'],
+      ['https://mawl.example.com/'],
     ],
   ])('allows %s', (_name, origin, host, allowed) => {
     expect(checkOrigin({ origin, host, allowed })).toEqual({ ok: true })
@@ -55,7 +55,7 @@ describe('checkOrigin', () => {
     ['an unparsable origin', 'not a url', HOST, [], 'origin_malformed'],
     [
       'a different port on the same host name',
-      'http://faire.home.lan:9999',
+      'http://mawl.home.lan:9999',
       HOST,
       [],
       'origin_not_allowed',
@@ -66,7 +66,7 @@ describe('checkOrigin', () => {
       'an origin missing from a non-empty allow list',
       'https://other.example',
       HOST,
-      ['https://faire.example.com'],
+      ['https://mawl.example.com'],
       'origin_not_allowed',
     ],
   ])('rejects %s', (_name, origin, host, allowed, reason) => {
@@ -75,7 +75,7 @@ describe('checkOrigin', () => {
 
   it('rejects a same-host origin when the request has no Host header', () => {
     expect(
-      checkOrigin({ origin: 'http://faire.home.lan:7420', host: undefined, allowed: [] }),
+      checkOrigin({ origin: 'http://mawl.home.lan:7420', host: undefined, allowed: [] }),
     ).toEqual({
       ok: false,
       reason: 'origin_not_allowed',

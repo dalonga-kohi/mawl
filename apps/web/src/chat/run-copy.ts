@@ -1,4 +1,4 @@
-import type { RunErrorCode, RunStatus } from '@faire/contracts'
+import type { RunErrorCode, RunStatus } from '@mawl/contracts'
 
 /** Statuses in which a run is still going and the composer offers Stop instead of Send. */
 export const ACTIVE_STATUSES: readonly RunStatus[] = [
@@ -116,7 +116,7 @@ export function failureCopy(code: RunErrorCode | null): FailureCopy {
       }
     default:
       return {
-        title: 'Something went wrong on the Faire server.',
+        title: 'Something went wrong on the Mawl server.',
         hint: 'Send your message again. The server log has the details.',
       }
   }

@@ -1,11 +1,11 @@
 @import "tailwindcss";
-@import "@faire/ui/tokens.css";
+@import "@mawl/ui/tokens.css";
 @import "@fontsource-variable/figtree";
 @import "@fontsource-variable/bricolage-grotesque";
 @import "@fontsource-variable/jetbrains-mono";
 
 /*
- * Tailwind sees only Faire tokens: the default palette, fonts and radii are cleared so a raw
+ * Tailwind sees only Mawl tokens: the default palette, fonts and radii are cleared so a raw
  * color can't sneak into a component. Every value points at a CSS variable from tokens.css, which
  * already switches per theme and per accent.
  */
@@ -137,7 +137,7 @@
   .tool-shimmer {
     background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
     background-size: 40% 100%;
-    animation: faire-shimmer 1.3s linear infinite;
+    animation: mawl-shimmer 1.3s linear infinite;
   }
   /* The soft caret at the end of streaming text. */
   .stream-caret > div > :last-child::after {
@@ -149,17 +149,17 @@
     vertical-align: -0.15em;
     border-radius: 2px;
     background: var(--accent);
-    animation: faire-breathe 1s ease-in-out infinite;
+    animation: mawl-breathe 1s ease-in-out infinite;
   }
   .thinking-dot {
-    animation: faire-breathe 1.2s ease-in-out infinite;
+    animation: mawl-breathe 1.2s ease-in-out infinite;
   }
   .live-dot {
     width: 7px;
     height: 7px;
     border-radius: 999px;
     background: var(--ok);
-    animation: faire-breathe 2s ease-in-out infinite;
+    animation: mawl-breathe 2s ease-in-out infinite;
   }
 }
 
@@ -168,11 +168,11 @@
   overflow: visible;
 }
 .beaver .bob {
-  animation: faire-bob 3.6s ease-in-out infinite;
+  animation: mawl-bob 3.6s ease-in-out infinite;
   transform-origin: 60px 100px;
 }
 .beaver .eyes-open {
-  animation: faire-blink 5.5s infinite;
+  animation: mawl-blink 5.5s infinite;
   transform-origin: 60px 46px;
 }
 .beaver :is(.eyes-closed, .zz, .logbits, .sign, .think, .sweat, .sparkle) {
@@ -204,16 +204,16 @@
 }
 .beaver[data-state="thinking"] .think {
   opacity: 1;
-  animation: faire-breathe 1.2s infinite;
+  animation: mawl-breathe 1.2s infinite;
 }
 .beaver[data-state="working"] .logbits {
   opacity: 1;
 }
 .beaver[data-state="working"] .head {
-  animation: faire-gnaw 0.32s ease-in-out infinite;
+  animation: mawl-gnaw 0.32s ease-in-out infinite;
 }
 .beaver[data-state="working"] .chipbit {
-  animation: faire-chip 1s ease-out infinite;
+  animation: mawl-chip 1s ease-out infinite;
 }
 .beaver .chip-a {
   --dx: -8px;
@@ -230,10 +230,10 @@
   opacity: 1;
 }
 .beaver[data-state="waiting"] .head {
-  animation: faire-tilt 2.4s ease-in-out infinite;
+  animation: mawl-tilt 2.4s ease-in-out infinite;
 }
 .beaver[data-state="done"] .tailg {
-  animation: faire-slap 0.7s var(--ease-out) 2;
+  animation: mawl-slap 0.7s var(--ease-out) 2;
 }
 .beaver[data-state="done"] .sparkle {
   opacity: 1;
@@ -258,7 +258,7 @@
   transform: translateY(1.5px);
 }
 
-@keyframes faire-shimmer {
+@keyframes mawl-shimmer {
   from {
     background-position: -40% 0;
   }
@@ -266,17 +266,17 @@
     background-position: 140% 0;
   }
 }
-@keyframes faire-breathe {
+@keyframes mawl-breathe {
   50% {
     opacity: 0.35;
   }
 }
-@keyframes faire-bob {
+@keyframes mawl-bob {
   50% {
     transform: translateY(-1.6px);
   }
 }
-@keyframes faire-blink {
+@keyframes mawl-blink {
   0%,
   94%,
   100% {
@@ -286,12 +286,12 @@
     transform: scaleY(0.08);
   }
 }
-@keyframes faire-gnaw {
+@keyframes mawl-gnaw {
   50% {
     transform: translateY(1.5px) rotate(1deg);
   }
 }
-@keyframes faire-chip {
+@keyframes mawl-chip {
   0% {
     transform: translate(0, 0);
     opacity: 1;
@@ -301,12 +301,12 @@
     opacity: 0;
   }
 }
-@keyframes faire-tilt {
+@keyframes mawl-tilt {
   50% {
     transform: rotate(4deg);
   }
 }
-@keyframes faire-slap {
+@keyframes mawl-slap {
   40% {
     transform: rotate(-28deg);
   }

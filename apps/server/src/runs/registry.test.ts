@@ -1,4 +1,4 @@
-import { newId } from '@faire/contracts'
+import { newId } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { RunRegistry } from './registry.ts'
 

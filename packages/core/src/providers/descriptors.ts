@@ -1,4 +1,4 @@
-import type { ProviderDescriptor, ProviderKind } from '@faire/contracts'
+import type { ProviderDescriptor, ProviderKind } from '@mawl/contracts'
 
 const tools = {
   supportsTools: true,
@@ -67,7 +67,7 @@ export const PROVIDER_DESCRIPTORS: Record<ProviderKind, ProviderDescriptor> = {
     defaultBaseUrl: 'https://api.openai.com/v1',
     capabilities: { ...tools },
   },
-  // The owner signs in with Claude Code itself; Faire holds no credential and calls no URL.
+  // The owner signs in with Claude Code itself; Mawl holds no credential and calls no URL.
   // Tools stay off until they are bridged in; the binary does its own prompt caching.
   anthropic_claude_code: {
     kind: 'anthropic_claude_code',

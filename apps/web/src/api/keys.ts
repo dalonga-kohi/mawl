@@ -1,4 +1,4 @@
-import type { ProfileId, RunId, ThreadId } from '@faire/contracts'
+import type { ProfileId, RunId, ThreadId } from '@mawl/contracts'
 
 /**
  * Query keys in the exact shape @orpc/tanstack-query generates (`[path, { input?, type }]`), so the

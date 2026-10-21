@@ -1,4 +1,4 @@
-import type { contract } from '@faire/contracts'
+import type { contract } from '@mawl/contracts'
 import { createORPCClient, ORPCError } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -24,7 +24,7 @@ function setup(overrides: Partial<AppDeps> = {}) {
     ...overrides,
   })
   const client: ContractRouterClient<typeof contract> = createORPCClient(
-    new RPCLink({ url: 'http://faire.test/rpc', fetch: async (request) => app.request(request) }),
+    new RPCLink({ url: 'http://mawl.test/rpc', fetch: async (request) => app.request(request) }),
   )
   return {
     app,
@@ -45,7 +45,7 @@ describe('GET /healthz', () => {
   it('returns 503 { ok: false } without detail when the check rejects', async () => {
     const { app } = setup({
       checkDb: async () => {
-        throw new Error('password authentication failed for user faire s3cr3t')
+        throw new Error('password authentication failed for user mawl s3cr3t')
       },
     })
     const res = await app.request('/healthz')
@@ -134,7 +134,7 @@ describe('deps', () => {
 })
 
 describe('Host check on /rpc (DNS rebinding)', () => {
-  const hosts = { bindHost: '127.0.0.1', allowedOrigins: ['https://faire.example.com'] }
+  const hosts = { bindHost: '127.0.0.1', allowedOrigins: ['https://mawl.example.com'] }
   const call = (app: ReturnType<typeof setup>['app'], host?: string) =>
     app.request('http://localhost/rpc/health/get', {
       method: 'POST',
@@ -152,7 +152,7 @@ describe('Host check on /rpc (DNS rebinding)', () => {
     expect((await call(app)).status).toBe(403)
   })
 
-  it.each(['localhost:7420', '127.0.0.1:7420', 'faire.example.com'])(
+  it.each(['localhost:7420', '127.0.0.1:7420', 'mawl.example.com'])(
     'lets the Host %s through',
     async (host) => {
       const { app } = setup({ hosts })

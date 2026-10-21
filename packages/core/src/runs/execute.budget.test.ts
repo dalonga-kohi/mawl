@@ -120,7 +120,7 @@ describe('executeRun: budgets', () => {
     vi.useFakeTimers()
     const { store, runId, deps } = setup([{ text: 'a long slow answer for the model' }], {})
     // Slow stream: a second between 3-character chunks.
-    const { fakeModel } = await import('@faire/testkit')
+    const { fakeModel } = await import('@mawl/testkit')
     const slowModel = fakeModel([{ text: 'a long slow answer for the model' }], {
       chunkSize: 3,
       chunkDelayMs: 1000,

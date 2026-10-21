@@ -1,4 +1,4 @@
-import type { ChatGptStartResult } from '@faire/contracts'
+import type { ChatGptStartResult } from '@mawl/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -17,7 +17,7 @@ const isLoopbackHost = (host: string) =>
 
 /**
  * Sign in with ChatGPT (SIWC). The server opens a loopback callback on its own host, so in v1 the
- * browser that signs in must run on the same computer as Faire.
+ * browser that signs in must run on the same computer as Mawl.
  */
 export function useChatGptSignIn() {
   const { providers } = useApi()
@@ -38,8 +38,8 @@ export function useChatGptSignIn() {
     onError: (e) =>
       setError(
         errorCode(e) === 'SIGN_IN_UNAVAILABLE'
-          ? "Faire couldn't open its sign-in listener on port 1455. Close the app using that port, then try again."
-          : "Couldn't start the sign-in. Check that the Faire server is running, then try again.",
+          ? "Mawl couldn't open its sign-in listener on port 1455. Close the app using that port, then try again."
+          : "Couldn't start the sign-in. Check that the Mawl server is running, then try again.",
       ),
   })
 
@@ -75,7 +75,7 @@ export function useChatGptSignIn() {
   useEffect(() => {
     if (!attemptLost) return
     setAttempt(null)
-    setError('Faire lost track of this sign-in, maybe because the server restarted. Start again.')
+    setError('Mawl lost track of this sign-in, maybe because the server restarted. Start again.')
   }, [attemptLost])
 
   // The sign-in may have finished on the server after the last poll, so the list is refreshed
@@ -144,7 +144,7 @@ export function ChatGptSignInStatus({ signIn }: { signIn: ChatGptSignInState }) 
   if (signIn.remote) {
     return (
       <p className="text-small text-text-2">
-        Sign-in finishes on the computer running Faire. Open this page there to continue with
+        Sign-in finishes on the computer running Mawl. Open this page there to continue with
         ChatGPT.
       </p>
     )

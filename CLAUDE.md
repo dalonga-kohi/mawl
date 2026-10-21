@@ -1,6 +1,6 @@
-# Faire — guide for Claude
+# Mawl — guide for Claude
 
-Faire is a self-hosted, always-on agent app ("AI teammates you own"). It has:
+Mawl is a self-hosted, always-on agent app ("AI teammates you own"). It has:
 - a Docker stack (server + Postgres + one sandbox computer per profile)
 - a Tauri 2 desktop app, an Expo mobile app, and Telegram/Discord channels
 - a long-horizon memory system
@@ -41,7 +41,7 @@ Every agent (orchestrator and all subagents in `.claude/agents/`) uses the **`ca
 | `advisor` | Opus | nothing | **Ask the user first, every time.** A hard design, slicing or debugging decision you can't settle yourself |
 
 **A slice is hard (→ `head-coder`) when it touches any of:**
-- more than one package's public API, `@faire/contracts`, or the event envelope
+- more than one package's public API, `@mawl/contracts`, or the event envelope
 - the run engine, `RUN_TRANSITIONS`, concurrency, jobs, retries or resume
 - the memory system (docs/MEMORY.md)
 - DB migrations
@@ -110,7 +110,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 |---|---|---|
 | Node | 24 (`.nvmrc`) | Runs `.ts` natively (type stripping); the ui token generator uses it |
 | pnpm | 10.18.0 | `packageManager`; run via corepack |
-| Turborepo | 2.11.9 | `globalDependencies` include root configs and `docs/ARCHITECTURE.md`; `globalEnv` includes `CI`, `FAIRE_REQUIRE_DOCKER` |
+| Turborepo | 2.11.9 | `globalDependencies` include root configs and `docs/ARCHITECTURE.md`; `globalEnv` includes `CI`, `MAWL_REQUIRE_DOCKER` |
 | Biome | 2.5.15 | `linter.rules.preset: "recommended"`. Excludes docs, mockup, `.claude/skills`, generated `tokens.css`. Can't parse Tailwind `@theme` |
 | Vitest | 5.0.5 | Root `test.projects`; `defineProject` per package. `beforeAll` ctx has no `skip`, so use `beforeEach(ctx => ctx.skip())` |
 | TypeScript | 7.0.2 | `module: preserve` + `bundler`, `noEmit`, `allowImportingTsExtensions` in base. Server and UI apps need overrides (PLAN P1.2/P1.6) |
@@ -118,17 +118,17 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 | zod | 4.6.7 | `z.iso.datetime()` requires `Z` (UTC only); `z.strictObject` for secret-free shapes |
 | oRPC | 1.15.7 (not the 2.0 beta) | `oc`, `eventIterator` from `@orpc/contract`. WS: `@orpc/server/ws`, `@orpc/client/websocket` |
 | culori | 4.0.2 (+ `@types/culori` 4.0.1) | OKLCH accent engine |
-| Provider SDKs | `@ai-sdk/anthropic` 4.0.82, `@ai-sdk/openai` 4.0.96, `@openrouter/ai-sdk-provider` 3.1.0, `ollama-ai-provider-v2` 4.0.1, `@ai-sdk/openai-compatible` 3.0.71, `@ai-sdk/provider` 4.0.29 | All Apache-2.0, all spec V4. Live in `@faire/core` `src/providers/`; keys never leave the server |
-| Drizzle | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 (1.0 is still beta) | `@faire/db`. JS `null` into NOT NULL jsonb needs `jsonValue()`. Migrations in `packages/db/drizzle/`; never edit an applied one, add a new one |
+| Provider SDKs | `@ai-sdk/anthropic` 4.0.82, `@ai-sdk/openai` 4.0.96, `@openrouter/ai-sdk-provider` 3.1.0, `ollama-ai-provider-v2` 4.0.1, `@ai-sdk/openai-compatible` 3.0.71, `@ai-sdk/provider` 4.0.29 | All Apache-2.0, all spec V4. Live in `@mawl/core` `src/providers/`; keys never leave the server |
+| Drizzle | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 (1.0 is still beta) | `@mawl/db`. JS `null` into NOT NULL jsonb needs `jsonValue()`. Migrations in `packages/db/drizzle/`; never edit an applied one, add a new one |
 | PGlite | `@electric-sql/pglite` 0.5.10 + `@electric-sql/pglite-pgvector` 0.0.11 | In-process Postgres so DB suites run locally without Docker; the same suite also runs on Testcontainers |
 | graphile-worker | 0.18.0 (MIT) | Run jobs in `apps/server`. Needs a real `pg` Pool (not PGlite); bundles into `dist/server.mjs` (migrations are embedded). Task `run.execute` |
 | testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
-| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Main CI** (user's student plan). Stages `gate` (full gate, `FAIRE_REQUIRE_DOCKER=1`) then `e2e`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it |
+| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Main CI** (user's student plan). Stages `gate` (full gate, `MAWL_REQUIRE_DOCKER=1`) then `e2e`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it |
 | GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0; `anthropics/claude-code-action` 1.0.256 | `ci.yml` is the fallback gate. `claude.yml` reviews same-repo PRs (Sonnet) and answers `@claude` from the owner, members and collaborators, using the `CLAUDE_CODE_OAUTH_TOKEN` secret. All pinned by full SHA (tests enforce it). Dependabot is weekly |
 
 ## Monorepo conventions
 
-- **JIT internal packages** `@faire/<dir>`:
+- **JIT internal packages** `@mawl/<dir>`:
   - private, `type: module`, `exports: { ".": "./src/index.ts" }`, no build step
   - tsconfig extends `../../tsconfig.base.json` with `include: ["src", "vitest.config.ts"]`
   - scripts `typecheck` + `test` only; there is no per-package lint
@@ -138,16 +138,16 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 
 ## Shared packages so far (reuse, don't re-implement)
 
-- **`@faire/testkit`**:
+- **`@mawl/testkit`**:
   - `fakeModel(script)` gives scripted turns: text, toolCalls, reasoning, usage with cache/reasoning tokens, `error`, `streamError`, abort handling, `.calls`. SDK retries consume turns.
   - `seq`, `fixedClock`, `seededRandom`.
-  - `withPostgres()` inside a sync `describe`. It skips without Docker locally and **fails** when `CI`/`FAIRE_REQUIRE_DOCKER` is set.
-- **`@faire/ui`**:
-  - Typed tokens, plus `src/tokens.css` generated by `pnpm --filter @faire/ui generate`. Regenerate after any token change; a test fails if you forget.
+  - `withPostgres()` inside a sync `describe`. It skips without Docker locally and **fails** when `CI`/`MAWL_REQUIRE_DOCKER` is set.
+- **`@mawl/ui`**:
+  - Typed tokens, plus `src/tokens.css` generated by `pnpm --filter @mawl/ui generate`. Regenerate after any token change; a test fails if you forget.
   - `deriveAccent(hex, theme)`.
   - `applyAccent(hex, rootStyle)` writes both light and dark scales, so theme flips need no JS. Root element only.
   - Semantic colors pass 4.5:1 as text and on their soft tints.
-- **`@faire/contracts`**:
+- **`@mawl/contracts`**:
   - Prefixed ULID ids with `newId(kind)` (monotonic; `__resetIdState()` in tests).
   - Enums, and `RUN_TRANSITIONS`, which is tested against the ARCHITECTURE §5 mermaid diagram. Change both together.
   - Entities and the event union.
@@ -163,7 +163,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
   - `ui-ux-pro-max` (`references/quick-reference.md`, `references/pro-rules.md`; its `scripts/search.py` needs Python 3, which isn't installed, so read the CSVs directly)
   - `ios-design` for mobile
 - Tokens only, no raw hex. The accent comes from CSS vars. Small accent text uses `--accent-ink`, and filled buttons use `--accent-fill` + `--on-accent`.
-- Motion uses Motion (web) and Reanimated/moti (mobile) with the `@faire/ui` motion tokens. Respect reduced motion.
+- Motion uses Motion (web) and Reanimated/moti (mobile) with the `@mawl/ui` motion tokens. Respect reduced motion.
 - Every UI slice covers loading, empty, error and success states and works at 390 px. Screenshots need a served page: the browser pane renders `file://` as a static snapshot, so start a dev server via `preview_start`.
 
 ## Images and assets
@@ -176,8 +176,8 @@ Never fabricate illustrations in code. Ask the user to generate them, with a rea
 corepack pnpm i                                  # install (or `pnpm i` once corepack is enabled)
 pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl. root tasks
 pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
-pnpm --filter @faire/ui generate                 # regenerate tokens.css
-pnpm --filter @faire/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
+pnpm --filter @mawl/ui generate                 # regenerate tokens.css
+pnpm --filter @mawl/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
 pnpm test:e2e                                    # Playwright (Edge locally) vs the e2e server + scripted echo model; not in the gate
 docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack at :7420; needs infra/compose/.env (docs/RUNNING.md)
 ```
@@ -187,7 +187,7 @@ docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack a
 - pnpm isn't global. Run `$env:COREPACK_ENABLE_DOWNLOAD_PROMPT='0'` first.
 - Turbo needs `pnpm` on PATH. Until the user runs `corepack enable` (it may need admin), every agent does:
   `corepack enable --install-directory <scratchpad>\shims` then `$env:PATH="<scratchpad>\shims;$env:PATH"`.
-- **Docker Desktop is installed** (engine 29.8.2, context `desktop-linux`). Run DB/server suites with `$env:FAIRE_REQUIRE_DOCKER='1'` so the Testcontainers suites must run, not skip. A cold engine can be slow, so the testkit probe waits up to 30 s.
+- **Docker Desktop is installed** (engine 29.8.2, context `desktop-linux`). Run DB/server suites with `$env:MAWL_REQUIRE_DOCKER='1'` so the Testcontainers suites must run, not skip. A cold engine can be slow, so the testkit probe waits up to 30 s.
 - The remote is `origin` → `git@github.com:dalonga-kohi/mawl.git` (public), over SSH. Every push is the user's call; never push without a yes in chat.
 - The repo-local git identity is `megas`. Line endings are LF via `.gitattributes`; CRLF warnings are cosmetic.
 

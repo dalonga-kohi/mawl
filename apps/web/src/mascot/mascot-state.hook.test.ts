@@ -1,4 +1,4 @@
-import type { RunStatus } from '@faire/contracts'
+import type { RunStatus } from '@mawl/contracts'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { END_POSE_MS, useMascotState } from './mascot-state.ts'

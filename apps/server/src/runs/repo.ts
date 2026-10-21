@@ -8,8 +8,8 @@ import {
   type StepId,
   type StepKind,
   type Usage,
-} from '@faire/contracts'
-import { schema } from '@faire/db'
+} from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import { EVENTS_CHANNEL } from '../events/source.ts'
@@ -30,7 +30,7 @@ export interface EventInput {
 /**
  * The only way the server writes `events`. `payload_json` is NOT NULL jsonb and drizzle turns a
  * JS null into SQL NULL, so every payload goes through `jsonValue()`. In the same transaction it
- * NOTIFYs `faire_events` with just the id, so the event bus wakes up once the row is committed
+ * NOTIFYs `mawl_events` with just the id, so the event bus wakes up once the row is committed
  * (a rolled-back transaction notifies nobody). Returns the new event id.
  */
 export async function insertEvent(db: Queryable, e: EventInput): Promise<number> {

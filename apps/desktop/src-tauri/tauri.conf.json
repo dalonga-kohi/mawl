@@ -1,19 +1,19 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Faire",
+  "productName": "Mawl",
   "version": "0.0.0",
-  "identifier": "app.faire.desktop",
+  "identifier": "app.mawl.desktop",
   "build": {
     "frontendDist": "../../web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm --filter @faire/web dev",
-    "beforeBuildCommand": "pnpm --filter @faire/web build"
+    "beforeDevCommand": "pnpm --filter @mawl/web dev",
+    "beforeBuildCommand": "pnpm --filter @mawl/web build"
   },
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "Faire",
+        "title": "Mawl",
         "width": 1280,
         "height": 800,
         "minWidth": 390,
@@ -39,7 +39,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["faire"]
+        "schemes": ["mawl"]
       }
     }
   }

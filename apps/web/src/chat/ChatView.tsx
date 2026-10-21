@@ -5,7 +5,7 @@ import {
   type Run,
   type RunId,
   type ThreadId,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowDown, ChevronLeft, CircleAlert, CircleStop } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -71,7 +71,7 @@ export function ChatView() {
         mascot="error"
         action={<Button onClick={() => void profiles.refetch()}>Try again</Button>}
       >
-        The Faire server didn't answer. Check that it's running, then try again.
+        The Mawl server didn't answer. Check that it's running, then try again.
       </EmptyState>
     )
   }
@@ -193,10 +193,10 @@ function Conversation({
             setDraft(trimmed)
             setSendError(
               errorCode(err) === undefined
-                ? "Couldn't reach the Faire server, so nothing was sent. Check that it's running."
+                ? "Couldn't reach the Mawl server, so nothing was sent. Check that it's running."
                 : errorCode(err) === 'NOT_FOUND'
                   ? 'This conversation is gone. Start a new chat and send it again.'
-                  : "Faire couldn't send that. Try again.",
+                  : "Mawl couldn't send that. Try again.",
             )
             composer.current?.focus()
           },
@@ -275,7 +275,7 @@ function Conversation({
             mascot="error"
             action={<Button onClick={() => void threads.refetch()}>Try again</Button>}
           >
-            The Faire server didn't send this teammate's conversations. Check that it's running.
+            The Mawl server didn't send this teammate's conversations. Check that it's running.
           </EmptyState>
         ) : loading ? (
           <MessagesSkeleton />
@@ -285,7 +285,7 @@ function Conversation({
             mascot="error"
             action={<Button onClick={() => void messagesQuery.refetch()}>Try again</Button>}
           >
-            The Faire server didn't send the messages. Check that it's running.
+            The Mawl server didn't send the messages. Check that it's running.
           </EmptyState>
         ) : empty ? (
           <ChatEmpty

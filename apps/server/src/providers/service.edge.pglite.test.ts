@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite-pgvector'
-import { migrationsFolder, schema } from '@faire/db'
+import { migrationsFolder, schema } from '@mawl/db'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'

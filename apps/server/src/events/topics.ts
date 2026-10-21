@@ -1,5 +1,5 @@
-import type { ProfileId, RunId, Topic } from '@faire/contracts'
-import { schema } from '@faire/db'
+import type { ProfileId, RunId, Topic } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { inArray, or, type SQL } from 'drizzle-orm'
 
 const { events } = schema

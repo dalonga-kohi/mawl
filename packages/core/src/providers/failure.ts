@@ -1,4 +1,4 @@
-import type { ProviderFailureReason } from '@faire/contracts'
+import type { ProviderFailureReason } from '@mawl/contracts'
 
 /**
  * A provider call failed in a way the run engine and the app can name. It carries the closed

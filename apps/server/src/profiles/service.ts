@@ -1,5 +1,5 @@
-import { newId, type Profile, type ProfileId, parseModelRef } from '@faire/contracts'
-import { schema } from '@faire/db'
+import { newId, type Profile, type ProfileId, parseModelRef } from '@mawl/contracts'
+import { schema } from '@mawl/db'
 import { asc, count, eq, inArray, isNull, like, or } from 'drizzle-orm'
 import type { ProvidersDb } from '../providers/types.ts'
 import { EntityNotFoundError } from '../runs/errors.ts'

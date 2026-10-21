@@ -1,4 +1,4 @@
-# Faire — Memory & Context Management
+# Mawl — Memory & Context Management
 
 **Goal:** a teammate can work continuously for days or weeks. Its context window never overflows, it stays cheap (prompt caching), it remembers what matters, and the user can see and edit everything it remembers.
 

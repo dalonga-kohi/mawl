@@ -4,7 +4,7 @@ import {
   type ChatGptStartResult,
   type CredentialId,
   newId,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import {
   beginSignIn,
   completeSignIn,
@@ -24,8 +24,8 @@ import {
   type TokenManager,
   type TokenStore,
   withCredentialLock,
-} from '@faire/core'
-import { schema } from '@faire/db'
+} from '@mawl/core'
+import { schema } from '@mawl/db'
 import { and, desc, eq } from 'drizzle-orm'
 import type { Logger } from '../../logger.ts'
 import { type SecretBox, SecretDecryptError } from '../../secrets/index.ts'

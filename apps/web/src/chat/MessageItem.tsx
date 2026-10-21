@@ -1,4 +1,4 @@
-import type { Message, MessagePart } from '@faire/contracts'
+import type { Message, MessagePart } from '@mawl/contracts'
 import { Paperclip } from 'lucide-react'
 import { motion } from 'motion/react'
 import { enter } from '../motion/presets.ts'

@@ -109,7 +109,7 @@ export function TeammatesIndex() {
             mascot="error"
             action={<Button onClick={() => void profiles.refetch()}>Try again</Button>}
           >
-            The Faire server didn't answer. Check that it's running, then try again.
+            The Mawl server didn't answer. Check that it's running, then try again.
           </EmptyState>
         ) : (
           <FirstRun />

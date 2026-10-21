@@ -11,7 +11,7 @@ vi.mock('@testcontainers/postgresql', () => {
   return { PostgreSqlContainer: class {} }
 })
 
-describe('@faire/testkit startup cost', () => {
+describe('@mawl/testkit startup cost', () => {
   it('does not load testcontainers when only the index is imported and fakeModel is used', async () => {
     const testkit = await import('./index')
     await testkit.fakeModel([{ text: 'x' }]).doGenerate({

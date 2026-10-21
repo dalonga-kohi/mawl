@@ -1,4 +1,4 @@
-import type { RunErrorCode, Usage } from '@faire/contracts'
+import type { RunErrorCode, Usage } from '@mawl/contracts'
 import { type ModelMessage, stepCountIs, streamText } from 'ai'
 import { ProviderFailureError } from '../providers/failure.ts'
 import { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'

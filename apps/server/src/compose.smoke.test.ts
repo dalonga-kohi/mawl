@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import type { contract } from '@faire/contracts'
-import { dockerPolicy, isDockerAvailable } from '@faire/testkit'
+import type { contract } from '@mawl/contracts'
+import { dockerPolicy, isDockerAvailable } from '@mawl/testkit'
 import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -22,10 +22,10 @@ const BUILD_TIMEOUT_MS = 600_000
  * The real stack: builds the server image, boots it with Postgres through compose and talks to it
  * over HTTP. Runs in the default gate (a cold image build takes about a minute) under its own
  * project name, a random host port and its own image tag, so it never touches a stack the owner
- * runs. Skips without Docker locally; fails when CI or FAIRE_REQUIRE_DOCKER is set.
+ * runs. Skips without Docker locally; fails when CI or MAWL_REQUIRE_DOCKER is set.
  */
 describe('docker compose stack', () => {
-  const project = `faire-smoke-${randomBytes(4).toString('hex')}`
+  const project = `mawl-smoke-${randomBytes(4).toString('hex')}`
   const password = randomBytes(24).toString('hex')
   let scratch: string | undefined
   let overrideFile = ''
@@ -35,28 +35,28 @@ describe('docker compose stack', () => {
 
   const compose = (args: string[]) =>
     run('docker', ['compose', '-p', project, '-f', composeFile, '-f', overrideFile, ...args], {
-      env: { ...process.env, FAIRE_DB_PASSWORD: password },
+      env: { ...process.env, MAWL_DB_PASSWORD: password },
       maxBuffer: 20 * 1024 * 1024,
     })
 
   beforeAll(async () => {
     const policy = dockerPolicy(await isDockerAvailable())
     if (policy === 'fail') {
-      throw new Error('Docker is required (CI or FAIRE_REQUIRE_DOCKER is set) but is not available')
+      throw new Error('Docker is required (CI or MAWL_REQUIRE_DOCKER is set) but is not available')
     }
     if (policy === 'skip') {
       skipNote = 'Docker is not available'
       process.stderr.write(`[compose-smoke] ${skipNote}: skipping the compose stack suite\n`)
       return
     }
-    scratch = await mkdtemp(join(tmpdir(), 'faire-compose-'))
+    scratch = await mkdtemp(join(tmpdir(), 'mawl-compose-'))
     overrideFile = join(scratch, 'override.yml')
     await writeFile(
       overrideFile,
       [
         'services:',
         '  server:',
-        `    image: faire-server:${project}`,
+        `    image: mawl-server:${project}`,
         // !override needs Docker Compose 2.24 or newer.
         '    ports: !override',
         '      - "127.0.0.1::7420"',
@@ -78,7 +78,7 @@ describe('docker compose stack', () => {
     if (started) {
       await compose(['down', '-v', '--remove-orphans', '--rmi', 'local']).catch(() => {})
       // --rmi local skips images with a custom image: tag, so remove this run's tag explicitly.
-      await run('docker', ['rmi', '-f', `faire-server:${project}`]).catch(() => {})
+      await run('docker', ['rmi', '-f', `mawl-server:${project}`]).catch(() => {})
     }
     if (scratch) await rm(scratch, { recursive: true, force: true })
   }, 120_000)

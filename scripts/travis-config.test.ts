@@ -52,7 +52,7 @@ describe('Travis CI config', () => {
   it('has Docker and requires the Testcontainers suites to run, not skip', () => {
     expect(travis.services).toContain('docker')
     expect(env).toContain('CI=1')
-    expect(env).toContain('FAIRE_REQUIRE_DOCKER=1')
+    expect(env).toContain('MAWL_REQUIRE_DOCKER=1')
   })
 
   it('caches the pnpm store and the turbo cache', () => {

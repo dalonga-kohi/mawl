@@ -5,7 +5,7 @@ import {
   type RunId,
   type RunStatus,
   type Usage,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import type {
   AppendResult,
   ModelMessage,
@@ -15,8 +15,8 @@ import type {
   RunRecord,
   RunStore,
   TransitionPatch,
-} from '@faire/core'
-import { schema } from '@faire/db'
+} from '@mawl/core'
+import { schema } from '@mawl/db'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ProvidersDb } from '../providers/types.ts'

@@ -1,1 +1,1 @@
-export const packageName = '@faire/sandbox'
+export const packageName = '@mawl/sandbox'

@@ -1,4 +1,4 @@
-import { newId } from '@faire/contracts'
+import { newId } from '@mawl/contracts'
 import { ORPCError } from '@orpc/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEventStore } from './event-store.ts'

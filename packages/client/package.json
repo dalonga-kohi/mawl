@@ -1,5 +1,5 @@
 {
-  "name": "@faire/client",
+  "name": "@mawl/client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@faire/contracts": "workspace:*",
+    "@mawl/contracts": "workspace:*",
     "@orpc/client": "1.15.7",
     "@orpc/contract": "1.15.7",
     "@orpc/tanstack-query": "1.15.7",
     "@tanstack/query-core": "5.104.4"
   },
   "devDependencies": {
-    "@faire/testkit": "workspace:*"
+    "@mawl/testkit": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import { ProviderDescriptor, ProviderKind } from '@faire/contracts'
+import { ProviderDescriptor, ProviderKind } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
 import { listProviderDescriptors, PROVIDER_DESCRIPTORS } from './descriptors.ts'
 

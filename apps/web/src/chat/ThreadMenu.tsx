@@ -1,4 +1,4 @@
-import type { Thread, ThreadId } from '@faire/contracts'
+import type { Thread, ThreadId } from '@mawl/contracts'
 import { Check, ChevronDown, SquarePen } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { cx } from '../ui/cx.ts'

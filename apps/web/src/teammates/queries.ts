@@ -1,4 +1,4 @@
-import type { Message, MessageId, ProfileId, RunId, ThreadId } from '@faire/contracts'
+import type { Message, MessageId, ProfileId, RunId, ThreadId } from '@mawl/contracts'
 import {
   type InfiniteData,
   useInfiniteQuery,

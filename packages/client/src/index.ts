@@ -1,14 +1,14 @@
-export const packageName = '@faire/client'
+export const packageName = '@mawl/client'
 
 export type {
-  FaireClient,
-  FaireClientHandle,
-  FaireClientOptions,
-  FaireQueryUtils,
-  FaireSocket,
-  FaireSocketConstructor,
+  MawlClient,
+  MawlClientHandle,
+  MawlClientOptions,
+  MawlQueryUtils,
+  MawlSocket,
+  MawlSocketConstructor,
 } from './client.ts'
-export { createFaireClient } from './client.ts'
+export { createMawlClient } from './client.ts'
 export type {
   EventStore,
   EventStoreOptions,

@@ -1,4 +1,4 @@
-import type { ProviderFailureReason } from '@faire/contracts'
+import type { ProviderFailureReason } from '@mawl/contracts'
 
 const BY_CODE: Record<string, ProviderFailureReason> = {
   subscription_sharing_usage_limit_exceeded: 'plan_limit_reached',

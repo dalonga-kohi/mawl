@@ -1,4 +1,4 @@
-import { fakeModel } from '@faire/testkit'
+import { fakeModel } from '@mawl/testkit'
 import { tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'

@@ -1,4 +1,4 @@
-import type { ProfileId, Run, RunId, ThreadId } from '@faire/contracts'
+import type { ProfileId, Run, RunId, ThreadId } from '@mawl/contracts'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'

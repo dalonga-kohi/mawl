@@ -1,5 +1,5 @@
-import { createFaireClient } from '@faire/client'
-import type { ProfileId, RunId, ThreadId } from '@faire/contracts'
+import { createMawlClient } from '@mawl/client'
+import type { ProfileId, RunId, ThreadId } from '@mawl/contracts'
 import { partialMatchKey } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { keys, MESSAGE_PAGE } from './keys.ts'
@@ -10,7 +10,7 @@ class NoSocket {
     throw new Error('no socket in key tests')
   }
 }
-const { utils } = createFaireClient({ url: 'ws://127.0.0.1:1/ws', WebSocket: NoSocket as never })
+const { utils } = createMawlClient({ url: 'ws://127.0.0.1:1/ws', WebSocket: NoSocket as never })
 
 const profileId = 'prof_01JTEST0000000000000000001' as ProfileId
 const threadId = 'thr_01JTEST0000000000000000001' as ThreadId

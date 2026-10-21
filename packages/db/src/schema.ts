@@ -11,7 +11,7 @@ import type {
   StepId,
   ThreadId,
   Usage,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import {
   ChannelKind,
   MessageRole,
@@ -19,7 +19,7 @@ import {
   RunStatus,
   RunTrigger,
   StepKind,
-} from '@faire/contracts'
+} from '@mawl/contracts'
 import { type SQL, sql } from 'drizzle-orm'
 import {
   bigserial,

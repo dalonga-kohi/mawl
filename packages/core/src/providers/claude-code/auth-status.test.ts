@@ -123,7 +123,7 @@ describe('testClaudeCodeLogin', () => {
 describe('testClaudeCodeLogin with the real process runner', () => {
   it('is unreachable when the binary path does not exist', async () => {
     const res = await testClaudeCodeLogin({
-      pathToClaudeCodeExecutable: '/nonexistent/faire-test/claude',
+      pathToClaudeCodeExecutable: '/nonexistent/mawl-test/claude',
     })
     expect(res).toEqual({ ok: false, reason: 'unreachable' })
   })
