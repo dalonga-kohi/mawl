@@ -23,14 +23,21 @@ const files = execFileSync(
 const SELF = 'scripts/claude-terms.test.ts'
 const DOCS = ['docs/', '.claude/', 'CLAUDE.md']
 const CLAUDE_CODE_DIR = 'packages/core/src/providers/claude-code/'
+// The repo's own CI runs Anthropic's claude-code-action with a token from `claude setup-token`.
+// That is Claude Code's own flow on GitHub, not Faire touching a login, so only this file may
+// name the token.
+const CLAUDE_WORKFLOW = '.github/workflows/claude.yml'
 
 const rules: Array<{ term: string; allowedIn: string[] }> = [
   // The credential file and the keychain entry belong to the binary alone.
   { term: '.credentials.json', allowedIn: [SELF, ...DOCS] },
   { term: 'Claude Code-credentials', allowedIn: [SELF, ...DOCS] },
-  { term: 'setup-token', allowedIn: [SELF, ...DOCS] },
+  { term: 'setup-token', allowedIn: [SELF, ...DOCS, CLAUDE_WORKFLOW] },
   // Dropped from the subprocess env; named only where tests prove it.
-  { term: 'CLAUDE_CODE_OAUTH_TOKEN', allowedIn: [SELF, ...DOCS, CLAUDE_CODE_DIR] },
+  {
+    term: 'CLAUDE_CODE_OAUTH_TOKEN',
+    allowedIn: [SELF, ...DOCS, CLAUDE_CODE_DIR, CLAUDE_WORKFLOW],
+  },
 ]
 
 /**
