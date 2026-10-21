@@ -192,3 +192,18 @@ describe('scroll to bottom', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull())
   })
 })
+
+describe('composer focus', () => {
+  it('draws no ring on the pill or the text field when focused', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    await screen.findByRole('heading', { name: "What's next?" })
+    const box = screen.getByLabelText('Message Inbox Sweeper')
+    await user.click(box)
+    expect(document.activeElement).toBe(box)
+    const form = box.closest('form') as HTMLFormElement
+    for (const el of [form, box]) {
+      expect(el.className).not.toMatch(/focus-within|focus:|focus-visible|ring/)
+    }
+  })
+})

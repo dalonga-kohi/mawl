@@ -275,7 +275,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
 ## 11. Accessibility checklist (blocking for review)
 
 - Text contrast ≥ 4.5:1, UI components ≥ 3:1, in both themes and with all accent presets.
-- Visible focus: a 2 px `--accent-ring` with a 2 px offset. Never remove outlines.
+- Visible focus: a 2 px `--accent-ring` with a 2 px offset. Never remove outlines. The one exception is the composer text field (and its pill): the caret shows focus there, so it draws no ring; the composer's buttons keep theirs.
 - Everything is reachable by keyboard; the chat list uses roving focus. Icon buttons have `aria-label`.
 - Touch targets ≥ 44 px on mobile; ≥ 8 px gap between targets. On the web the size follows the input, not the width: `pointer-coarse:` raises buttons, segments, swatches and tabs to 44 px, while mouse users keep the denser sizes. A control that must stay visually small (the switch) widens its hit area with a `before:` pseudo-element.
 - Streaming messages use `aria-live="polite"` (throttled); approvals use `role="alertdialog"` only when blocking.

@@ -99,8 +99,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       onSubmit={submit}
       className={cx(
         'flex w-full items-end gap-1 rounded-panel bg-surface p-1.5',
-        'shadow-[0_0_0_1px_var(--line),var(--shadow-1)] transition-shadow duration-(--dur-base) ease-out',
-        'focus-within:shadow-[0_0_0_1px_var(--accent-ring),0_0_0_4px_var(--accent-softer)]',
+        'shadow-[0_0_0_1px_var(--line),var(--shadow-1)]',
       )}
     >
       <AddMenu />
