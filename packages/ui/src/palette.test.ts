@@ -41,10 +41,10 @@ describe('neutral palette', () => {
       text3: '#8C877B',
     })
     expect(neutrals.dark).toEqual({
-      bg: '#0B0B0D',
-      surface: '#131315',
-      surface2: '#1B1B1E',
-      line: '#26262A',
+      bg: '#060607',
+      surface: '#0D0D0F',
+      surface2: '#151517',
+      line: '#1E1E22',
       text: '#ECECEE',
       text2: '#A6A6AD',
       text3: '#6F6F77',

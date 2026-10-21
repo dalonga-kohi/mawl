@@ -26,10 +26,10 @@ The first UI was correct but plain: a 64 px icon rail, a brown beaver, a blue ac
 ### Neutrals
 | Token | Light "Cream" | Dark "Ink" |
 |---|---|---|
-| `--bg` | `#FAF8F4` | `#0B0B0D` |
-| `--surface` | `#FFFFFF` | `#131315` |
-| `--surface-2` | `#F2EFE8` | `#1B1B1E` |
-| `--line` | `#E7E3DA` | `#26262A` |
+| `--bg` | `#FAF8F4` | `#060607` |
+| `--surface` | `#FFFFFF` | `#0D0D0F` |
+| `--surface-2` | `#F2EFE8` | `#151517` |
+| `--line` | `#E7E3DA` | `#1E1E22` |
 | `--text` | `#1D1B16` | `#ECECEE` |
 | `--text-2` | `#5E5A50` | `#A6A6AD` |
 | `--text-3` | `#8C877B` | `#6F6F77` |
