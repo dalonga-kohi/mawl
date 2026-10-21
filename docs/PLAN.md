@@ -1,6 +1,6 @@
 # Faire — Implementation Plan
 
-This is the working roadmap the orchestrator follows. Each **slice** is a vertical, testable unit, sized for one round of the orchestration loop (see CLAUDE.md). Mark a slice `[x]` only after the tester and reviewer both pass. Add the short commit range next to it.
+This is the working roadmap the orchestrator follows. Each **slice** is a vertical, testable unit, sized for one round of the orchestration loop (see CLAUDE.md). Mark a slice `[x]` only after the runner, test-author and reviewer all pass (and the head-reviewer, when the user approved one). Add the short commit range next to it.
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (write why)
 
@@ -175,6 +175,7 @@ S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S4 skill import + l
 
 ```
 Slice: P?.? <name>
+Agent: coder | head-coder (why, if head-coder)
 Goal: <one sentence user/dev-visible outcome>
 Context: <docs sections + files explorer found>
 Tests first: <list of failing tests to write — unit / integration / e2e>

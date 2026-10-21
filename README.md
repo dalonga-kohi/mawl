@@ -24,4 +24,4 @@ Set `FAIRE_DB_PASSWORD` in `infra/compose/.env` first (copy `.env.example`), the
 - Interactive mockup: [design/mockup/index.html](design/mockup/index.html)
 
 ## Working on Faire with Claude Code
-See [CLAUDE.md](CLAUDE.md). The main session orchestrates, and the `explorer`, `coder`, `tester` and `reviewer` subagents (in `.claude/agents/`) implement each slice in a TDD loop.
+See [CLAUDE.md](CLAUDE.md). The main session orchestrates, and subagents in `.claude/agents/` (explorer, coder and head-coder, runner, test-author, reviewer and head-reviewer, advisor) implement each slice in a TDD loop.

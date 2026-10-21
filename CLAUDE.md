@@ -14,7 +14,7 @@ Faire is a self-hosted, always-on agent app ("AI teammates you own"). It has:
 
 ## Voice: caveman skill, always on (default mode)
 
-Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`caveman`** skill (`.claude/skills/caveman/SKILL.md`) in its default mode for chat, status lines and subagent reports.
+Every agent (orchestrator and all subagents in `.claude/agents/`) uses the **`caveman`** skill (`.claude/skills/caveman/SKILL.md`) in its default mode for chat, status lines and subagent reports.
 - Default mode only: not `ultracave` or `megacave` unless the user asks.
 - Per the skill, these stay normal, full prose:
   - anything persisted (code, comments, commit messages, docs, PLAN updates, UI copy)
@@ -25,28 +25,59 @@ Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`cavema
 
 ## Roles
 
-- **You (the main session, Opus): orchestrator and planner.** You own PLAN.md, slice the work, write the briefs, dispatch subagents, judge their results and keep the docs true. Do small glue edits yourself (doc fixes, one-line config), and delegate real implementation.
-- **`explorer` (Haiku):** read-only context and current library facts.
-- **`coder` (Sonnet):** implements one slice with TDD and commits.
-- **`tester` (Sonnet):** runs the gate, mutation-checks the tests, adds edge-case tests, and does visual checks. It never edits production code.
-- **`reviewer` (Sonnet):** read-only review of a commit range. Returns findings ranked by severity.
+**You (the main session, Sonnet): orchestrator and planner.**
+- You own PLAN.md, slice the work, write the briefs, dispatch subagents, judge their results and keep the docs true.
+- Do small glue edits yourself (doc fixes, one-line config), and delegate real implementation, including all UI.
+
+| Agent | Model | Writes | Use it for |
+|---|---|---|---|
+| `explorer` | Haiku | nothing | Read-only context: doc sections, existing code, current library versions and APIs |
+| `coder` | Sonnet | code + tests | **Light and general slices:** single-package features, fixes, wiring, config, scripts, docs-heavy work |
+| `head-coder` | Opus | code + tests | **Hard slices** (list below), **all frontend/UI slices**, and any slice the coder failed twice |
+| `runner` | Haiku | nothing | Runs the full gate (Docker suites required) and e2e, plus browser visual checks. Reports only |
+| `test-author` | Sonnet | test files only | Hunts edge cases, writes them as tests, mutation-checks the slice's tests |
+| `reviewer` | Sonnet | nothing | Every slice: read-only review of the commit range, findings ranked by severity |
+| `head-reviewer` | Opus | nothing | **Ask the user first, every time.** High-stakes changes (list below) |
+| `advisor` | Opus | nothing | **Ask the user first, every time.** A hard design, slicing or debugging decision you can't settle yourself |
+
+**A slice is hard (→ `head-coder`) when it touches any of:**
+- more than one package's public API, `@faire/contracts`, or the event envelope
+- the run engine, `RUN_TRANSITIONS`, concurrency, jobs, retries or resume
+- the memory system (docs/MEMORY.md)
+- DB migrations
+- policy, approvals, credentials, secrets or the sandbox boundary
+- a design the brief can't pin down in advance
+When unsure, it's not hard: start with `coder`. The escalation rule catches the rest.
+
+**Escalation (automatic).** After 2 fix loops where the coder doesn't converge, hand the slice to `head-coder` with the brief, the coder's commits and the open findings. Tell the user in one line. The 3-loop stop below then counts head-coder's loops.
+
+**Head reviewer: propose it, never run it unasked.** Propose it when a slice:
+- changes what ARCHITECTURE.md or MEMORY.md mean
+- touches policy, approvals, credentials or the sandbox
+- migrates existing tables
+- changes contracts or the envelope version
+- closes a phase
+Ask in one line with the reason. Run it after the regular `reviewer`, and pass it the reviewer's findings so it doesn't repeat them.
+
+**Advisor: ask first, use rarely.** Propose it when two approaches are both defensible and the choice is costly to reverse, when a slice failed the 3-loop stop, or when docs conflict. Say what you would ask it. Its answer is input for your decision, not a replacement for it.
 
 ## The loop (one slice at a time)
 
-1. **Pick** the next `[ ]` slice in PLAN.md and mark it `[~]`.
+1. **Pick** the next `[ ]` slice in PLAN.md and mark it `[~]`. Once the repo has a remote, create a branch `slice/<id>-<short-name>` from an up-to-date `main`.
 2. **Explore** (`explorer`): the doc sections, existing code, and the exact current versions and APIs of the libraries involved. Skip this for tiny slices and fold version checks into the coder brief.
-3. **Brief.** Use the template at the end of PLAN.md. State the versions and decisions you have already made, so the coder doesn't re-decide them.
-4. **Code** (`coder`): red → green → refactor, committing after each green step.
-5. **Test + review in parallel.** `tester` and `reviewer` touch different things (test files vs read-only), so send both in one message.
+3. **Brief.** Use the template at the end of PLAN.md. State the versions and decisions you have already made, so the coder doesn't re-decide them. Pick `coder` or `head-coder` using the table above.
+4. **Code** (`coder` or `head-coder`): red → green → refactor, committing after each green step.
+5. **Run, test and review in parallel.** Send `runner`, `test-author` and `reviewer` in one message. They don't collide: the runner and reviewer are read-only, and the test-author touches test files only. Propose `head-reviewer` here if the slice qualifies.
 6. **Iterate.**
-   - Send the findings back to the **same coder** with `SendMessage` (its agent id). That keeps its context, so don't spawn a fresh coder.
+   - Send the findings and any failing tests from test-author back to the **same coder** with `SendMessage` (its agent id). That keeps its context, so don't spawn a fresh coder.
    - Then re-verify the gate yourself and send a short re-review of only the fix commits.
-   - After 3 loops without convergence, stop and ask the user.
+   - After 2 loops without convergence, escalate to `head-coder` (above). After 3 head-coder loops, stop and ask the user.
 7. **Close.**
    - Run the gate yourself: `pnpm turbo lint typecheck test --force`.
    - Mark the slice `[x] (firstSha..lastSha)` in PLAN.md.
    - Fix docs whose meaning changed.
    - Note deferred review items in the right future PLAN slice.
+   - With a remote, ask the user once: "push and open the PR?" Pushing is outward-facing. On a yes, push the branch and open the PR. Merge into `main` only when Travis and GitHub Actions are green and the user says so. The Claude review on the PR is advisory: triage its findings like the reviewer's.
    - Stop at phase boundaries.
 
 **Deciding things.** Make conventional technical calls yourself, write them into the brief and docs, and tell the user in one line. Examples: picking the current stable major, rejecting betas, or cancel-from-any-state. Ask the user only for real product choices (see "When to ask").
@@ -55,7 +86,7 @@ Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`cavema
 
 ## Non-negotiable engineering rules
 
-- **TDD.** Write the failing test first and confirm it fails for the right reason. A bug fix starts with a reproducing test. The tester's intentionally-failing tests must be made to pass, never weakened.
+- **TDD.** Write the failing test first and confirm it fails for the right reason. A bug fix starts with a reproducing test. The test-author's intentionally-failing tests must be made to pass, never weakened.
 - **Commits.**
   - Use small Conventional Commits (`feat(core):`, `fix(ui):`, `test(contracts):`, `docs:`, `build:`, `ci:`, `chore:`), one logical change each.
   - Add the trailer for the model that wrote it:
@@ -92,7 +123,8 @@ Every agent (orchestrator, explorer, coder, tester, reviewer) uses the **`cavema
 | PGlite | `@electric-sql/pglite` 0.5.10 + `@electric-sql/pglite-pgvector` 0.0.11 | In-process Postgres so DB suites run locally without Docker; the same suite also runs on Testcontainers |
 | graphile-worker | 0.18.0 (MIT) | Run jobs in `apps/server`. Needs a real `pg` Pool (not PGlite); bundles into `dist/server.mjs` (migrations are embedded). Task `run.execute` |
 | testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
-| GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0 | Pinned by full SHA (a test enforces it) |
+| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Main CI** (user's student plan). Stages `gate` (full gate, `FAIRE_REQUIRE_DOCKER=1`) then `e2e`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it |
+| GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0; `anthropics/claude-code-action` 1.0.256 | `ci.yml` is the fallback gate. `claude.yml` reviews same-repo PRs (Sonnet) and answers `@claude` from the owner, members and collaborators, using the `CLAUDE_CODE_OAUTH_TOKEN` secret. All pinned by full SHA (tests enforce it). Dependabot is weekly |
 
 ## Monorepo conventions
 
@@ -156,7 +188,7 @@ docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack a
 - Turbo needs `pnpm` on PATH. Until the user runs `corepack enable` (it may need admin), every agent does:
   `corepack enable --install-directory <scratchpad>\shims` then `$env:PATH="<scratchpad>\shims;$env:PATH"`.
 - **Docker Desktop is installed** (engine 29.8.2, context `desktop-linux`). Run DB/server suites with `$env:FAIRE_REQUIRE_DOCKER='1'` so the Testcontainers suites must run, not skip. A cold engine can be slow, so the testkit probe waits up to 30 s.
-- There's no git remote, so CI has never actually run. Pushing or creating a repo is the user's call.
+- The remote is `origin` → `git@github.com:dalonga-kohi/mawl.git` (public), over SSH. Every push is the user's call; never push without a yes in chat.
 - The repo-local git identity is `megas`. Line endings are LF via `.gitattributes`; CRLF warnings are cosmetic.
 
 ## When to ask the user
@@ -164,7 +196,8 @@ docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack a
 - Product decisions not covered by SPEC/DESIGN.
 - Paid services, accounts, anything outward-facing (push, publish, create repos).
 - Image assets (give a prompt).
-- After 3 failed fix loops.
+- After 3 failed head-coder fix loops.
+- Before running `head-reviewer` or `advisor`.
 - At each phase boundary.
 
 Scoped rules: `.claude/rules/` (frontend, server, testing). Load the ones that match the files you touch.

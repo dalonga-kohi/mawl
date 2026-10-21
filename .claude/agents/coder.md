@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Implements one Faire slice from an orchestrator brief using strict TDD (failing test → pass → refactor) with small frequent conventional commits. Use for all production code and test-first development across server, packages, web, desktop and mobile.
+description: Implements one standard Faire slice from an orchestrator brief using strict TDD (failing test → pass → refactor) with small frequent conventional commits. Use for light and general production work (single-package features, fixes, config, wiring). Hard slices and all UI go to head-coder.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebFetch
 model: sonnet
 skills:
