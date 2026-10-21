@@ -100,8 +100,8 @@ function AccentControl() {
             key={p.id}
             value={p.hex}
             aria-label={p.name}
-            className="relative size-8 pointer-coarse:size-11 rounded-pill transition-transform duration-[200ms] hover:scale-110 active:scale-90 data-[state=checked]:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--c)]"
-            style={{ background: p.hex, ['--c' as string]: p.hex }}
+            className="relative size-8 pointer-coarse:size-11 rounded-pill transition-transform duration-[200ms] hover:scale-110 active:scale-90 shadow-[inset_0_0_0_1px_var(--line)] data-[state=checked]:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--text)]"
+            style={{ background: p.hex }}
           >
             {/* A single ripple from the chosen swatch (DESIGN.md §7). */}
             <AnimatePresence>
@@ -126,7 +126,7 @@ function AccentControl() {
       <label
         className={cx(
           'relative size-8 pointer-coarse:size-11 cursor-pointer rounded-pill transition-transform duration-[200ms] hover:scale-110 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-ring',
-          isCustom && 'shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--accent)]',
+          isCustom && 'shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--text)]',
         )}
         style={{
           background: `conic-gradient(from 0deg, ${[...presetHexes, presetHexes[0]].join(', ')})`,

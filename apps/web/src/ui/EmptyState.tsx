@@ -20,11 +20,11 @@ export function EmptyState({
   const Heading = `h${headingLevel}` as const
   return (
     <div className="grid flex-1 place-items-center p-6 text-center">
-      <div className="flex max-w-[40ch] flex-col items-center gap-2">
+      <div className="flex max-w-[42ch] flex-col items-center gap-2">
         <Beaver size={mascotSize} state={mascot} />
-        <Heading className="mt-2 font-display text-title">{title}</Heading>
-        {children ? <div className="text-text-2">{children}</div> : null}
-        {action ? <div className="mt-3 flex flex-wrap justify-center gap-2">{action}</div> : null}
+        <Heading className="mt-3 font-display text-title text-balance">{title}</Heading>
+        {children ? <div className="text-pretty text-text-2">{children}</div> : null}
+        {action ? <div className="mt-4 flex flex-wrap justify-center gap-2">{action}</div> : null}
       </div>
     </div>
   )
