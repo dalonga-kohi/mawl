@@ -1,5 +1,5 @@
 import { Link, Navigate, Outlet } from '@tanstack/react-router'
-import { PanelRight, PanelRightClose } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useCredentials } from '../settings/models/queries.ts'
 import { useShell } from '../shell/ShellContext.tsx'
@@ -16,11 +16,11 @@ export function PanelToggle() {
   const { panelOpen, setPanelOpen } = useShell()
   return (
     <IconButton
-      label={panelOpen ? 'Hide side panel' : 'Show side panel'}
+      label={panelOpen ? 'Hide computer panel' : 'Show computer panel'}
       onClick={() => setPanelOpen(!panelOpen)}
       aria-expanded={panelOpen}
     >
-      {panelOpen ? <PanelRightClose aria-hidden="true" /> : <PanelRight aria-hidden="true" />}
+      <Monitor aria-hidden="true" />
     </IconButton>
   )
 }

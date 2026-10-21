@@ -1,7 +1,7 @@
 import { accentPresets } from '@mawl/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
-import { Laptop, Moon, PanelRight, Search, Sun, Wind } from 'lucide-react'
+import { Laptop, Monitor, Moon, Search, Sun, Wind } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
 import { type ReactNode, useEffect } from 'react'
@@ -167,10 +167,10 @@ export function CommandPalette() {
                     <Command.Group heading="Layout" className={groupClass}>
                       <Item
                         keywords={['context', 'computer', 'panel', 'sidebar']}
-                        icon={<PanelRight aria-hidden="true" />}
+                        icon={<Monitor aria-hidden="true" />}
                         onSelect={run(() => setPanelOpen(!panelOpen))}
                       >
-                        {panelOpen ? 'Hide side panel' : 'Show side panel'}
+                        {panelOpen ? 'Hide computer panel' : 'Show computer panel'}
                       </Item>
                     </Command.Group>
                   </Command.List>

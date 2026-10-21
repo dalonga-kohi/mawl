@@ -45,9 +45,9 @@ describe('teammates view', () => {
   it('collapses and restores the context panel on wide screens', async () => {
     const { user } = await renderApp('/t')
     expect(screen.getByRole('complementary', { name: 'Context' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Hide side panel' }))
+    await user.click(screen.getByRole('button', { name: 'Hide computer panel' }))
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Context' })).toBeNull())
-    await user.click(screen.getByRole('button', { name: 'Show side panel' }))
+    await user.click(screen.getByRole('button', { name: 'Show computer panel' }))
     expect(screen.getByRole('complementary', { name: 'Context' })).toBeTruthy()
   })
 
@@ -55,7 +55,7 @@ describe('teammates view', () => {
     stubViewport(900)
     const { user } = await renderApp('/t')
     expect(screen.queryByRole('complementary', { name: 'Context' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Show side panel' }))
+    await user.click(screen.getByRole('button', { name: 'Show computer panel' }))
     const sheet = await screen.findByRole('dialog', { name: 'Context' })
     expect(within(sheet).getByRole('tab', { name: 'Computer' })).toBeTruthy()
   })
