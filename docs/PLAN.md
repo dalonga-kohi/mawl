@@ -208,6 +208,7 @@ Goal: give a teammate a terminal or desktop computer with one click, when Docker
 - [ ] **D4.1 Memory schema + core blocks.**
   - Blocks with caps and versions, `memory_block_edit` tool, frozen-per-segment rendering.
   - *Tests:* cap rejection; byte-stable prefix across edits.
+  - Decide the user block cap: profile context allows 2000 chars, the block caps at 1500 (see MEMORY.md).
 - [ ] **D4.2 Episodic log + `session_search`.** Episodes with FTS and artifact references.
 - [ ] **D4.3 Embedder + hybrid recall.**
   - Pluggable embedder, HNSW, RRF + rescoring + MMR, automatic injection.
