@@ -1,5 +1,6 @@
-# Main CI. GitHub Actions (.github/workflows/ci.yml) runs the same gate as a fallback.
-# scripts/travis-config.test.ts checks the shape of this file.
+# Docker-backed suites only. GitHub Actions (.github/workflows/ci.yml) runs lint, typecheck, the
+# other tests and the browser e2e, and skips these suites (MAWL_SKIP_DOCKER_SUITES), so nothing
+# runs twice. scripts/travis-config.test.ts checks the shape of this file.
 os: linux
 dist: noble
 language: node_js
@@ -17,12 +18,10 @@ env:
     # The Testcontainers suites must run here, never skip.
     - MAWL_REQUIRE_DOCKER=1
     - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-    - TURBO_CACHE_DIR=.turbo/cache
 
 cache:
   directories:
     - $HOME/.pnpm-store
-    - .turbo/cache
 
 # The pnpm version comes from "packageManager" in package.json.
 before_install:
@@ -32,21 +31,8 @@ before_install:
 install:
   - pnpm install --frozen-lockfile
 
-stages:
-  - gate
-  - e2e
-
 jobs:
   include:
-    - stage: gate
-      name: lint, typecheck, test
+    - name: docker suites
       script:
-        - pnpm turbo lint typecheck test
-
-    # The e2e server starts its own Postgres container.
-    - stage: e2e
-      name: browser e2e
-      before_script:
-        - pnpm --filter @mawl/web exec playwright install --with-deps chromium
-      script:
-        - pnpm test:e2e
+        - pnpm test:docker

@@ -66,6 +66,10 @@ describe('CI workflow', () => {
     expect(job?.['timeout-minutes']).toBeGreaterThan(0)
   })
 
+  it('skips the Docker suites, which Travis runs, so no test runs twice', () => {
+    expect(job?.env).toEqual({ MAWL_SKIP_DOCKER_SUITES: '1' })
+  })
+
   it('reads the Node version from .nvmrc and caches pnpm', () => {
     const setupNode = stepUsing('actions/setup-node')
     expect(setupNode?.with?.['node-version-file']).toBe('.nvmrc')

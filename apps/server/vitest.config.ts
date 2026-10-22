@@ -1,8 +1,12 @@
-import { defineProject } from 'vitest/config'
+import { configDefaults, defineProject } from 'vitest/config'
+
+// Travis runs the Docker suites (.travis.yml); the fast GitHub gate sets MAWL_SKIP_DOCKER_SUITES.
+const skipDocker = ['1', 'true'].includes(process.env.MAWL_SKIP_DOCKER_SUITES ?? '')
 
 export default defineProject({
   test: {
     name: '@mawl/server',
+    exclude: [...configDefaults.exclude, ...(skipDocker ? ['**/*.pg.test.ts'] : [])],
     // The PGlite suites migrate in beforeEach; with turbo running every package at once that can
     // pass the 10 s default on a loaded machine.
     hookTimeout: 60_000,

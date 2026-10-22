@@ -19,14 +19,12 @@ type Travis = {
   cache?: { directories?: string[] }
   before_install?: Phase
   install?: Phase
-  stages?: Array<string | { name: string }>
   jobs?: { include?: Job[] }
 }
 
 const travis = parse(raw) as Travis
 const lines = (p: Phase) => (p === undefined ? [] : Array.isArray(p) ? p : [p])
 const jobs = travis.jobs?.include ?? []
-const jobInStage = (stage: string) => jobs.find((j) => j.stage === stage)
 const env = travis.env?.global ?? []
 
 describe('Travis CI config', () => {
@@ -55,25 +53,26 @@ describe('Travis CI config', () => {
     expect(env).toContain('MAWL_REQUIRE_DOCKER=1')
   })
 
-  it('caches the pnpm store and the turbo cache', () => {
+  it('caches the pnpm store', () => {
     const dirs = travis.cache?.directories ?? []
-    expect(dirs).toContain('.turbo/cache')
     expect(dirs.some((d) => d.includes('pnpm-store'))).toBe(true)
   })
 
-  it('runs the gate stage before the e2e stage', () => {
-    const names = (travis.stages ?? []).map((s) => (typeof s === 'string' ? s : s.name))
-    expect(names).toEqual(['gate', 'e2e'])
+  it('runs only the Docker suites, in one job, since GitHub Actions covers the rest', () => {
+    expect(jobs).toHaveLength(1)
+    expect(lines(jobs[0]?.script)).toEqual(['pnpm test:docker'])
+    expect(travis).not.toHaveProperty('stages')
+    const code = raw.replace(/^\s*#.*$/gm, '')
+    expect(code).not.toMatch(/turbo|playwright|lint|typecheck/)
   })
 
-  it('runs the same gate as local: turbo lint typecheck test', () => {
-    expect(lines(jobInStage('gate')?.script)).toContain('pnpm turbo lint typecheck test')
-  })
-
-  it('installs Chromium before running the browser e2e suite', () => {
-    const e2e = jobInStage('e2e')
-    expect(lines(e2e?.before_script).join('\n')).toMatch(/playwright install --with-deps chromium/)
-    expect(lines(e2e?.script)).toContain('pnpm test:e2e')
+  it('selects the same suites the GitHub gate skips', () => {
+    const rootScripts = (
+      JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>
+      }
+    ).scripts
+    expect(rootScripts['test:docker']).toContain('.pg.test.ts')
   })
 
   it('carries no encrypted or plain secrets in the file', () => {
