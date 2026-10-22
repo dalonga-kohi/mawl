@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import type { MascotState } from '../mascot/states.ts'
-import { loadSidebarOpen, saveSidebarOpen } from './shell-prefs.ts'
+import { loadPanelOpen, loadSidebarOpen, savePanelOpen, saveSidebarOpen } from './shell-prefs.ts'
 
 interface ShellApi {
   /** Context panel: inline at 1100 px and wider, a sheet below. */
@@ -47,14 +47,20 @@ export function ShellProvider({
   wide: boolean
   medium: boolean
 }) {
-  // Wide screens start with the panel open; narrower ones keep the sheet closed until asked.
-  const [wideOpen, setWideOpen] = useState(true)
+  // Wide screens start with the panel open unless the owner hid it; narrower ones keep the sheet
+  // closed until asked (the sheet is never remembered).
+  const [wideOpen, setWideOpenState] = useState(() => loadPanelOpen(window.localStorage))
   const [sheetOpen, setSheetOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [mascot, setMascot] = useState<MascotState>('idle')
   const [sidebarOpen, setSidebarOpenState] = useState(() => loadSidebarOpen(window.localStorage))
   const [drawerOpen, setDrawerOpen] = useState(false)
   const compact = !medium
+
+  const setWideOpen = useCallback((open: boolean) => {
+    setWideOpenState(open)
+    savePanelOpen(window.localStorage, open)
+  }, [])
 
   const setSidebarOpen = useCallback((open: boolean) => {
     setSidebarOpenState(open)
@@ -106,6 +112,7 @@ export function ShellProvider({
       drawerOpen,
       sidebarVisible,
       setVisible,
+      setWideOpen,
     ],
   )
   return <ShellContext value={api}>{children}</ShellContext>

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { loadSidebarOpen, SIDEBAR_STORAGE_KEY, saveSidebarOpen } from './shell-prefs.ts'
+import {
+  loadPanelOpen,
+  loadSidebarOpen,
+  PANEL_STORAGE_KEY,
+  SIDEBAR_STORAGE_KEY,
+  savePanelOpen,
+  saveSidebarOpen,
+} from './shell-prefs.ts'
 
 const store = (initial?: string) => {
   const data = new Map<string, string>()
@@ -17,6 +24,27 @@ const blocked = {
     throw new Error('blocked')
   },
 }
+
+describe('panel pref', () => {
+  it('is open by default and remembers closed and open', () => {
+    const data = new Map<string, string>()
+    const s = {
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => void data.set(k, v),
+    }
+    expect(loadPanelOpen(s)).toBe(true)
+    savePanelOpen(s, false)
+    expect(data.get(PANEL_STORAGE_KEY)).toBe('closed')
+    expect(loadPanelOpen(s)).toBe(false)
+    savePanelOpen(s, true)
+    expect(loadPanelOpen(s)).toBe(true)
+  })
+
+  it('survives blocked storage', () => {
+    expect(loadPanelOpen(blocked)).toBe(true)
+    expect(() => savePanelOpen(blocked, false)).not.toThrow()
+  })
+})
 
 describe('sidebar pref', () => {
   it('is open by default', () => {

@@ -1,7 +1,8 @@
 import type { Run } from '@mawl/contracts'
-import { Monitor } from 'lucide-react'
+import { Activity, BookOpen, Monitor } from 'lucide-react'
 import { useState } from 'react'
 import { failureCopy } from '../chat/run-copy.ts'
+import { EmptyPanel } from '../ui/EmptyPanel.tsx'
 import { IconTile } from '../ui/IconTile.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs.tsx'
 
@@ -10,8 +11,6 @@ const TABS = [
   { id: 'memory', label: 'Memory' },
   { id: 'run', label: 'Run' },
 ] as const
-
-const note = 'text-small text-text-2'
 
 const number = new Intl.NumberFormat()
 
@@ -35,7 +34,13 @@ const STATUS_WORD: Record<Run['status'], string> = {
 
 /** The latest run in this conversation as a few plain facts (P2/P3 add steps and memories). */
 function RunDetails({ run }: { run: Run | undefined }) {
-  if (!run) return <p className={note}>Run details show up while a teammate works.</p>
+  if (!run) {
+    return (
+      <EmptyPanel icon={Activity} title="No run yet">
+        Run details show up while a teammate works.
+      </EmptyPanel>
+    )
+  }
   const rows: [string, string][] = [
     ['Status', STATUS_WORD[run.status]],
     ['Time working', duration(run.activeMs)],
@@ -43,8 +48,9 @@ function RunDetails({ run }: { run: Run | undefined }) {
     ['Tokens out', number.format(run.usage.outputTokens)],
   ]
   return (
-    <div className="flex flex-col gap-3">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-small">
+    <div className="flex flex-col items-center gap-6 px-2 pt-8">
+      <IconTile icon={Activity} />
+      <dl className="grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-small">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
             <dt className="text-text-2">{k}</dt>
@@ -53,7 +59,7 @@ function RunDetails({ run }: { run: Run | undefined }) {
         ))}
       </dl>
       {run.status === 'failed' ? (
-        <p className="rounded-md bg-danger-soft p-3 text-small text-danger">
+        <p className="w-full rounded-lg bg-danger-soft p-3 text-small text-danger">
           {failureCopy(run.error).title}
         </p>
       ) : null}
@@ -75,14 +81,15 @@ export function ContextPanelBody({ run }: { run?: Run | undefined }) {
         ))}
       </TabsList>
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain p-3.5">
-        <TabsContent value="computer" className="flex flex-col gap-3">
-          <div className="flex flex-col items-center gap-3 px-2 py-8 text-center">
-            <IconTile icon={Monitor} />
-            <p className={note}>The computer starts when a teammate needs it.</p>
-          </div>
+        <TabsContent value="computer">
+          <EmptyPanel icon={Monitor} title="No computer yet">
+            The computer starts when a teammate needs it.
+          </EmptyPanel>
         </TabsContent>
         <TabsContent value="memory">
-          <p className={note}>Memories a teammate used for its last reply show up here.</p>
+          <EmptyPanel icon={BookOpen} title="Nothing remembered yet">
+            What this teammate learns about you shows up here.
+          </EmptyPanel>
         </TabsContent>
         <TabsContent value="run">
           <RunDetails run={run} />

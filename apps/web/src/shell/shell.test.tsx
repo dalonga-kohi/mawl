@@ -68,10 +68,41 @@ describe('teammates view', () => {
     expect(panel.querySelector('[data-slot="icon-tile"]')).toBeTruthy()
   })
 
-  it('switches context panel tabs', async () => {
+  it('switches context panel tabs, each with a calm empty state and no title row', async () => {
     const { user } = await renderApp('/t')
+    const panel = screen.getByRole('complementary', { name: 'Context' })
+    expect(within(panel).queryByRole('heading', { level: 1 })).toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: 'Memory' }))
+    expect(screen.getByRole('heading', { name: 'Nothing remembered yet' })).toBeTruthy()
+    expect(screen.getByText('What this teammate learns about you shows up here.')).toBeTruthy()
+    expect(panel.querySelector('[data-slot="icon-tile"]')).toBeTruthy()
+
     await user.click(screen.getByRole('tab', { name: 'Run' }))
     expect(screen.getByRole('tab', { name: 'Run' }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByText('Run details show up while a teammate works.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'No run yet' })).toBeTruthy()
+    expect(panel.querySelector('.mawl')).toBeNull()
+  })
+
+  it('remembers a hidden context panel for next time', async () => {
+    const first = await renderApp('/t')
+    await first.user.click(screen.getByRole('button', { name: 'Hide computer panel' }))
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Context' })).toBeNull())
+    expect(localStorage.getItem('mawl.panel')).toBe('closed')
+    first.unmount()
+
+    const again = await renderApp('/t')
+    expect(screen.queryByRole('complementary', { name: 'Context' })).toBeNull()
+    await again.user.click(screen.getByRole('button', { name: 'Show computer panel' }))
+    expect(screen.getByRole('complementary', { name: 'Context' })).toBeTruthy()
+    expect(localStorage.getItem('mawl.panel')).toBe('open')
+  })
+
+  it('does not remember the sheet below 1100 px', async () => {
+    stubViewport(900)
+    const { user } = await renderApp('/t')
+    await user.click(screen.getByRole('button', { name: 'Show computer panel' }))
+    await screen.findByRole('dialog', { name: 'Context' })
+    expect(localStorage.getItem('mawl.panel')).toBeNull()
   })
 })
