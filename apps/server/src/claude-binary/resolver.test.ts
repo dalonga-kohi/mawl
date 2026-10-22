@@ -34,16 +34,28 @@ describe('createClaudeExecutableResolver', () => {
     )
   })
 
-  it('leaves headless mode to the SDK package lookup', async () => {
+  it('headless: uses the binary of the SDK platform package installed beside the bundle', async () => {
     const ensure = vi.fn()
-    const resolve = createClaudeExecutableResolver({ manifest, logger, ensure })
-    expect(await resolve()).toBeUndefined()
+    const resolve = createClaudeExecutableResolver({
+      manifest,
+      logger,
+      ensure,
+      resolveBundled: () => '/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude',
+    })
+    expect(await resolve()).toBe(
+      '/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude',
+    )
     expect(ensure).not.toHaveBeenCalled()
   })
 
-  it('leaves a dev run without an embedded manifest to the SDK package lookup', async () => {
+  it('dev run without an embedded manifest: same package lookup, nothing downloaded', async () => {
     const ensure = vi.fn()
-    const resolve = createClaudeExecutableResolver({ dataDir: '/data', logger, ensure })
+    const resolve = createClaudeExecutableResolver({
+      dataDir: '/data',
+      logger,
+      ensure,
+      resolveBundled: () => null,
+    })
     expect(await resolve()).toBeUndefined()
     expect(ensure).not.toHaveBeenCalled()
   })

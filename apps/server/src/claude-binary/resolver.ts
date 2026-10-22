@@ -1,3 +1,4 @@
+import { resolveBundledClaudeBinary } from '@mawl/core'
 import type { Logger } from '../logger.ts'
 import { type EnsureClaudeBinaryOptions, ensureClaudeBinary } from './ensure.ts'
 import type { ClaudeBinaryManifest } from './manifest.ts'
@@ -13,6 +14,8 @@ export interface ClaudeExecutableResolverOptions {
   onProgress?: EnsureClaudeBinaryOptions['onProgress']
   /** Injected in tests. */
   ensure?: typeof ensureClaudeBinary
+  /** The SDK's own platform package beside the bundle (Docker). Injected in tests. */
+  resolveBundled?: () => string | null
 }
 
 function detectMusl(): boolean {
@@ -23,9 +26,9 @@ function detectMusl(): boolean {
 
 /**
  * Where the Claude Code binary comes from, in order: the owner's path; the pinned version in the
- * data dir (downloaded first if missing; desktop mode only); otherwise undefined, which leaves the
- * lookup of the SDK's own platform package (the Docker image) to core. Nothing happens until the
- * returned function is called.
+ * data dir (downloaded first if missing; desktop mode only); otherwise the SDK's own platform
+ * package installed beside the bundle (the Docker image), or undefined when there is none.
+ * Nothing happens until the returned function is called.
  */
 export function createClaudeExecutableResolver({
   explicitPath,
@@ -34,10 +37,12 @@ export function createClaudeExecutableResolver({
   logger,
   onProgress,
   ensure = ensureClaudeBinary,
+  resolveBundled = resolveBundledClaudeBinary,
 }: ClaudeExecutableResolverOptions): (signal?: AbortSignal) => Promise<string | undefined> {
   return async (signal) => {
     if (explicitPath) return explicitPath
-    if (!dataDir || !manifest) return undefined
+    // Bundled, the SDK cannot find a package beside itself, so it is always given a path.
+    if (!dataDir || !manifest) return resolveBundled() ?? undefined
     return ensure({
       dataDir,
       manifest,
