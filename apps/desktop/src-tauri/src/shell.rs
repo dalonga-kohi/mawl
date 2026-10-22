@@ -191,6 +191,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         },
     );
     let splash = splash_url(app);
+    let nav_presence = Arc::clone(&presence);
     app.manage(Shell {
         supervisor: supervisor.clone(),
         splash: splash.clone(),
@@ -219,7 +220,10 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             let current = dev_app
                 .clone()
                 .unwrap_or_else(|| app_url(supervisor.port()));
-            allow_navigation(target, &nav_splash, Some(&current))
+            // The app origin (which receives the launch token) loads only while the server is
+            // ready: during a restart another local process could hold the freed port.
+            let app_origin = nav_presence.app_allowed().then_some(&current);
+            allow_navigation(target, &nav_splash, app_origin)
         })
         .build()?;
     if window.url().ok().as_ref() != Some(&splash) {
