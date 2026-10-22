@@ -1,13 +1,11 @@
 mod shell;
+mod tray;
 
 use std::sync::Mutex;
 
-use mawl_host::deep_link;
-use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
-};
+use mawl_host::{autostart, deep_link};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_deep_link::DeepLinkExt;
 
 use shell::MAIN_WINDOW;
@@ -48,9 +46,18 @@ pub fn run() {
         // Registered first, as the single-instance docs require. A second launch focuses the
         // running window (splash or app, also when hidden in the tray). With the `deep-link`
         // feature the plugin forwards a `mawl://` argument of the second launch to `on_open_url`.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            show_main_window(app);
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // A login launch that finds Mawl already running must not pop the window up.
+            if !autostart::launched_hidden(&argv) {
+                show_main_window(app);
+            }
         }))
+        // Start at login: the OS runs `Mawl.exe --autostart`, which keeps the window in the tray.
+        // Whether it is on is the owner's choice (tray menu); `tray.rs` never enables it in dev.
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![autostart::AUTOSTART_ARG]),
+        ))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -87,36 +94,15 @@ pub fn run() {
                 }
             });
 
-            // The server first, then the window on the splash (it needs the token and port).
+            // The tray first, so status changes from the very first moment have an icon to update.
+            tray::build(app.handle(), show_main_window)?;
+
+            // The server, then the window on the splash (it needs the token and port).
             shell::start(app.handle())?;
-
-            let open = MenuItemBuilder::with_id("open", "Open Mawl").build(app)?;
-            let quit = MenuItemBuilder::with_id("quit", "Quit Mawl").build(app)?;
-            let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
-
-            let mut tray = TrayIconBuilder::with_id("main")
-                .tooltip("Mawl")
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "open" => show_main_window(app),
-                    "quit" => shell::begin_quit(app),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        show_main_window(tray.app_handle());
-                    }
-                });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
+            if let Some(shell) = app.try_state::<shell::Shell>() {
+                tray::update(app.handle(), shell.supervisor.status());
             }
-            tray.build(app)?;
+            tray::enable_autostart_first_run(app.handle(), &app.path().app_local_data_dir()?);
 
             Ok(())
         })
@@ -126,6 +112,7 @@ pub fn run() {
                 if window.label() == MAIN_WINDOW {
                     api.prevent_close();
                     let _ = window.hide();
+                    shell::hint_first_close(window.app_handle());
                 }
             }
         })

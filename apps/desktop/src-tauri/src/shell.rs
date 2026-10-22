@@ -4,19 +4,23 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use mawl_host::autostart::launched_hidden;
 use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::launch::{self, Layout};
 use mawl_host::machine::Status;
+use mawl_host::markers::first_close_hint;
+use mawl_host::notice::{Notice, NoticeTracker};
 use mawl_host::port;
 use mawl_host::presence::Presence;
 use mawl_host::token::LaunchToken;
 use mawl_host::webview::{allow_navigation, app_url, launch_token_script};
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
+use tauri_plugin_notification::NotificationExt;
 
 pub const MAIN_WINDOW: &str = "main";
 /// The splash listens for this event (`apps/web/src/splash/bridge.ts`).
@@ -40,9 +44,12 @@ pub struct Shell {
     /// can never leave it on a dead port (see `mawl_host::presence`).
     presence: Arc<Presence>,
     quitting: AtomicBool,
-    /// The window was shown once at launch. Later splash loads (a restart while Mawl sits in the
+    /// The window was shown once at launch (set from the start for a login launch, which stays in
+    /// the tray until the owner opens it). Later splash loads (a restart while Mawl sits in the
     /// tray) must not pop it up again.
     shown: AtomicBool,
+    /// The close-to-tray hint was handled in this run, whatever the marker file says.
+    close_hinted: AtomicBool,
     /// The supervisor finished: the app may exit now.
     stopped: Arc<AtomicBool>,
 }
@@ -64,11 +71,15 @@ struct TauriUi {
     app: AppHandle,
     presence: Arc<Presence>,
     stopped: Arc<AtomicBool>,
+    notices: Mutex<NoticeTracker>,
+    clock: Instant,
 }
 
 impl HostUi for TauriUi {
     fn status(&self, status: Status) {
         self.presence.note_status(status);
+        crate::tray::update(&self.app, status);
+        self.notify_about(status);
         let _ = self.app.emit_to(MAIN_WINDOW, STATUS_EVENT, status);
         if status == Status::Ready {
             let app = self.app.clone();
@@ -94,6 +105,62 @@ impl HostUi for TauriUi {
     fn exit(&self) {
         self.stopped.store(true, Ordering::SeqCst);
         self.app.exit(0);
+    }
+}
+
+impl TauriUi {
+    /// A native notification for the status change, when the owner needs one (mawl_host::notice).
+    fn notify_about(&self, status: Status) {
+        let notice = {
+            let now_ms = u64::try_from(self.clock.elapsed().as_millis()).unwrap_or(u64::MAX);
+            let visible = window_visible(&self.app);
+            let mut tracker = self.notices.lock().unwrap_or_else(|e| e.into_inner());
+            tracker.on_status(status, now_ms, visible)
+        };
+        if let Some(notice) = notice {
+            notify(&self.app, notice);
+        }
+    }
+}
+
+/// Shown and not minimized.
+fn window_visible(app: &AppHandle) -> bool {
+    app.get_webview_window(MAIN_WINDOW)
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+}
+
+fn notify(app: &AppHandle, notice: Notice) {
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title(notice.title)
+        .body(notice.body)
+        .show()
+    {
+        eprintln!("mawl: could not show a notification: {e}");
+    }
+}
+
+/// The first time the window closes to the tray, say that Mawl keeps running. Never blocks the
+/// close: a failed write or notification is only logged.
+pub fn hint_first_close(app: &AppHandle) {
+    let Some(shell) = app.try_state::<Shell>() else {
+        return;
+    };
+    if shell.close_hinted.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let Ok(data_dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    if first_close_hint(&data_dir) {
+        notify(
+            app,
+            Notice {
+                title: "Mawl is still running",
+                body: "Your teammates keep working. Open Mawl from the tray icon, or choose Quit Mawl to stop everything.",
+            },
+        );
     }
 }
 
@@ -173,6 +240,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let token_page = dev_app.clone().unwrap_or_else(|| app_url(port));
     let init_script = launch_token_script(token.expose(), &token_page);
 
+    let start_hidden = launched_hidden(&std::env::args().collect::<Vec<_>>());
     let stopped = Arc::new(AtomicBool::new(false));
     let presence = Arc::new(Presence::new());
     let supervisor = Supervisor::start(
@@ -188,6 +256,10 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             app: app.clone(),
             presence: Arc::clone(&presence),
             stopped: Arc::clone(&stopped),
+            notices: Mutex::new(NoticeTracker::new(Status::Starting {
+                stage: mawl_host::machine::Stage::Database,
+            })),
+            clock: Instant::now(),
         },
     );
     let splash = splash_url(app);
@@ -198,7 +270,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         dev_app: dev_app.clone(),
         presence,
         quitting: AtomicBool::new(false),
-        shown: AtomicBool::new(false),
+        shown: AtomicBool::new(start_hidden),
+        close_hinted: AtomicBool::new(false),
         stopped,
     });
 
