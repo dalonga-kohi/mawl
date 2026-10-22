@@ -32,6 +32,24 @@ describe('installLifecycle', () => {
     expect(exit).toHaveBeenCalledWith(0)
   })
 
+  it('calls onShutdown once, before stop, for a signal or a shutdown() from code', async () => {
+    const order: string[] = []
+    const stop = vi.fn(async () => {
+      order.push('stop')
+    })
+    const onShutdown = vi.fn(() => {
+      order.push('onShutdown')
+    })
+    const proc = new EventEmitter()
+    const logger = createLogger({ level: 'silent' })
+    const { shutdown } = installLifecycle({ logger, stop, exit: vi.fn(), proc, onShutdown })
+    shutdown('stdin_eof')
+    proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onShutdown).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['onShutdown', 'stop'])
+  })
+
   it('exits 1 when stop fails, without logging the message', async () => {
     const { proc, exit, lines } = setup(async () => {
       throw Object.assign(new Error('postgres://u:LEAK-ME@h/d'), { code: 'EPIPE' })

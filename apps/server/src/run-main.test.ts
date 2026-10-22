@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
+import { EmbeddedPgError } from './embedded-pg/index.ts'
 import { __resetSecretValues } from './redact.ts'
 import { type MainDeps, runMain } from './run-main.ts'
 import type { BootOverrides, RunningServer } from './server.ts'
@@ -126,6 +127,58 @@ describe('runMain', () => {
     finish({ url: 'http://127.0.0.1:1', stop } as unknown as RunningServer)
     await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(0))
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the boot signal when stdin ends mid-boot', async () => {
+    const boot = new Promise<RunningServer>(() => {})
+    const s = setup(DESKTOP_ENV, { boot })
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    const signal = s.overrides[0]?.bootSignal
+    expect(signal?.aborted).toBe(false)
+    s.stdin.end()
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true))
+  })
+
+  it('aborts the boot signal on SIGTERM mid-boot', async () => {
+    const boot = new Promise<RunningServer>(() => {})
+    const s = setup({ DATABASE_URL: 'postgres://mawl:pw@db/mawl' }, { boot })
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    s.proc.emit('SIGTERM')
+    expect(s.overrides[0]?.bootSignal?.aborted).toBe(true)
+  })
+
+  it('exits 0 when a shutdown aborted the embedded Postgres start, logging no boot failure', async () => {
+    let fail!: (err: unknown) => void
+    const boot = new Promise<RunningServer>((_, reject) => {
+      fail = reject
+    })
+    const s = setup(DESKTOP_ENV, { boot })
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    s.stdin.end()
+    // The real start rejects only once the signal fired.
+    await vi.waitFor(() => expect(s.overrides[0]?.bootSignal?.aborted).toBe(true))
+    fail(new EmbeddedPgError('aborted', 'The Postgres start was aborted by a shutdown'))
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(0))
+    expect(s.exit).toHaveBeenCalledTimes(1)
+    expect(s.text()).not.toContain('boot failed')
+    expect(s.text()).toContain('boot aborted by shutdown')
+  })
+
+  it('still exits 1 when boot fails for another reason during a shutdown', async () => {
+    let fail!: (err: unknown) => void
+    const boot = new Promise<RunningServer>((_, reject) => {
+      fail = reject
+    })
+    const s = setup(DESKTOP_ENV, { boot })
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    s.stdin.end()
+    fail(new EmbeddedPgError('start_failed', 'Postgres exited during startup'))
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
+    expect(s.exit).not.toHaveBeenCalledWith(0)
+    expect(s.text()).toContain('boot failed')
   })
 
   it('exits 1 without booting when the token is invalid, never printing it', async () => {

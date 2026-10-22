@@ -21,6 +21,11 @@ export interface LifecycleDeps {
   emergencyStop?: () => unknown
   /** How long the emergency stop may take before the exit happens anyway. Defaults to 3 s. */
   emergencyStopTimeoutMs?: number
+  /**
+   * Called once, synchronously, when the graceful stop begins (first signal or `shutdown()`),
+   * before `stop`: lets a boot that is still starting the embedded Postgres abort that wait.
+   */
+  onShutdown?: () => void
 }
 
 const DEFAULT_DEADLINE_MS = 10_000
@@ -45,6 +50,7 @@ export function installLifecycle({
   deadlineMs = DEFAULT_DEADLINE_MS,
   emergencyStop,
   emergencyStopTimeoutMs = DEFAULT_EMERGENCY_STOP_TIMEOUT_MS,
+  onShutdown,
 }: LifecycleDeps): { shutdown(reason: string): void } {
   let shuttingDown = false
   let exiting = false
@@ -93,6 +99,11 @@ export function installLifecycle({
     }
     shuttingDown = true
     logger.info({ signal }, 'shutting down')
+    try {
+      onShutdown?.()
+    } catch (err) {
+      logger.error(describeFailure(err), 'shutdown hook failed')
+    }
     let deadline: ReturnType<typeof setTimeout> | undefined
     let done = false
     booted.then(
