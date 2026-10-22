@@ -1,5 +1,9 @@
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
+
+// The default 1 s for findBy/waitFor is too tight when a lazy route chunk is transformed for the
+// first time on a slow CI runner; a test that passes still returns as soon as it can.
+configure({ asyncUtilTimeout: 5000 })
 
 afterEach(() => {
   cleanup()
