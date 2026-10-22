@@ -122,7 +122,7 @@ unsafe extern "system" fn window_proc(
             SessionAction::ProbeNow => {
                 if hwnd as usize == MAIN_HWND.load(Ordering::SeqCst) {
                     if let Some(shell) = app.try_state::<Shell>() {
-                        shell.supervisor.probe_now();
+                        shell.probe_now();
                     }
                 }
             }

@@ -270,14 +270,21 @@ impl KeyStore for MemoryStore {
     }
 }
 
-/// The platform's store: Windows Credential Manager, or a store that always fails elsewhere.
+/// The platform's store for the master key: Windows Credential Manager, or a store that always
+/// fails elsewhere.
 pub fn system_store() -> std::sync::Arc<dyn KeyStore> {
+    system_store_named(CREDENTIAL_TARGET)
+}
+
+/// The platform's store for another entry (the remote Mawl's token, `remote::TOKEN_CREDENTIAL`).
+pub fn system_store_named(target: &str) -> std::sync::Arc<dyn KeyStore> {
     #[cfg(windows)]
     {
-        std::sync::Arc::new(credman::CredentialManager::new(CREDENTIAL_TARGET))
+        std::sync::Arc::new(credman::CredentialManager::new(target))
     }
     #[cfg(not(windows))]
     {
+        let _ = target;
         std::sync::Arc::new(Unsupported)
     }
 }
