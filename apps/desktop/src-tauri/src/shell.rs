@@ -14,7 +14,7 @@ use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::external_link::{external_link, ExternalLink, OpenLimiter};
 use mawl_host::launch::{self, Layout};
 use mawl_host::machine::Status;
-use mawl_host::markers::first_close_hint;
+use mawl_host::markers::{first_close_hint, release, FIRST_CLOSE_HINT_FILE};
 use mawl_host::notice::{Notice, NoticeTracker};
 use mawl_host::port;
 use mawl_host::presence::Presence;
@@ -180,7 +180,7 @@ impl TauriUi {
             tracker.on_status(status, now_ms, visible)
         };
         if let Some(notice) = notice {
-            notify(&self.app, notice);
+            let _ = notify(&self.app, notice);
         }
     }
 }
@@ -191,15 +191,20 @@ fn window_visible(app: &AppHandle) -> bool {
         .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
 }
 
-fn notify(app: &AppHandle, notice: Notice) {
-    if let Err(e) = app
+/// Whether the notification was handed to the OS.
+fn notify(app: &AppHandle, notice: Notice) -> bool {
+    match app
         .notification()
         .builder()
         .title(notice.title)
         .body(notice.body)
         .show()
     {
-        eprintln!("mawl: could not show a notification: {e}");
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("mawl: could not show a notification: {e}");
+            false
+        }
     }
 }
 
@@ -215,14 +220,17 @@ pub fn hint_first_close(app: &AppHandle) {
     let Ok(data_dir) = app.path().app_local_data_dir() else {
         return;
     };
-    if first_close_hint(&data_dir) {
-        notify(
+    if first_close_hint(&data_dir)
+        && !notify(
             app,
             Notice {
                 title: "Mawl is still running",
                 body: "Your teammates keep working. Open Mawl from the tray icon, or choose Quit Mawl to stop everything.",
             },
-        );
+        )
+    {
+        // The owner never saw it: the next run shows it again (not twice in this one).
+        release(&data_dir, FIRST_CLOSE_HINT_FILE);
     }
 }
 

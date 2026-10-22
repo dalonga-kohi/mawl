@@ -129,6 +129,8 @@ pub fn enable_autostart_first_run(app: &AppHandle, data_dir: &std::path::Path) {
     }
     if let Err(e) = app.autolaunch().enable() {
         eprintln!("mawl: could not turn on start at login: {e}");
+        // The default did not happen, so the next run tries again.
+        mawl_host::autostart::retry_default_next_run(data_dir);
     }
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.autostart.set_checked(autostart_enabled(app));

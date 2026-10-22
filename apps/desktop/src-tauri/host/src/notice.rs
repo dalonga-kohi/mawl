@@ -77,10 +77,17 @@ impl NoticeTracker {
                 .take()
                 .map_or(0, |start| now_ms.saturating_sub(start)),
             // A server that was ready and now restarts or fails starts an outage; a quit does not.
-            Status::Restarting { .. } | Status::Failed { .. } => {
+            Status::Restarting { .. } => {
                 if prev == Status::Ready {
                     self.outage_started_ms = Some(now_ms);
                 }
+                0
+            }
+            // A final failure is an outage whenever it began, also a launch that never got ready:
+            // a later successful "Try again" then reads as "Mawl is back". One already running
+            // (from Ready) keeps its start.
+            Status::Failed { .. } => {
+                self.outage_started_ms.get_or_insert(now_ms);
                 0
             }
             Status::Starting { .. } | Status::Stopping | Status::Stopped => 0,
@@ -208,6 +215,33 @@ mod tests {
         // "Try again", then it fails for good again: a new episode.
         assert_eq!(t.on_status(STARTING, 4_000, false), None);
         assert_eq!(t.on_status(FAILED_STATUS, 9_000, false), Some(FAILED));
+    }
+
+    #[test]
+    fn a_retry_that_works_after_a_failed_launch_says_back() {
+        let mut t = NoticeTracker::new(STARTING);
+        // The very first start fails for good with the window in the tray.
+        assert_eq!(t.on_status(RESTARTING, 1_000, false), None);
+        assert_eq!(t.on_status(FAILED_STATUS, 2_000, false), Some(FAILED));
+        // "Try again" works 40 s after the failure.
+        assert_eq!(t.on_status(STARTING, 40_000, false), None);
+        assert_eq!(t.on_status(Status::Ready, 42_001, false), Some(BACK));
+        // The outage is over: a later blip is judged on its own.
+        assert_eq!(t.on_status(Status::Ready, 50_000, false), None);
+    }
+
+    #[test]
+    fn a_quick_retry_after_a_failure_is_silent_and_a_failure_from_ready_keeps_its_start() {
+        let mut t = NoticeTracker::new(STARTING);
+        assert_eq!(t.on_status(FAILED_STATUS, 1_000, false), Some(FAILED));
+        assert_eq!(t.on_status(STARTING, 2_000, false), None);
+        assert_eq!(t.on_status(Status::Ready, 20_000, false), None);
+
+        // Ready, restarts for a while, then fails: the outage began at the first restart.
+        assert_eq!(t.on_status(RESTARTING, 100_000, false), None);
+        assert_eq!(t.on_status(FAILED_STATUS, 130_000, false), Some(FAILED));
+        assert_eq!(t.on_status(STARTING, 131_000, false), None);
+        assert_eq!(t.on_status(Status::Ready, 132_000, false), Some(BACK));
     }
 
     #[test]
