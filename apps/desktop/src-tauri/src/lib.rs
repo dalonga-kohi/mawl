@@ -1,15 +1,17 @@
+mod shell;
+
 use std::sync::Mutex;
 
 use mawl_host::deep_link;
-
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 
-const MAIN_WINDOW: &str = "main";
+use shell::MAIN_WINDOW;
+
 /// The web app listens for this event and routes to the path in the payload.
 const NAVIGATE_EVENT: &str = "mawl://navigate";
 
@@ -23,6 +25,7 @@ fn take_pending_navigation(state: tauri::State<PendingNavigation>) -> Option<Str
     state.0.lock().ok()?.take()
 }
 
+/// Brings the main window forward from anywhere: minimized, hidden in the tray, or behind others.
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
         let _ = window.unminimize();
@@ -41,9 +44,10 @@ fn open_deep_link(app: &AppHandle, url: &str) {
 }
 
 pub fn run() {
-    tauri::Builder::default()
-        // Registered first, as the single-instance docs require. With the `deep-link` feature the
-        // plugin forwards a `mawl://` argument of the second launch to `on_open_url` below.
+    let app = tauri::Builder::default()
+        // Registered first, as the single-instance docs require. A second launch focuses the
+        // running window (splash or app, also when hidden in the tray). With the `deep-link`
+        // feature the plugin forwards a `mawl://` argument of the second launch to `on_open_url`.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main_window(app);
         }))
@@ -51,7 +55,15 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .manage(PendingNavigation::default())
-        .invoke_handler(tauri::generate_handler![take_pending_navigation])
+        .invoke_handler(tauri::generate_handler![
+            take_pending_navigation,
+            shell::supervisor_status,
+            shell::copy_diagnostics,
+            shell::retry_server,
+            shell::quit_app,
+            shell::enter_app,
+            shell::splash_shown,
+        ])
         .setup(|app| {
             // Registers the scheme at runtime, so links work from `tauri dev` without an installer.
             #[cfg(any(windows, target_os = "linux"))]
@@ -75,6 +87,9 @@ pub fn run() {
                 }
             });
 
+            // The server first, then the window on the splash (it needs the token and port).
+            shell::start(app.handle())?;
+
             let open = MenuItemBuilder::with_id("open", "Open Mawl").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit Mawl").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
@@ -85,7 +100,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show_main_window(app),
-                    "quit" => app.exit(0),
+                    "quit" => shell::begin_quit(app),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -114,6 +129,20 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Mawl");
+        .build(tauri::generate_context!())
+        .expect("error while building Mawl");
+
+    app.run(|app, event| {
+        // Every exit goes through a clean server stop first; the supervisor exits the app when
+        // the server and its Postgres are gone (or after the kill deadline).
+        if let RunEvent::ExitRequested { api, .. } = event {
+            let ready_to_exit = app
+                .try_state::<shell::Shell>()
+                .is_none_or(|shell| shell.may_exit());
+            if !ready_to_exit {
+                api.prevent_exit();
+                shell::begin_quit(app);
+            }
+        }
+    });
 }
