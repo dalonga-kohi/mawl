@@ -1,6 +1,6 @@
 // Test only (main.test.ts runs it with tsx; never bundled). The real desktop entrypoint, runMain
 // on the real process stdin, signals and HTTP listener, over a fake database so the parent
-// watchdog can be tested end to end without Postgres or Docker.
+// watchdog (and its absence in headless mode) can be tested end to end without Postgres or Docker.
 import type { DbHandle } from '@mawl/db'
 import { runMain } from './run-main.ts'
 import { startServer } from './server.ts'

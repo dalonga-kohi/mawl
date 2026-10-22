@@ -19,7 +19,10 @@ afterEach(() => {
   __resetSecretValues()
 })
 
-function setup(env: Record<string, string>, opts: { boot?: Promise<RunningServer> } = {}) {
+function setup(
+  env: Record<string, string>,
+  opts: { boot?: Promise<RunningServer>; tokenTimeoutMs?: number } = {},
+) {
   const out: string[] = []
   const stdin = new PassThrough()
   const stop = vi.fn(async () => {})
@@ -44,6 +47,7 @@ function setup(env: Record<string, string>, opts: { boot?: Promise<RunningServer
       return opts.boot ?? server
     },
   }
+  if (opts.tokenTimeoutMs !== undefined) deps.tokenTimeoutMs = opts.tokenTimeoutMs
   runMain(deps)
   return { out, stdin, stop, exit, started, overrides, proc, getStdin, text: () => out.join('') }
 }
@@ -120,6 +124,21 @@ describe('runMain', () => {
     s.proc.emit('uncaughtException', new Error('boom'))
     expect(pgStop).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
+  })
+
+  it('applies tokenTimeoutMs: no token line in time exits 1 without booting', async () => {
+    vi.useFakeTimers()
+    try {
+      const s = setup(DESKTOP_ENV, { tokenTimeoutMs: 200 })
+      await vi.advanceTimersByTimeAsync(199)
+      expect(s.exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(2)
+      expect(s.exit).toHaveBeenCalledWith(1)
+      expect(s.started).toHaveLength(0)
+      expect(s.text()).toContain('no first line on stdin in time')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('exits 1 without booting when stdin closes before the token', async () => {

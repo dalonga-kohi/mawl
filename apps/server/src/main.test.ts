@@ -58,6 +58,34 @@ describe('main entrypoint', () => {
   }, 60_000)
 })
 
+describe('main entrypoint in headless mode', () => {
+  it('never reads stdin: a token-like line and stdin closing change nothing', async () => {
+    const port = await freePort()
+    const proc = spawnNode(['--import', 'tsx', 'src/desktop-main.fixture.ts'], {
+      cwd: SERVER_DIR,
+      env: {
+        MAWL_SECRETS_DIR: join(dir, 'secrets'),
+        DATABASE_URL: 'postgres://mawl:pw@127.0.0.1:1/mawl',
+        MAWL_PORT: String(port),
+      },
+    })
+    try {
+      await proc.waitForOutput(/"msg":"listening"/)
+      proc.child.stdin.on('error', () => {})
+      proc.child.stdin.end(`${TOKEN}\n`)
+      // Give a watchdog, had there been one, time to react to the EOF.
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect(proc.child.exitCode).toBeNull()
+      expect((await fetch(`http://127.0.0.1:${port}/healthz`)).status).toBe(200)
+      expect(proc.output()).not.toContain('stdin_eof')
+      expect(proc.output()).not.toContain('shutting down')
+    } finally {
+      proc.child.kill()
+      await proc.exited
+    }
+  }, 60_000)
+})
+
 describe('main entrypoint in desktop mode', () => {
   it('exits 1 with a clear error when stdin closes before the launch token', async () => {
     const { code, output } = await runMain({

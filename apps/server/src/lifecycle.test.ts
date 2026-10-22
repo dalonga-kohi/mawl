@@ -117,6 +117,41 @@ describe('installLifecycle shutdown()', () => {
   })
 })
 
+describe('installLifecycle repeated shutdown()', () => {
+  it('a second shutdown() exits 1 at once and does not stop twice', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const exit = vi.fn()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc: new EventEmitter(),
+    })
+    shutdown('stdin_eof')
+    expect(exit).not.toHaveBeenCalled()
+    shutdown('stdin_eof')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
+  it('a shutdown() after a signal exits 1 at once', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const exit = vi.fn()
+    const proc = new EventEmitter()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    proc.emit('SIGINT')
+    shutdown('stdin_eof')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+})
+
 describe('installLifecycle emergency stop', () => {
   function withEmergency(emergencyStop: () => Promise<unknown>, stop = async () => {}) {
     const proc = new EventEmitter()
