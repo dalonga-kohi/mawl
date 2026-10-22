@@ -23,6 +23,10 @@ export default defineConfig({
     name: '@mawl/web',
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // `beforeAll(() => import('./ChatView.tsx'))` pulls in the whole chat tree; on a cold cache
+    // that exceeded the 10 s default hook timeout.
+    hookTimeout: 60_000,
+    testTimeout: 30_000,
     // Playwright owns e2e/: its specs must never run under Vitest.
     exclude: [...configDefaults.exclude, 'e2e/**'],
   },
