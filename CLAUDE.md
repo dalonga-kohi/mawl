@@ -65,7 +65,8 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 
 ## The loop (one slice at a time)
 
-1. **Pick** the next `[ ]` slice in PLAN.md and mark it `[~]`. Once the repo has a remote, create a branch `slice/<id>-<short-name>` from an up-to-date `main`.
+0. **Sync first, always.** Before any work: `git fetch --all --prune`, check which branch is the latest (current branch may be merged or its remote gone), switch to `main` (or the open PR branch if continuing it) and `git pull --ff-only`. Never start from a stale local branch. Tell the user in one line what you synced.
+1. **Pick** the next `[ ]` slice in PLAN.md and mark it `[~]`. Create a branch `slice/<id>-<short-name>` from the up-to-date `main`.
 2. **Explore** (`explorer`): the doc sections, existing code, and the exact current versions and APIs of the libraries involved. Skip this for tiny slices and fold version checks into the coder brief.
 3. **Brief.** Use the template at the end of PLAN.md. State the versions and decisions you have already made, so the coder doesn't re-decide them. Pick `coder` or `head-coder` using the table above.
 4. **Code** (`coder` or `head-coder`): red → green → refactor, committing after each green step.
@@ -81,6 +82,20 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
    - Note deferred review items in the right future PLAN slice.
    - With a remote, ask the user once: "push and open the PR?" Pushing is outward-facing. On a yes, push the branch and open the PR. Merge into `main` only when Travis and GitHub Actions are green and the user says so. The Claude review on the PR is advisory: triage its findings like the reviewer's.
    - Stop at phase boundaries.
+
+### Pull request rules
+
+- Title: Conventional Commit style, short, e.g. `feat(server): desktop mode with launch token and embedded Postgres`.
+- Description is written like a person on the team would write it: professional, plain, specific. No filler, no hype, no bullet dumps of file names. Sections:
+  - **What and why**: the problem and the slice id (PLAN.md), in a short paragraph.
+  - **How**: the approach and the decisions that were not obvious, including what was rejected.
+  - **Scope**: what is deliberately not in this PR and which slice picks it up.
+  - **Testing**: exactly what was run (scoped checks, not the full gate unless it was), what was not run, and why.
+  - **Risk and review notes**: security-relevant areas, migrations, anything the reviewer should look at first.
+- Keep the PR to one slice. Docs and PLAN updates go in the same PR.
+- End the description with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+- Open the PR only after the user says yes to the push; never merge without the user's say-so and green CI.
+- After opening, bind it with the ccd_pr tools and read CI; do not poll.
 
 **Deciding things.** Make conventional technical calls yourself, write them into the brief and docs, and tell the user in one line. Examples: picking the current stable major, rejecting betas, or cancel-from-any-state. Ask the user only for real product choices (see "When to ask").
 
