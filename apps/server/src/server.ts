@@ -27,6 +27,7 @@ import {
   loadOrCreateMasterKey,
   type SecretBox,
 } from './secrets/index.ts'
+import { runTeardown } from './teardown.ts'
 import { createUserService } from './user/service.ts'
 import { readVersion } from './version.ts'
 import { resolveWebDir } from './web-static.ts'
@@ -264,22 +265,21 @@ export async function startServer(
     secretBox,
     stop() {
       stopping ??= (async () => {
-        try {
+        // Every step runs even when an earlier one fails; the errors are rethrown at the end.
+        await runTeardown([
           // Sockets first: closing them ends the subscription streams that would hold the listener open.
-          await hub?.close()
-          await closeServer(server)
+          () => hub?.close(),
+          () => closeServer(server),
           // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
-          registry.abortAll(ABORT_SHUTDOWN)
-          await worker?.stop()
+          () => registry.abortAll(ABORT_SHUTDOWN),
+          () => worker?.stop(),
           // Last deltas out while the bus can still carry them, then the bus.
-          await live?.stop()
-          await providers?.close()
-          await handle.close()
-        } finally {
-          // Last, since everything above may still talk to it, and even when a step failed, so
-          // no postgres outlives the server. Its stop() never rejects.
-          await embeddedPg?.stop()
-        }
+          () => live?.stop(),
+          () => providers?.close(),
+          () => handle.close(),
+          // Last, since everything above may still talk to it. Its stop() never rejects.
+          () => embeddedPg?.stop(),
+        ])
         logger.info('stopped')
       })()
       return stopping
