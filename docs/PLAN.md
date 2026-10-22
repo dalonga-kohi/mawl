@@ -154,6 +154,7 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
   - *Tests:* supervisor state machine (Rust unit tests), deep links, e2e boot on the Windows CI job.
 - [ ] **D1.6 Master key in Windows Credential Manager.** (head-coder: secrets)
   - Desktop mode keeps the master key in Credential Manager. The host reads it and passes it to the server over stdin. The file in `secrets/` stays for headless mode.
+  - The key arrives on the stdin lines after the launch token: `readLaunchToken()` already keeps them in `remainder()` (up to 64 KiB, nothing parses them yet). Parse it there with a timeout and register it with the redactor.
   - Migrate an existing file key once, then delete the file only after a verified decrypt.
   - *Tests:* round trip, migration, wrong key aborts boot (existing rule).
 - [ ] **D1.7 Installer, updater, Windows CI.**

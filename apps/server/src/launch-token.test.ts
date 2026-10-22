@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LaunchTokenError, readLaunchToken } from './launch-token.ts'
+import { LaunchTokenError, MAX_REMAINDER_BYTES, readLaunchToken } from './launch-token.ts'
 
 const TOKEN = 'Zx9-launch_Token-0123456789abcdefghijKLMN'
 
@@ -25,7 +25,7 @@ describe('readLaunchToken', () => {
     const input = new PassThrough()
     const reading = readLaunchToken(input)
     input.write(`${TOKEN}\n`)
-    await expect(reading).resolves.toBe(TOKEN)
+    await expect(reading).resolves.toMatchObject({ token: TOKEN })
   })
 
   it('joins a token split across chunks and drops a trailing CR', async () => {
@@ -34,7 +34,7 @@ describe('readLaunchToken', () => {
     input.write(TOKEN.slice(0, 10))
     await tick()
     input.write(`${TOKEN.slice(10)}\r\nlater lines are ignored\n`)
-    await expect(reading).resolves.toBe(TOKEN)
+    await expect(reading).resolves.toMatchObject({ token: TOKEN })
   })
 
   it.each([
@@ -86,6 +86,36 @@ describe('readLaunchToken', () => {
   })
 })
 
+describe('readLaunchToken remainder', () => {
+  it('keeps the bytes after the token line, from the same chunk and later ones', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\nkey-line-1\n`)
+    const { remainder } = await reading
+    expect(remainder().toString()).toBe('key-line-1\n')
+    input.write('key-line-2\n')
+    await tick()
+    expect(remainder().toString()).toBe('key-line-1\nkey-line-2\n')
+  })
+
+  it('is empty when nothing follows the token line', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\n`)
+    expect((await reading).remainder().length).toBe(0)
+  })
+
+  it('caps what it keeps, so a runaway parent cannot grow memory', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\n`)
+    const { remainder } = await reading
+    input.write(Buffer.alloc(MAX_REMAINDER_BYTES + 10, 0x61))
+    await tick()
+    expect(remainder().length).toBe(MAX_REMAINDER_BYTES)
+  })
+})
+
 describe('readLaunchToken parent watchdog', () => {
   it('reports the parent gone when stdin ends after the token', async () => {
     const input = new PassThrough()
@@ -103,7 +133,7 @@ describe('readLaunchToken parent watchdog', () => {
     const onParentGone = vi.fn()
     const reading = readLaunchToken(input, { onParentGone })
     input.end(`${TOKEN}\n`)
-    await expect(reading).resolves.toBe(TOKEN)
+    await expect(reading).resolves.toMatchObject({ token: TOKEN })
     await vi.waitFor(() => expect(onParentGone).toHaveBeenCalledTimes(1))
     await tick()
     expect(onParentGone).toHaveBeenCalledTimes(1)

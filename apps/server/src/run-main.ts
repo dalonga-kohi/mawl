@@ -50,7 +50,7 @@ export function runMain(deps: MainDeps): void {
   // waits for boot to settle (never stop mid-migration), then stops; a failed boot exits 1.
   const booting = (async () => {
     if (config.mode !== 'desktop') return start(config, { logger })
-    const launchToken = await readLaunchToken(deps.stdin(), {
+    const { token: launchToken } = await readLaunchToken(deps.stdin(), {
       ...(deps.tokenTimeoutMs === undefined ? {} : { timeoutMs: deps.tokenTimeoutMs }),
       onParentGone: () => shutdown?.('stdin_eof'),
     })
