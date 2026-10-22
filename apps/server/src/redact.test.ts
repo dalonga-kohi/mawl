@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { REDACT_KEY_ALLOW, REDACT_KEY_PARTS, redactDeep } from './redact.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  __resetSecretValues,
+  REDACT_KEY_ALLOW,
+  REDACT_KEY_PARTS,
+  redactDeep,
+  registerSecretValue,
+} from './redact.ts'
 
 describe('redactDeep', () => {
   it('exposes the normalised key fragments and the allowlist', () => {
@@ -147,5 +153,33 @@ describe('redactDeep', () => {
     const started = performance.now()
     expect(redactDeep({ big })).toEqual({ big })
     expect(performance.now() - started).toBeLessThan(50)
+  })
+})
+
+describe('registerSecretValue', () => {
+  afterEach(() => __resetSecretValues())
+
+  it('censors a registered value inside any string, at any depth', () => {
+    const value = 'Reg-Value_0123456789abcdefghijklmnop'
+    registerSecretValue(value)
+    const out = JSON.stringify(redactDeep({ a: `pre ${value} post`, b: [{ c: value }] }))
+    expect(out).not.toContain(value)
+    expect(out).toContain('pre [Redacted] post')
+  })
+
+  it('refuses a value too short to censor safely', () => {
+    expect(() => registerSecretValue('short')).toThrow(/at least/)
+  })
+
+  it('refuses a value JSON would escape, since log lines are scrubbed after serialising', () => {
+    expect(() => registerSecretValue('has"quote-0123456789abc')).toThrow(/only/)
+    expect(() => registerSecretValue('has\\slash-0123456789abc')).toThrow(/only/)
+  })
+
+  it('forgets values on reset', () => {
+    const value = 'Reg-Value_0123456789abcdefghijklmnop'
+    registerSecretValue(value)
+    __resetSecretValues()
+    expect(redactDeep(value)).toBe(value)
   })
 })

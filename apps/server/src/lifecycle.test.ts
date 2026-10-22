@@ -82,6 +82,187 @@ describe('installLifecycle', () => {
   )
 })
 
+describe('installLifecycle shutdown()', () => {
+  it('runs the same graceful stop as a signal and exits 0', async () => {
+    const stop = vi.fn(async () => {})
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const lines: string[] = []
+    const logger = createLogger({
+      level: 'info',
+      stream: { write: (c: string) => void lines.push(c) },
+    })
+    const { shutdown } = installLifecycle({ logger, stop, exit, proc })
+    shutdown('stdin_eof')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(lines.join('')).toContain('stdin_eof')
+  })
+
+  it('counts as the first signal: a later SIGTERM exits 1 at once', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    shutdown('stdin_eof')
+    proc.emit('SIGTERM')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('installLifecycle repeated shutdown()', () => {
+  it('a second shutdown() only logs: no second stop, no hard exit', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const exit = vi.fn()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc: new EventEmitter(),
+    })
+    shutdown('stdin_eof')
+    shutdown('stdin_eof')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('a shutdown() after a signal does not escalate to exit 1', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const exit = vi.fn()
+    const proc = new EventEmitter()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    proc.emit('SIGINT')
+    shutdown('stdin_eof')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('SIGTERM then stdin EOF still exits 0 after the graceful stop', async () => {
+    let finish!: () => void
+    const stop = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const exit = vi.fn()
+    const proc = new EventEmitter()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    proc.emit('SIGTERM')
+    shutdown('stdin_eof')
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(0)
+  })
+})
+
+describe('installLifecycle emergency stop', () => {
+  function withEmergency(emergencyStop: () => Promise<unknown>, stop = async () => {}) {
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const spy = vi.fn(emergencyStop)
+    installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+      emergencyStop: spy,
+      deadlineMs: 10_000,
+    })
+    return { proc, exit, emergencyStop: spy }
+  }
+
+  it.each(['uncaughtException', 'unhandledRejection'])(
+    'runs it before exiting 1 on %s',
+    async (event) => {
+      let release!: () => void
+      const s = withEmergency(() => new Promise<void>((r) => (release = r)))
+      s.proc.emit(event, new Error('x'))
+      expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(s.exit).not.toHaveBeenCalled()
+      release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(s.exit).toHaveBeenCalledWith(1)
+    },
+  )
+
+  it('runs it before exiting 1 on a second signal', async () => {
+    const s = withEmergency(
+      async () => {},
+      () => new Promise(() => {}),
+    )
+    s.proc.emit('SIGTERM')
+    s.proc.emit('SIGTERM')
+    expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(s.exit).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('runs it before exiting 1 when the shutdown deadline passes', async () => {
+    const s = withEmergency(
+      async () => {},
+      () => new Promise(() => {}),
+    )
+    s.proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(10_001)
+    expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('exits 1 after 3 s when it hangs', async () => {
+    const s = withEmergency(() => new Promise(() => {}))
+    s.proc.emit('uncaughtException', new Error('x'))
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(s.exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('exits 1 when it throws or rejects', async () => {
+    const sync = withEmergency(() => {
+      throw new Error('sync')
+    })
+    sync.proc.emit('uncaughtException', new Error('x'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sync.exit).toHaveBeenCalledWith(1)
+    const rejected = withEmergency(async () => {
+      throw new Error('async')
+    })
+    rejected.proc.emit('unhandledRejection', new Error('x'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(rejected.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('is not run on a clean shutdown, and exits only once', async () => {
+    const s = withEmergency(async () => {})
+    s.proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(s.emergencyStop).not.toHaveBeenCalled()
+    expect(s.exit).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(0)
+  })
+})
+
 describe('stopAfterBoot', () => {
   function pending() {
     let resolve!: (s: { stop: () => Promise<void> }) => void

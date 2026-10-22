@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigError } from './config.ts'
+import { EmbeddedPgError } from './embedded-pg/index.ts'
 import { describeFailure } from './failure.ts'
+import { LaunchTokenError } from './launch-token.ts'
 import { MasterKeyError, SecretDecryptError } from './secrets/index.ts'
 
 describe('describeFailure', () => {
@@ -32,6 +34,19 @@ describe('describeFailure', () => {
     })
     expect(describeFailure(new SecretDecryptError())).toMatchObject({
       reason: 'Failed to decrypt secret',
+    })
+  })
+
+  it('keeps the typed code of an embedded Postgres boot error but not its wrapped message', () => {
+    const err = new EmbeddedPgError('start_failed', 'Postgres startup check failed: LEAK-ME')
+    expect(describeFailure(err)).toEqual({ errName: 'EmbeddedPgError', code: 'start_failed' })
+  })
+
+  it('keeps the code and fixed reason of a launch token error', () => {
+    expect(describeFailure(new LaunchTokenError('invalid'))).toMatchObject({
+      errName: 'LaunchTokenError',
+      code: 'invalid',
+      reason: expect.stringContaining('launch token invalid'),
     })
   })
 

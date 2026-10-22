@@ -1,4 +1,4 @@
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ConfigError, parseConfig } from './config.ts'
 
@@ -17,6 +17,7 @@ describe('parseConfig', () => {
       claudeCodePath: undefined,
       allowedOrigins: [],
       logLevel: 'info',
+      mode: 'headless',
     })
   })
 
@@ -45,6 +46,7 @@ describe('parseConfig', () => {
       claudeCodePath: '/opt/claude',
       allowedOrigins: ['https://mawl.example.com', 'http://192.168.1.5:5173'],
       logLevel: 'debug',
+      mode: 'headless',
     })
   })
 
@@ -168,6 +170,168 @@ describe('parseConfig', () => {
     expect(() => parseConfig({ MAWL_PORT: 'x', LOG_LEVEL: 'y' })).toThrow(
       /DATABASE_URL[\s\S]*MAWL_PORT[\s\S]*LOG_LEVEL|MAWL_PORT[\s\S]*LOG_LEVEL[\s\S]*DATABASE_URL/,
     )
+  })
+})
+
+describe('parseConfig modes', () => {
+  const dataDir = resolve('mawl-data')
+  const pgRoot = resolve('mawl-pg')
+
+  const messageOf = (env: Record<string, string>) => {
+    try {
+      parseConfig(env)
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigError)
+      return (err as Error).message
+    }
+    throw new Error('expected a ConfigError')
+  }
+
+  it('defaults to headless with the database url and no embedded Postgres', () => {
+    const cfg = parseConfig({ DATABASE_URL: URL_WITH_PASSWORD })
+    expect(cfg.mode).toBe('headless')
+    expect(cfg.databaseUrl).toBe(URL_WITH_PASSWORD)
+    expect(cfg.embeddedPg).toBeUndefined()
+    expect(cfg.dataDir).toBeUndefined()
+  })
+
+  it('ignores MAWL_DATA_DIR and MAWL_PG_ROOT in headless mode', () => {
+    const cfg = parseConfig({
+      MAWL_MODE: 'headless',
+      DATABASE_URL: URL_WITH_PASSWORD,
+      MAWL_DATA_DIR: 'relative/is-ignored',
+      MAWL_PG_ROOT: pgRoot,
+    })
+    expect(cfg.embeddedPg).toBeUndefined()
+    expect(cfg.dataDir).toBeUndefined()
+    expect(cfg.secretsDir).toBe('.mawl/secrets')
+  })
+
+  it('desktop without DATABASE_URL uses embedded Postgres under the data dir', () => {
+    const cfg = parseConfig({ MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir, MAWL_PG_ROOT: pgRoot })
+    expect(cfg).toMatchObject({
+      mode: 'desktop',
+      dataDir,
+      databaseUrl: undefined,
+      embeddedPg: { pgRoot, dataRoot: join(dataDir, 'pg-data') },
+      secretsDir: join(dataDir, 'secrets'),
+      host: '127.0.0.1',
+      port: 7420,
+    })
+  })
+
+  it('desktop with DATABASE_URL uses it and needs no MAWL_PG_ROOT', () => {
+    const cfg = parseConfig({
+      MAWL_MODE: 'desktop',
+      MAWL_DATA_DIR: dataDir,
+      DATABASE_URL: URL_WITH_PASSWORD,
+    })
+    expect(cfg.databaseUrl).toBe(URL_WITH_PASSWORD)
+    expect(cfg.embeddedPg).toBeUndefined()
+  })
+
+  it('desktop keeps an explicit MAWL_SECRETS_DIR and reads the port from MAWL_PORT', () => {
+    const secrets = resolve('elsewhere-secrets')
+    const cfg = parseConfig({
+      MAWL_MODE: 'desktop',
+      MAWL_DATA_DIR: dataDir,
+      MAWL_PG_ROOT: pgRoot,
+      MAWL_SECRETS_DIR: secrets,
+      MAWL_PORT: '51234',
+    })
+    expect(cfg.secretsDir).toBe(secrets)
+    expect(cfg.port).toBe(51234)
+  })
+
+  it.each(['127.0.0.1', '::1', 'localhost'])(
+    'desktop accepts the loopback MAWL_HOST %s',
+    (host) => {
+      const cfg = parseConfig({
+        MAWL_MODE: 'desktop',
+        MAWL_DATA_DIR: dataDir,
+        MAWL_PG_ROOT: pgRoot,
+        MAWL_HOST: host,
+      })
+      expect(cfg.host).toBe(host)
+    },
+  )
+
+  it.each(['0.0.0.0', '192.168.77.13', 'hunter2-host.example'])(
+    'desktop rejects the non-loopback MAWL_HOST %s, naming the variable only',
+    (host) => {
+      let message = ''
+      try {
+        parseConfig({
+          MAWL_MODE: 'desktop',
+          MAWL_DATA_DIR: dataDir,
+          MAWL_PG_ROOT: pgRoot,
+          MAWL_HOST: host,
+        })
+      } catch (err) {
+        message = (err as Error).message
+      }
+      expect(message).toContain('MAWL_HOST')
+      expect(message).not.toContain(host)
+    },
+  )
+
+  it('headless still allows any MAWL_HOST', () => {
+    expect(parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, MAWL_HOST: '0.0.0.0' }).host).toBe(
+      '0.0.0.0',
+    )
+  })
+
+  it('keeps the loopback defaults a desktop install relies on', () => {
+    const cfg = parseConfig({ MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir, MAWL_PG_ROOT: pgRoot })
+    expect(cfg.siwcPort).toBe(1455)
+    expect(cfg.siwcHost).toBe('127.0.0.1')
+    expect(cfg.host).toBe('127.0.0.1')
+  })
+
+  it.each([
+    ['an unknown mode', { MAWL_MODE: 'server', DATABASE_URL: URL_WITH_PASSWORD }, ['MAWL_MODE']],
+    ['headless without DATABASE_URL', { MAWL_MODE: 'headless' }, ['DATABASE_URL']],
+    [
+      'desktop without MAWL_DATA_DIR',
+      { MAWL_MODE: 'desktop', MAWL_PG_ROOT: pgRoot },
+      ['MAWL_DATA_DIR'],
+    ],
+    [
+      'desktop with a relative MAWL_DATA_DIR',
+      { MAWL_MODE: 'desktop', MAWL_DATA_DIR: 'rel/hunter2-data', MAWL_PG_ROOT: pgRoot },
+      ['MAWL_DATA_DIR'],
+    ],
+    [
+      'desktop without DATABASE_URL or MAWL_PG_ROOT',
+      { MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir },
+      ['MAWL_PG_ROOT'],
+    ],
+    [
+      'desktop with a relative MAWL_PG_ROOT',
+      { MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir, MAWL_PG_ROOT: 'rel/hunter2-pg' },
+      ['MAWL_PG_ROOT'],
+    ],
+    [
+      'desktop with a bad DATABASE_URL',
+      { MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir, DATABASE_URL: 'mysql://u:hunter2-pw@h/d' },
+      ['DATABASE_URL'],
+    ],
+    ['desktop with nothing set', { MAWL_MODE: 'desktop' }, ['MAWL_DATA_DIR', 'MAWL_PG_ROOT']],
+    [
+      'desktop with a relative MAWL_SECRETS_DIR',
+      {
+        MAWL_MODE: 'desktop',
+        MAWL_DATA_DIR: dataDir,
+        MAWL_PG_ROOT: pgRoot,
+        MAWL_SECRETS_DIR: 'rel/hunter2-secrets',
+      },
+      ['MAWL_SECRETS_DIR'],
+    ],
+  ])('rejects %s, naming the variables but never the values', (_label, env, names) => {
+    const message = messageOf(env)
+    for (const name of names) expect(message).toContain(name)
+    expect(message).not.toContain('hunter2')
+    expect(message).not.toContain('s3cr3t-pw')
   })
 })
 

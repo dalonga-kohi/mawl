@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { CreateDbOptions, DbHandle } from '@mawl/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
+import type { EmbeddedPostgres, PgConnection, StartOptions } from './embedded-pg/index.ts'
 import { createLogger } from './logger.ts'
 import { HOST_ID_FILE } from './secrets/index.ts'
 import { startServer } from './server.ts'
@@ -178,5 +179,151 @@ describe('startServer', () => {
     } finally {
       await server.stop()
     }
+  })
+})
+
+describe('startServer with the embedded Postgres', () => {
+  const EMBEDDED_URL = 'postgres://mawl:embedded-pw@127.0.0.1:50123/mawl'
+
+  function embedded(opts: { fail?: Error } = {}) {
+    const order: string[] = []
+    const pgStop = vi.fn(async () => {
+      order.push('pg.stop')
+      return { clean: true }
+    })
+    const startEmbeddedPostgres = vi.fn(async (_options: StartOptions) => {
+      if (opts.fail) throw opts.fail
+      order.push('pg.start')
+      return {
+        port: 50123,
+        pid: 42,
+        cold: false,
+        connectionString: EMBEDDED_URL,
+        connection: {} as PgConnection,
+        exited: new Promise<never>(() => {}),
+        output: () => '',
+        stop: pgStop,
+      } satisfies EmbeddedPostgres
+    })
+    return { startEmbeddedPostgres, pgStop, order }
+  }
+
+  const desktopConfig = (): Config => {
+    const { databaseUrl: _url, ...rest } = config()
+    return {
+      ...rest,
+      mode: 'desktop',
+      dataDir: dir,
+      embeddedPg: { pgRoot: join(dir, 'pg'), dataRoot: join(dir, 'pg-data') },
+    }
+  }
+
+  it('starts it from the configured roots, opens the database on its url, and stops it last', async () => {
+    const f = fakes()
+    const pg = embedded()
+    f.close.mockImplementation(async () => {
+      pg.order.push('db.close')
+    })
+    const server = await startServer(desktopConfig(), { logger: logger(), ...f, ...pg })
+    expect(pg.startEmbeddedPostgres).toHaveBeenCalledTimes(1)
+    expect(pg.startEmbeddedPostgres.mock.calls[0]?.[0]).toMatchObject({
+      pgRoot: join(dir, 'pg'),
+      dataRoot: join(dir, 'pg-data'),
+    })
+    expect(f.createDb.mock.calls[0]?.[0]).toBe(EMBEDDED_URL)
+    expect((await fetch(`${server.url}/healthz`)).status).toBe(200)
+    await server.stop()
+    await server.stop()
+    expect(pg.order).toEqual(['pg.start', 'db.close', 'pg.stop'])
+    expect(pg.pgStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers an emergency stop for it, and none without it', async () => {
+    const pg = embedded()
+    const registerEmergencyStop = vi.fn()
+    const server = await startServer(desktopConfig(), {
+      logger: logger(),
+      ...fakes(),
+      ...pg,
+      registerEmergencyStop,
+    })
+    expect(registerEmergencyStop).toHaveBeenCalledTimes(1)
+    await registerEmergencyStop.mock.calls[0]?.[0]()
+    expect(pg.pgStop).toHaveBeenCalledTimes(1)
+    await server.stop()
+
+    const headless = vi.fn()
+    const other = await startServer(config(), {
+      logger: logger(),
+      ...fakes(),
+      registerEmergencyStop: headless,
+    })
+    await other.stop()
+    expect(headless).not.toHaveBeenCalled()
+  })
+
+  it('still stops it when an earlier shutdown step fails', async () => {
+    const f = fakes()
+    f.close.mockImplementation(async () => {
+      throw new Error('pool end failed')
+    })
+    const pg = embedded()
+    const server = await startServer(desktopConfig(), { logger: logger(), ...f, ...pg })
+    await expect(server.stop()).rejects.toThrow(/pool end failed/)
+    expect(pg.pgStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops it when boot fails after it started, so no postgres is orphaned', async () => {
+    const f = fakes({
+      migrate: async () => {
+        throw new Error('migration failed')
+      },
+    })
+    const pg = embedded()
+    await expect(startServer(desktopConfig(), { logger: logger(), ...f, ...pg })).rejects.toThrow(
+      /migration failed/,
+    )
+    expect(f.close).toHaveBeenCalledTimes(1)
+    expect(pg.pgStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not start it when the secrets are unusable', async () => {
+    const pg = embedded()
+    await mkdir(join(dir, 'secrets'), { recursive: true })
+    await writeFile(join(dir, 'secrets', HOST_ID_FILE), 'garbage')
+    await expect(
+      startServer(desktopConfig(), { logger: logger(), ...fakes(), ...pg }),
+    ).rejects.toThrow(/host id/i)
+    expect(pg.startEmbeddedPostgres).not.toHaveBeenCalled()
+  })
+
+  it('propagates its boot error without opening the database', async () => {
+    const f = fakes()
+    const pg = embedded({ fail: new Error('binaries missing') })
+    await expect(startServer(desktopConfig(), { logger: logger(), ...f, ...pg })).rejects.toThrow(
+      /binaries missing/,
+    )
+    expect(f.createDb).not.toHaveBeenCalled()
+  })
+
+  it('prefers a database url over the embedded Postgres', async () => {
+    const f = fakes()
+    const pg = embedded()
+    const server = await startServer(
+      { ...desktopConfig(), databaseUrl: 'postgres://mawl:own@db/mawl', embeddedPg: undefined },
+      { logger: logger(), ...f, ...pg },
+    )
+    await server.stop()
+    expect(pg.startEmbeddedPostgres).not.toHaveBeenCalled()
+    expect(f.createDb.mock.calls[0]?.[0]).toBe('postgres://mawl:own@db/mawl')
+  })
+
+  it('refuses a config with neither a database url nor an embedded Postgres', async () => {
+    const f = fakes()
+    const { databaseUrl: _url, ...rest } = config()
+    await expect(startServer(rest, { logger: logger(), ...f })).rejects.toThrow(
+      /no database configured/,
+    )
+    expect(f.createDb).not.toHaveBeenCalled()
   })
 })
