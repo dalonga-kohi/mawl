@@ -351,21 +351,72 @@ pub mod credman {
             Ok(())
         }
     }
+
+    /// Talks to the real Credential Manager, so it never runs by default. Run it once by hand on
+    /// a Windows desktop: `cargo test -p mawl-host -- --ignored`. It uses a throwaway target and
+    /// deletes it again, so the owner's `Mawl/master-key` is never touched.
+    #[cfg(test)]
+    mod tests {
+        use windows_sys::Win32::Security::Credentials::CredDeleteW;
+
+        use super::super::{resolve, KeyOrigin};
+        use super::*;
+
+        /// Deletes the throwaway entry on drop, also when an assertion fails.
+        struct Cleanup(Vec<u16>);
+
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                // SAFETY: a NUL-terminated UTF-16 target. A missing entry is fine.
+                unsafe {
+                    CredDeleteW(self.0.as_ptr(), CRED_TYPE_GENERIC, 0);
+                }
+            }
+        }
+
+        #[test]
+        #[ignore = "uses the real Windows Credential Manager; run by hand with --ignored"]
+        fn round_trips_a_key_through_a_throwaway_credential() {
+            let name = format!("Mawl/test-{}", std::process::id());
+            let store = CredentialManager::new(&name);
+            let _cleanup = Cleanup(store.target.clone());
+
+            assert!(store.read().unwrap().is_none(), "{name} already exists");
+            let key: Vec<u8> = (0..32).map(|i| i * 7 + 1).collect();
+            store.write(&key).unwrap();
+            assert_eq!(store.read().unwrap().unwrap().as_slice(), key.as_slice());
+
+            // resolve() on the real store: an existing entry is used as is.
+            let dir =
+                std::env::temp_dir().join(format!("mawl-credman-test-{}", std::process::id()));
+            let (_, origin) = resolve(&store, &dir).unwrap();
+            assert_eq!(origin, KeyOrigin::Stored);
+
+            // The entry is replaced in place, not duplicated.
+            store.write(&[9u8; 32]).unwrap();
+            assert_eq!(store.read().unwrap().unwrap().as_slice(), &[9u8; 32]);
+        }
+    }
 }
 
 #[cfg(not(windows))]
 struct Unsupported;
 
 #[cfg(not(windows))]
+fn unsupported() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::Unsupported,
+        "the master key store needs Windows Credential Manager",
+    )
+}
+
+#[cfg(not(windows))]
 impl KeyStore for Unsupported {
     fn read(&self) -> io::Result<Option<KeyBytes>> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "the master key store needs Windows Credential Manager",
-        ))
+        Err(unsupported())
     }
     fn write(&self, _key: &[u8]) -> io::Result<()> {
-        self.read().map(|_| ())
+        Err(unsupported())
     }
 }
 
