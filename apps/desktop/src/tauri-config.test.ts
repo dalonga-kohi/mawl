@@ -35,6 +35,14 @@ describe('the Tauri window and its CSP', () => {
     expect(config.build.devUrl).toMatch(/^http:\/\/localhost:\d+$/)
   })
 
+  it('builds the main window with a navigation rule and no pop-ups', () => {
+    const shell = readFileSync(resolve(import.meta.dirname, '../src-tauri/src/shell.rs'), 'utf8')
+    expect(shell).toMatch(/\.on_new_window\(\|_url, _features\| NewWindowResponse::Deny\)/)
+    expect(shell).toContain('.on_navigation(')
+    expect(shell).toContain('.initialization_script(')
+    expect(shell).not.toContain('initialization_script_for_all_frames')
+  })
+
   it('lets the splash run only its own scripts and talk only to the host', () => {
     expect(directives.get('script-src')).toEqual(["'self'"])
     expect(directives.get('object-src')).toEqual(["'none'"])

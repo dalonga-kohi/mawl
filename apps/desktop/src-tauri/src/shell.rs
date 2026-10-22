@@ -14,6 +14,7 @@ use mawl_host::machine::Status;
 use mawl_host::port;
 use mawl_host::token::LaunchToken;
 use mawl_host::webview::{allow_navigation, app_url, launch_token_script};
+use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
 
 pub const MAIN_WINDOW: &str = "main";
@@ -206,6 +207,9 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let nav_splash = splash.clone();
     let window = WebviewWindowBuilder::from_config(app, &config)?
         .initialization_script(init_script)
+        // No pop-ups: window.open and target=_blank would start a webview that the navigation rule
+        // does not guard. External links open nowhere until D1.5b sends them to the browser.
+        .on_new_window(|_url, _features| NewWindowResponse::Deny)
         .on_navigation(move |target| {
             let current = dev_app
                 .clone()
