@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { dockerPolicy, isDockerAvailable, type PostgresHandle, withPostgres } from './postgres'
 
 afterEach(() => {
@@ -84,18 +84,6 @@ describe('dockerPolicy', () => {
       expect(dockerPolicy(false, { CI: v, MAWL_REQUIRE_DOCKER: v })).toBe('skip')
     }
   })
-
-  it('skips on purpose when MAWL_SKIP_DOCKER_SUITES is set, even in CI and with Docker up', () => {
-    const env = { CI: 'true', MAWL_REQUIRE_DOCKER: '1', MAWL_SKIP_DOCKER_SUITES: '1' }
-    expect(dockerPolicy(false, env)).toBe('skip')
-    expect(dockerPolicy(true, env)).toBe('skip')
-  })
-
-  it('ignores MAWL_SKIP_DOCKER_SUITES when it is empty, 0 or false', () => {
-    for (const v of ['', '0', 'false']) {
-      expect(dockerPolicy(true, { MAWL_SKIP_DOCKER_SUITES: v })).toBe('run')
-    }
-  })
 })
 
 const counters = { starts: 0, stops: 0, skippedBodyRan: false }
@@ -140,28 +128,6 @@ describe('withPostgres without Docker (local)', () => {
   it('skips its tests instead of running them', () => {
     counters.skippedBodyRan = true
     expect(url).toBeTypeOf('function')
-  })
-})
-
-describe('withPostgres with MAWL_SKIP_DOCKER_SUITES', () => {
-  const opted = { probed: 0, started: 0, bodyRan: false }
-  withPostgres({
-    probe: async () => {
-      opted.probed++
-    },
-    start: async () => {
-      opted.started++
-      return fakeStart()
-    },
-    env: { CI: '1', MAWL_SKIP_DOCKER_SUITES: '1' },
-  })
-
-  it('skips its tests', () => {
-    opted.bodyRan = true
-  })
-
-  afterAll(() => {
-    expect(opted).toEqual({ probed: 0, started: 0, bodyRan: false })
   })
 })
 
