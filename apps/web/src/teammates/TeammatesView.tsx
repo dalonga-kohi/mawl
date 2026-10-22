@@ -49,6 +49,7 @@ function FirstRun() {
     <>
       <EmptyState
         title="Meet your first teammate"
+        headingLevel={1}
         mascot="listening"
         mascotSize={120}
         action={
@@ -65,6 +66,7 @@ function FirstRun() {
   ) : (
     <EmptyState
       title="No teammates yet"
+      headingLevel={1}
       mascot="idle"
       mascotSize={120}
       action={
@@ -96,6 +98,7 @@ export function TeammatesIndex() {
         ) : profiles.isError ? (
           <EmptyState
             title="Can't reach your teammates"
+            headingLevel={1}
             mascot="oops"
             action={<Button onClick={() => void profiles.refetch()}>Try again</Button>}
           >
