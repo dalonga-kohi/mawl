@@ -74,6 +74,8 @@ const LOGIN_FAILURE: Record<
   unreachable: 'provider_error',
   rate_limited: 'provider_error',
   unexpected_response: 'provider_error',
+  // Never produced by the Claude login check (it makes no HTTP request); kept for the full map.
+  blocked_address: 'config_error',
 }
 
 /**

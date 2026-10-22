@@ -19,6 +19,8 @@ export function testFailureText(reason: ProviderTestFailure, kind: ProviderKind)
       return "Claude Code isn't signed in. Run claude auth login on the computer running Mawl."
     case 'wrong_auth_method':
       return 'Claude Code is set up with an API key or token, not your Claude plan. Mawl only uses the plan sign-in.'
+    case 'blocked_address':
+      return 'Mawl does not check addresses on this computer or your private network unless you allow them. Use the default address, or a public one.'
   }
 }
 

@@ -87,7 +87,14 @@ describe('ProviderCredentialInput', () => {
 describe('ProviderTestResult', () => {
   it('accepts ok with latency and failure with a closed reason', () => {
     expect(ProviderTestResult.safeParse({ ok: true, latencyMs: 12 }).success).toBe(true)
-    for (const reason of ['invalid_key', 'unreachable', 'rate_limited', 'unexpected_response']) {
+    for (const reason of [
+      'invalid_key',
+      'unreachable',
+      'rate_limited',
+      'unexpected_response',
+      // The address is never reachable, or private without the opt-in (D1.4 SSRF guard).
+      'blocked_address',
+    ]) {
       expect(ProviderTestResult.safeParse({ ok: false, reason }).success).toBe(true)
     }
   })
@@ -156,6 +163,24 @@ describe('providers router contract', () => {
       'issues',
     )
     expect(await validate({ provider: 'openai', label: 'k' })).toHaveProperty('issues')
+  })
+
+  it('test takes an optional private network opt-in on both forms, booleans only', async () => {
+    const schema = contract.providers.test['~orpc'].inputSchema
+    const validate = async (v: unknown) => schema?.['~standard'].validate(v)
+    const id = 'cred_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    const lan = { provider: 'ollama', label: 'LAN', baseUrl: 'http://192.168.1.20:11434' }
+    expect(await validate({ id, allowPrivateNetwork: true })).not.toHaveProperty('issues')
+    expect(await validate({ ...lan, allowPrivateNetwork: true })).not.toHaveProperty('issues')
+    expect(await validate({ ...lan, allowPrivateNetwork: 'yes' })).toHaveProperty('issues')
+    // Still a test-only flag: saving a credential does not take it.
+    expect(ProviderCredentialInput.safeParse({ ...lan, allowPrivateNetwork: true }).success).toBe(
+      false,
+    )
+    // The refinements still apply to the test form.
+    expect(
+      await validate({ provider: 'openai', label: 'k', allowPrivateNetwork: true }),
+    ).toHaveProperty('issues')
   })
 
   it('covers every provider kind in the enum', () => {
