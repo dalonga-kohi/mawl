@@ -118,7 +118,7 @@ describe('installLifecycle shutdown()', () => {
 })
 
 describe('installLifecycle repeated shutdown()', () => {
-  it('a second shutdown() exits 1 at once and does not stop twice', () => {
+  it('a second shutdown() only logs: no second stop, no hard exit', () => {
     const stop = vi.fn(() => new Promise<void>(() => {}))
     const exit = vi.fn()
     const { shutdown } = installLifecycle({
@@ -128,14 +128,12 @@ describe('installLifecycle repeated shutdown()', () => {
       proc: new EventEmitter(),
     })
     shutdown('stdin_eof')
-    expect(exit).not.toHaveBeenCalled()
     shutdown('stdin_eof')
     expect(stop).toHaveBeenCalledTimes(1)
-    expect(exit).toHaveBeenCalledTimes(1)
-    expect(exit).toHaveBeenCalledWith(1)
+    expect(exit).not.toHaveBeenCalled()
   })
 
-  it('a shutdown() after a signal exits 1 at once', () => {
+  it('a shutdown() after a signal does not escalate to exit 1', () => {
     const stop = vi.fn(() => new Promise<void>(() => {}))
     const exit = vi.fn()
     const proc = new EventEmitter()
@@ -148,7 +146,31 @@ describe('installLifecycle repeated shutdown()', () => {
     proc.emit('SIGINT')
     shutdown('stdin_eof')
     expect(stop).toHaveBeenCalledTimes(1)
-    expect(exit).toHaveBeenCalledWith(1)
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('SIGTERM then stdin EOF still exits 0 after the graceful stop', async () => {
+    let finish!: () => void
+    const stop = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const exit = vi.fn()
+    const proc = new EventEmitter()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    proc.emit('SIGTERM')
+    shutdown('stdin_eof')
+    finish()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(0)
   })
 })
 

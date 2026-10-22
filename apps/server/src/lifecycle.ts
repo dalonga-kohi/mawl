@@ -29,12 +29,12 @@ const DEFAULT_EMERGENCY_STOP_TIMEOUT_MS = 3_000
 /**
  * Wires process signals and fatal-error events.
  * - First SIGINT/SIGTERM: graceful stop, exit 0; a 10 s deadline forces exit 1.
- * - A second signal exits 1 immediately.
+ * - A second SIGINT/SIGTERM exits 1 immediately (after the emergency stop).
  * - unhandledRejection / uncaughtException: log name and code only, exit 1.
  * - Every hard exit 1 first runs `emergencyStop` for at most 3 s; it never throws.
  *
  * Returns `shutdown(reason)`, which starts the same graceful stop from code (the desktop parent
- * watchdog on stdin EOF). It counts as the first signal.
+ * watchdog on stdin EOF). It counts as the first signal, so a later real signal escalates; but it\n * never escalates itself: during a shutdown it only logs.
  */
 export function installLifecycle({
   logger,
@@ -79,9 +79,14 @@ export function installLifecycle({
     exit(code)
   }
 
-  // signal is a signal name, or a reason such as stdin_eof from shutdown().
-  const onSignal = (signal: string) => {
+  // `signal` is a signal name, or a reason such as `stdin_eof` from shutdown(). Only a second
+  // real signal escalates: the stdin EOF that follows a host-sent signal is routine, not a plea.
+  const onSignal = (signal: string, escalates: boolean) => {
     if (shuttingDown) {
+      if (!escalates) {
+        logger.info({ reason: signal }, 'already shutting down')
+        return
+      }
       logger.warn({ signal }, 'second signal, exiting now')
       hardExit()
       return
@@ -125,11 +130,11 @@ export function installLifecycle({
     hardExit()
   }
 
-  proc.on('SIGINT', () => onSignal('SIGINT'))
-  proc.on('SIGTERM', () => onSignal('SIGTERM'))
+  proc.on('SIGINT', () => onSignal('SIGINT', true))
+  proc.on('SIGTERM', () => onSignal('SIGTERM', true))
   proc.on('unhandledRejection', onFatal('unhandledRejection'))
   proc.on('uncaughtException', onFatal('uncaughtException'))
-  return { shutdown: onSignal }
+  return { shutdown: (reason) => onSignal(reason, false) }
 }
 
 /**
