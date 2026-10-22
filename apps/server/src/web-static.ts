@@ -13,6 +13,35 @@ const UNSAFE_PATH = /%|\\|\/\/|\/\.[^/]*(?=\/|$)/
 
 const IMMUTABLE = 'public, max-age=31536000, immutable'
 
+/** A Host header value safe to echo into the policy: name or [IPv6], optional port. */
+const SAFE_HOST = /^(?:[a-z0-9.-]+|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i
+
+/**
+ * The Content-Security-Policy for the web app's pages and files. Scripts only from this origin,
+ * never inline or eval, so an injected script cannot run and read the launch token from `window`
+ * or sessionStorage. The WebSocket is named explicitly (same host, ws and wss) because older
+ * engines do not match `ws:` against `'self'`. Inline styles stay allowed: Radix and Motion set
+ * them at runtime (positioning, scroll lock), and styles cannot read the token. Images are this
+ * origin, data: and blob: only, so a chat message cannot load a tracking pixel.
+ */
+export function webCsp(host: string | undefined): string {
+  const ws = host && SAFE_HOST.test(host) ? ` ws://${host} wss://${host}` : ''
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${ws}`,
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-src 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ')
+}
+
 /**
  * The directory to serve: the configured one, else `web` beside the bundle (`dist/web` in the image)
  * when it holds an index.html, else none (dev serves the web app from Vite).
@@ -102,7 +131,7 @@ export function webStatic({ dir, hosts }: WebStaticOptions): MiddlewareHandler {
     headers.set('cache-control', !isIndex && path.startsWith('/assets/') ? IMMUTABLE : 'no-cache')
     headers.set('x-content-type-options', 'nosniff')
     headers.set('referrer-policy', 'no-referrer')
-    headers.set('content-security-policy', "frame-ancestors 'none'")
+    headers.set('content-security-policy', webCsp(c.req.header('host')))
     return served
   }
 }

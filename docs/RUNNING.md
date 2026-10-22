@@ -111,6 +111,18 @@ Keep `mawl_mawl-secrets` together with `mawl_mawl-db`: the database cannot decry
 
 To wipe everything and start from nothing, run `docker compose -f infra/compose/docker-compose.yml down -v`. This deletes all three volumes, and it cannot be undone. Then run the first-start steps again. If you change `MAWL_DB_PASSWORD` after the first start, the database keeps the old password, so a reset is the simple fix.
 
+## The desktop app from source (development)
+
+The installer (D1.7) bundles the server, Node and Postgres. From a checkout you run the pieces yourself:
+
+1. Build the server once, and again after server changes: `pnpm --filter @mawl/server build`.
+2. Give the server a database in the same shell: either `$env:MAWL_PG_ROOT='<folder from infra/desktop/fetch-pg.ps1>'` for the embedded Postgres, or `$env:DATABASE_URL='postgres://…'` for one you run.
+3. Run `pnpm --filter @mawl/desktop dev`. Tauri starts Vite on port 5173 and opens the window on the splash. The host starts `node` from your PATH on `apps/server/dist/server.mjs`, always on port 7420 (Vite's proxy target), and opens the app from Vite once the server answers `/healthz`.
+
+A development build passes only `DATABASE_URL`, `MAWL_PG_ROOT` and `LOG_LEVEL` from your shell to the server, on top of the system variables; everything else is cleared. Data goes to the same `%LOCALAPPDATA%\app.mawl.desktop` folder as an installed Mawl.
+
+To look at the splash in a browser, run the web dev server (`pnpm --filter @mawl/web dev`) and open `http://127.0.0.1:5173/splash.html?demo=boot` (or `demo=failed`, `restarting`, `stopping`). Do not open `apps/web/splash.html` as a file: the browser blocks its module script under CORS, because a file page has no origin.
+
 ## Troubleshooting
 
 - Port 7420 or 1455 is already in use (compose reports `ports are not available` or `address already in use`): stop the program that holds the port, then run `up -d` again. To find it, run `lsof -i :7420` in bash, or in PowerShell `Get-NetTCPConnection -LocalPort 7420,1455 -State Listen | Select-Object LocalPort, OwningProcess` and then `Get-Process -Id <OwningProcess>`. Do not move the ports in the compose file: the ChatGPT sign-in redirect only works on 1455.

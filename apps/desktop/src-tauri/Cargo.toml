@@ -7,17 +7,30 @@ rust-version = "1.85"
 license = "UNLICENSED"
 publish = false
 
+[workspace]
+members = [".", "host"]
+
 [lib]
 name = "mawl_desktop_lib"
 crate-type = ["rlib"]
+# The Tauri glue has no unit tests: its logic lives in `host` (see host/Cargo.toml for why).
+test = false
+doctest = false
+
+[[bin]]
+name = "mawl-desktop"
+path = "src/main.rs"
+test = false
 
 [build-dependencies]
 tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
+mawl-host = { path = "host" }
 tauri = { version = "=2.12.1", features = ["tray-icon"] }
 tauri-plugin-single-instance = { version = "=2.5.2", features = ["deep-link"] }
 tauri-plugin-deep-link = "=2.6.1"
 tauri-plugin-notification = "=2.5.1"
 tauri-plugin-opener = "=2.7.0"
+serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"

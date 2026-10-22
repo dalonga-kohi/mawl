@@ -55,7 +55,44 @@ describe('serving the web build', () => {
     expect(res.headers.get('cache-control')).toBe('no-cache')
     expect(res.headers.get('x-content-type-options')).toBe('nosniff')
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
-    expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'")
+    expect(res.headers.get('content-security-policy')).toBe(
+      [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "connect-src 'self' ws://localhost:7420 wss://localhost:7420",
+        "worker-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-src 'none'",
+        "frame-ancestors 'none'",
+      ].join('; '),
+    )
+  })
+
+  it('never lets an injected script run: no inline or eval in script-src', async () => {
+    for (const path of ['/', '/assets/app-abc123.js', '/t/sam']) {
+      const res = await appFor().request(path, { headers: { host: '127.0.0.1:47420', ...HTML } })
+      const csp = res.headers.get('content-security-policy') ?? ''
+      const script = csp.split('; ').find((d) => d.startsWith('script-src'))
+      expect(script, path).toBe("script-src 'self'")
+      expect(csp, path).toContain("object-src 'none'")
+      expect(csp, path).toContain("connect-src 'self' ws://127.0.0.1:47420 wss://127.0.0.1:47420")
+    }
+  })
+
+  it('keeps an odd Host header out of the policy', async () => {
+    const res = await appFor(webDir, { bindHost: '0.0.0.0', allowedOrigins: [] }).request('/', {
+      headers: { host: 'localhost:7420' },
+    })
+    expect(res.headers.get('content-security-policy')).toContain("connect-src 'self' ws://")
+    const { webCsp } = await import('./web-static.ts')
+    expect(webCsp('evil.localhost; script-src *')).toContain("connect-src 'self';")
+    expect(webCsp(undefined)).toContain("connect-src 'self';")
+    expect(webCsp('[::1]:47420')).toContain('ws://[::1]:47420 wss://[::1]:47420')
   })
 
   it('serves hashed assets as immutable for a year', async () => {

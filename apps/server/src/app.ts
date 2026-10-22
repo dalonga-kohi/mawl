@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { OWNER } from './auth/principal.ts'
 import { bearerToken, tokenMatches } from './auth/token.ts'
 import { checkHost, type HostPolicy } from './events/host.ts'
+import { HEALTH_NONCE_PATTERN, identityProof } from './health-identity.ts'
 import type { Logger } from './logger.ts'
 import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
@@ -110,7 +111,13 @@ export function createApp({
 
   app.get('/healthz', async (c) => {
     const ok = await isHealthy(checkDb, healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS)
-    return c.json({ ok }, ok ? 200 : 503)
+    // The desktop host's nonce: answer with the identity proof (see health-identity.ts).
+    const nonce = c.req.query('n')
+    const id =
+      nonce !== undefined && HEALTH_NONCE_PATTERN.test(nonce)
+        ? identityProof(authToken, nonce)
+        : undefined
+    return c.json(id ? { ok, id } : { ok }, ok ? 200 : 503)
   })
 
   const rpc = new RPCHandler(

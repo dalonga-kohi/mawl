@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { configDefaults, defineConfig } from 'vitest/config'
@@ -9,6 +10,15 @@ const devServer = process.env.MAWL_DEV_SERVER || 'http://127.0.0.1:7420'
 // the workspace convention typechecks only `src` and `vitest.config.ts`.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // The app, and the desktop splash the Tauri host loads from its own origin (D1.5).
+    rolldownOptions: {
+      input: {
+        index: resolve(import.meta.dirname, 'index.html'),
+        splash: resolve(import.meta.dirname, 'splash.html'),
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,
