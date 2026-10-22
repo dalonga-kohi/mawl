@@ -187,7 +187,7 @@ Do as much as the unmodified binary allows:
    - **Numbers.**
      - Cold `initdb`: 17–34 s with fsync, about 4 s with `--no-sync`. **Decision:** `initdb --no-sync` into a staging dir, then rename it into place behind the first-run splash.
      - Warm start 0.3–0.9 s, stop about 0.5 s, migrations about 1.1 s.
-     - Binaries 97 MB (37 MB zipped), `vector.dll` 277 KB, a fresh data dir 39 MB.
+     - Binaries 97 MB (37 MB zipped), `vector.dll` 277 KB, a fresh data dir 39 MB. The EDB zip itself is 318 MiB (mostly pgAdmin); `infra/desktop/fetch-pg.ps1` (D1.1) prunes it to about 74 MB.
    - **Risk.** MinGW against MSVC headers is unsupported, so any PG or pgvector bump can add an ABI mismatch. That's why CI uses MSVC, and `--disable-auto-import` turns most mismatches into link errors.
 2. **Sidecar packaging. Done (D0.2, 2026-10-21).** A full `tauri build --bundles nsis` worked on this machine.
    - **Ship `node.exe`, not a SEA.**

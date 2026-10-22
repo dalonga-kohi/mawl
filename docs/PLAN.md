@@ -105,7 +105,7 @@ Goal: a comforting, playful, uncrowded UI on shadcn, with the new Mawl mascot, p
 ## D1 — Desktop host (install and go)
 Goal: download the installer, open Mawl from the tray, chat with a teammate. No Docker, no terminal. See REDESIGN §4.
 
-- [ ] **D1.1 Embedded Postgres lifecycle.** (head-coder: process lifecycle and concurrency)
+- [~] **D1.1 Embedded Postgres lifecycle.** (head-coder: process lifecycle and concurrency)
   - A server module owns the bundled EDB Postgres 17.10:
     - first run: `initdb --no-sync` into a staging dir, then rename it into place
     - spawn `postgres` on a free 127.0.0.1 port with a generated password under the data root
@@ -113,6 +113,16 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
     - never `detached`; read exit codes only (localized output)
   - Add `infra/desktop/fetch-pg.ps1`: hash-pinned EDB zip download, prune the pgAdmin DLLs.
   - *Tests:* cold and warm start, clean stop leaves no recovery on the next start, a killed server leaves Postgres recoverable, port collision, a corrupt or missing data dir gives a typed boot error. Windows-only suites skip elsewhere and are required on the Windows CI job.
+  - *As built:*
+    - `apps/server/src/embedded-pg`: `startEmbeddedPostgres({ pgRoot, dataRoot, logger? })` returns `{ port, connection, connectionString, cold, exited, output(), stop() }`. Not wired into config or main yet (D1.3).
+    - Data root layout: `cluster\` (PGDATA) and `password` (256-bit base64url). First run: initdb (`--no-sync --no-locale --encoding=UTF8 --auth=scram-sha-256 --username=mawl`, password via a pwfile deleted afterwards) into `cluster.staging-<id>`, write `password`, then rename (retried on Windows EPERM/EBUSY). Stale staging dirs and pwfiles are deleted on boot. An existing but incomplete `cluster\` is never re-initialised.
+    - App database `mawl`, created on every start if missing. `--no-locale` keeps `lc_messages=C`, so Postgres logs are English, but no logic parses them.
+    - Port race: when Postgres exits during start and the port is now taken, retry on a new port (3 attempts, then `port_unavailable`). A password rejection gets a 1.5 s grace so a foreign server on a lost port is not blamed on the data dir.
+    - Stop: `pg_ctl stop -m fast -w -t`, exit code only; on failure, a hang, or Postgres outliving pg_ctl, `child.kill()`. `stop()` is idempotent; `exited` reports `expected: false` for an unexpected death.
+    - Boot errors (`EmbeddedPgError.code`): `binaries_missing`, `initdb_failed`, `data_dir_corrupt`, `port_unavailable`, `start_timeout`, `start_failed`, with an output tail in `detail` for diagnostics.
+    - `infra/desktop/fetch-pg.ps1 -Dest <dir> [-Zip <cache>]`: the zip is 318 MiB (mostly pgAdmin), hash-pinned; extracts only `bin`, `lib`, `share` and the licenses, keeps `initdb`, `postgres`, `pg_ctl`, `pg_controldata` plus all runtime DLLs, and drops wxWidgets, `.lib`, `pgxs`, `share\locale`. About 74 MB. Idempotent through a marker file, assembled in a staging dir.
+    - Real-binary suite `embedded-pg.win.test.ts` runs with `MAWL_PG_ROOT=<fetch-pg dest>` on Windows and fails when `MAWL_REQUIRE_EMBEDDED_PG=1` (set it on the D1.2/D1.7 Windows CI job). Both vars are in turbo `globalEnv`. Local timings: cold start (initdb + start) 4.6 s, warm start 0.37 s.
+    - Follow-ups: a postmaster.pid whose PID was reused after a hard kill makes Postgres refuse to start (`start_failed`); `--no-sync` means a power loss in the first seconds after initdb can tear the new cluster; Postgres refuses to run elevated (an admin-launched Mawl gets `start_failed`).
 - [ ] **D1.2 pgvector Windows build in CI.** A GitHub Actions `windows-2025` job:
   - download the EDB zip and check its hash; assert its `postgres.exe` matches
   - build pgvector v0.8.7 with MSVC (`nmake /F Makefile.win`) and run `installcheck`
