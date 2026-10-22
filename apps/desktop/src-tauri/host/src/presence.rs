@@ -63,6 +63,21 @@ impl Presence {
         true
     }
 
+    /// A deep link arrived. When the server is ready at this instant the window goes to the link
+    /// (`navigate_to_link`) and counts as in the app, whatever page it was on; otherwise
+    /// `defer` runs, still under the lock, so a ready that lands right after cannot miss the link:
+    /// the enter that follows reads what `defer` stored. Returns whether the window navigated.
+    pub fn open_link(&self, navigate_to_link: impl FnOnce(), defer: impl FnOnce()) -> bool {
+        let mut state = self.lock();
+        if !state.ready {
+            defer();
+            return false;
+        }
+        state.in_app = true;
+        navigate_to_link();
+        true
+    }
+
     /// The server is going away: not ready any more, and back to the splash when the window was
     /// in the app.
     pub fn leave(&self, navigate_to_splash: impl FnOnce()) -> bool {
@@ -119,6 +134,50 @@ mod tests {
         presence.set_ready(true);
         assert!(presence.try_enter(|| window.go("app")));
         assert_eq!(window.page(), "app");
+    }
+
+    #[test]
+    fn a_link_while_ready_navigates_and_counts_as_entered() {
+        let presence = Presence::new();
+        let window = FakeWindow::new();
+        presence.set_ready(true);
+        assert!(presence.open_link(|| window.go("link"), || window.go("deferred")));
+        assert_eq!(window.page(), "link");
+        // The window is in the app: the fallback enter must not navigate over the link.
+        assert!(!presence.try_enter(|| window.go("app")));
+        assert_eq!(*window.log.borrow(), vec!["link"]);
+        // A second link navigates again.
+        assert!(presence.open_link(|| window.go("link2"), || window.go("deferred")));
+        assert_eq!(window.page(), "link2");
+    }
+
+    #[test]
+    fn a_link_before_ready_is_deferred_and_the_enter_picks_it_up() {
+        let presence = Presence::new();
+        let window = FakeWindow::new();
+        let pending = crate::deep_link::PendingLink::new();
+        assert!(!presence.open_link(|| window.go("link"), || pending.set("/t/ada".into())));
+        assert_eq!(window.page(), "splash");
+        presence.set_ready(true);
+        assert!(presence.try_enter(|| {
+            window.go(if pending.take().is_some() {
+                "link"
+            } else {
+                "app"
+            })
+        }));
+        assert_eq!(window.page(), "link");
+    }
+
+    #[test]
+    fn a_link_after_a_crash_is_deferred_not_sent_to_a_dead_port() {
+        let presence = Presence::new();
+        let window = FakeWindow::new();
+        presence.set_ready(true);
+        assert!(presence.try_enter(|| window.go("app")));
+        presence.leave(|| window.go("splash"));
+        assert!(!presence.open_link(|| window.go("link"), || window.go("deferred")));
+        assert_eq!(*window.log.borrow(), vec!["app", "splash", "deferred"]);
     }
 
     #[test]

@@ -38,6 +38,7 @@ fn data_dir(name: &str, behavior: &str) -> PathBuf {
 enum UiEvent {
     Status(Status),
     LeaveApp,
+    ServerGone,
     Exit,
 }
 
@@ -49,6 +50,9 @@ impl HostUi for TestUi {
     }
     fn leave_app(&self) {
         let _ = self.0.lock().unwrap().send(UiEvent::LeaveApp);
+    }
+    fn server_gone(&self) {
+        let _ = self.0.lock().unwrap().send(UiEvent::ServerGone);
     }
     fn exit(&self) {
         let _ = self.0.lock().unwrap().send(UiEvent::Exit);
@@ -139,7 +143,7 @@ fn boots_to_ready_with_a_clean_env_and_quits_through_stdin() {
     assert!(seen
         .iter()
         .any(|e| matches!(e, UiEvent::Status(Status::Stopped))));
-    // It went through stdin, not the 30 s kill deadline.
+    // The host hears that the server is gone before any call that could block on the UI thread\n    // (the final status, the exit), so a logoff wait never depends on them.\n    let position = |wanted: fn(&UiEvent) -> bool| seen.iter().position(wanted).unwrap();\n    let gone = position(|e| matches!(e, UiEvent::ServerGone));\n    assert!(gone < position(|e| matches!(e, UiEvent::Status(Status::Stopped))));\n    assert!(gone < position(|e| matches!(e, UiEvent::Exit)));\n    assert_eq!(seen.iter().filter(|e| matches!(e, UiEvent::ServerGone)).count(), 1);\n    // It went through stdin, not the 30 s kill deadline.
     assert!(asked.elapsed() < Duration::from_secs(10));
     assert!(supervisor.diagnostics(&[]).contains("stdin closed"));
     let _ = fs::remove_dir_all(dir);

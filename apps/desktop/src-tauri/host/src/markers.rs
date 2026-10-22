@@ -38,6 +38,16 @@ pub fn claim(data_dir: &Path, name: &str) -> Claim {
     }
 }
 
+/// Removes the marker so the next run is `First` again. Used when what the marker stands for did
+/// not happen (a toast that failed to show, a login item that could not be set). A marker that is
+/// not there is fine; false means it could not be removed.
+pub fn release(data_dir: &Path, name: &str) -> bool {
+    match fs::remove_file(data_dir.join(name)) {
+        Ok(()) => true,
+        Err(e) => e.kind() == ErrorKind::NotFound,
+    }
+}
+
 /// True when the "Mawl is still running" hint should be shown now: the first time the window is
 /// closed to the tray. A failed write never blocks the close; it still shows the hint (the caller
 /// shows it at most once per process, so a read-only data dir cannot make it repeat).
@@ -61,6 +71,22 @@ mod tests {
         assert_eq!(claim(&dir, "m"), Claim::First);
         assert_eq!(claim(&dir, "m"), Claim::Done);
         assert_eq!(claim(&dir, "other"), Claim::First);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_released_marker_can_be_claimed_again() {
+        let dir = temp("release");
+        assert_eq!(claim(&dir, "m"), Claim::First);
+        assert!(release(&dir, "m"));
+        assert_eq!(claim(&dir, "m"), Claim::First);
+        // Releasing what is not there, or in a dir that is not there, is not an error.
+        assert!(release(&dir, "never-claimed"));
+        assert!(release(&dir.join("missing"), "m"));
+        // Other markers are untouched.
+        assert_eq!(claim(&dir, "other"), Claim::First);
+        assert!(release(&dir, "m"));
+        assert_eq!(claim(&dir, "other"), Claim::Done);
         fs::remove_dir_all(&dir).unwrap();
     }
 

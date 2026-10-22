@@ -22,6 +22,10 @@ pub trait HostUi: Send + Sync + 'static {
     fn status(&self, status: Status);
     /// The app page shows a server that is going away: show the splash.
     fn leave_app(&self);
+    /// The server process (and its Postgres) is gone, for good: called once, before the final
+    /// status and before `exit`. It must not touch the window, the tray or anything else that
+    /// needs the UI thread, which may be blocked waiting for exactly this (a Windows logoff).
+    fn server_gone(&self);
     /// Everything is stopped: exit the app.
     fn exit(&self);
 }
@@ -79,6 +83,7 @@ impl Supervisor {
             timers: Vec::new(),
             current: None,
             done: false,
+            gone_reported: false,
         };
         thread::Builder::new()
             .name("mawl-supervisor".into())
@@ -101,6 +106,12 @@ impl Supervisor {
     /// "Quit Mawl": stop the server cleanly, then [`HostUi::exit`].
     pub fn stop(&self) {
         let _ = self.tx.send(Msg::Event(Event::Stop));
+    }
+
+    /// The PC woke from sleep: check the server's health now. The state of the last probe and the
+    /// sockets from before the sleep may be stale.
+    pub fn probe_now(&self) {
+        let _ = self.tx.send(Msg::Event(Event::ProbeNow));
     }
 
     /// "Try again" after the server failed for good.
@@ -129,6 +140,19 @@ impl Supervisor {
     }
 }
 
+/// Arms `timer` at `at`. An identical pending timer is replaced, so an extra probe (after a
+/// wake from sleep) cannot leave two probe cadences running side by side.
+fn arm(timers: &mut Vec<(Instant, Timer)>, at: Instant, timer: Timer) {
+    timers.retain(|(_, pending)| *pending != timer);
+    timers.push((at, timer));
+}
+
+/// The effects after which no server process is left to wait for: the final `Stopped` status
+/// and the exit. Reported to the host before either runs.
+fn marks_server_gone(effect: &Effect) -> bool {
+    matches!(effect, Effect::Status(Status::Stopped) | Effect::Exit)
+}
+
 struct Driver<U: HostUi> {
     machine: Machine,
     config: SupervisorConfig,
@@ -139,6 +163,7 @@ struct Driver<U: HostUi> {
     timers: Vec<(Instant, Timer)>,
     current: Option<(Gen, ServerProcess)>,
     done: bool,
+    gone_reported: bool,
 }
 
 impl<U: HostUi> Driver<U> {
@@ -215,6 +240,10 @@ impl<U: HostUi> Driver<U> {
 
     /// Carries out one effect; returns a follow-up event when the effect failed at once.
     fn run(&mut self, effect: Effect) -> Option<Event> {
+        if marks_server_gone(&effect) && !self.gone_reported {
+            self.gone_reported = true;
+            self.ui.server_gone();
+        }
         match effect {
             Effect::Spawn(gen) => return self.spawn(gen),
             Effect::Probe(gen) => {
@@ -242,10 +271,11 @@ impl<U: HostUi> Driver<U> {
                     }
                 }
             }
-            Effect::SetTimer { timer, after_ms } => {
-                self.timers
-                    .push((Instant::now() + Duration::from_millis(after_ms), timer));
-            }
+            Effect::SetTimer { timer, after_ms } => arm(
+                &mut self.timers,
+                Instant::now() + Duration::from_millis(after_ms),
+                timer,
+            ),
             Effect::Status(status) => {
                 *lock(&self.shared.status) = status;
                 if let Status::Restarting {
@@ -333,5 +363,43 @@ impl<U: HostUi> Driver<U> {
                 Some(Event::SpawnFailed(gen))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_final_stop_and_the_exit_mean_the_server_is_gone() {
+        use crate::machine::{Failure, Stage};
+        assert!(marks_server_gone(&Effect::Status(Status::Stopped)));
+        assert!(marks_server_gone(&Effect::Exit));
+        for status in [
+            Status::Stopping,
+            Status::Ready,
+            Status::Starting {
+                stage: Stage::Server,
+            },
+            Status::Failed {
+                reason: Failure::Unhealthy,
+            },
+        ] {
+            assert!(!marks_server_gone(&Effect::Status(status)), "{status:?}");
+        }
+        assert!(!marks_server_gone(&Effect::LeaveApp));
+        assert!(!marks_server_gone(&Effect::CloseStdin(1)));
+    }
+
+    #[test]
+    fn arming_a_timer_again_replaces_the_pending_one() {
+        let now = Instant::now();
+        let mut timers = Vec::new();
+        arm(&mut timers, now + Duration::from_secs(5), Timer::Probe(1));
+        arm(&mut timers, now + Duration::from_secs(1), Timer::Probe(2));
+        arm(&mut timers, now + Duration::from_secs(7), Timer::Probe(1));
+        assert_eq!(timers.len(), 2);
+        assert!(timers.contains(&(now + Duration::from_secs(7), Timer::Probe(1))));
+        assert!(timers.contains(&(now + Duration::from_secs(1), Timer::Probe(2))));
     }
 }

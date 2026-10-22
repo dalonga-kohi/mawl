@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::markers::{claim, Claim, AUTOSTART_INITIALISED_FILE};
+use crate::markers::{claim, release, Claim, AUTOSTART_INITIALISED_FILE};
 
 /// The argument the OS passes when it starts Mawl at login.
 pub const AUTOSTART_ARG: &str = "--autostart";
@@ -20,10 +20,28 @@ pub fn enable_by_default(data_dir: &Path) -> bool {
     claim(data_dir, AUTOSTART_INITIALISED_FILE) == Claim::First
 }
 
+/// Undoes [`enable_by_default`]'s claim when switching the login item on failed, so the next run
+/// tries again instead of leaving the owner without the default they were meant to get.
+pub fn retry_default_next_run(data_dir: &Path) {
+    release(data_dir, AUTOSTART_INITIALISED_FILE);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn a_failed_enable_is_tried_again_on_the_next_run() {
+        let dir = std::env::temp_dir().join(format!("mawl-autostart-r-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        assert!(enable_by_default(&dir));
+        retry_default_next_run(&dir);
+        assert!(enable_by_default(&dir));
+        // Once it worked the owner's choice stands.
+        assert!(!enable_by_default(&dir));
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()

@@ -2,7 +2,6 @@
 /// only when a capability allows it, and `capabilities/host.json` allows them for local pages
 /// (the splash) only. Keep in step with `generate_handler!` in src/lib.rs (a test checks it).
 const COMMANDS: &[&str] = &[
-    "take_pending_navigation",
     "supervisor_status",
     "copy_diagnostics",
     "retry_server",

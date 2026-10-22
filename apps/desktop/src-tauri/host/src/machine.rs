@@ -116,6 +116,9 @@ pub enum Event {
     Stop,
     /// "Try again" on the failed screen.
     Retry,
+    /// The PC woke from sleep: ask `/healthz` now instead of at the next timer, because the
+    /// state the last probe left may be stale.
+    ProbeNow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -270,6 +273,12 @@ impl Machine {
                 }
             }
             Event::Timer(timer) => self.on_timer(timer, &mut out),
+            Event::ProbeNow => {
+                // Same condition as the probe timer: only a booting or ready server is probed.
+                if let (Some(gen), Phase::Starting(_) | Phase::Ready) = (self.running, self.phase) {
+                    out.push(Effect::Probe(gen));
+                }
+            }
             Event::Stop => self.on_stop(&mut out),
         }
         if was_ready && self.phase != Phase::Ready {
@@ -857,6 +866,63 @@ mod tests {
         ));
         // Retry means nothing outside the failed state.
         assert!(m.handle(Event::Retry, 400).is_empty());
+    }
+
+    #[test]
+    fn waking_from_sleep_probes_a_ready_or_booting_server_at_once() {
+        let mut m = ready();
+        assert_eq!(m.handle(Event::ProbeNow, 9_000), vec![Effect::Probe(1)]);
+        // It changes nothing else: no status, no timers.
+        assert_eq!(m.status(), Status::Ready);
+
+        let mut booting = Machine::new();
+        booting.handle(Event::Start, 0);
+        assert_eq!(booting.handle(Event::ProbeNow, 10), vec![Effect::Probe(1)]);
+    }
+
+    #[test]
+    fn waking_from_sleep_probes_nothing_when_no_server_is_up() {
+        // Before the first start.
+        assert!(Machine::new().handle(Event::ProbeNow, 0).is_empty());
+
+        // Stopping, and after the stop.
+        let mut m = ready();
+        m.handle(Event::Stop, 200);
+        assert!(m.handle(Event::ProbeNow, 300).is_empty());
+        m.handle(Event::Exited(1, Some(0)), 400);
+        assert!(m.handle(Event::ProbeNow, 500).is_empty());
+
+        // Recycling (old process still stopping) and waiting out the backoff.
+        let mut m = ready();
+        for t in [1_000, 3_000, 5_000] {
+            m.handle(Event::Health(1, Health::Unhealthy), t);
+        }
+        assert!(matches!(m.status(), Status::Restarting { .. }));
+        assert!(m.handle(Event::ProbeNow, 5_100).is_empty());
+        m.handle(Event::Exited(1, Some(0)), 5_200);
+        assert!(m.handle(Event::ProbeNow, 5_300).is_empty());
+
+        // Failed for good.
+        let mut m = Machine::new();
+        m.handle(Event::Start, 0);
+        m.handle(Event::LaunchFailed(1), 1);
+        assert!(m.handle(Event::ProbeNow, 2).is_empty());
+    }
+
+    #[test]
+    fn a_probe_now_answer_follows_the_normal_health_rules() {
+        let mut m = ready();
+        m.handle(Event::ProbeNow, 9_000);
+        // A bad answer after the wake counts like any other bad answer.
+        let out = m.handle(Event::Health(1, Health::Unreachable), 9_100);
+        assert!(has(
+            &out,
+            Effect::SetTimer {
+                timer: Timer::Probe(1),
+                after_ms: PROBE_RETRY_MS
+            }
+        ));
+        assert_eq!(m.status(), Status::Ready);
     }
 
     #[test]
