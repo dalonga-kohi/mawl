@@ -33,7 +33,7 @@ pub fn identity_proof(token: &str, nonce: &str) -> String {
     base64url(&mac.finalize().into_bytes())
 }
 
-fn new_nonce() -> Option<String> {
+pub(crate) fn new_nonce() -> Option<String> {
     let mut bytes = [0u8; NONCE_BYTES];
     getrandom::fill(&mut bytes).ok()?;
     Some(base64url(&bytes))
@@ -64,7 +64,7 @@ pub fn probe(port: u16, timeout: Duration, token: &LaunchToken) -> Health {
     }
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 

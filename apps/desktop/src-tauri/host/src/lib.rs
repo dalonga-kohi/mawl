@@ -5,6 +5,7 @@
 //!   port choice, token injection and navigation rules
 //! - `health`: the `/healthz` probe
 //! - `deep_link`: the `mawl://` allowlist (pure)
+//! - `remote`: "connect to a remote Mawl" (window target, address and token checks, remote probe)
 
 pub mod autostart;
 pub mod deep_link;
@@ -21,6 +22,7 @@ pub mod notice;
 pub mod port;
 pub mod presence;
 pub mod process;
+pub mod remote;
 pub mod session;
 pub mod token;
 pub mod tray;
