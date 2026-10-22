@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::health::{constant_time_eq, identity_proof, new_nonce};
-use crate::master_key::wipe;
+use crate::master_key::{wipe, KeyStore};
 use crate::token::REDACTED;
 
 pub const TARGET_FILE: &str = "window-target.json";
@@ -145,6 +145,34 @@ pub fn parse_remote_token(input: &str) -> Result<RemoteToken, TokenError> {
 pub fn token_from_bytes(bytes: &[u8]) -> Result<RemoteToken, TokenError> {
     let text = std::str::from_utf8(bytes).map_err(|_| TokenError::Characters)?;
     parse_remote_token(text)
+}
+
+/// Writes the token to `store` (Credential Manager, target [`TOKEN_CREDENTIAL`]) and reads it back:
+/// only an equal read-back counts as stored.
+pub fn store_token(store: &dyn KeyStore, token: &RemoteToken) -> io::Result<()> {
+    store.write(token.expose().as_bytes())?;
+    match load_token(store)? {
+        Some(back) if back == *token => Ok(()),
+        _ => Err(io::Error::other(
+            "the token read back from Windows Credential Manager does not match what was written",
+        )),
+    }
+}
+
+/// The stored token: `None` when there is none, an error when the store fails or holds something
+/// that is not a token.
+pub fn load_token(store: &dyn KeyStore) -> io::Result<Option<RemoteToken>> {
+    let Some(bytes) = store.read()? else {
+        return Ok(None);
+    };
+    token_from_bytes(bytes.as_slice())
+        .map(Some)
+        .map_err(|_| io::Error::other("the stored remote token is not a valid token"))
+}
+
+/// Deletes the stored token; a missing one is fine.
+pub fn forget_token(store: &dyn KeyStore) -> io::Result<()> {
+    store.delete()
 }
 
 /// Where the main window goes.
@@ -275,6 +303,7 @@ pub fn fetch_once(url: &Url) -> Option<(u16, Vec<u8>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::master_key::MemoryStore;
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::thread;
@@ -390,6 +419,33 @@ mod tests {
             token_from_bytes(&[0xff; 40]).unwrap_err(),
             TokenError::Characters
         );
+    }
+
+    #[test]
+    fn the_token_is_kept_in_the_store_read_back_and_forgotten() {
+        let store = MemoryStore::default();
+        assert!(load_token(&store).unwrap().is_none());
+        store_token(&store, &token()).unwrap();
+        assert_eq!(store.entry().unwrap(), TOKEN.as_bytes());
+        assert_eq!(load_token(&store).unwrap().unwrap().expose(), TOKEN);
+        forget_token(&store).unwrap();
+        assert!(store.entry().is_none());
+        assert!(load_token(&store).unwrap().is_none());
+        // Forgetting twice is fine.
+        forget_token(&store).unwrap();
+    }
+
+    #[test]
+    fn a_store_that_returns_something_else_is_an_error() {
+        let mut store = MemoryStore::default();
+        store.corrupt_writes = Some(b"x".repeat(40));
+        assert!(store_token(&store, &token()).is_err());
+        // A stored value that is not a token reads as an error, not as a token.
+        let store = MemoryStore::holding(b"short");
+        assert!(load_token(&store).is_err());
+        let failing = MemoryStore::failing(io::ErrorKind::PermissionDenied);
+        assert!(store_token(&failing, &token()).is_err());
+        assert!(load_token(&failing).is_err());
     }
 
     #[test]

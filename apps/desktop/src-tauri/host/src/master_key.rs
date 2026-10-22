@@ -109,8 +109,12 @@ impl fmt::Display for MasterKey {
 pub trait KeyStore: Send + Sync {
     /// The stored key, or `None` when there is no entry.
     fn read(&self) -> io::Result<Option<KeyBytes>>;
-    /// Creates or replaces the entry. Only called when [`KeyStore::read`] found none.
+    /// Creates or replaces the entry. For the master key, only called when [`KeyStore::read`]
+    /// found none.
     fn write(&self, key: &[u8]) -> io::Result<()>;
+    /// Deletes the entry; a missing one is fine. Never called for the master key (deleting it
+    /// would orphan every stored secret), only for the remote Mawl's token (`remote.rs`).
+    fn delete(&self) -> io::Result<()>;
 }
 
 /// How the key was found, for a diagnostics note.
@@ -256,6 +260,14 @@ impl KeyStore for MemoryStore {
         *self.entry.lock().unwrap() = Some(stored);
         Ok(())
     }
+
+    fn delete(&self) -> io::Result<()> {
+        if let Some(kind) = self.fail {
+            return Err(io::Error::from(kind));
+        }
+        *self.entry.lock().unwrap() = None;
+        Ok(())
+    }
 }
 
 /// The platform's store: Windows Credential Manager, or a store that always fails elsewhere.
@@ -278,7 +290,7 @@ pub mod credman {
 
     use windows_sys::Win32::Foundation::ERROR_NOT_FOUND;
     use windows_sys::Win32::Security::Credentials::{
-        CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_MAX_CREDENTIAL_BLOB_SIZE,
+        CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_MAX_CREDENTIAL_BLOB_SIZE,
         CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC,
     };
 
@@ -350,6 +362,19 @@ pub mod credman {
             }
             Ok(())
         }
+
+        fn delete(&self) -> io::Result<()> {
+            // SAFETY: a NUL-terminated UTF-16 target.
+            let ok = unsafe { CredDeleteW(self.target.as_ptr(), CRED_TYPE_GENERIC, 0) };
+            if ok == 0 {
+                let err = io::Error::last_os_error();
+                if err.raw_os_error() == Some(ERROR_NOT_FOUND as i32) {
+                    return Ok(());
+                }
+                return Err(err);
+            }
+            Ok(())
+        }
     }
 
     /// Talks to the real Credential Manager, so it never runs by default. Run it once by hand on
@@ -357,8 +382,6 @@ pub mod credman {
     /// deletes it again, so the owner's `Mawl/master-key` is never touched.
     #[cfg(test)]
     mod tests {
-        use windows_sys::Win32::Security::Credentials::CredDeleteW;
-
         use super::super::{resolve, KeyOrigin};
         use super::*;
 
@@ -395,6 +418,11 @@ pub mod credman {
             // The entry is replaced in place, not duplicated.
             store.write(&[9u8; 32]).unwrap();
             assert_eq!(store.read().unwrap().unwrap().as_slice(), &[9u8; 32]);
+
+            // Delete removes it, and deleting a missing entry is fine (the remote token's path).
+            store.delete().unwrap();
+            assert!(store.read().unwrap().is_none());
+            store.delete().unwrap();
         }
     }
 }
@@ -416,6 +444,9 @@ impl KeyStore for Unsupported {
         Err(unsupported())
     }
     fn write(&self, _key: &[u8]) -> io::Result<()> {
+        Err(unsupported())
+    }
+    fn delete(&self) -> io::Result<()> {
         Err(unsupported())
     }
 }
