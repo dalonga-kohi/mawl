@@ -45,18 +45,23 @@ export function runMain(deps: MainDeps): void {
   })
   const start = deps.startServer ?? startServer
   let shutdown: ((reason: string) => void) | undefined
+  // Filled by startServer (the embedded Postgres), run by the lifecycle before a hard exit 1.
+  const emergencyStops = new Set<() => Promise<unknown>>()
+  const registerEmergencyStop = (stop: () => Promise<unknown>) => {
+    emergencyStops.add(stop)
+  }
 
   // Boot runs in the background so signals are handled from the start. A signal during boot
   // waits for boot to settle (never stop mid-migration), then stops; a failed boot exits 1.
   const booting = (async () => {
-    if (config.mode !== 'desktop') return start(config, { logger })
+    if (config.mode !== 'desktop') return start(config, { logger, registerEmergencyStop })
     const { token: launchToken } = await readLaunchToken(deps.stdin(), {
       ...(deps.tokenTimeoutMs === undefined ? {} : { timeoutMs: deps.tokenTimeoutMs }),
       onParentGone: () => shutdown?.('stdin_eof'),
     })
     // Before anything can log it. Kept in memory only; D1.4 checks requests against it.
     registerSecretValue(launchToken)
-    return start({ ...config, launchToken }, { logger })
+    return start({ ...config, launchToken }, { logger, registerEmergencyStop })
   })()
 
   ;({ shutdown } = installLifecycle({
@@ -65,6 +70,7 @@ export function runMain(deps: MainDeps): void {
     booted: booting,
     exit: deps.exit,
     proc: deps.proc,
+    emergencyStop: () => Promise.allSettled([...emergencyStops].map((stop) => stop())),
   }))
 
   booting.catch((err: unknown) => {

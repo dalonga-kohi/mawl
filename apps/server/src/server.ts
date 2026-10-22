@@ -45,6 +45,11 @@ export interface BootOverrides {
   resolveModel?: (run: RunRecord, profile: ProfileRecord) => Promise<ResolvedModel>
   /** Replaces the D1.1 embedded Postgres (desktop mode without DATABASE_URL). */
   startEmbeddedPostgres?: typeof startEmbeddedPostgres
+  /**
+   * Receives a stop for anything boot started that must not outlive the process (the embedded
+   * Postgres), for the lifecycle's hard-exit paths that skip stop(). Idempotent, never rejects.
+   */
+  registerEmergencyStop?: (stop: () => Promise<unknown>) => void
 }
 
 export interface RunningServer {
@@ -142,6 +147,7 @@ export async function startServer(
       logger,
     })
     embeddedPg = pg
+    overrides.registerEmergencyStop?.(() => pg.stop())
     databaseUrl = pg.connectionString
     void pg.exited.then((exit) => {
       if (!exit.expected) {

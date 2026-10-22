@@ -238,6 +238,30 @@ describe('startServer with the embedded Postgres', () => {
     expect(pg.pgStop).toHaveBeenCalledTimes(1)
   })
 
+  it('registers an emergency stop for it, and none without it', async () => {
+    const pg = embedded()
+    const registerEmergencyStop = vi.fn()
+    const server = await startServer(desktopConfig(), {
+      logger: logger(),
+      ...fakes(),
+      ...pg,
+      registerEmergencyStop,
+    })
+    expect(registerEmergencyStop).toHaveBeenCalledTimes(1)
+    await registerEmergencyStop.mock.calls[0]?.[0]()
+    expect(pg.pgStop).toHaveBeenCalledTimes(1)
+    await server.stop()
+
+    const headless = vi.fn()
+    const other = await startServer(config(), {
+      logger: logger(),
+      ...fakes(),
+      registerEmergencyStop: headless,
+    })
+    await other.stop()
+    expect(headless).not.toHaveBeenCalled()
+  })
+
   it('still stops it when an earlier shutdown step fails', async () => {
     const f = fakes()
     f.close.mockImplementation(async () => {

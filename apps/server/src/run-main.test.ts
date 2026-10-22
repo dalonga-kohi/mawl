@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
 import { __resetSecretValues } from './redact.ts'
 import { type MainDeps, runMain } from './run-main.ts'
-import type { RunningServer } from './server.ts'
+import type { BootOverrides, RunningServer } from './server.ts'
 
 const TOKEN = 'RunMain-launch_token-0123456789abcdefXYZ'
 const DESKTOP_ENV = {
@@ -25,24 +25,27 @@ function setup(env: Record<string, string>, opts: { boot?: Promise<RunningServer
   const stop = vi.fn(async () => {})
   const server = { url: 'http://127.0.0.1:1', stop } as unknown as RunningServer
   const started: Config[] = []
+  const overrides: (BootOverrides | undefined)[] = []
+  const proc = new EventEmitter()
   const exit = vi.fn()
   const getStdin = vi.fn(() => stdin)
   const deps: MainDeps = {
     env,
     stdin: getStdin,
-    proc: new EventEmitter(),
+    proc,
     exit,
     stderr: { write: (s: string) => void out.push(s) },
     logStream: { write: (s: string) => void out.push(s) },
-    startServer: async (config, overrides) => {
+    startServer: async (config, o) => {
       started.push(config)
+      overrides.push(o)
       // The real server logs through this logger; prove the token is censored there too.
-      overrides?.logger?.info({ token: config.launchToken, echo: `x${config.launchToken}` }, 'boot')
+      o?.logger?.info({ token: config.launchToken, echo: `x${config.launchToken}` }, 'boot')
       return opts.boot ?? server
     },
   }
   runMain(deps)
-  return { out, stdin, stop, exit, started, getStdin, text: () => out.join('') }
+  return { out, stdin, stop, exit, started, overrides, proc, getStdin, text: () => out.join('') }
 }
 
 describe('runMain', () => {
@@ -105,6 +108,18 @@ describe('runMain', () => {
     expect(s.started).toHaveLength(0)
     expect(s.text()).toContain('launch token invalid')
     expect(s.text()).not.toContain(bad)
+  })
+
+  it('runs the emergency stops the server registered before a fatal exit', async () => {
+    const s = setup({ DATABASE_URL: 'postgres://mawl:pw@db/mawl' })
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    const registered = s.overrides[0]?.registerEmergencyStop
+    expect(registered).toBeTypeOf('function')
+    const pgStop = vi.fn(async () => {})
+    registered?.(pgStop)
+    s.proc.emit('uncaughtException', new Error('boom'))
+    expect(pgStop).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
   })
 
   it('exits 1 without booting when stdin closes before the token', async () => {
