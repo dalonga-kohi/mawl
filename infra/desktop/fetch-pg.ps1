@@ -9,7 +9,9 @@
 #
 # Idempotent: a -Dest with a matching marker is left alone. The zip (about 318 MiB, most of it
 # pgAdmin) is pinned by SHA256 and the script fails on any mismatch. The bundle is assembled in a
-# staging dir and renamed into place, so an interrupted run never leaves a half bundle at -Dest.
+# staging dir and moved into place; it carries its marker, so -Dest is either the complete new
+# bundle or the previous one (moved aside to -Dest.old and restored on failure). A run killed
+# mid-swap can leave -Dest missing with -Dest.old intact: rerun to finish.
 param(
   [Parameter(Mandatory)] [string] $Dest,
   [string] $Zip,
@@ -43,7 +45,8 @@ if (-not (Test-Path -LiteralPath $Zip)) {
   $partial = "$Zip.partial"
   Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue
   "downloading $Url"
-  curl.exe -fsSL --retry 3 -o $partial $Url
+  # HTTPS only, including redirects (EDB redirects to its CDN); the hash check is the real gate.
+  curl.exe -fsSL --proto '=https' --proto-redir '=https' --retry 3 -o $partial $Url
   if ($LASTEXITCODE -ne 0) { throw "download failed (curl exit $LASTEXITCODE)" }
   $got = (Get-FileHash -LiteralPath $partial -Algorithm SHA256).Hash
   if ($got -ne $Sha256) {
@@ -83,11 +86,21 @@ foreach ($exe in $keepExe) {
   if (-not (Test-Path -LiteralPath "$root\bin\$exe")) { throw "the zip has no bin\$exe" }
 }
 
-# 4. Commit: marker inside, then one rename into place.
+# 4. Commit: marker inside, then swap. An old -Dest is moved aside first and restored if the
+#    new bundle cannot be moved in, so a failure never leaves -Dest missing or half-replaced.
 Set-Content -LiteralPath (Join-Path $root $MarkerName) -Value $MarkerText -NoNewline
-if (Test-Path -LiteralPath $Dest) { Remove-Item -LiteralPath $Dest -Recurse -Force }
 New-Item -ItemType Directory -Force (Split-Path -Parent $Dest) | Out-Null
-Move-Item -LiteralPath $root $Dest
+$old = "$Dest.old"
+if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
+$hadOld = Test-Path -LiteralPath $Dest
+if ($hadOld) { Move-Item -LiteralPath $Dest $old }
+try {
+  Move-Item -LiteralPath $root $Dest
+} catch {
+  if ($hadOld -and -not (Test-Path -LiteralPath $Dest)) { Move-Item -LiteralPath $old $Dest }
+  throw
+}
+if ($hadOld) { Remove-Item -LiteralPath $old -Recurse -Force }
 Remove-Item -LiteralPath $staging -Recurse -Force
 $size = (Get-ChildItem -LiteralPath $Dest -Recurse -File | Measure-Object Length -Sum).Sum
 'bundle ready: {0} ({1:N1} MB)' -f $Dest, ($size / 1MB)
