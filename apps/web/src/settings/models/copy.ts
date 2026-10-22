@@ -20,7 +20,8 @@ export function testFailureText(reason: ProviderTestFailure, kind: ProviderKind)
     case 'wrong_auth_method':
       return 'Claude Code is set up with an API key or token, not your Claude plan. Mawl only uses the plan sign-in.'
     case 'blocked_address':
-      return 'Mawl does not check addresses on this computer or your private network unless you allow them. Use the default address, or a public one.'
+      // A saved credential may use a private address, so a refusal means link-local or metadata.
+      return 'Mawl never connects to this address: it is a link-local or cloud metadata address. Use another one.'
   }
 }
 
