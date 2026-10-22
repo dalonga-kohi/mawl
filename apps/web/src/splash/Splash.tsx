@@ -35,11 +35,25 @@ export function Splash({
   useEffect(() => {
     let unlisten: (() => void) | undefined
     let alive = true
-    void bridge.onStatus(setStatus).then((off) => {
-      if (alive) unlisten = off
-      else off()
-    })
-    void bridge.status().then((s) => alive && setStatus(s))
+    // An event is always newer than the snapshot: once one arrives, a late snapshot is stale.
+    let heard = false
+    void bridge
+      .onStatus((s) => {
+        heard = true
+        setStatus(s)
+      })
+      .then((off) => {
+        if (alive) unlisten = off
+        else off()
+      })
+    void bridge.status().then(
+      (s) => {
+        if (alive && !heard) setStatus(s)
+      },
+      () => {
+        // No snapshot: the events will tell.
+      },
+    )
     // After the first paint, so the window never shows a blank frame.
     window.requestAnimationFrame(() => void bridge.shown())
     return () => {
@@ -75,9 +89,7 @@ export function Splash({
             : { opacity: 1, scale: 1, transition: transitions.gentle }
         }
       >
-        <div className="splash-mawl">
-          <Mawl size={128} state={view.mascot} />
-        </div>
+        <Mawl size={128} state={view.mascot} />
 
         <div
           role="status"
@@ -140,7 +152,35 @@ function FailedActions({
 }) {
   const [copy, setCopy] = useState<CopyState>('idle')
   const [busy, setBusy] = useState<'retry' | 'quit' | undefined>()
+  /** A Try again or Quit command the host refused; the buttons are usable again. */
+  const [refused, setRefused] = useState<string | undefined>()
   const reset = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const alive = useRef(true)
+
+  useEffect(
+    () => () => {
+      alive.current = false
+    },
+    [],
+  )
+
+  const run = useCallback((kind: 'retry' | 'quit', command: () => Promise<void>) => {
+    setBusy(kind)
+    setRefused(undefined)
+    command().then(
+      // Success: the host's next status replaces this screen.
+      () => alive.current && setBusy(undefined),
+      () => {
+        if (!alive.current) return
+        setBusy(undefined)
+        setRefused(
+          kind === 'retry'
+            ? 'Mawl couldn’t restart the server. Try again, or quit and open Mawl again.'
+            : 'Mawl couldn’t quit. Try again, or close it from the tray.',
+        )
+      },
+    )
+  }, [])
 
   useEffect(() => () => clearTimeout(reset.current), [])
 
@@ -166,10 +206,7 @@ function FailedActions({
       <Button
         variant="primary"
         disabled={busy !== undefined}
-        onClick={() => {
-          setBusy('retry')
-          void bridge.retry().finally(() => setBusy(undefined))
-        }}
+        onClick={() => run('retry', () => bridge.retry())}
       >
         Try again
       </Button>
@@ -199,13 +236,15 @@ function FailedActions({
       <Button
         variant="ghost"
         disabled={busy !== undefined}
-        onClick={() => {
-          setBusy('quit')
-          void bridge.quit()
-        }}
+        onClick={() => run('quit', () => bridge.quit())}
       >
         Quit Mawl
       </Button>
+      {refused ? (
+        <p role="alert" className="text-small text-danger">
+          {refused}
+        </p>
+      ) : null}
       <p role="status" aria-live="polite" className="min-h-5 text-small text-text-2">
         {copy === 'copied'
           ? 'Diagnostics copied. Paste them into your report.'

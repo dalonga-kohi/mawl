@@ -89,6 +89,18 @@ describe('the desktop splash', () => {
     expect(bridge.quit).toHaveBeenCalledTimes(1)
   })
 
+  it('says so when the host refuses Try again or Quit', async () => {
+    const user = userEvent.setup()
+    const { bridge } = fakeBridge(FAILED)
+    bridge.retry.mockRejectedValueOnce(new Error('no'))
+    bridge.quit.mockRejectedValueOnce(new Error('no'))
+    render(<Splash bridge={bridge} />)
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('couldn’t restart the server')
+    await user.click(screen.getByRole('button', { name: 'Quit Mawl' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('couldn’t quit')
+  })
+
   it('copies the diagnostics and confirms it', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn(async () => {})
