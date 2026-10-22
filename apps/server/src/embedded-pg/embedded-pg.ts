@@ -90,6 +90,19 @@ export interface StartOptions {
   /** How long a postgres whose password was rejected gets to show it lost a port race. */
   authGraceMs?: number
   deps?: Partial<EmbeddedPgDeps>
+  /**
+   * Called right after each postgres spawn, before the readiness wait (initdb or WAL recovery can
+   * take up to `startTimeoutMs`), with a stop for that postgres: the caller registers it as its
+   * emergency stop, so a hard exit during the wait never orphans Postgres. Idempotent; never
+   * rejects. Called again for a postgres started on a new port after a lost port race.
+   */
+  onSpawn?: (stop: () => Promise<{ clean: boolean }>) => void
+  /**
+   * A shutdown during the start: aborting stops a postgres that is still starting (`pg_ctl stop`,
+   * a kill only as the fallback) and rejects with `EmbeddedPgError('aborted')`. An abort after
+   * the start resolved changes nothing; stop the handle instead.
+   */
+  signal?: AbortSignal
 }
 
 export interface PgExit extends ExitInfo {
@@ -118,8 +131,15 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
   const logger = options.logger ?? silentLogger
   const deps: EmbeddedPgDeps = { ...defaultDeps(), ...options.deps }
   const { spawn, clock } = deps
+  const { signal } = options
   const clusterDir = join(opts.dataRoot, CLUSTER_DIR)
+  const throwIfAborted = () => {
+    if (signal?.aborted) {
+      throw new EmbeddedPgError('aborted', 'The Postgres start was aborted by a shutdown')
+    }
+  }
 
+  throwIfAborted()
   await requireBinaries(opts.pgRoot)
   const state = await inspectCluster(opts.dataRoot)
   // A first run cleans up inside initCluster; a warm boot cleans up here. Two server instances
@@ -158,6 +178,8 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
     })
 
   for (let attempt = 1; ; attempt++) {
+    // Also after a long initdb: a shutdown that came meanwhile starts no postgres.
+    throwIfAborted()
     const port = await deps.findFreePort()
     let child: PgChild
     try {
@@ -180,6 +202,12 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
       throw new EmbeddedPgError('start_failed', `Could not spawn postgres: ${errorText(err)}`)
     }
     const exited = waitForExit(child)
+    // One stop per postgres, shared by onSpawn's emergency stop, the failure paths and the handle.
+    let stopping: Promise<{ clean: boolean }> | undefined
+    const stopThis = () => {
+      stopping ??= stopChild(child, exited)
+      return stopping
+    }
     const tail = new OutputTail(logger, 'postgres')
     const probeConn: PgConnection = {
       host: LOOPBACK,
@@ -194,32 +222,51 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
     let outcome: ReadyOutcome
     try {
       tail.attach(child)
-      outcome = await waitUntilReady({ deps, exited, conn: probeConn, opts })
+      options.onSpawn?.(stopThis)
+      outcome = await waitUntilReady({ deps, exited, conn: probeConn, opts, signal })
     } catch (err) {
-      await stopChild(child, exited)
+      await stopThis()
       throw new EmbeddedPgError(
         'start_failed',
         `Postgres startup check failed: ${errorText(err)}`,
         tail.text(),
       )
     }
+    const abortStart = async (): Promise<never> => {
+      await stopThis()
+      throw new EmbeddedPgError(
+        'aborted',
+        'The Postgres start was aborted by a shutdown',
+        tail.text(),
+      )
+    }
+    if (outcome.kind === 'aborted') return abortStart()
     if (outcome.kind === 'ready') {
       const conn: PgConnection = { ...probeConn, database: opts.database }
       try {
         await deps.ensureDatabase(conn)
       } catch (err) {
-        await stopChild(child, exited)
+        await stopThis()
         throw new EmbeddedPgError(
           'start_failed',
           `Could not create the ${opts.database} database: ${errorText(err)}`,
           tail.text(),
         )
       }
+      if (signal?.aborted) return abortStart()
       logger.info({ port, cold, pid: child.pid }, 'embedded postgres ready')
-      return makeHandle({ child, exited, conn, cold, tail, stop: () => stopChild(child, exited) })
+      return makeHandle({
+        child,
+        exited,
+        conn,
+        cold,
+        tail,
+        stop: stopThis,
+        stopRequested: () => stopping !== undefined,
+      })
     }
     if (outcome.kind === 'timeout') {
-      await stopChild(child, exited)
+      await stopThis()
       throw new EmbeddedPgError(
         'start_timeout',
         `Postgres did not accept connections within ${opts.startTimeoutMs} ms`,
@@ -227,7 +274,7 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
       )
     }
     if (outcome.kind === 'auth_failed') {
-      await stopChild(child, exited)
+      await stopThis()
       throw new EmbeddedPgError(
         'data_dir_corrupt',
         'The Postgres data dir is unusable: the stored password was rejected',
@@ -264,26 +311,67 @@ type ReadyOutcome =
   | { kind: 'auth_failed' }
   | { kind: 'timeout' }
   | { kind: 'exited'; exit: ExitInfo }
+  | { kind: 'aborted' }
+
+const ABORTED = Symbol('aborted')
 
 async function waitUntilReady({
   deps,
   exited,
   conn,
   opts,
+  signal,
 }: {
   deps: EmbeddedPgDeps
   exited: Promise<ExitInfo>
   conn: PgConnection
   opts: { startTimeoutMs: number; pollIntervalMs: number; authGraceMs: number }
+  signal: AbortSignal | undefined
 }): Promise<ReadyOutcome> {
   let exit: ExitInfo | undefined
   void exited.then((info) => {
     exit = info
   })
+  // Settles when the signal fires, so a long probe or poll sleep never delays the abort.
+  let onAbort: (() => void) | undefined
+  const aborted = new Promise<typeof ABORTED>((resolve) => {
+    if (!signal) return
+    if (signal.aborted) {
+      resolve(ABORTED)
+      return
+    }
+    onAbort = () => resolve(ABORTED)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await pollUntilReady({ deps, exited, conn, opts, aborted, exitSoFar: () => exit })
+  } finally {
+    if (onAbort) signal?.removeEventListener('abort', onAbort)
+  }
+}
+
+async function pollUntilReady({
+  deps,
+  exited,
+  conn,
+  opts,
+  aborted,
+  exitSoFar,
+}: {
+  deps: EmbeddedPgDeps
+  exited: Promise<ExitInfo>
+  conn: PgConnection
+  opts: { startTimeoutMs: number; pollIntervalMs: number; authGraceMs: number }
+  aborted: Promise<typeof ABORTED>
+  exitSoFar: () => ExitInfo | undefined
+}): Promise<ReadyOutcome> {
   const deadline = deps.clock.now() + opts.startTimeoutMs
   for (;;) {
+    let exit = exitSoFar()
     if (exit) return { kind: 'exited', exit }
-    const result = await deps.probe(conn)
+    const result = await Promise.race([deps.probe(conn), aborted])
+    if (result === ABORTED) return { kind: 'aborted' }
+    exit = exitSoFar()
     if (exit) return { kind: 'exited', exit }
     // 'ready' can arrive while our postgres is already dying (its exit not yet observed), in
     // theory from a foreign server that holds our port. Accepting it is safe: a foreign server
@@ -298,7 +386,9 @@ async function waitUntilReady({
       return isTimedOut(late) ? { kind: 'auth_failed' } : { kind: 'exited', exit: late }
     }
     if (deps.clock.now() >= deadline) return { kind: 'timeout' }
-    await deps.clock.sleep(opts.pollIntervalMs)
+    if ((await Promise.race([deps.clock.sleep(opts.pollIntervalMs), aborted])) === ABORTED) {
+      return { kind: 'aborted' }
+    }
   }
 }
 
@@ -357,27 +447,27 @@ function makeHandle({
   cold,
   tail,
   stop,
+  stopRequested,
 }: {
   child: PgChild
   exited: Promise<ExitInfo>
   conn: PgConnection
   cold: boolean
   tail: OutputTail
+  /** Idempotent: the same stop `onSpawn` handed out. */
   stop: () => Promise<{ clean: boolean }>
+  /** Whether that stop was called (by the handle or as an emergency stop). */
+  stopRequested: () => boolean
 }): EmbeddedPostgres {
-  let stopping: Promise<{ clean: boolean }> | undefined
   return {
     port: conn.port,
     pid: child.pid,
     cold,
     connection: conn,
     connectionString: `postgres://${conn.user}:${encodeURIComponent(conn.password)}@${conn.host}:${conn.port}/${conn.database}`,
-    exited: exited.then((info) => ({ ...info, expected: stopping !== undefined })),
+    exited: exited.then((info) => ({ ...info, expected: stopRequested() })),
     output: () => tail.text(),
-    stop: () => {
-      stopping ??= stop()
-      return stopping
-    },
+    stop,
   }
 }
 
