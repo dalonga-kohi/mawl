@@ -1,7 +1,10 @@
 //! The server's recent output, kept for "Copy diagnostics", and the boot stage read from it.
 //!
 //! The server already censors the launch token in its own log lines; the ring redacts it again,
-//! because stderr (a crash trace, a Node warning) bypasses the server's logger.
+//! because stderr (a crash trace, a Node warning) bypasses the server's logger. Redaction only
+//! catches a whole token, so it relies on its callers never splitting one: `process::read_lines`
+//! carries the tail of a cut 64 KiB piece into the next piece, and `push` redacts before it cuts
+//! a line to [`MAX_LINE_BYTES`].
 
 use std::collections::VecDeque;
 

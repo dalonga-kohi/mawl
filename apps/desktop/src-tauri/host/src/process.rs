@@ -137,6 +137,10 @@ impl Drop for ServerProcess {
 
 /// Reads `reader` line by line on a background thread until EOF. Lines longer than 64 KiB are
 /// split, so a runaway line cannot grow memory without bound.
+///
+/// A split must never cut the launch token in two: each half would pass the ring's redaction.
+/// So when a line is cut, its last [`SPLIT_CARRY`] bytes (more than a token) start the next
+/// piece instead, and a token that straddled the cut arrives whole in one piece.
 pub fn read_lines(
     reader: impl Read + Send + 'static,
     mut on_line: impl FnMut(String) + Send + 'static,
@@ -144,18 +148,32 @@ pub fn read_lines(
     thread::spawn(move || {
         let mut reader = BufReader::new(reader);
         let mut buf = Vec::new();
+        let mut carry = Vec::new();
         loop {
             buf.clear();
-            match (&mut reader)
-                .take(MAX_READ_LINE)
-                .read_until(b'\n', &mut buf)
-            {
-                Ok(0) | Err(_) => return,
-                Ok(_) => on_line(String::from_utf8_lossy(&buf).into_owned()),
+            buf.append(&mut carry);
+            let room = MAX_READ_LINE - buf.len() as u64;
+            match (&mut reader).take(room).read_until(b'\n', &mut buf) {
+                Ok(0) | Err(_) => {
+                    if !buf.is_empty() {
+                        on_line(String::from_utf8_lossy(&buf).into_owned());
+                    }
+                    return;
+                }
+                Ok(_) => {
+                    if !buf.ends_with(b"\n") && buf.len() as u64 >= MAX_READ_LINE {
+                        carry = buf.split_off(buf.len() - SPLIT_CARRY);
+                    }
+                    on_line(String::from_utf8_lossy(&buf).into_owned());
+                }
             }
         }
     });
 }
+
+/// Bytes moved from a cut line to the next piece: longer than any launch token (43 characters).
+pub const SPLIT_CARRY: usize = 128;
+const _: () = assert!(SPLIT_CARRY > crate::token::TOKEN_CHARS);
 
 #[cfg(windows)]
 mod job {

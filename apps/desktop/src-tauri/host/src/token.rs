@@ -8,6 +8,8 @@ use std::fmt;
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 pub const TOKEN_BYTES: usize = 32;
+/// The token's length in base64url characters.
+pub const TOKEN_CHARS: usize = TOKEN_BYTES.div_ceil(3) * 4 - (3 - TOKEN_BYTES % 3) % 3;
 pub const REDACTED: &str = "[redacted]";
 
 /// A launch token. `Debug` and `Display` never print it; use [`LaunchToken::expose`].
@@ -92,6 +94,7 @@ mod tests {
         let a = LaunchToken::generate().unwrap();
         let b = LaunchToken::generate().unwrap();
         assert_eq!(a.expose().len(), 43);
+        assert_eq!(TOKEN_CHARS, 43);
         assert!(a
             .expose()
             .bytes()
