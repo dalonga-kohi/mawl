@@ -53,6 +53,14 @@ describe('the host commands ACL', () => {
     expect(allowed.sort()).toEqual(manifestCommands().map((c) => `allow-${c.replaceAll('_', '-')}`))
   })
 
+  it('has no channel that tells the app page to navigate: the host navigates the window itself', () => {
+    const lib = read('src/lib.rs')
+    expect(lib).not.toContain('take_pending_navigation')
+    expect(lib).not.toContain('mawl://navigate')
+    expect(lib).not.toContain('emit_to')
+    expect(manifestCommands()).not.toContain('take_pending_navigation')
+  })
+
   it('grants nothing to a remote origin', () => {
     for (const capability of capabilities) {
       expect(capability.remote, capability.identifier).toBeUndefined()

@@ -1,27 +1,12 @@
 mod shell;
 mod tray;
 
-use std::sync::Mutex;
-
 use mawl_host::{autostart, deep_link};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_deep_link::DeepLinkExt;
 
 use shell::MAIN_WINDOW;
-
-/// The web app listens for this event and routes to the path in the payload.
-const NAVIGATE_EVENT: &str = "mawl://navigate";
-
-/// The in-app path of a link that launched the app. The window cannot listen yet at that point,
-/// so the web app asks for it once after it has registered its listener.
-#[derive(Default)]
-struct PendingNavigation(Mutex<Option<String>>);
-
-#[tauri::command]
-fn take_pending_navigation(state: tauri::State<PendingNavigation>) -> Option<String> {
-    state.0.lock().ok()?.take()
-}
 
 /// Brings the main window forward from anywhere: minimized, hidden in the tray, or behind others.
 fn show_main_window(app: &AppHandle) {
@@ -32,12 +17,14 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Deep links are untrusted: only an allowlisted path reaches the web app, and the window is
-/// not raised for anything else.
+/// Deep links are untrusted: only an allowlisted path is followed, and the window is not raised
+/// for anything else. The host navigates the window itself (the app page has no IPC).
 fn open_deep_link(app: &AppHandle, url: &str) {
     if let Some(path) = deep_link::parse_deep_link(url) {
         show_main_window(app);
-        let _ = app.emit_to(MAIN_WINDOW, NAVIGATE_EVENT, path);
+        if let Some(shell) = app.try_state::<shell::Shell>() {
+            shell.open_link(app, &path);
+        }
     }
 }
 
@@ -61,9 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(PendingNavigation::default())
         .invoke_handler(tauri::generate_handler![
-            take_pending_navigation,
             shell::supervisor_status,
             shell::copy_diagnostics,
             shell::retry_server,
@@ -76,24 +61,6 @@ pub fn run() {
             #[cfg(any(windows, target_os = "linux"))]
             app.deep_link().register_all()?;
 
-            if let Some(urls) = app.deep_link().get_current()? {
-                let launch_path = urls
-                    .iter()
-                    .find_map(|u| deep_link::parse_deep_link(u.as_str()));
-                if let (Some(path), Ok(mut slot)) =
-                    (launch_path, app.state::<PendingNavigation>().0.lock())
-                {
-                    *slot = Some(path);
-                }
-            }
-
-            let handle = app.handle().clone();
-            app.deep_link().on_open_url(move |event| {
-                for url in event.urls() {
-                    open_deep_link(&handle, url.as_str());
-                }
-            });
-
             // The tray first, so status changes from the very first moment have an icon to update.
             tray::build(app.handle(), show_main_window)?;
 
@@ -103,6 +70,23 @@ pub fn run() {
                 tray::update(app.handle(), shell.supervisor.status());
             }
             tray::enable_autostart_first_run(app.handle(), &app.path().app_local_data_dir()?);
+
+            // Links need the shell to exist. One that launched the app waits for the server there
+            // (the first entry into the app follows it); later ones, from a second launch or the
+            // OS, arrive through `on_open_url`.
+            // The window shows itself once the splash has painted, so no raise here.
+            if let Some(urls) = app.deep_link().get_current()? {
+                let path = urls.iter().find_map(|u| deep_link::parse_deep_link(u.as_str()));
+                if let (Some(path), Some(shell)) = (path, app.try_state::<shell::Shell>()) {
+                    shell.open_link(app.handle(), &path);
+                }
+            }
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    open_deep_link(&handle, url.as_str());
+                }
+            });
 
             Ok(())
         })

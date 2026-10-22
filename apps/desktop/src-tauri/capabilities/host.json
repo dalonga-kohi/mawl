@@ -4,7 +4,6 @@
   "description": "The host's own commands, for Mawl's bundled pages only (the splash). No `remote` entry: the app page at http://127.0.0.1:<port> is a remote origin and can call none of them.",
   "windows": ["main"],
   "permissions": [
-    "allow-take-pending-navigation",
     "allow-supervisor-status",
     "allow-copy-diagnostics",
     "allow-retry-server",

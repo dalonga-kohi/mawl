@@ -37,7 +37,13 @@ describe('the Tauri window and its CSP', () => {
 
   it('builds the main window with a navigation rule and no pop-ups', () => {
     const shell = readFileSync(resolve(import.meta.dirname, '../src-tauri/src/shell.rs'), 'utf8')
-    expect(shell).toMatch(/\.on_new_window\(\|_url, _features\| NewWindowResponse::Deny\)/)
+    // A pop-up never loads in a webview of its own; an external link goes to the browser through
+    // the host's rule, and everything else is denied.
+    expect(shell).toContain('.on_new_window(')
+    expect(shell).toContain('NewWindowResponse::Deny')
+    expect(shell).not.toContain('NewWindowResponse::Allow')
+    expect(shell).not.toContain('NewWindowResponse::Create')
+    expect(shell).toContain('external_link(')
     expect(shell).toContain('.on_navigation(')
     expect(shell).toContain('.initialization_script(')
     expect(shell).not.toContain('initialization_script_for_all_frames')

@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use mawl_host::autostart::launched_hidden;
 use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
+use mawl_host::deep_link::{link_target, PendingLink};
+use mawl_host::external_link::{external_link, ExternalLink, OpenLimiter};
 use mawl_host::launch::{self, Layout};
 use mawl_host::machine::Status;
 use mawl_host::markers::first_close_hint;
@@ -21,6 +23,7 @@ use mawl_host::webview::{allow_navigation, app_url, launch_token_script};
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 
 pub const MAIN_WINDOW: &str = "main";
 /// The splash listens for this event (`apps/web/src/splash/bridge.ts`).
@@ -43,6 +46,8 @@ pub struct Shell {
     /// Whether the window shows the app, decided together with the server being ready, so a crash
     /// can never leave it on a dead port (see `mawl_host::presence`).
     presence: Arc<Presence>,
+    /// A deep link that arrived before the server was ready; the first entry into the app uses it.
+    pending_link: Arc<PendingLink>,
     quitting: AtomicBool,
     /// The window was shown once at launch (set from the start for a login launch, which stays in
     /// the tray until the owner opens it). Later splash loads (a restart while Mawl sits in the
@@ -65,6 +70,63 @@ impl Shell {
     pub fn may_exit(&self) -> bool {
         self.stopped.load(Ordering::SeqCst)
     }
+
+    /// Where the window goes when it enters the app: a link that arrived early, else the root.
+    fn entry_url(&self) -> Url {
+        let base = self.app_url();
+        self.pending_link
+            .take()
+            .and_then(|path| link_target(&base, &path))
+            .unwrap_or(base)
+    }
+
+    /// Opens an allowlisted in-app path (from `deep_link::parse_deep_link`). The app page has no
+    /// IPC, so the host navigates the window itself. With the server not ready the path is kept
+    /// for the first entry into the app (the last link wins).
+    pub fn open_link(&self, app: &AppHandle, path: &str) {
+        let Some(target) = link_target(&self.app_url(), path) else {
+            return;
+        };
+        self.presence.open_link(
+            || {
+                if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+                    let _ = window.navigate(target.clone());
+                }
+            },
+            || self.pending_link.set(path.to_owned()),
+        );
+    }
+}
+
+/// Guards opening links in the browser: at most one per `external_link::MIN_GAP_MS`.
+struct LinkGate {
+    limiter: Mutex<OpenLimiter>,
+    clock: Instant,
+}
+
+/// A navigation or pop-up the window refused. If it is an external web link that passes the
+/// host's rule, the default browser opens it; nothing else happens for it.
+fn open_externally(app: &AppHandle, gate: &LinkGate, target: &Url) {
+    if external_link(target) != ExternalLink::Open {
+        return;
+    }
+    let now_ms = u64::try_from(gate.clock.elapsed().as_millis()).unwrap_or(u64::MAX);
+    let allowed = gate
+        .limiter
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .allow(now_ms);
+    if !allowed {
+        return;
+    }
+    // Off the UI thread: the OS may take a moment to start the browser.
+    let app = app.clone();
+    let url = target.to_string();
+    thread::spawn(move || {
+        if let Err(e) = app.opener().open_url(url, None::<&str>) {
+            eprintln!("mawl: could not open a link in the browser: {e}");
+        }
+    });
 }
 
 struct TauriUi {
@@ -169,7 +231,7 @@ pub fn hint_first_close(app: &AppHandle) {
 fn enter_app_now(app: &AppHandle, shell: &Shell) {
     shell.presence.try_enter(|| {
         if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-            let _ = window.navigate(shell.app_url());
+            let _ = window.navigate(shell.entry_url());
         }
     });
 }
@@ -269,6 +331,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         splash: splash.clone(),
         dev_app: dev_app.clone(),
         presence,
+        pending_link: Arc::new(PendingLink::new()),
         quitting: AtomicBool::new(false),
         shown: AtomicBool::new(start_hidden),
         close_hinted: AtomicBool::new(false),
@@ -284,11 +347,21 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         .cloned()
         .ok_or_else(|| tauri::Error::WindowNotFound)?;
     let nav_splash = splash.clone();
+    let gate = Arc::new(LinkGate {
+        limiter: Mutex::new(OpenLimiter::new()),
+        clock: Instant::now(),
+    });
+    let popup_app = app.clone();
+    let popup_gate = Arc::clone(&gate);
+    let nav_app = app.clone();
     let window = WebviewWindowBuilder::from_config(app, &config)?
         .initialization_script(init_script)
         // No pop-ups: window.open and target=_blank would start a webview that the navigation rule
-        // does not guard. External links open nowhere until D1.5b sends them to the browser.
-        .on_new_window(|_url, _features| NewWindowResponse::Deny)
+        // does not guard. An external web link goes to the browser instead (`open_externally`).
+        .on_new_window(move |url, _features| {
+            open_externally(&popup_app, &popup_gate, &url);
+            NewWindowResponse::Deny
+        })
         .on_navigation(move |target| {
             let current = dev_app
                 .clone()
@@ -296,7 +369,11 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             // The app origin (which receives the launch token) loads only while the server is
             // ready: during a restart another local process could hold the freed port.
             let app_origin = nav_presence.app_allowed().then_some(&current);
-            allow_navigation(target, &nav_splash, app_origin)
+            let allowed = allow_navigation(target, &nav_splash, app_origin);
+            if !allowed {
+                open_externally(&nav_app, &gate, target);
+            }
+            allowed
         })
         .build()?;
     if window.url().ok().as_ref() != Some(&splash) {
