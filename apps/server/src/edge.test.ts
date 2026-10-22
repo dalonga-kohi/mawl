@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { DbHandle } from '@mawl/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app.ts'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN } from './auth/test-util.ts'
 import { ConfigError, parseConfig } from './config.ts'
 import { createLogger } from './logger.ts'
 import { unusedProviders } from './providers/test-util.ts'
@@ -61,11 +62,15 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: async () => {},
     })
-    await app.request('/rpc/health/get?ticket=LEAK-ME', { method: 'POST' })
+    await app.request('/rpc/health/get?ticket=LEAK-ME', {
+      method: 'POST',
+      headers: TEST_AUTH_HEADERS,
+    })
     await app.request('/nope?ticket=LEAK-ME')
     await app.request('/healthz?ticket=LEAK-ME')
     expect(lines.join('')).not.toContain('LEAK-ME')
@@ -76,12 +81,13 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: async () => {},
     })
     for (const p of ['/rpc/nope', '/rpc/health/nope', '/rpc/', '/rpc/a/b/c/d']) {
-      const res = await app.request(p, { method: 'POST' })
+      const res = await app.request(p, { method: 'POST', headers: TEST_AUTH_HEADERS })
       expect(res.status, p).toBe(404)
     }
   })
@@ -91,13 +97,14 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: async () => {},
     })
     const res = await app.request('/rpc/health/get', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...TEST_AUTH_HEADERS },
       body: '{"json": "LEAK-ME',
     })
     expect(res.status).toBeLessThan(500)
@@ -110,6 +117,7 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: () => new Promise(() => {}),
@@ -133,6 +141,7 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: () => {
@@ -150,6 +159,7 @@ describe('app edge cases', () => {
     const app = createApp({
       logger,
       version: '1',
+      authToken: TEST_AUTH_TOKEN,
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: async () => {},

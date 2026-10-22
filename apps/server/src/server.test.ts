@@ -7,6 +7,7 @@ import type { Config } from './config.ts'
 import type { EmbeddedPostgres, PgConnection, StartOptions } from './embedded-pg/index.ts'
 import { createLogger } from './logger.ts'
 import { HOST_ID_FILE } from './secrets/index.ts'
+import { OWNER_TOKEN_FILE } from './secrets/owner-token.ts'
 import { startServer } from './server.ts'
 
 let dir: string
@@ -44,6 +45,73 @@ const config = (): Config => ({
 })
 
 const logger = () => createLogger({ level: 'silent' })
+const LAUNCH_TOKEN = 'launch-token_for-server-tests-0123456789'
+
+const healthGet = (url: string, token?: string) =>
+  fetch(`${url}/rpc/health/get`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: '{}',
+  })
+
+describe('startServer auth token', () => {
+  it('headless: generates the owner token once, announces it, and requires it on /rpc', async () => {
+    const notices: string[] = []
+    const announceOwnerToken = (text: string) => void notices.push(text)
+    const server = await startServer(config(), { logger: logger(), ...fakes(), announceOwnerToken })
+    let token: string
+    try {
+      token = (await readFile(join(dir, 'secrets', OWNER_TOKEN_FILE), 'utf8')).trim()
+      expect(notices).toHaveLength(1)
+      expect(notices[0]).toContain(token)
+      expect((await healthGet(server.url)).status).toBe(401)
+      expect((await healthGet(server.url, `${token}x`)).status).toBe(401)
+      expect((await healthGet(server.url, token)).status).toBe(200)
+      expect((await fetch(`${server.url}/healthz`)).status).toBe(200)
+    } finally {
+      await server.stop()
+    }
+    // A restart reuses it and announces nothing.
+    const again = await startServer(config(), { logger: logger(), ...fakes(), announceOwnerToken })
+    try {
+      expect(notices).toHaveLength(1)
+      expect((await healthGet(again.url, token)).status).toBe(200)
+    } finally {
+      await again.stop()
+    }
+  })
+
+  it('headless: MAWL_OWNER_TOKEN wins and no token file is written', async () => {
+    const ownerToken = 'owner-token_from-env-for-server-tests-012'
+    const server = await startServer({ ...config(), ownerToken }, { logger: logger(), ...fakes() })
+    try {
+      expect((await healthGet(server.url, ownerToken)).status).toBe(200)
+      await expect(readFile(join(dir, 'secrets', OWNER_TOKEN_FILE))).rejects.toThrow()
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('desktop: requires the launch token and refuses to boot without one', async () => {
+    const desktop: Config = { ...config(), mode: 'desktop', dataDir: dir }
+    await expect(startServer(desktop, { logger: logger(), ...fakes() })).rejects.toThrow(
+      /launch token/,
+    )
+    const server = await startServer(
+      { ...desktop, launchToken: LAUNCH_TOKEN },
+      { logger: logger(), ...fakes() },
+    )
+    try {
+      expect((await healthGet(server.url)).status).toBe(401)
+      expect((await healthGet(server.url, LAUNCH_TOKEN)).status).toBe(200)
+    } finally {
+      await server.stop()
+    }
+  })
+})
 
 describe('startServer', () => {
   it('boots: key, migrations, then serves /healthz and health.get on the chosen port', async () => {
@@ -214,6 +282,7 @@ describe('startServer with the embedded Postgres', () => {
       ...rest,
       mode: 'desktop',
       dataDir: dir,
+      launchToken: LAUNCH_TOKEN,
       embeddedPg: { pgRoot: join(dir, 'pg'), dataRoot: join(dir, 'pg-data') },
     }
   }

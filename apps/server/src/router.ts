@@ -1,6 +1,7 @@
 import { type CredentialId, contract, type RunStatus } from '@mawl/contracts'
 import { listProviderDescriptors } from '@mawl/core'
 import { implement, ORPCError } from '@orpc/server'
+import type { Principal } from './auth/principal.ts'
 import {
   type ConnectionState,
   type EventsService,
@@ -39,6 +40,8 @@ export interface RouterDeps {
  */
 export interface RouterContext {
   connection?: ConnectionState
+  /** Set by the transport once the request proved the auth token (see auth/principal.ts). */
+  principal?: Principal
 }
 
 /**
