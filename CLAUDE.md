@@ -164,6 +164,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
   - `ui-taste` (`reference/craft.md`, then `reference/polish.md`)
   - `ui-ux-pro-max` (`references/quick-reference.md`, `references/pro-rules.md`; its `scripts/search.py` needs Python 3, which isn't installed, so read the CSVs directly)
   - `ios-design` for mobile
+  - **Expo work** (the mobile app, `packages/ui-native`, any Expo/React Native config, build or dependency task) also uses the Expo skills from https://github.com/expo/skills, installed under `.claude/skills/`. Expo skills cover the how (Router, EAS, SDK-compatible packages); the design skills above still apply to every Expo UI slice. Expo slices go to `head-coder`, and the brief names both skill sets.
 - Tokens only, no raw hex. The accent comes from CSS vars. Small accent text uses `--accent-ink`, and filled buttons use `--accent-fill` + `--on-accent`.
 - Motion uses Motion (web) and Reanimated/moti (mobile) with the `@mawl/ui` motion tokens. Respect reduced motion.
 - Every UI slice covers loading, empty, error and success states and works at 390 px. Screenshots need a served page: the browser pane renders `file://` as a static snapshot, so start a dev server via `preview_start`.
