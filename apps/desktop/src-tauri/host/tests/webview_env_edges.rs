@@ -58,11 +58,21 @@ fn the_same_origin_spelled_differently_is_allowed() {
         "HTTP://127.0.0.1:47420/",
         "http://127.0.0.1:47420",
         "http://127.0.0.1:047420/x?y=1#z",
+        "http://TAURI.localhost/splash.html",
+        "http://tauri.localhost:80/splash.html?x=1",
+    ] {
+        assert!(
+            allow_navigation(&url(target), &splash, Some(&app)),
+            "{target}"
+        );
+    }
+    // Other pages of the splash's origin are refused, however the origin is spelled.
+    for target in [
         "http://TAURI.localhost/other.html",
         "http://tauri.localhost:80/",
     ] {
         assert!(
-            allow_navigation(&url(target), &splash, Some(&app)),
+            !allow_navigation(&url(target), &splash, Some(&app)),
             "{target}"
         );
     }
