@@ -1,8 +1,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { runNode } from './run-node.test-util.ts'
+import { runNode, spawnNode } from './run-node.test-util.ts'
 
 let dir: string
 beforeEach(async () => {
@@ -12,11 +13,33 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-const runMain = (env: Record<string, string>) =>
+const SERVER_DIR = join(import.meta.dirname, '..')
+/** Distinctive, so any echo in the output is caught. */
+const TOKEN = 'Wd0g-DISTINCT_launch-token-9f3k2m7q1x8z4c6v'
+
+const runMain = (env: Record<string, string>, stdin?: string) =>
   runNode(['--import', 'tsx', 'src/main.ts'], {
-    cwd: join(import.meta.dirname, '..'),
+    cwd: SERVER_DIR,
     env: { MAWL_SECRETS_DIR: join(dir, 'secrets'), ...env },
+    ...(stdin === undefined ? {} : { stdin }),
   })
+
+const desktopEnv = (): Record<string, string> => ({
+  MAWL_MODE: 'desktop',
+  MAWL_DATA_DIR: join(dir, 'data'),
+})
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer()
+    srv.once('error', reject)
+    srv.listen(0, '127.0.0.1', () => {
+      const address = srv.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      srv.close(() => resolve(port))
+    })
+  })
+}
 
 describe('main entrypoint', () => {
   it('exits 1 naming DATABASE_URL when it is missing', async () => {
@@ -32,5 +55,67 @@ describe('main entrypoint', () => {
     expect(code).toBe(1)
     expect(output).not.toContain('hunter2-pw')
     expect(output).toMatch(/ECONNREFUSED|boot failed/)
+  }, 60_000)
+})
+
+describe('main entrypoint in desktop mode', () => {
+  it('exits 1 with a clear error when stdin closes before the launch token', async () => {
+    const { code, output } = await runMain({
+      ...desktopEnv(),
+      DATABASE_URL: 'postgres://mawl:pw@127.0.0.1:1/mawl',
+    })
+    expect(code).toBe(1)
+    expect(output).toContain('launch token missing')
+    expect(output).toContain('LaunchTokenError')
+  }, 60_000)
+
+  it('exits 1 on an invalid launch token without printing it', async () => {
+    const bad = 'Wd0g-DISTINCT_bad!token-9f3k2m7q1x8z4c6v'
+    const { code, output } = await runMain(
+      { ...desktopEnv(), DATABASE_URL: 'postgres://mawl:pw@127.0.0.1:1/mawl' },
+      `${bad}\n`,
+    )
+    expect(code).toBe(1)
+    expect(output).toContain('launch token invalid')
+    expect(output).not.toContain('DISTINCT_bad')
+  }, 60_000)
+
+  it('never prints the token when boot fails after reading it', async () => {
+    const { code, output } = await runMain(
+      { ...desktopEnv(), DATABASE_URL: 'postgres://mawl:hunter2-pw@127.0.0.1:1/mawl' },
+      `${TOKEN}\n`,
+    )
+    expect(code).toBe(1)
+    expect(output).toContain('boot failed')
+    expect(output).not.toContain(TOKEN)
+    expect(output).not.toContain('DISTINCT_launch')
+    expect(output).not.toContain('hunter2-pw')
+  }, 60_000)
+
+  it('serves after the token line and stops gracefully with exit 0 when stdin closes', async () => {
+    const port = await freePort()
+    const proc = spawnNode(['--import', 'tsx', 'src/desktop-main.fixture.ts'], {
+      cwd: SERVER_DIR,
+      env: {
+        ...desktopEnv(),
+        DATABASE_URL: 'postgres://mawl:pw@127.0.0.1:1/mawl',
+        MAWL_PORT: String(port),
+        LOG_LEVEL: 'debug',
+      },
+    })
+    try {
+      proc.child.stdin.write(`${TOKEN}\n`)
+      await proc.waitForOutput(/"msg":"listening"/)
+      expect((await fetch(`http://127.0.0.1:${port}/healthz`)).status).toBe(200)
+      proc.child.stdin.end()
+      expect(await proc.exited).toBe(0)
+      const output = proc.output()
+      expect(output).toContain('stdin_eof')
+      expect(output).toContain('"msg":"stopped"')
+      expect(output).not.toContain(TOKEN)
+      expect(output).not.toContain('DISTINCT_launch')
+    } finally {
+      proc.child.kill()
+    }
   }, 60_000)
 })
