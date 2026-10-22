@@ -82,7 +82,7 @@ try {
   $ctl = Start-Process -FilePath "$pgroot\bin\pg_ctl.exe" -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $Work 'pg_ctl.out.log') -RedirectStandardError (Join-Path $Work 'pg_ctl.err.log') `
     -ArgumentList 'start', '-w', '-t', '60', '-D', "`"$cluster`"", '-l', "`"$serverLog`"", '-o', "`"-p $Port -c listen_addresses=127.0.0.1`""
-  # No -Wait: Start-Process -Wait also waits for descendants, and postgres outlives pg_ctl by design.
+  # The wait switch is avoided on purpose: it also waits for descendants, and postgres outlives pg_ctl.
   # The timed WaitForExit watches pg_ctl alone, so a stuck start fails the job instead of hanging it.
   if (-not $ctl.WaitForExit(90000)) { $ctl.Kill(); throw 'pg_ctl start did not return within 90 s' }
   $started = ($ctl.ExitCode -eq 0)
