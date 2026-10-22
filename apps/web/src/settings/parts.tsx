@@ -55,7 +55,7 @@ export function SettingCard({
       className={cx(
         settingsCard,
         'flex flex-col gap-4',
-        layout === 'inline' && 'sm:flex-row sm:items-center sm:justify-between',
+        layout === 'inline' && 'md:flex-row md:items-center md:justify-between',
       )}
     >
       <div className="max-w-[46ch]">

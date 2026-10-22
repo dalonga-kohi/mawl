@@ -138,7 +138,7 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
             setModel(e.target.value)
             setModelEdited(true)
           }}
-          placeholder="The model's id, as your provider names it"
+          placeholder="The model's id"
           autoComplete="off"
           spellCheck={false}
           aria-invalid={Boolean(errors.model)}

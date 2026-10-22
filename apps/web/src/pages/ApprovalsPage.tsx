@@ -20,11 +20,11 @@ export function ApprovalsPage() {
         onValueChange={(next) => navigate({ search: { tab: next as ApprovalsTab }, replace: true })}
         className="gap-6"
       >
-        <TabsList aria-label="Approvals" className="w-full sm:w-fit">
-          <TabsTrigger value="needs-you" className="sm:min-w-28">
+        <TabsList aria-label="Approvals" className="w-full md:w-fit">
+          <TabsTrigger value="needs-you" className="md:min-w-28">
             Needs you
           </TabsTrigger>
-          <TabsTrigger value="activity" className="sm:min-w-28">
+          <TabsTrigger value="activity" className="md:min-w-28">
             Activity
           </TabsTrigger>
         </TabsList>

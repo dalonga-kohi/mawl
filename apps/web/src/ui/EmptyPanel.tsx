@@ -21,7 +21,7 @@ export function EmptyPanel({
 }) {
   const Heading = `h${headingLevel}` as const
   return (
-    <div className="flex flex-col items-center gap-2 px-4 py-16 text-center sm:py-20">
+    <div className="flex flex-col items-center gap-2 px-4 py-16 text-center md:py-20">
       <IconTile icon={icon} />
       <Heading className="mt-4 font-display text-title text-balance">{title}</Heading>
       {children ? <p className="max-w-[44ch] text-pretty text-text-2">{children}</p> : null}

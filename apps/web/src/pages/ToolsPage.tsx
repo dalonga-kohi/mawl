@@ -26,9 +26,9 @@ export function ToolsPage() {
         onValueChange={(next) => navigate({ search: { tab: next as ToolsTab }, replace: true })}
         className="gap-6"
       >
-        <TabsList aria-label="Tools" className="w-full sm:w-fit">
+        <TabsList aria-label="Tools" className="w-full md:w-fit">
           {TABS.map((t) => (
-            <TabsTrigger key={t.id} value={t.id} className="sm:min-w-28">
+            <TabsTrigger key={t.id} value={t.id} className="md:min-w-28">
               {t.label}
             </TabsTrigger>
           ))}

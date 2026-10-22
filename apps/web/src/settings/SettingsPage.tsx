@@ -33,14 +33,14 @@ function ThemeControl() {
       value={appearance.theme}
       onValueChange={(v) => setTheme(v as ThemePref)}
       orientation="horizontal"
-      className="relative inline-flex w-full rounded-pill bg-surface-2 p-[3px] sm:w-auto"
+      className="relative inline-flex w-full rounded-pill bg-surface-2 p-[3px] md:w-auto"
     >
       {THEMES.map((t) => (
         <RadioGroup.Item
           key={t.value}
           value={t.value}
           aria-label={t.label}
-          className="relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill px-3.5 text-small font-semibold text-text-2 transition-colors duration-(--dur-fast) hover:text-text data-[state=checked]:text-text pointer-coarse:h-11 sm:flex-none [&_svg]:size-4"
+          className="relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill px-3.5 text-small font-semibold text-text-2 transition-colors duration-(--dur-fast) hover:text-text data-[state=checked]:text-text pointer-coarse:h-11 md:flex-none [&_svg]:size-4"
         >
           {appearance.theme === t.value ? (
             <motion.span
