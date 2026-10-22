@@ -1,6 +1,6 @@
-pub mod deep_link;
-
 use std::sync::Mutex;
+
+use mawl_host::deep_link;
 
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},

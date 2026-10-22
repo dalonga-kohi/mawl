@@ -1,0 +1,23 @@
+[package]
+name = "mawl-host"
+version = "0.0.0"
+description = "Mawl desktop host logic without Tauri: the server supervisor, launch token, deep links"
+edition = "2021"
+rust-version = "1.85"
+license = "UNLICENSED"
+publish = false
+
+# Kept free of Tauri on purpose: a test binary that links Tauri on Windows needs the app's
+# Common Controls v6 manifest, which tauri-build only embeds in the app binary.
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+getrandom = "=0.3.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+] }

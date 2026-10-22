@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:rust": "cargo test --workspace --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
   },
