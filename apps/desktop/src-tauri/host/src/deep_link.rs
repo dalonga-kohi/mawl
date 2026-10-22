@@ -2,6 +2,17 @@
 //!
 //! A link is untrusted input (any web page or app can open one), so only an exact allowlist maps
 //! to an in-app path. Everything else is dropped.
+//!
+//! The host itself navigates the main window to that path (the app page has no IPC), at once when
+//! the server is ready and otherwise when the window first enters the app ([`PendingLink`]).
+//! The server serves the SPA shell for these paths and every one is a route of the web app
+//! (`/activity` and `/connections` redirect to a tab of `/approvals` and `/tools`).
+
+use std::sync::Mutex;
+
+use url::Url;
+
+use crate::webview::same_origin;
 
 /// Maps a `mawl://` URL to an in-app path, or `None` when it is not on the allowlist.
 ///
@@ -54,6 +65,39 @@ pub fn parse_deep_link(url: &str) -> Option<String> {
             }
         },
         _ => None,
+    }
+}
+
+/// The page a link opens: the app's origin joined with an in-app path from [`parse_deep_link`].
+/// `None` unless the path is absolute, is not protocol-relative, and keeps the origin, so a bad
+/// path can never move the window to another site. The launch token is never part of it.
+pub fn link_target(app: &Url, path: &str) -> Option<Url> {
+    if !path.starts_with('/') || path.starts_with("//") {
+        return None;
+    }
+    let target = app.join(path).ok()?;
+    same_origin(&target, app).then_some(target)
+}
+
+/// The path of a link that arrived while the app page could not be shown yet (the server was
+/// still starting). The last one wins; it is applied when the window first enters the app.
+#[derive(Debug, Default)]
+pub struct PendingLink {
+    path: Mutex<Option<String>>,
+}
+
+impl PendingLink {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set(&self, path: String) {
+        *self.path.lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
+    }
+
+    /// Takes the remembered path, if any; it is applied once.
+    pub fn take(&self) -> Option<String> {
+        self.path.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
 }
 
@@ -254,6 +298,67 @@ mod tests {
         ] {
             rejected(u);
         }
+    }
+
+    fn app() -> Url {
+        Url::parse("http://127.0.0.1:47420/").unwrap()
+    }
+
+    #[test]
+    fn a_link_opens_on_the_app_origin_with_its_query() {
+        let thread = format!("/t/ada?thread={THREAD}");
+        assert_eq!(
+            link_target(&app(), "/settings").unwrap().as_str(),
+            "http://127.0.0.1:47420/settings"
+        );
+        assert_eq!(
+            link_target(&app(), &thread).unwrap().as_str(),
+            format!("http://127.0.0.1:47420{thread}")
+        );
+        // The development app lives on Vite's origin.
+        let dev = Url::parse("http://localhost:5173/").unwrap();
+        assert_eq!(
+            link_target(&dev, "/t").unwrap().as_str(),
+            "http://localhost:5173/t"
+        );
+    }
+
+    #[test]
+    fn a_path_that_could_leave_the_origin_has_no_target() {
+        for p in [
+            "",
+            "t/ada",
+            "//evil.example/x",
+            "https://evil.example/",
+            "\\\\evil.example",
+        ] {
+            assert_eq!(link_target(&app(), p), None, "{p:?}");
+        }
+    }
+
+    #[test]
+    fn every_allowed_link_has_a_target_without_a_token_or_userinfo() {
+        for u in [
+            "mawl://t",
+            "mawl://t/ada",
+            "mawl://settings",
+            "mawl://approvals",
+        ] {
+            let target = link_target(&app(), &ok(u)).unwrap();
+            assert_eq!(target.username(), "");
+            assert_eq!(target.fragment(), None);
+            assert!(same_origin(&target, &app()));
+        }
+    }
+
+    #[test]
+    fn the_pending_link_keeps_the_last_path_and_gives_it_once() {
+        let pending = PendingLink::new();
+        assert_eq!(pending.take(), None);
+        pending.set("/t/ada".into());
+        pending.set("/settings".into());
+        assert_eq!(pending.take().as_deref(), Some("/settings"));
+        assert_eq!(pending.take(), None);
     }
 
     #[test]
