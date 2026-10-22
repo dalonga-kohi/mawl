@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from './logger.ts'
+import { __resetSecretValues, registerSecretValue } from './redact.ts'
 
 function capture(level: 'info' | 'debug' | 'silent' = 'info') {
   const lines: string[] = []
@@ -53,6 +54,28 @@ describe('createLogger', () => {
     logger.error({ err: new Error('connect postgres://u:pw-LEAK@h/db refused') }, 'failed')
     expect(lines.join('')).not.toContain('pw-LEAK')
     expect(lines.join('')).toContain('refused')
+  })
+
+  describe('registered secret values', () => {
+    const VALUE = 'Lt0k-REGISTERED-value_0123456789abcdef'
+    beforeEach(() => registerSecretValue(VALUE))
+    afterEach(() => __resetSecretValues())
+
+    it('censors a registered value anywhere in a line, including the message and keys', () => {
+      const { logger, lines } = capture()
+      logger.info({ harmless: `x${VALUE}y`, [VALUE]: 1, list: [VALUE] }, `msg ${VALUE}`)
+      logger.error({ err: new Error(`boom ${VALUE}`) }, 'failed')
+      logger.info(`interpolated %s`, VALUE)
+      const out = lines.join('')
+      expect(out).not.toContain(VALUE)
+      expect(out).toContain('[Redacted]')
+    })
+
+    it('keeps lines valid JSON', () => {
+      const { logger, parsed } = capture()
+      logger.info({ v: VALUE }, VALUE)
+      expect(parsed()[0]).toMatchObject({ msg: '[Redacted]' })
+    })
   })
 
   it('serialises errors with their message', () => {

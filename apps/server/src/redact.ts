@@ -68,9 +68,45 @@ function scrubUrlPasswords(value: string): string {
   return out + value.slice(cursor)
 }
 
-/** Value patterns: url userinfo, bearer tokens, and well-known provider key prefixes. */
+/** Shorter values would censor ordinary text and say too little about the secret. */
+const MIN_SECRET_VALUE_LENGTH = 16
+const SECRET_VALUE_CHARSET = /^[A-Za-z0-9._~+/=-]+$/
+const secretValues = new Set<string>()
+
+/**
+ * Censors `value` wherever it appears, in redactDeep output and in every logger line (keys and
+ * messages included), for the rest of the process. For values with no recognisable key or shape,
+ * such as the desktop launch token. Process-wide on purpose: a secret must not leak through a
+ * logger or redactor that was created before it was known.
+ */
+export function registerSecretValue(value: string): void {
+  if (value.length < MIN_SECRET_VALUE_LENGTH) {
+    throw new Error(`a secret value must be at least ${MIN_SECRET_VALUE_LENGTH} characters`)
+  }
+  // Characters JSON never escapes, so the value reads the same in a serialized log line.
+  if (!SECRET_VALUE_CHARSET.test(value)) {
+    throw new Error('a secret value must use only A-Z a-z 0-9 . _ ~ + / = -')
+  }
+  secretValues.add(value)
+}
+
+/** Tests only. */
+export function __resetSecretValues(): void {
+  secretValues.clear()
+}
+
+/** Replaces every registered secret value in `value`. Cheap when none is registered. */
+export function scrubSecretValues(value: string): string {
+  let out = value
+  for (const secret of secretValues) {
+    if (out.includes(secret)) out = out.replaceAll(secret, CENSOR)
+  }
+  return out
+}
+
+/** Value patterns: registered secrets, url userinfo, bearer tokens, well-known key prefixes. */
 function scrubString(value: string): string {
-  return scrubUrlPasswords(value)
+  return scrubUrlPasswords(scrubSecretValues(value))
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${CENSOR}`)
     .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, CENSOR)
 }
