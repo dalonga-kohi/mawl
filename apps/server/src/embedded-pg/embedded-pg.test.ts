@@ -108,7 +108,8 @@ describe('startEmbeddedPostgres', () => {
     const pg = await startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps })
 
     expect(pg.cold).toBe(true)
-    expect(h.spawn.of('initdb')).toHaveLength(1)
+    // initdb, then initdb --sync-only on the staging dir.
+    expect(h.spawn.of('initdb').map((c) => c.args.includes('--sync-only'))).toEqual([false, true])
     const [postgres] = h.spawn.of('postgres')
     expect(postgres?.args).toEqual([
       '-D',

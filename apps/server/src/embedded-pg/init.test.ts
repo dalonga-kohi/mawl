@@ -165,6 +165,64 @@ describe('initCluster', () => {
     expect((await readdir(root)).filter((n) => n.startsWith(STAGING_PREFIX))).toEqual([])
   })
 
+  it('fsyncs the staging cluster with initdb --sync-only before the rename commits it', async () => {
+    const fake = fakeSpawn({ initdb: fakeInitdbOk() })
+    let syncDoneAtRename: boolean | undefined
+    await initCluster({
+      pgRoot,
+      dataRoot: root,
+      spawn: fake.spawn,
+      clock: fakeClock(),
+      rename: async (from, to) => {
+        syncDoneAtRename = fake.of('initdb')[1]?.exitCode === 0
+        await rename(from, to)
+      },
+    })
+    const [init, sync] = fake.of('initdb')
+    const staging = argValue(init?.args ?? [], '--pgdata')
+    expect(sync?.args).toEqual(['--sync-only', '-D', staging])
+    expect(syncDoneAtRename).toBe(true)
+  })
+
+  it('still commits the cluster, with a warning, when the fsync pass fails', async () => {
+    const warnings: string[] = []
+    const logger = {
+      debug: () => {},
+      info: () => {},
+      error: () => {},
+      warn: (_o: object, msg: string) => {
+        warnings.push(msg)
+      },
+    }
+    const initdbOk = fakeInitdbOk()
+    const fake = fakeSpawn({
+      initdb: (child) => (child.args.includes('--sync-only') ? child.exit(1) : initdbOk(child)),
+    })
+    const password = await initCluster({
+      pgRoot,
+      dataRoot: root,
+      spawn: fake.spawn,
+      clock: fakeClock(),
+      logger,
+    })
+    expect(await inspectCluster(root)).toEqual({ state: 'valid', password })
+    expect(warnings.join('\n')).toContain('sync')
+  })
+
+  it('surfaces initdb_failed even when cleaning up after it fails too', async () => {
+    const fake = fakeSpawn({ initdb: (child) => child.exit(1) })
+    const err = await initCluster({
+      pgRoot,
+      dataRoot: root,
+      spawn: fake.spawn,
+      clock: fakeClock(),
+      remove: async () => {
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' })
+      },
+    }).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'initdb_failed' })
+  })
+
   it('writes a fresh password on every first run', async () => {
     const a = await initCluster({
       pgRoot,

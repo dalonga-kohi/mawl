@@ -75,6 +75,10 @@ export const argValue = (args: readonly string[], flag: string): string | undefi
 export const fakeInitdbOk =
   (seen?: { password?: string }): FakeBehaviour =>
   (child) => {
+    if (child.args.includes('--sync-only')) {
+      child.exit(0)
+      return
+    }
     void (async () => {
       const dir = argValue(child.args, '--pgdata')
       const pwfile = argValue(child.args, '--pwfile')
