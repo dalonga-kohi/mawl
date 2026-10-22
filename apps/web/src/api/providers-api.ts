@@ -6,6 +6,7 @@ import type {
   ProviderCredentialInput,
   ProviderCredentialRemoved,
   ProviderDescriptor,
+  ProviderTestInput,
   ProviderTestResult,
 } from '@mawl/contracts'
 
@@ -19,7 +20,8 @@ export interface ProvidersApi {
   list(): Promise<ProviderCredential[]>
   create(input: ProviderCredentialInput): Promise<ProviderCredential>
   remove(id: CredentialId): Promise<ProviderCredentialRemoved>
-  test(target: { id: CredentialId } | ProviderCredentialInput): Promise<ProviderTestResult>
+  /** A stored credential by id, or an unsaved one; llowPrivateNetwork is the owner's opt-in. */
+  test(target: ProviderTestInput): Promise<ProviderTestResult>
   chatgptStart(): Promise<ChatGptStartResult>
   chatgptStatus(attemptId: string): Promise<ChatGptAttemptStatus>
   /** How often to poll a pending sign-in; defaults to 1.5 s. */

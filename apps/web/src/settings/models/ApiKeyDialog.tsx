@@ -50,17 +50,37 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
   const showAddress = descriptor?.baseUrlRequired || kind === 'ollama'
   const keyRequired = descriptor?.keyRequired ?? true
 
+  // An address the server would not check without the owner's say-so (D1.4 SSRF guard).
+  const [privateRetry, setPrivateRetry] = useState<ProviderCredentialInput | null>(null)
+
   const save = useMutation({
     // The input holds the API key: don't keep it in the mutation cache after the dialog closes.
     gcTime: 0,
-    mutationFn: async (input: ProviderCredentialInput) => {
-      const check = await providers.test(input)
+    mutationFn: async ({
+      input,
+      allowPrivateNetwork,
+    }: {
+      input: ProviderCredentialInput
+      allowPrivateNetwork: boolean
+    }) => {
+      const check = await providers.test(
+        allowPrivateNetwork ? { ...input, allowPrivateNetwork: true } : input,
+      )
       if (!check.ok) return { saved: false as const, reason: check.reason }
+      // The opt-in is for the check only; a saved credential never carries it.
       await providers.create(input)
       return { saved: true as const }
     },
-    onSuccess: async (result, input) => {
+    onSuccess: async (result, { input, allowPrivateNetwork }) => {
+      setPrivateRetry(null)
       if (!result.saved) {
+        if (result.reason === 'blocked_address' && !allowPrivateNetwork) {
+          setPrivateRetry(input)
+          setErrors({
+            form: 'This address is on this computer or your private network. Mawl checks it only if you allow it.',
+          })
+          return
+        }
         setErrors({ form: testFailureText(result.reason, input.provider) })
         return
       }
@@ -68,15 +88,20 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
       toast(`${input.label} connected`)
       onDone()
     },
-    onError: (e) =>
+    onError: (e) => {
+      setPrivateRetry(null)
+      const code = errorCode(e)
       setErrors({
         form:
-          errorCode(e) === 'VALIDATION'
+          code === 'VALIDATION'
             ? "The server didn't accept these details. Check each field and try again."
-            : errorCode(e) === undefined
-              ? "Couldn't reach the Mawl server. Check that it's running, then try again."
-              : "Mawl couldn't save this connection. Try again.",
-      }),
+            : code === 'RATE_LIMITED'
+              ? 'Too many checks in a row. Wait a few seconds, then try again.'
+              : code === undefined
+                ? "Couldn't reach the Mawl server. Check that it's running, then try again."
+                : "Mawl couldn't save this connection. Try again.",
+      })
+    },
   })
 
   const changeKind = (next: ProviderKind) => {
@@ -115,7 +140,10 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
       const id = { label: ids.label, secret: ids.secret, baseUrl: ids.baseUrl }[firstInvalid]
       document.getElementById(id)?.focus()
     }
-    if (parsed.success && Object.keys(next).length === 0) save.mutate(parsed.data)
+    setPrivateRetry(null)
+    if (parsed.success && Object.keys(next).length === 0) {
+      save.mutate({ input: parsed.data, allowPrivateNetwork: false })
+    }
   }
 
   const fieldError = (id: string, message?: string) =>
@@ -204,9 +232,19 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
         </div>
       ) : null}
       {errors.form ? (
-        <p role="alert" className="rounded-md bg-danger-soft p-3 text-small text-danger">
-          {errors.form}
-        </p>
+        <div role="alert" className="flex flex-col gap-2 rounded-md bg-danger-soft p-3">
+          <p className="text-small text-danger">{errors.form}</p>
+          {privateRetry ? (
+            <Button
+              size="sm"
+              className="self-start"
+              disabled={save.isPending}
+              onClick={() => save.mutate({ input: privateRetry, allowPrivateNetwork: true })}
+            >
+              Allow and check again
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       <div className="flex justify-end gap-2 pt-1">
         <DialogClose asChild>

@@ -13,12 +13,14 @@ import { createProviderService } from '../providers/service.ts'
 import { createSecretBox, loadOrCreateMasterKey } from '../secrets/index.ts'
 import { startServer } from '../server.ts'
 import { createEchoResolver, E2E_CREDENTIAL_LABEL } from './echo.ts'
-import { assertE2eEnv } from './env.ts'
+import { assertE2eEnv, e2eOwnerToken } from './env.ts'
 
 const DEFAULT_PORT = 7421
 
+let ownerToken = ''
 try {
   assertE2eEnv(process.env)
+  ownerToken = e2eOwnerToken(process.env)
 } catch (err) {
   process.stderr.write(`${err instanceof Error ? err.message : 'MAWL_E2E=1 is required'}\n`)
   process.exit(1)
@@ -76,6 +78,7 @@ async function boot() {
         siwcPort: 1455,
         siwcHost: '127.0.0.1',
         logLevel: 'info',
+        ownerToken,
       },
       { logger, resolveModel: createEchoResolver(promptOf) },
     )

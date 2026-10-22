@@ -4,6 +4,7 @@ import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { type AppDeps, createApp } from './app.ts'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN } from './auth/test-util.ts'
 import { createLogger } from './logger.ts'
 import { unusedProviders } from './providers/test-util.ts'
 import { unusedRuns } from './runs/test-util.ts'
@@ -21,10 +22,15 @@ function setup(overrides: Partial<AppDeps> = {}) {
     runs: unusedRuns,
     checkDb: async () => {},
     healthTimeoutMs: 50,
+    authToken: TEST_AUTH_TOKEN,
     ...overrides,
   })
   const client: ContractRouterClient<typeof contract> = createORPCClient(
-    new RPCLink({ url: 'http://mawl.test/rpc', fetch: async (request) => app.request(request) }),
+    new RPCLink({
+      url: 'http://mawl.test/rpc',
+      headers: TEST_AUTH_HEADERS,
+      fetch: async (request) => app.request(request),
+    }),
   )
   return {
     app,
@@ -101,12 +107,12 @@ describe('oRPC at /rpc', () => {
     const { app, logs, lines } = setup()
     await app.request('/rpc/runs/start', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...TEST_AUTH_HEADERS },
       body: JSON.stringify({ json: { prompt: 'LEAK-ME-INPUT' } }),
     })
     await app.request('/rpc/profiles/list', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...TEST_AUTH_HEADERS },
       body: JSON.stringify({ json: { includeArchived: true } }),
     })
     const rpcErrors = logs().filter((l) => l.msg === 'rpc error')
@@ -138,7 +144,11 @@ describe('Host check on /rpc (DNS rebinding)', () => {
   const call = (app: ReturnType<typeof setup>['app'], host?: string) =>
     app.request('http://localhost/rpc/health/get', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...(host ? { host } : {}) },
+      headers: {
+        'content-type': 'application/json',
+        ...TEST_AUTH_HEADERS,
+        ...(host ? { host } : {}),
+      },
       body: '{}',
     })
 

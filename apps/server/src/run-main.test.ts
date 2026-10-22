@@ -67,6 +67,22 @@ describe('runMain', () => {
     expect(s.started[0]?.launchToken).toBeUndefined()
   })
 
+  it('in headless mode shows a generated owner token on stderr, around the log redactor', async () => {
+    const s = setup({ DATABASE_URL: 'postgres://mawl:pw@db/mawl' })
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    const announce = s.overrides[0]?.announceOwnerToken
+    expect(announce).toBeTypeOf('function')
+    announce?.('notice with the token\n')
+    expect(s.text()).toContain('notice with the token')
+  })
+
+  it('in desktop mode never offers a way to print a token', async () => {
+    const s = setup(DESKTOP_ENV)
+    s.stdin.write(`${TOKEN}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    expect(s.overrides[0]?.announceOwnerToken).toBeUndefined()
+  })
+
   it('in desktop mode boots only after the token line, with the token in the config only', async () => {
     const s = setup(DESKTOP_ENV)
     await new Promise((r) => setImmediate(r))

@@ -6,6 +6,8 @@ import { RPCLink } from '@orpc/client/websocket'
 import type { ContractRouterClient } from '@orpc/contract'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WebSocket, { type ClientOptions } from 'ws'
+import { TEST_AUTH_TOKEN, TEST_WS_PROTOCOLS } from '../auth/test-util.ts'
+import { WS_PROTOCOL, WS_TOKEN_PREFIX } from '../auth/token.ts'
 import { createLogger } from '../logger.ts'
 import { unusedProviders } from '../providers/test-util.ts'
 import { createRouter } from '../router.ts'
@@ -60,6 +62,7 @@ describe('WebSocket hub', () => {
       }),
       logger: createLogger({ level: 'silent' }),
       allowedOrigins,
+      authToken: TEST_AUTH_TOKEN,
       closeGraceMs: 200,
       ...hubOptions,
     })
@@ -70,8 +73,14 @@ describe('WebSocket hub', () => {
         server.closeAllConnections()
       })
     })
-    const open = (path = '/ws', origin?: string, host?: string, extra: ClientOptions = {}) =>
-      new WebSocket(`ws://127.0.0.1:${port}${path}`, {
+    const open = (
+      path = '/ws',
+      origin?: string,
+      host?: string,
+      extra: ClientOptions = {},
+      protocols: string[] = TEST_WS_PROTOCOLS,
+    ) =>
+      new WebSocket(`ws://127.0.0.1:${port}${path}`, protocols, {
         ...extra,
         ...(origin ? { origin } : {}),
         ...(host ? { headers: { host } } : {}),
@@ -100,6 +109,86 @@ describe('WebSocket hub', () => {
     const first = await stream[Symbol.asyncIterator]().next()
     expect(first.value).toEqual(envelope('1'))
     expect(connections).toHaveLength(1)
+  })
+
+  describe('auth token (subprotocol)', () => {
+    const tokenProtocol = (token: string) => `${WS_TOKEN_PREFIX}${token}`
+
+    it('opens with the right token and echoes mawl.v1, never the token', async () => {
+      const { open } = await setup()
+      const ws = open()
+      cleanup.push(async () => ws.terminate())
+      expect(await outcome(ws)).toBe('open')
+      expect(ws.protocol).toBe(WS_PROTOCOL)
+    })
+
+    it('still opens when the token is offered first', async () => {
+      const { open } = await setup()
+      const ws = open('/ws', undefined, undefined, {}, [
+        tokenProtocol(TEST_AUTH_TOKEN),
+        WS_PROTOCOL,
+      ])
+      cleanup.push(async () => ws.terminate())
+      expect(await outcome(ws)).toBe('open')
+      expect(ws.protocol).toBe(WS_PROTOCOL)
+    })
+
+    it.each([
+      ['no subprotocols', []],
+      ['mawl.v1 alone', [WS_PROTOCOL]],
+      ['a wrong token', [WS_PROTOCOL, tokenProtocol(`${TEST_AUTH_TOKEN.slice(1)}x`)]],
+      ['a shorter token', [WS_PROTOCOL, tokenProtocol(TEST_AUTH_TOKEN.slice(0, 32))]],
+      ['a longer token', [WS_PROTOCOL, tokenProtocol(`${TEST_AUTH_TOKEN}x`)]],
+      ['the token without mawl.v1', [tokenProtocol(TEST_AUTH_TOKEN)]],
+    ])('refuses the upgrade with 401 for %s', async (_name, protocols) => {
+      const { open } = await setup()
+      expect(await outcome(open('/ws', undefined, undefined, {}, protocols))).toBe('http 401')
+    })
+
+    it('ignores a token in the url', async () => {
+      const { open } = await setup()
+      const ws = open(`/ws?token=${TEST_AUTH_TOKEN}`, undefined, undefined, {}, [WS_PROTOCOL])
+      expect(await outcome(ws)).toBe('http 401')
+    })
+
+    it('ignores a Bearer header: only the subprotocol counts on /ws', async () => {
+      const { open } = await setup()
+      const ws = open(
+        '/ws',
+        undefined,
+        undefined,
+        {
+          headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` },
+        },
+        [WS_PROTOCOL],
+      )
+      expect(await outcome(ws)).toBe('http 401')
+    })
+
+    it('checks Host and Origin before the token', async () => {
+      const { open } = await setup()
+      expect(await outcome(open('/ws', undefined, 'evil.example:7420'))).toBe('http 403')
+      expect(await outcome(open('/ws', 'https://evil.example'))).toBe('http 403')
+    })
+
+    it('never logs the token, right or wrong', async () => {
+      const lines: string[] = []
+      const { open } = await setup([], {
+        logger: createLogger({
+          level: 'debug',
+          stream: { write: (chunk: string) => void lines.push(chunk) },
+        }),
+      })
+      const ok = open()
+      cleanup.push(async () => ok.terminate())
+      await outcome(ok)
+      await outcome(
+        open('/ws', undefined, undefined, {}, [WS_PROTOCOL, tokenProtocol(`${TEST_AUTH_TOKEN}zz`)]),
+      )
+      await outcome(open(`/ws?token=${TEST_AUTH_TOKEN}`, undefined, undefined, {}, []))
+      expect(lines.join('')).toContain('unauthorized')
+      expect(lines.join('')).not.toContain(TEST_AUTH_TOKEN)
+    })
   })
 
   it('answers 403 to a browser origin that is not allowed', async () => {

@@ -4,6 +4,7 @@ import type {
   ProviderCredential,
   ProviderCredentialInput,
   ProviderDescriptor,
+  ProviderTestInput,
   ProviderTestResult,
 } from '@mawl/contracts'
 import type { ProvidersApi } from '../api/providers-api.ts'
@@ -103,13 +104,17 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
     credentials: [...initial],
     listError: null as Error | null,
     testResults: new Map<string, ProviderTestResult>(),
-    inlineTest: { ok: true, latencyMs: 120 } as ProviderTestResult,
+    inlineTest: { ok: true, latencyMs: 120 } as
+      | ProviderTestResult
+      | ((target: Exclude<ProviderTestInput, { id: CredentialId }>) => ProviderTestResult),
+    tested: [] as ProviderTestInput[],
     revoked: true,
     startError: null as Error | null,
     statuses: [] as ChatGptAttemptStatus[],
     created: [] as ProviderCredentialInput[],
     removed: [] as string[],
     createError: null as Error | null,
+    testError: null as Error | null,
     statusError: null as Error | null,
     statusCalls: 0,
   }
@@ -139,10 +144,12 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
       state.credentials = state.credentials.filter((c) => c.id !== id)
       return { ...row, revoked: state.revoked }
     },
-    test: async (target) =>
-      'id' in target
-        ? (state.testResults.get(target.id) ?? { ok: true, latencyMs: 87 })
-        : state.inlineTest,
+    test: async (target) => {
+      state.tested.push(target)
+      if (state.testError) throw state.testError
+      if ('id' in target) return state.testResults.get(target.id) ?? { ok: true, latencyMs: 87 }
+      return typeof state.inlineTest === 'function' ? state.inlineTest(target) : state.inlineTest
+    },
     chatgptStart: async () => {
       if (state.startError) throw state.startError
       return {

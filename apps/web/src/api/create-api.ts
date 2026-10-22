@@ -12,8 +12,9 @@ export function socketUrl(origin: string): string {
  * mawl-server (or proxied to it by the Vite dev server), so `/ws` on the page's own host reaches it.
  * Queries, mutations and the event stream all share that one socket.
  */
-export function createApi(origin: string = window.location.origin): Api {
-  const { client: rpc, utils } = createMawlClient({ url: socketUrl(origin) })
+export function createApi(token: string, origin: string = window.location.origin): Api {
+  // The token rides as a WebSocket subprotocol, never in the url (see auth/token.ts).
+  const { client: rpc, utils } = createMawlClient({ url: socketUrl(origin), token })
   return {
     providers: {
       catalog: () => rpc.providers.catalog(),

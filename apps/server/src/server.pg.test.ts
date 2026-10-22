@@ -7,6 +7,7 @@ import { createORPCClient } from '@orpc/client'
 import { RPCLink } from '@orpc/client/fetch'
 import type { ContractRouterClient } from '@orpc/contract'
 import { describe, expect, it } from 'vitest'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN } from './auth/test-util.ts'
 import { createLogger } from './logger.ts'
 import { startServer } from './server.ts'
 
@@ -24,6 +25,7 @@ describe('server against real Postgres', () => {
         siwcPort: 1455,
         siwcHost: '127.0.0.1',
         logLevel: 'silent',
+        ownerToken: TEST_AUTH_TOKEN,
       },
       { logger: createLogger({ level: 'silent' }) },
     )
@@ -33,7 +35,7 @@ describe('server against real Postgres', () => {
       expect(await res.json()).toEqual({ ok: true })
 
       const client: ContractRouterClient<typeof contract> = createORPCClient(
-        new RPCLink({ url: `${server.url}/rpc` }),
+        new RPCLink({ url: `${server.url}/rpc`, headers: TEST_AUTH_HEADERS }),
       )
       expect(await client.health.get()).toMatchObject({ ok: true, version: expect.any(String) })
     } finally {

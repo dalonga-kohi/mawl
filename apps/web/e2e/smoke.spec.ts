@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures.ts'
 
 test('the app loads and shows the sidebar with the teammates group', async ({ page }) => {
   await page.goto('/t')

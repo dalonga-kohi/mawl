@@ -54,7 +54,14 @@ export function runMain(deps: MainDeps): void {
   // Boot runs in the background so signals are handled from the start. A signal during boot
   // waits for boot to settle (never stop mid-migration), then stops; a failed boot exits 1.
   const booting = (async () => {
-    if (config.mode !== 'desktop') return start(config, { logger, registerEmergencyStop })
+    if (config.mode !== 'desktop') {
+      return start(config, {
+        logger,
+        registerEmergencyStop,
+        // The one unredacted output: a newly generated owner token, shown once on stderr.
+        announceOwnerToken: (text) => void deps.stderr.write(text),
+      })
+    }
     const { token: launchToken } = await readLaunchToken(deps.stdin(), {
       ...(deps.tokenTimeoutMs === undefined ? {} : { timeoutMs: deps.tokenTimeoutMs }),
       onParentGone: () => shutdown?.('stdin_eof'),

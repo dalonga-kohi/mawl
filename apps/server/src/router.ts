@@ -1,6 +1,7 @@
 import { type CredentialId, contract, type RunStatus } from '@mawl/contracts'
 import { listProviderDescriptors } from '@mawl/core'
 import { implement, ORPCError } from '@orpc/server'
+import type { Principal } from './auth/principal.ts'
 import {
   type ConnectionState,
   type EventsService,
@@ -14,6 +15,7 @@ import {
   CredentialNotFoundError,
   CredentialUnreadableError,
   type ProviderService,
+  ProviderTestRateLimitedError,
   SignInAttemptNotFoundError,
   SignInUnavailableError,
 } from './providers/service.ts'
@@ -39,6 +41,8 @@ export interface RouterDeps {
  */
 export interface RouterContext {
   connection?: ConnectionState
+  /** Set by the transport once the request proved the auth token (see auth/principal.ts). */
+  principal?: Principal
 }
 
 /**
@@ -201,6 +205,8 @@ export function createRouter({ version, providers, runs, events, profiles, user 
           if (err instanceof CredentialUnreadableError) {
             throw errors.CREDENTIAL_UNREADABLE({ data: { id: err.id } })
           }
+          // Typed in the contract: the owner waits a moment and checks again.
+          if (err instanceof ProviderTestRateLimitedError) throw errors.RATE_LIMITED()
           return notFound(errors)(err)
         }),
       ),
@@ -218,9 +224,13 @@ export function createRouter({ version, providers, runs, events, profiles, user 
     events: {
       subscribe: events
         ? os.events.subscribe.handler(async function* ({ input, context, signal, errors }) {
+            // Defence in depth: the transports set the principal only after the auth token
+            // checked out, so a router reached any other way streams nothing.
+            if (!context.principal) throw errors.UNAUTHORIZED()
             try {
               yield* events.subscribe(input, {
                 connection: context.connection ?? newConnectionState(),
+                principal: context.principal,
                 ...(signal ? { signal } : {}),
               })
             } catch (err) {

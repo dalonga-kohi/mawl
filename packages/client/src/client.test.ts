@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createMawlClient } from './client.ts'
 
+const TOKEN = 'client-test-token_0123456789abcdefghij'
+
 type Listener = (event: { data?: unknown }) => void
 
 /** A socket that records what the client does and lets the test open or drop it. */
@@ -11,7 +13,10 @@ class FakeSocket {
   closedWith: number | undefined
   private listeners = new Map<string, Set<Listener>>()
 
-  constructor(readonly url: string) {
+  constructor(
+    readonly url: string,
+    readonly protocols?: string | string[],
+  ) {
     FakeSocket.instances.push(this)
   }
 
@@ -47,6 +52,7 @@ describe('createMawlClient', () => {
     FakeSocket.instances = []
     return createMawlClient({
       url: 'ws://127.0.0.1:7420/ws',
+      token: TOKEN,
       WebSocket: FakeSocket as never,
     })
   }
@@ -62,6 +68,29 @@ describe('createMawlClient', () => {
     expect(FakeSocket.instances[0]?.sent.length).toBeGreaterThan(0)
     FakeSocket.instances[0]?.drop()
     await pending
+  })
+
+  it('offers the auth token as a subprotocol next to mawl.v1, never in the url', async () => {
+    const { client } = make()
+    const pending = client.health.get().catch(() => {})
+    const first = FakeSocket.instances[0]
+    expect(first?.protocols).toEqual(['mawl.v1', `mawl.token.${TOKEN}`])
+    expect(first?.url).not.toContain(TOKEN)
+    first?.drop()
+    await pending
+    // A reconnect carries it again.
+    const again = client.health.get().catch(() => {})
+    expect(FakeSocket.instances[1]?.protocols).toEqual(first?.protocols)
+    FakeSocket.instances[1]?.drop()
+    await again
+  })
+
+  it('refuses a malformed token before opening anything', () => {
+    FakeSocket.instances = []
+    expect(() =>
+      createMawlClient({ url: 'ws://x/ws', token: 'bad token', WebSocket: FakeSocket as never }),
+    ).toThrow(/token/)
+    expect(FakeSocket.instances).toHaveLength(0)
   })
 
   it('reuses a socket that is still open', async () => {
@@ -102,7 +131,9 @@ describe('createMawlClient', () => {
     const original = (globalThis as { WebSocket?: unknown }).WebSocket
     ;(globalThis as { WebSocket?: unknown }).WebSocket = undefined
     try {
-      expect(() => createMawlClient({ url: 'ws://x/ws' })).toThrow('No WebSocket implementation')
+      expect(() => createMawlClient({ url: 'ws://x/ws', token: TOKEN })).toThrow(
+        'No WebSocket implementation',
+      )
     } finally {
       ;(globalThis as { WebSocket?: unknown }).WebSocket = original
     }

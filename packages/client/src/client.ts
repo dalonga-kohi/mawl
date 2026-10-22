@@ -1,4 +1,4 @@
-import type { contract } from '@mawl/contracts'
+import { type contract, wsProtocols } from '@mawl/contracts'
 import { type ClientLink, createORPCClient, DynamicLink } from '@orpc/client'
 import { RPCLink, type RPCLinkOptions } from '@orpc/client/websocket'
 import type { ContractRouterClient } from '@orpc/contract'
@@ -17,11 +17,16 @@ type LinkSocket = RPCLinkOptions<Record<never, never>>['websocket']
 export interface MawlSocket extends LinkSocket {
   close(code?: number, reason?: string): void
 }
-export type MawlSocketConstructor = new (url: string) => MawlSocket
+export type MawlSocketConstructor = new (url: string, protocols?: string | string[]) => MawlSocket
 
 export interface MawlClientOptions {
-  /** `ws://` or `wss://` url of the server's `/ws` endpoint. */
+  /** `ws://` or `wss://` url of the server's `/ws` endpoint. Never put the token in it. */
   url: string
+  /**
+   * The launch or owner token. It travels as the `mawl.token.<token>` subprotocol next to
+   * `mawl.v1` (browsers cannot set headers on a WebSocket); the server echoes `mawl.v1` only.
+   */
+  token: string
   /** Defaults to the global `WebSocket`. Pass one in Node or in tests. */
   WebSocket?: MawlSocketConstructor
 }
@@ -41,6 +46,8 @@ const OPEN = 1
  * for the first call after the old one closed; that is what lets the event store reconnect.
  */
 export function createMawlClient(options: MawlClientOptions): MawlClientHandle {
+  // Throws on a malformed token before any socket opens.
+  const protocols = wsProtocols(options.token)
   const found = options.WebSocket ?? (globalThis as { WebSocket?: MawlSocketConstructor }).WebSocket
   if (!found) throw new Error('No WebSocket implementation: pass options.WebSocket')
   const Socket: MawlSocketConstructor = found
@@ -52,7 +59,7 @@ export function createMawlClient(options: MawlClientOptions): MawlClientHandle {
       !current ||
       (current.socket.readyState !== OPEN && current.socket.readyState !== CONNECTING)
     ) {
-      const socket = new Socket(options.url)
+      const socket = new Socket(options.url, protocols)
       current = { socket, link: new RPCLink({ websocket: socket }) }
     }
     return current.link

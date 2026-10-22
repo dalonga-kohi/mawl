@@ -1,5 +1,6 @@
 import type { LenientEnvelope, ProfileId, Topic } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { OWNER } from '../auth/principal.ts'
 import { createLogger } from '../logger.ts'
 import { insertEvent } from '../runs/repo.ts'
 import { seedProfile, seedRun } from '../runs/test-util.ts'
@@ -56,7 +57,7 @@ describe('events service on PGlite', () => {
       const ctl = new AbortController()
       const it = service.subscribe(
         { topics, ...(since === undefined ? {} : { since }) },
-        { connection: conn, signal: signal ?? ctl.signal },
+        { connection: conn, principal: OWNER, signal: signal ?? ctl.signal },
       )
       cleanup.push(async () => ctl.abort())
       return it

@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { E2E_TOKEN } from './e2e/fixtures.ts'
 
 // Browser e2e: the Vite app talks to a real mawl-server (on a throwaway Postgres) whose runs are
 // answered by a scripted echo model, so no API key or network is needed. See
@@ -29,7 +30,8 @@ export default defineConfig({
       url: `${SERVER_URL}/healthz`,
       timeout: 120_000,
       reuseExistingServer: !process.env.CI,
-      env: { MAWL_E2E: '1', MAWL_PORT: String(SERVER_PORT) },
+      // The specs send this token (e2e/fixtures.ts); /rpc and /ws refuse anything else.
+      env: { MAWL_E2E: '1', MAWL_PORT: String(SERVER_PORT), MAWL_OWNER_TOKEN: E2E_TOKEN },
       stdout: 'ignore',
       stderr: 'pipe',
     },

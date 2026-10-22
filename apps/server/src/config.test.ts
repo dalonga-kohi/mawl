@@ -335,6 +335,44 @@ describe('parseConfig modes', () => {
   })
 })
 
+describe('MAWL_OWNER_TOKEN', () => {
+  const OWNER = 'owner-token_from-the-env-0123456789abcdef'
+  const base = { DATABASE_URL: URL_WITH_PASSWORD }
+  const messageOf = (env: Record<string, string>) => {
+    try {
+      parseConfig(env)
+    } catch (e) {
+      return (e as Error).message
+    }
+    return ''
+  }
+
+  it('is unset by default and read in headless mode', () => {
+    expect(parseConfig(base).ownerToken).toBeUndefined()
+    expect(parseConfig({ ...base, MAWL_OWNER_TOKEN: OWNER }).ownerToken).toBe(OWNER)
+    expect(parseConfig({ ...base, MAWL_OWNER_TOKEN: '' }).ownerToken).toBeUndefined()
+  })
+
+  it.each(['short', `${'x'.repeat(40)}=`, `${'x'.repeat(40)} y`, 'x'.repeat(513)])(
+    'rejects a value that is not 32-512 base64url characters, without echoing it (%#)',
+    (value) => {
+      const message = messageOf({ ...base, MAWL_OWNER_TOKEN: value })
+      expect(message).toContain('MAWL_OWNER_TOKEN')
+      expect(message).not.toContain(value)
+    },
+  )
+
+  it('is ignored in desktop mode, where the launch token is the only token', () => {
+    const cfg = parseConfig({
+      MAWL_MODE: 'desktop',
+      MAWL_DATA_DIR: resolve('/data/mawl'),
+      DATABASE_URL: URL_WITH_PASSWORD,
+      MAWL_OWNER_TOKEN: OWNER,
+    })
+    expect(cfg.ownerToken).toBeUndefined()
+  })
+})
+
 describe('parseConfig with the real process.env', () => {
   it('never throws text containing the DATABASE_URL password from the environment', () => {
     vi.stubEnv('DATABASE_URL', 'postgres://mawl:env-s3cr3t@db:5432/mawl')

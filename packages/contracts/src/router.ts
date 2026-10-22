@@ -12,6 +12,7 @@ import {
   ProviderCredentialInput,
   ProviderCredentialRemoved,
   ProviderDescriptor,
+  ProviderTestInput,
   ProviderTestResult,
   PublicKey,
   Run,
@@ -181,8 +182,10 @@ export const contract = {
       .errors({
         // The stored key cannot be decrypted, e.g. the server's master key changed.
         CREDENTIAL_UNREADABLE: { status: 409, data: z.object({ id: CredentialId }) },
+        // Too many checks in a short time (a small per-process bucket); wait and try again.
+        RATE_LIMITED: { status: 429 },
       })
-      .input(z.union([z.strictObject({ id: CredentialId }), ProviderCredentialInput]))
+      .input(ProviderTestInput)
       .output(ProviderTestResult),
     /** Sign in with ChatGPT. The credential appears in `list` once the browser step finishes. */
     chatgpt: {

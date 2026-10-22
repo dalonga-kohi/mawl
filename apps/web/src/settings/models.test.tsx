@@ -225,6 +225,44 @@ describe('settings, models: API keys', () => {
     expect(fake.state.created).toEqual([])
   })
 
+  it('asks before checking an address on the private network, then saves without the flag', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.inlineTest = (target) =>
+      target.allowPrivateNetwork
+        ? { ok: true, latencyMs: 5 }
+        : { ok: false, reason: 'blocked_address' }
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await user.selectOptions(within(dialog).getByLabelText('Provider'), 'ollama')
+    await user.type(within(dialog).getByLabelText(/Server address/), 'http://192.168.1.20:11434')
+    await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+    expect(await within(dialog).findByText(/on this computer or your private network/)).toBeTruthy()
+    expect(fake.state.created).toEqual([])
+    await user.click(within(dialog).getByRole('button', { name: 'Allow and check again' }))
+    await waitFor(() =>
+      expect(fake.state.created).toEqual([
+        { provider: 'ollama', label: 'Ollama', baseUrl: 'http://192.168.1.20:11434' },
+      ]),
+    )
+    expect(fake.state.tested.map((t) => t.allowPrivateNetwork)).toEqual([undefined, true])
+  })
+
+  it('says an address is never reachable when it stays refused after allowing it', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.inlineTest = { ok: false, reason: 'blocked_address' }
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await user.selectOptions(within(dialog).getByLabelText('Provider'), 'ollama')
+    await user.type(within(dialog).getByLabelText(/Server address/), 'http://169.254.169.254')
+    await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+    await user.click(await within(dialog).findByRole('button', { name: 'Allow and check again' }))
+    expect(await within(dialog).findByText(/Mawl never connects to this address/)).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Allow and check again' })).toBeNull()
+    expect(fake.state.created).toEqual([])
+  })
+
   it('requires an address for an OpenAI-compatible server', async () => {
     const fake = fakeProvidersApi()
     const { user } = await renderApp('/settings?section=models', { providers: fake.api })
@@ -258,5 +296,21 @@ describe('settings, models: API keys', () => {
     await user.type(within(dialog).getByLabelText('API key'), 'sk-test')
     await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
     expect(await within(dialog).findByText(/The server didn't accept these details/)).toBeTruthy()
+  })
+
+  it('asks the owner to wait when the server limits key checks', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.testError = new ApiError('RATE_LIMITED')
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await user.type(within(dialog).getByLabelText('API key'), 'sk-test')
+    await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+    expect(
+      await within(dialog).findByText(
+        'Too many checks in a row. Wait a few seconds, then try again.',
+      ),
+    ).toBeTruthy()
+    expect(fake.state.created).toEqual([])
   })
 })

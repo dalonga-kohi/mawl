@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN } from './auth/test-util.ts'
 import { createLogger } from './logger.ts'
 import { unusedProviders } from './providers/test-util.ts'
 import { unusedRuns } from './runs/test-util.ts'
@@ -40,6 +41,7 @@ describe('serving the web build', () => {
       providers: unusedProviders,
       runs: unusedRuns,
       checkDb: async () => {},
+      authToken: TEST_AUTH_TOKEN,
       hosts,
       ...(dir ? { webDir: dir } : {}),
     })
@@ -107,7 +109,9 @@ describe('serving the web build', () => {
     const app = appFor()
     const health = await app.request('/healthz', { headers: { ...HTML, host: 'localhost' } })
     expect(await health.json()).toEqual({ ok: true })
-    const rpc = await app.request('/rpc/nothing/here', { headers: { ...HTML, host: 'localhost' } })
+    const rpc = await app.request('/rpc/nothing/here', {
+      headers: { ...HTML, ...TEST_AUTH_HEADERS, host: 'localhost' },
+    })
     expect(rpc.status).toBe(404)
     expect(await rpc.text()).not.toContain('id="root"')
     const ws = await app.request('/ws', { headers: { ...HTML, host: 'localhost' } })

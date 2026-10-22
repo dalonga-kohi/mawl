@@ -10,6 +10,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../app.ts'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN } from '../auth/test-util.ts'
 import { createLogger } from '../logger.ts'
 import { unusedRuns } from '../runs/test-util.ts'
 import { createSecretBox } from '../secrets/index.ts'
@@ -48,10 +49,12 @@ describe('providers over RPC (app + PGlite)', () => {
       providers,
       runs: unusedRuns,
       checkDb: async () => {},
+      authToken: TEST_AUTH_TOKEN,
     })
     rpc = createORPCClient(
       new RPCLink({
         url: 'http://mawl.test/rpc',
+        headers: TEST_AUTH_HEADERS,
         fetch: async (request) => {
           const res = await app.request(request)
           wire.push(await res.clone().text())

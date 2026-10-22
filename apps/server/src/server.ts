@@ -6,6 +6,7 @@ import { serve } from '@hono/node-server'
 import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord } from '@mawl/core'
 import { createDb, type DbHandle, migrate, migrationsFolder } from '@mawl/db'
 import { createApp } from './app.ts'
+import { resolveAuthToken } from './auth/resolve.ts'
 import {
   type ClaudeBinaryManifest,
   createClaudeExecutableResolver,
@@ -56,6 +57,8 @@ export interface BootOverrides {
    * Postgres), for the lifecycle's hard-exit paths that skip stop(). Idempotent, never rejects.
    */
   registerEmergencyStop?: (stop: () => Promise<unknown>) => void
+  /** Shows a newly generated headless owner token once (main writes it to stderr, unredacted). */
+  announceOwnerToken?: (text: string) => void
   /** Replaces the build-embedded Claude binary pin (absent when running from source). */
   claudeManifest?: ClaudeBinaryManifest
   /** Replaces the first-use Claude binary download. */
@@ -142,6 +145,10 @@ export async function startServer(
   // The opaque id every Sign in with ChatGPT credential on this server shares. Read before the
   // database opens, so a bad file leaves nothing to close.
   const hostId = await loadOrCreateHostId(config.secretsDir)
+  // The token /rpc and /ws require: the launch token (desktop) or the owner token (headless).
+  const authToken = await resolveAuthToken(config, {
+    ...(overrides.announceOwnerToken ? { announce: overrides.announceOwnerToken } : {}),
+  })
 
   // Desktop mode without DATABASE_URL: the bundled Postgres, started after the secrets (a bad
   // secrets dir leaves nothing to stop) and stopped last, also when boot fails below.
@@ -243,6 +250,7 @@ export async function startServer(
     const userService = createUserService({ db: handle.db })
     const app = createApp({
       hosts: { bindHost: config.host, allowedOrigins: config.allowedOrigins ?? [] },
+      authToken,
       ...webDirOption(config),
       logger,
       version,
@@ -269,6 +277,7 @@ export async function startServer(
         logger,
         allowedOrigins: config.allowedOrigins,
         bindHost: config.host,
+        authToken,
       })
     }
   } catch (err) {

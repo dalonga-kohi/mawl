@@ -1,6 +1,10 @@
+import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/standard'
 import { ORPCError, onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
-import { Hono } from 'hono'
+import { type Context, Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
+import { OWNER } from './auth/principal.ts'
+import { bearerToken, tokenMatches } from './auth/token.ts'
 import { checkHost, type HostPolicy } from './events/host.ts'
 import type { Logger } from './logger.ts'
 import type { ProfileService } from './profiles/service.ts'
@@ -25,9 +29,24 @@ export interface AppDeps {
   hosts?: HostPolicy
   /** Directory of the built web app to serve at `/`. Omitted: the server only exposes the API. */
   webDir?: string
+  /**
+   * The token every `/rpc` call must carry as `Authorization: Bearer <token>`: the desktop launch
+   * token or the headless owner token. Required, so no wiring can start an open API.
+   */
+  authToken: string
 }
 
 const DEFAULT_HEALTH_TIMEOUT_MS = 2000
+/** Largest `/rpc` request body. Inputs are small JSON; the biggest is a 4 KiB key or 8 KB persona. */
+export const RPC_MAX_BODY_BYTES = 1024 * 1024
+
+const rpcSerializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
+
+/** An error response the oRPC client decodes as a plain ORPCError with this code and status. */
+function rpcError(c: Context, code: string, status: 401 | 413, message: string): Response {
+  const body = rpcSerializer.serialize(new ORPCError(code, { status, message }).toJSON())
+  return c.json(body as object, status)
+}
 
 async function isHealthy(checkDb: () => Promise<void>, timeoutMs: number): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -61,6 +80,7 @@ export function createApp({
   healthTimeoutMs,
   hosts,
   webDir,
+  authToken,
 }: AppDeps): Hono {
   const app = new Hono()
 
@@ -112,7 +132,9 @@ export function createApp({
     },
   )
 
-  app.all('/rpc/*', async (c) => {
+  // Order: Host (DNS rebinding), then the token, then the body limit, so an unauthenticated
+  // caller is turned away before any of its body is read.
+  app.use('/rpc/*', async (c, next) => {
     if (hosts) {
       const host = c.req.header('host')
       const verdict = checkHost(host, hosts)
@@ -121,7 +143,31 @@ export function createApp({
         return c.json({ ok: false }, 403)
       }
     }
-    const { matched, response } = await rpc.handle(c.req.raw, { prefix: '/rpc', context: {} })
+    // Header only: a token in the url would end up in logs and history, so it is never read.
+    if (!tokenMatches(bearerToken(c.req.header('authorization')), authToken)) {
+      // Missing and wrong look the same, to the caller and in the log.
+      logger.warn({ reason: 'unauthorized' }, 'rpc request rejected')
+      return rpcError(c, 'UNAUTHORIZED', 401, 'Unauthorized')
+    }
+    await next()
+  })
+  app.use(
+    '/rpc/*',
+    bodyLimit({
+      maxSize: RPC_MAX_BODY_BYTES,
+      onError: (c) => {
+        logger.warn({ reason: 'body_too_large', max: RPC_MAX_BODY_BYTES }, 'rpc request rejected')
+        return rpcError(c, 'PAYLOAD_TOO_LARGE', 413, 'Request body too large')
+      },
+    }),
+  )
+
+  app.all('/rpc/*', async (c) => {
+    const { matched, response } = await rpc.handle(c.req.raw, {
+      prefix: '/rpc',
+      // Only reached with the right token: the caller is the owner.
+      context: { principal: OWNER },
+    })
     return matched ? response : c.notFound()
   })
 

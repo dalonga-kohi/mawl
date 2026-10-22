@@ -1,4 +1,5 @@
-import { expect, type Page, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures.ts'
 
 // The e2e server answers every run with a scripted echo model (apps/server/src/e2e): it streams
 // `Echo: <message>`, a long paragraph for `/slow`, and fails `/fail` as plan_limit_reached.

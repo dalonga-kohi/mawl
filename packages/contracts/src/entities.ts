@@ -135,42 +135,72 @@ const HttpUrl = z
 /** Providers that cannot work without an API key. */
 const KEY_REQUIRED: ReadonlySet<string> = new Set(['anthropic', 'openai', 'openrouter'])
 
-/** Write-only: the secret is encrypted on arrival and never returned. */
-export const ProviderCredentialInput = z
-  .strictObject({
-    provider: ProviderKind,
-    label: z.string().min(1).max(80),
-    secret: z.string().min(1).max(4096).optional(),
-    baseUrl: HttpUrl.optional(),
-  })
-  .superRefine((v, ctx) => {
-    if (v.provider === 'openai_chatgpt') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['provider'],
-        message: 'openai_chatgpt credentials come only from Sign in with ChatGPT',
-      })
-    }
-    if (v.provider === 'anthropic_claude_code') {
-      // Mawl never holds a Claude credential: the owner signs in with `claude auth login`.
-      for (const field of ['secret', 'baseUrl'] as const) {
-        if (v[field] !== undefined) {
-          ctx.addIssue({
-            code: 'custom',
-            path: [field],
-            message: `anthropic_claude_code takes no ${field}: sign in with \`claude auth login\` on the server`,
-          })
-        }
+const credentialInputShape = {
+  provider: ProviderKind,
+  label: z.string().min(1).max(80),
+  secret: z.string().min(1).max(4096).optional(),
+  baseUrl: HttpUrl.optional(),
+}
+
+function refineCredentialInput(
+  v: {
+    provider: z.infer<typeof ProviderKind>
+    secret?: string | undefined
+    baseUrl?: string | undefined
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (v.provider === 'openai_chatgpt') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['provider'],
+      message: 'openai_chatgpt credentials come only from Sign in with ChatGPT',
+    })
+  }
+  if (v.provider === 'anthropic_claude_code') {
+    // Mawl never holds a Claude credential: the owner signs in with `claude auth login`.
+    for (const field of ['secret', 'baseUrl'] as const) {
+      if (v[field] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `anthropic_claude_code takes no ${field}: sign in with \`claude auth login\` on the server`,
+        })
       }
     }
-    if (KEY_REQUIRED.has(v.provider) && v.secret === undefined) {
-      ctx.addIssue({ code: 'custom', path: ['secret'], message: 'secret is required' })
-    }
-    if (v.provider === 'openai_compatible' && v.baseUrl === undefined) {
-      ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'baseUrl is required' })
-    }
-  })
+  }
+  if (KEY_REQUIRED.has(v.provider) && v.secret === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['secret'], message: 'secret is required' })
+  }
+  if (v.provider === 'openai_compatible' && v.baseUrl === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'baseUrl is required' })
+  }
+}
+
+/** Write-only: the secret is encrypted on arrival and never returned. */
+export const ProviderCredentialInput = z
+  .strictObject(credentialInputShape)
+  .superRefine(refineCredentialInput)
 export type ProviderCredentialInput = z.infer<typeof ProviderCredentialInput>
+
+/**
+ * Owner opt-in for a key test against loopback or a private network (Ollama on the LAN). Without
+ * it the server tests only public addresses and the provider's own default url; link-local and
+ * metadata addresses are refused either way.
+ */
+const AllowPrivateNetwork = z.boolean().optional()
+
+/** An unsaved credential to test. Write-only like ProviderCredentialInput: never returned. */
+export const ProviderTestInlineInput = z
+  .strictObject({ ...credentialInputShape, allowPrivateNetwork: AllowPrivateNetwork })
+  .superRefine(refineCredentialInput)
+
+/** `providers.test` input: a stored credential by id, or an unsaved one; nothing is written. */
+export const ProviderTestInput = z.union([
+  z.strictObject({ id: CredentialId, allowPrivateNetwork: AllowPrivateNetwork }),
+  ProviderTestInlineInput,
+])
+export type ProviderTestInput = z.infer<typeof ProviderTestInput>
 
 /** Why a key test failed. Closed set: provider error text can echo keys, so none is ever returned. */
 export const ProviderTestFailure = z.enum([
@@ -181,6 +211,8 @@ export const ProviderTestFailure = z.enum([
   // Claude subscription only: the Claude Code binary has no login, or uses a login Mawl refuses.
   'not_signed_in',
   'wrong_auth_method',
+  // The address is never reachable (link-local, metadata), or private without the opt-in.
+  'blocked_address',
 ])
 export type ProviderTestFailure = z.infer<typeof ProviderTestFailure>
 

@@ -20,6 +20,7 @@ import {
   PolicyRule,
   ProviderCredential,
   ProviderCredentialInput,
+  ProviderTestInlineInput,
   RUN_TRANSITIONS,
   type RunId,
   RunStatus,
@@ -172,8 +173,8 @@ describe('secret leakage', () => {
     ])
     // The one response that deliberately returns a freshly minted session token.
     const ALLOWED_PATHS = new Set(['contract.devices.pair:out.session.token'])
-    // The only schema allowed to carry a secret: the write-only input.
-    const WRITE_ONLY = new Set<unknown>([ProviderCredentialInput])
+    // The only schemas allowed to carry a secret: the write-only inputs (save, and test unsaved).
+    const WRITE_ONLY = new Set<unknown>([ProviderCredentialInput, ProviderTestInlineInput])
 
     const offenders: string[] = []
     const seen = new Set<unknown>()

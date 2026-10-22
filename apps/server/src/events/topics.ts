@@ -1,6 +1,7 @@
 import type { ProfileId, RunId, Topic } from '@mawl/contracts'
 import { schema } from '@mawl/db'
 import { inArray, or, type SQL } from 'drizzle-orm'
+import type { Principal } from '../auth/principal.ts'
 
 const { events } = schema
 
@@ -24,6 +25,17 @@ function split(topics: readonly Topic[]): Split {
     else out.runIds.push(topic.slice(4) as RunId)
   }
   return out
+}
+
+/**
+ * The topics `principal` may subscribe to, applied on the server before any filter or replay.
+ * Mawl has a single owner and every profile, run and event is theirs, so the owner keeps every
+ * topic. Any other principal kind is refused until it gets its own scope (D8.1 devices act for
+ * the owner; a narrower kind must add a branch here, not fall through).
+ */
+export function scopeTopics(principal: Principal, topics: readonly Topic[]): readonly Topic[] {
+  if (principal.kind === 'owner') return topics
+  throw new Error('no topic scope for this principal')
 }
 
 /** True for events a subscription to `topics` should receive. */

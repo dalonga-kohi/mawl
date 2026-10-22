@@ -117,11 +117,20 @@ describe('docker compose stack', () => {
     expect(missing.status).toBe(404)
   })
 
-  it('answers health.get over /rpc, so the server reached the database and migrated', async () => {
-    const client: ContractRouterClient<typeof contract> = createORPCClient(
-      new RPCLink({ url: `${baseUrl}/rpc` }),
-    )
-    await expect(client.health.get()).resolves.toMatchObject({ ok: true })
+  it('answers health.get over /rpc with the generated owner token only, so the server reached the database and migrated', async () => {
+    // The documented way to read it (docs/RUNNING.md).
+    const { stdout } = await compose(['exec', '-T', 'server', 'cat', '/secrets/owner-token'])
+    const token = stdout.trim()
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const clientWith = (headers: Record<string, string>): ContractRouterClient<typeof contract> =>
+      createORPCClient(new RPCLink({ url: `${baseUrl}/rpc`, headers }))
+    await expect(clientWith({}).health.get()).rejects.toMatchObject({ status: 401 })
+    await expect(
+      clientWith({ authorization: `Bearer ${token}` }).health.get(),
+    ).resolves.toMatchObject({ ok: true })
+    // Shown once in the container's output, for the owner to copy.
+    const logs = await compose(['logs', 'server'])
+    expect(`${logs.stdout}${logs.stderr}`).toContain(token)
   })
 
   it('has Claude Code on PATH, logged out, with its config on the claude volume', async () => {
