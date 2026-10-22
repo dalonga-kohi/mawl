@@ -58,4 +58,17 @@ describe('the host commands ACL', () => {
       expect(capability.remote, capability.identifier).toBeUndefined()
     }
   })
+
+  it('has no `remote` key in any capability file and no wildcard-port origin', () => {
+    const files = readdirSync(resolve(tauriDir, 'capabilities')).filter((f) => f.endsWith('.json'))
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) {
+      const text = read(`capabilities/${file}`)
+      // The key, wherever it is nested.
+      expect(text, file).not.toMatch(/"remote"\s*:/)
+      // An origin whose port is a wildcard would cover whatever local process holds the port.
+      expect(text, file).not.toMatch(/(127\.0\.0\.1|localhost|\[::1\]):\*/)
+      expect(text, file).not.toMatch(/https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[^"]*\*/)
+    }
+  })
 })
