@@ -1,4 +1,5 @@
 import { isAbsolute, join } from 'node:path'
+import { AUTH_TOKEN_PATTERN } from '@mawl/contracts'
 import { z } from 'zod'
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const
@@ -94,6 +95,14 @@ const EnvSchema = z.object({
   MAWL_WEB_DIR: optional(absolutePath().optional()),
   // Extra browser origins allowed to open the WebSocket (same-host, loopback and Tauri always are).
   MAWL_ALLOWED_ORIGINS: optional(originList()),
+  // Headless only: the owner token every /rpc call and /ws upgrade must carry. Unset: generated
+  // on first boot into `<MAWL_SECRETS_DIR>/owner-token`. Never echoed in errors.
+  MAWL_OWNER_TOKEN: optional(
+    z
+      .string()
+      .regex(AUTH_TOKEN_PATTERN, { error: 'must be 32-512 base64url characters (A-Z a-z 0-9 - _)' })
+      .optional(),
+  ),
   LOG_LEVEL: optional(
     z.enum(LOG_LEVELS, { error: `must be one of ${LOG_LEVELS.join(', ')}` }).default('info'),
   ),
@@ -163,9 +172,14 @@ export interface Config {
   dataDir?: string | undefined
   /**
    * Desktop only: the per-launch token, read from stdin's first line by main (never env or argv).
-   * Memory only, never logged. D1.4 enforces it on /rpc and /ws.
+   * Memory only, never logged. Enforced on /rpc and /ws.
    */
   launchToken?: string | undefined
+  /**
+   * Headless only: `MAWL_OWNER_TOKEN`, the owner token to enforce on /rpc and /ws. Unset: the
+   * server generates one into the secrets dir on first boot.
+   */
+  ownerToken?: string | undefined
   host: string
   port: number
   secretsDir: string
@@ -225,6 +239,8 @@ export function parseConfig(env: Record<string, string | undefined> = process.en
     claudeCodePath: v.MAWL_CLAUDE_CODE_PATH,
     webDir: v.MAWL_WEB_DIR,
     allowedOrigins: v.MAWL_ALLOWED_ORIGINS,
+    // Desktop mode takes the launch token from stdin only.
+    ownerToken: desktop ? undefined : v.MAWL_OWNER_TOKEN,
     logLevel: v.LOG_LEVEL,
   }
 }
