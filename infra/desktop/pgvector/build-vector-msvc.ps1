@@ -69,39 +69,34 @@ if (-not (Get-Command nmake.exe -ErrorAction SilentlyContinue)) { throw 'nmake.e
 $env:PGROOT = $pgroot
 Push-Location $src
 $cluster = Join-Path $Work 'cluster'
-$server = $null
+$started = $false
 try {
   Invoke-Native 'nmake build' { nmake.exe /nologo /F Makefile.win }
   Invoke-Native 'nmake install' { nmake.exe /nologo /F Makefile.win install }
 
   Invoke-Native 'initdb' { & "$pgroot\bin\initdb.exe" --no-sync --auth=trust --username=postgres --encoding=UTF8 --no-locale -D $cluster }
-  $serverOut = Join-Path $Work 'postgres.out.log'
-  $serverErr = Join-Path $Work 'postgres.err.log'
-  $server = Start-Process -FilePath "$pgroot\bin\postgres.exe" -PassThru -WindowStyle Hidden `
-    -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr `
-    -ArgumentList '-D', "`"$cluster`"", '-p', $Port, '-c', 'listen_addresses=127.0.0.1'
-  $ready = $false
-  for ($i = 0; $i -lt 60 -and -not $ready -and -not $server.HasExited; $i++) {
-    & "$pgroot\bin\pg_isready.exe" -h 127.0.0.1 -p $Port | Out-Null
-    $ready = ($LASTEXITCODE -eq 0)
-    if (-not $ready) { Start-Sleep -Milliseconds 500 }
-  }
-  if (-not $ready) {
+  # The runner is an administrator and postgres.exe refuses that. pg_ctl starts it with a
+  # restricted token instead. Its handles are redirected to files so the call cannot hang on
+  # inherited pipes, and only its exit code is read.
+  $serverLog = Join-Path $Work 'postgres.log'
+  $ctl = Start-Process -FilePath "$pgroot\bin\pg_ctl.exe" -PassThru -Wait -WindowStyle Hidden `
+    -RedirectStandardOutput (Join-Path $Work 'pg_ctl.out.log') -RedirectStandardError (Join-Path $Work 'pg_ctl.err.log') `
+    -ArgumentList 'start', '-w', '-t', '60', '-D', "`"$cluster`"", '-l', "`"$serverLog`"", '-o', "`"-p $Port -c listen_addresses=127.0.0.1`""
+  $started = ($ctl.ExitCode -eq 0)
+  if (-not $started) {
     # Postgres output is the only clue to why it did not come up, so print it before failing.
-    $state = if ($server.HasExited) { "exited with code $($server.ExitCode)" } else { 'still running' }
-    foreach ($log in $serverOut, $serverErr) {
+    foreach ($log in $serverLog, (Join-Path $Work 'pg_ctl.out.log'), (Join-Path $Work 'pg_ctl.err.log')) {
       if (Test-Path -LiteralPath $log) { "--- $log"; Get-Content -LiteralPath $log -Tail 40 }
     }
-    throw "scratch Postgres did not become ready ($state)"
+    throw "scratch Postgres did not start (pg_ctl exit $($ctl.ExitCode))"
   }
 
   $env:PGHOST = '127.0.0.1'; $env:PGPORT = "$Port"; $env:PGUSER = 'postgres'
   Invoke-Native 'installcheck' { nmake.exe /nologo /F Makefile.win installcheck }
 } finally {
   Pop-Location
-  if ($server -and -not $server.HasExited) {
+  if ($started) {
     & "$pgroot\bin\pg_ctl.exe" stop -D $cluster -m fast -w 2>&1 | Out-Null
-    if (-not $server.WaitForExit(15000)) { $server.Kill() }
   }
 }
 
