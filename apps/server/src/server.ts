@@ -272,6 +272,7 @@ export async function startServer(
       })
     }
   } catch (err) {
+    providers?.abortPending()
     registry.abortAll(ABORT_SHUTDOWN)
     await worker?.stop().catch(() => {})
     await live?.stop().catch(() => {})
@@ -294,6 +295,8 @@ export async function startServer(
           // Sockets first: closing them ends the subscription streams that would hold the listener open.
           () => hub?.close(),
           () => closeServer(server),
+          // A run waiting on the Claude binary download would otherwise hold the worker's stop.
+          () => providers?.abortPending(),
           // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
           () => registry.abortAll(ABORT_SHUTDOWN),
           () => worker?.stop(),

@@ -62,11 +62,12 @@ export interface ClaudeCodeOptions
   /**
    * Finds (desktop: installs on first use) the binary's path, called only when a Claude plan
    * credential is tested or turned into a model, never at boot. It wins over
-   * `pathToClaudeCodeExecutable`; undefined falls back to that and then to core's lookup. A
+   * `pathToClaudeCodeExecutable`; undefined falls back to that and then to core's lookup. The
+   * signal fires on `abortPending()` and `close()` (server shutdown), so a download ends then. A
    * rejection is reported as unreachable (test) or a provider error (model), and its message is
    * never logged.
    */
-  resolveExecutable?: () => Promise<string | undefined>
+  resolveExecutable?: (signal: AbortSignal) => Promise<string | undefined>
 }
 
 export type TestTarget = { id: CredentialId } | ProviderCredentialInput
@@ -91,7 +92,12 @@ export interface ProviderService {
   startChatGptSignIn(): Promise<ChatGptStartResult>
   /** Throws SignInAttemptNotFoundError for an unknown id. */
   chatGptSignInStatus(attemptId: string): ChatGptAttemptStatus
-  /** Ends a pending sign-in attempt. Call on shutdown. */
+  /**
+   * Aborts any Claude binary download in flight (and refuses new ones). Call first on shutdown, so
+   * a run waiting for the binary does not hold the worker's stop. Idempotent.
+   */
+  abortPending(): void
+  /** Ends a pending sign-in attempt and aborts pending downloads. Call on shutdown. */
   close(): Promise<void>
 }
 
@@ -153,13 +159,15 @@ export function createProviderService({
   })
 
   /** The Claude options for core, with the executable resolved now (and only for the Claude plan). */
+  const installs = new AbortController()
+
   async function claudeOptionsFor(
     kind: ProviderConnection['kind'],
   ): Promise<Omit<ClaudeCodeOptions, 'resolveExecutable'> | undefined> {
     if (!claudeCode) return undefined
     const { resolveExecutable, ...rest } = claudeCode
     if (kind !== 'anthropic_claude_code' || !resolveExecutable) return rest
-    const path = await resolveExecutable()
+    const path = await resolveExecutable(installs.signal)
     return path ? { ...rest, pathToClaudeCodeExecutable: path } : rest
   }
 
@@ -312,6 +320,10 @@ export function createProviderService({
 
     startChatGptSignIn: () => chatgpt.start(),
     chatGptSignInStatus: (attemptId) => chatgpt.status(attemptId),
-    close: () => chatgpt.close(),
+    abortPending: () => installs.abort(),
+    close() {
+      installs.abort()
+      return chatgpt.close()
+    },
   }
 }

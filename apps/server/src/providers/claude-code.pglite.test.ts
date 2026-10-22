@@ -6,7 +6,7 @@ import { migrationsFolder, schema } from '@mawl/db'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
 import { createSecretBox } from '../secrets/index.ts'
 import { type ClaudeCodeOptions, createProviderService } from './service.ts'
@@ -189,6 +189,44 @@ describe('Claude subscription provider on the server (PGlite)', () => {
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       })
       expect(paths).toEqual(['/data/claude/1.0.0/claude'])
+    })
+
+    it('hands the install an abort signal that abortPending() and close() fire', async () => {
+      const signals: AbortSignal[] = []
+      const service = await makeService({
+        resolveExecutable: (signal) =>
+          new Promise((_resolve, reject) => {
+            signals.push(signal)
+            if (signal.aborted) reject(new Error('aborted'))
+            signal.addEventListener('abort', () => reject(new Error('aborted')))
+          }),
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      const testing = service.test({ id })
+      await vi.waitFor(() => expect(signals).toHaveLength(1))
+      expect(signals[0]?.aborted).toBe(false)
+      service.abortPending()
+      expect(await testing).toEqual({ ok: false, reason: 'unreachable' })
+      expect(signals[0]?.aborted).toBe(true)
+      await expect(service.createModel(id, 'sonnet')).rejects.toMatchObject({
+        reason: 'provider_error',
+      })
+    })
+
+    it('close() aborts a download in flight', async () => {
+      let signal: AbortSignal | undefined
+      const service = await makeService({
+        resolveExecutable: (s) =>
+          new Promise((_resolve, reject) => {
+            signal = s
+            s.addEventListener('abort', () => reject(new Error('aborted')))
+          }),
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      const testing = service.test({ id })
+      await vi.waitFor(() => expect(signal).toBeDefined())
+      await service.close()
+      expect(await testing).toEqual({ ok: false, reason: 'unreachable' })
     })
 
     it('reports a failed install as unreachable on test and a provider error on createModel', async () => {
