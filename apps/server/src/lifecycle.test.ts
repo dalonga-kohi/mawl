@@ -82,6 +82,41 @@ describe('installLifecycle', () => {
   )
 })
 
+describe('installLifecycle shutdown()', () => {
+  it('runs the same graceful stop as a signal and exits 0', async () => {
+    const stop = vi.fn(async () => {})
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const lines: string[] = []
+    const logger = createLogger({
+      level: 'info',
+      stream: { write: (c: string) => void lines.push(c) },
+    })
+    const { shutdown } = installLifecycle({ logger, stop, exit, proc })
+    shutdown('stdin_eof')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(lines.join('')).toContain('stdin_eof')
+  })
+
+  it('counts as the first signal: a later SIGTERM exits 1 at once', () => {
+    const stop = vi.fn(() => new Promise<void>(() => {}))
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const { shutdown } = installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+    })
+    shutdown('stdin_eof')
+    proc.emit('SIGTERM')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+})
+
 describe('stopAfterBoot', () => {
   function pending() {
     let resolve!: (s: { stop: () => Promise<void> }) => void

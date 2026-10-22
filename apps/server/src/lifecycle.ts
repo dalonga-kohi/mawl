@@ -23,6 +23,9 @@ const DEFAULT_DEADLINE_MS = 10_000
  * - First SIGINT/SIGTERM: graceful stop, exit 0; a 10 s deadline forces exit 1.
  * - A second signal exits 1 immediately.
  * - unhandledRejection / uncaughtException: log name and code only, exit 1.
+ *
+ * Returns `shutdown(reason)`, which starts the same graceful stop from code (the desktop parent
+ * watchdog on stdin EOF). It counts as the first signal.
  */
 export function installLifecycle({
   logger,
@@ -31,9 +34,10 @@ export function installLifecycle({
   proc,
   booted = Promise.resolve(),
   deadlineMs = DEFAULT_DEADLINE_MS,
-}: LifecycleDeps): void {
+}: LifecycleDeps): { shutdown(reason: string): void } {
   let shuttingDown = false
 
+  // signal is a signal name, or a reason such as stdin_eof from shutdown().
   const onSignal = (signal: string) => {
     if (shuttingDown) {
       logger.warn({ signal }, 'second signal, exiting now')
@@ -83,6 +87,7 @@ export function installLifecycle({
   proc.on('SIGTERM', () => onSignal('SIGTERM'))
   proc.on('unhandledRejection', onFatal('unhandledRejection'))
   proc.on('uncaughtException', onFatal('uncaughtException'))
+  return { shutdown: onSignal }
 }
 
 /**
