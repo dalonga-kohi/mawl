@@ -14,6 +14,7 @@ pub mod launch;
 pub mod logs;
 pub mod machine;
 pub mod port;
+pub mod presence;
 pub mod process;
 pub mod token;
 pub mod webview;
