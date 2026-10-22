@@ -79,9 +79,12 @@ try {
   # restricted token instead. Its handles are redirected to files so the call cannot hang on
   # inherited pipes, and only its exit code is read.
   $serverLog = Join-Path $Work 'postgres.log'
-  $ctl = Start-Process -FilePath "$pgroot\bin\pg_ctl.exe" -PassThru -Wait -WindowStyle Hidden `
+  $ctl = Start-Process -FilePath "$pgroot\bin\pg_ctl.exe" -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $Work 'pg_ctl.out.log') -RedirectStandardError (Join-Path $Work 'pg_ctl.err.log') `
     -ArgumentList 'start', '-w', '-t', '60', '-D', "`"$cluster`"", '-l', "`"$serverLog`"", '-o', "`"-p $Port -c listen_addresses=127.0.0.1`""
+  # No -Wait: Start-Process -Wait also waits for descendants, and postgres outlives pg_ctl by design.
+  # The timed WaitForExit watches pg_ctl alone, so a stuck start fails the job instead of hanging it.
+  if (-not $ctl.WaitForExit(90000)) { $ctl.Kill(); throw 'pg_ctl start did not return within 90 s' }
   $started = ($ctl.ExitCode -eq 0)
   if (-not $started) {
     # Postgres output is the only clue to why it did not come up, so print it before failing.

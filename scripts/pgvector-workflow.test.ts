@@ -84,6 +84,12 @@ describe('build-vector-msvc.ps1', () => {
     expect(script).toContain('$LASTEXITCODE -ne 0')
   })
 
+  it('bounds the Postgres start instead of waiting on its descendants', () => {
+    // Start-Process -Wait waits for postgres.exe too, which outlives pg_ctl, so the job would hang.
+    expect(script).not.toMatch(/Start-Process[^\n]*-Wait\b/)
+    expect(script).toMatch(/WaitForExit\(\d+\)/)
+  })
+
   it('downloads over HTTPS only', () => {
     expect(script).toContain("--proto '=https' --proto-redir '=https'")
     expect(script).not.toMatch(/http:\/\//)
