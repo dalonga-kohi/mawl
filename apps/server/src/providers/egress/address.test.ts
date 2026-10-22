@@ -30,6 +30,22 @@ describe('classifyAddress', () => {
     '::ffff:0.0.0.1',
     '64:ff9b::169.254.169.254',
     '64:ff9b::a9fe:a9fe',
+    // IPv4-compatible (deprecated ::a.b.c.d) forms read as their IPv4 too.
+    '::169.254.169.254',
+    '::a9fe:a9fe',
+    '::0.0.0.2',
+    // Tunnels that embed an IPv4 we would not see: 6to4, Teredo, local-use NAT64.
+    '2002:a9fe:a9fe::1',
+    '2002:c0a8:101::1',
+    '2001:0:4136:e378::1',
+    '2001::1',
+    '64:ff9b:1::a9fe:a9fe',
+    // Documentation ranges: never a real provider.
+    '192.0.2.10',
+    '198.51.100.7',
+    '203.0.113.200',
+    // Azure's wire server (metadata and agent channel).
+    '168.63.129.16',
   ])('blocks %s', (ip) => {
     expect(classifyAddress(ip)).toBe('blocked')
   })
@@ -53,6 +69,11 @@ describe('classifyAddress', () => {
     '::ffff:7f00:1',
     '::ffff:192.168.1.20',
     '64:ff9b::10.0.0.1',
+    '::10.0.0.1',
+    // IETF protocol assignments and the benchmarking range: not public, not metadata.
+    '192.0.0.1',
+    '198.18.0.1',
+    '198.19.255.255',
   ])('marks %s private (needs the owner opt-in)', (ip) => {
     expect(classifyAddress(ip)).toBe('private')
   })
@@ -70,6 +91,12 @@ describe('classifyAddress', () => {
     '2001:4860:4860::8888',
     '::ffff:8.8.8.8',
     '64:ff9b::8.8.8.8',
+    '::8.8.8.8',
+    '192.0.1.255',
+    '198.17.255.255',
+    '198.20.0.0',
+    '168.63.129.17',
+    '2001:db9::1',
   ])('marks %s public', (ip) => {
     expect(classifyAddress(ip)).toBe('public')
   })

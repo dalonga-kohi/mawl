@@ -22,6 +22,10 @@ const BLOCKED_V4 = list(
     ['100.100.100.200', 32], // Alibaba Cloud metadata, inside CGNAT space
     ['224.0.0.0', 4], // multicast
     ['240.0.0.0', 4], // reserved, broadcast
+    ['168.63.129.16', 32], // Azure wire server (metadata and agent channel)
+    ['192.0.2.0', 24], // documentation (TEST-NET-1)
+    ['198.51.100.0', 24], // documentation (TEST-NET-2)
+    ['203.0.113.0', 24], // documentation (TEST-NET-3)
   ],
   'ipv4',
 )
@@ -32,6 +36,8 @@ const PRIVATE_V4 = list(
     ['172.16.0.0', 12],
     ['192.168.0.0', 16],
     ['100.64.0.0', 10], // CGNAT, Tailscale
+    ['192.0.0.0', 24], // IETF protocol assignments
+    ['198.18.0.0', 15], // benchmarking
   ],
   'ipv4',
 )
@@ -41,6 +47,10 @@ const BLOCKED_V6 = list(
     ['fe80::', 10], // link-local
     ['fd00:ec2::', 32], // AWS instance metadata over IPv6
     ['ff00::', 8], // multicast
+    // Tunnels that carry an IPv4 we cannot vet: 6to4, Teredo, local-use NAT64.
+    ['2002::', 16],
+    ['2001::', 32],
+    ['64:ff9b:1::', 48],
   ],
   'ipv6',
 )
@@ -52,14 +62,20 @@ const PRIVATE_V6 = list(
   'ipv6',
 )
 
-/** The IPv4 address embedded in an IPv4-mapped (::ffff:a.b.c.d) or NAT64 (64:ff9b::a.b.c.d) one. */
+/**
+ * The IPv4 address embedded in an IPv4-mapped (::ffff:a.b.c.d), NAT64 (64:ff9b::a.b.c.d) or
+ * IPv4-compatible (::a.b.c.d, deprecated) one. `::` and `::1` are not compatible addresses.
+ */
 function embeddedV4(ip: string): string | undefined {
   // The URL parser prints IPv6 in one canonical form, dotted tails as two hex groups.
   const canonical = new URL(`http://[${ip}]`).hostname.slice(1, -1)
-  // A zero high group still prints (`::ffff:0:1`), so there are always two groups.
-  const match = /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical)
+  // Mapped and NAT64: a zero high group still prints (`::ffff:0:1`), so there are two groups.
+  // Compatible: a zero high group collapses into `::` (`::2` is 0.0.0.2).
+  const match =
+    /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical) ??
+    (canonical === '::1' ? null : /^::(?:([0-9a-f]{1,4}):)?([0-9a-f]{1,4})$/.exec(canonical))
   if (!match) return undefined
-  const high = Number.parseInt(match[1] as string, 16)
+  const high = Number.parseInt(match[1] ?? '0', 16)
   const low = Number.parseInt(match[2] as string, 16)
   return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.')
 }
