@@ -347,6 +347,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             port,
             fixed_port: dev,
             token,
+            // The master key lives in Windows Credential Manager (target `Mawl/master-key`).
+            key_store: mawl_host::master_key::system_store(),
         },
         TauriUi {
             app: app.clone(),

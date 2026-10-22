@@ -13,6 +13,7 @@ use crate::health::{probe, PROBE_TIMEOUT};
 use crate::launch::{LaunchError, ServerCommand};
 use crate::logs::{stage_hint, LogRing, Source};
 use crate::machine::{Effect, Event, Gen, Health, Machine, Status, Timer};
+use crate::master_key::{self, KeyOrigin, KeyStore};
 use crate::port;
 use crate::process::{read_lines, ServerProcess};
 use crate::token::LaunchToken;
@@ -40,6 +41,9 @@ pub struct SupervisorConfig {
     /// Development: Vite proxies to this exact port, so never move it.
     pub fixed_port: bool,
     pub token: LaunchToken,
+    /// Where the master key lives (Windows Credential Manager; tests use a memory store). Read
+    /// before every spawn, so a store that failed once is tried again on the restart.
+    pub key_store: Arc<dyn KeyStore>,
 }
 
 enum Msg {
@@ -332,7 +336,33 @@ impl<U: HostUi> Driver<U> {
         if let Err(err) = std::fs::create_dir_all(&self.config.data_dir) {
             self.note(&format!("cannot create the data folder: {err}"));
         }
-        match ServerProcess::spawn(&command, &env, &self.config.data_dir, &self.config.token) {
+        let key = match master_key::resolve(self.config.key_store.as_ref(), &self.config.data_dir) {
+            Ok((key, origin)) => {
+                // Before the key goes anywhere the server's output could echo it.
+                lock(&self.shared.ring).redact_key(&key);
+                match origin {
+                    KeyOrigin::Stored => {}
+                    KeyOrigin::Imported => self.note(
+                        "master key copied from secrets\\master.key into Windows Credential Manager",
+                    ),
+                    KeyOrigin::Generated => {
+                        self.note("new master key created in Windows Credential Manager")
+                    }
+                }
+                key
+            }
+            Err(err) => {
+                self.note(&format!("cannot get the master key: {err}"));
+                return Some(Event::SpawnFailed(gen));
+            }
+        };
+        match ServerProcess::spawn(
+            &command,
+            &env,
+            &self.config.data_dir,
+            &self.config.token,
+            &key,
+        ) {
             Ok(mut process) => {
                 self.note(&format!(
                     "server started (pid {}, port {port})",

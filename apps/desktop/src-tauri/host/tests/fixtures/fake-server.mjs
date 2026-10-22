@@ -1,9 +1,10 @@
 // A stand-in for mawl-server in the supervisor's integration tests. It keeps the host contract:
-// the launch token on stdin's first line, stdin EOF means "shut down", /healthz on MAWL_PORT.
+// the launch token on stdin's first line and the master key on its second, stdin EOF means
+// "shut down", /healthz on MAWL_PORT.
 // The test picks a behavior by writing `behavior` into the working directory (the data dir),
 // because the supervisor clears the environment.
 import { spawn } from 'node:child_process'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 
@@ -13,13 +14,14 @@ const log = (msg, extra = {}) =>
 
 let buffered = ''
 let token
+let key
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', (chunk) => {
-  if (token !== undefined) return
+  if (key !== undefined) return
   buffered += chunk
-  const end = buffered.indexOf('\n')
-  if (end < 0) return
-  token = buffered.slice(0, end)
+  const lines = buffered.split('\n')
+  if (lines.length < 3) return
+  ;[token, key] = lines
   boot()
 })
 process.stdin.on('end', () => {
@@ -33,6 +35,7 @@ let server
 function boot() {
   // A careless dependency printing the token: the host must redact it.
   process.stderr.write(`warning: token=${token}\n`)
+  process.stderr.write(`warning: key=${key}\n`)
   log('env', {
     mode: process.env.MAWL_MODE,
     host: process.env.MAWL_HOST,
@@ -41,6 +44,9 @@ function boot() {
     nodeOptions: process.env.NODE_OPTIONS ?? null,
     secret: process.env.OPENAI_API_KEY ?? null,
     tokenLength: token.length,
+    keyLength: key.length,
+    // Proves which key arrived without printing it.
+    keySha256: createHash('sha256').update(key).digest('hex'),
   })
   if (behavior === 'crash-once' && !existsSync('crashed')) {
     writeFileSync('crashed', '1')

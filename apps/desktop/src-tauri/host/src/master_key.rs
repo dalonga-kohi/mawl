@@ -227,6 +227,14 @@ impl MemoryStore {
         store
     }
 
+    /// A store whose every call fails with `kind`.
+    pub fn failing(kind: io::ErrorKind) -> Self {
+        Self {
+            fail: Some(kind),
+            ..Self::default()
+        }
+    }
+
     pub fn entry(&self) -> Option<Vec<u8>> {
         self.entry.lock().unwrap().clone()
     }
@@ -251,14 +259,14 @@ impl KeyStore for MemoryStore {
 }
 
 /// The platform's store: Windows Credential Manager, or a store that always fails elsewhere.
-pub fn system_store() -> Box<dyn KeyStore> {
+pub fn system_store() -> std::sync::Arc<dyn KeyStore> {
     #[cfg(windows)]
     {
-        Box::new(credman::CredentialManager::new(CREDENTIAL_TARGET))
+        std::sync::Arc::new(credman::CredentialManager::new(CREDENTIAL_TARGET))
     }
     #[cfg(not(windows))]
     {
-        Box::new(Unsupported)
+        std::sync::Arc::new(Unsupported)
     }
 }
 
