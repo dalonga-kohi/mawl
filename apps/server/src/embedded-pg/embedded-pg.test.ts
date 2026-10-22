@@ -255,12 +255,29 @@ describe('startEmbeddedPostgres', () => {
   it('stops postgres and fails with data_dir_corrupt when the stored password is rejected', async () => {
     await warmCluster()
     const h = harness({ probe: async () => 'auth_failed' })
-    await expect(startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps })).rejects.toMatchObject({
+    await expect(
+      startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps, authGraceMs: 100 }),
+    ).rejects.toMatchObject({
       code: 'data_dir_corrupt',
     })
     const [postgres] = h.spawn.of('postgres')
     expect(postgres?.exitCode).toBe(0)
     expect(h.spawn.of('pg_ctl')).toHaveLength(1)
+  })
+
+  it('treats a password rejection from a foreign server on a lost port as a port race', async () => {
+    await warmCluster()
+    // Our postgres lost the port and exits a moment after the probe reached whoever holds it.
+    const h = harness({
+      busy: new Set([5501]),
+      postgres: (child) => {
+        if (child.args.includes('5501')) setTimeout(() => child.exit(1), 20)
+      },
+      probe: async (conn) => (conn.port === 5501 ? 'auth_failed' : 'ready'),
+    })
+    const pg = await startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps })
+    expect(pg.port).toBe(5502)
+    await pg.stop()
   })
 
   it('keeps the latest output for diagnostics', async () => {

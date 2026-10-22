@@ -69,6 +69,7 @@ const optionsSchema = z.object({
   initdbTimeoutMs: z.number().int().positive().default(120_000),
   maxPortAttempts: z.number().int().min(1).max(20).default(3),
   pollIntervalMs: z.number().int().positive().default(100),
+  authGraceMs: z.number().int().positive().default(1_500),
 })
 
 export interface StartOptions {
@@ -86,6 +87,8 @@ export interface StartOptions {
   initdbTimeoutMs?: number
   maxPortAttempts?: number
   pollIntervalMs?: number
+  /** How long a postgres whose password was rejected gets to show it lost a port race. */
+  authGraceMs?: number
   deps?: Partial<EmbeddedPgDeps>
 }
 
@@ -249,7 +252,7 @@ async function waitUntilReady({
   deps: EmbeddedPgDeps
   exited: Promise<ExitInfo>
   conn: PgConnection
-  opts: { startTimeoutMs: number; pollIntervalMs: number }
+  opts: { startTimeoutMs: number; pollIntervalMs: number; authGraceMs: number }
 }): Promise<ReadyOutcome> {
   let exit: ExitInfo | undefined
   void exited.then((info) => {
@@ -261,7 +264,13 @@ async function waitUntilReady({
     const result = await deps.probe(conn)
     if (exit) return { kind: 'exited', exit }
     if (result === 'ready') return { kind: 'ready' }
-    if (result === 'auth_failed') return { kind: 'auth_failed' }
+    if (result === 'auth_failed') {
+      // If our postgres lost the port race, the probe may have reached whoever holds the port
+      // (another Postgres rejects our password). Ours then exits within moments: give it the
+      // chance before blaming the data dir.
+      const late = await withTimeout(exited, opts.authGraceMs, deps.clock)
+      return isTimedOut(late) ? { kind: 'auth_failed' } : { kind: 'exited', exit: late }
+    }
     if (deps.clock.now() >= deadline) return { kind: 'timeout' }
     await deps.clock.sleep(opts.pollIntervalMs)
   }
