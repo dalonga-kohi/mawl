@@ -16,6 +16,7 @@ pub mod launch;
 pub mod logs;
 pub mod machine;
 pub mod markers;
+pub mod master_key;
 pub mod notice;
 pub mod port;
 pub mod presence;
