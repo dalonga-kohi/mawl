@@ -120,7 +120,9 @@ export async function startServer(
   // database opens, so a bad file leaves nothing to close.
   const hostId = await loadOrCreateHostId(config.secretsDir)
 
-  const handle = (overrides.createDb ?? createDb)(config.databaseUrl, {
+  const databaseUrl = config.databaseUrl
+  if (!databaseUrl) throw new Error('embedded Postgres is not wired into boot yet')
+  const handle = (overrides.createDb ?? createDb)(databaseUrl, {
     // Idle client errors must not crash the process. Name and code only: messages can hold the url.
     onError: (err) =>
       logger.error(
@@ -153,7 +155,7 @@ export async function startServer(
     if (overrides.events !== false) {
       live = createLiveEvents({
         db: handle.db,
-        source: createPgSource(config.databaseUrl),
+        source: createPgSource(databaseUrl),
         logger,
       })
       await live.start()
