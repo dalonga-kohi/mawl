@@ -103,6 +103,12 @@ impl Supervisor {
         let _ = self.tx.send(Msg::Event(Event::Stop));
     }
 
+    /// The PC woke from sleep: check the server's health now. The state of the last probe and the
+    /// sockets from before the sleep may be stale.
+    pub fn probe_now(&self) {
+        let _ = self.tx.send(Msg::Event(Event::ProbeNow));
+    }
+
     /// "Try again" after the server failed for good.
     pub fn retry(&self) {
         let _ = self.tx.send(Msg::Event(Event::Retry));
@@ -127,6 +133,13 @@ impl Supervisor {
         lines.push(format!("Port: {}", self.port()));
         lock(&self.shared.ring).diagnostics(&lines)
     }
+}
+
+/// Arms 	imer at t. An identical pending timer is replaced, so an extra probe (after a
+/// wake from sleep) cannot leave two probe cadences running side by side.
+fn arm(timers: &mut Vec<(Instant, Timer)>, at: Instant, timer: Timer) {
+    timers.retain(|(_, pending)| *pending != timer);
+    timers.push((at, timer));
 }
 
 struct Driver<U: HostUi> {
@@ -242,10 +255,11 @@ impl<U: HostUi> Driver<U> {
                     }
                 }
             }
-            Effect::SetTimer { timer, after_ms } => {
-                self.timers
-                    .push((Instant::now() + Duration::from_millis(after_ms), timer));
-            }
+            Effect::SetTimer { timer, after_ms } => arm(
+                &mut self.timers,
+                Instant::now() + Duration::from_millis(after_ms),
+                timer,
+            ),
             Effect::Status(status) => {
                 *lock(&self.shared.status) = status;
                 if let Status::Restarting {
@@ -333,5 +347,22 @@ impl<U: HostUi> Driver<U> {
                 Some(Event::SpawnFailed(gen))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arming_a_timer_again_replaces_the_pending_one() {
+        let now = Instant::now();
+        let mut timers = Vec::new();
+        arm(&mut timers, now + Duration::from_secs(5), Timer::Probe(1));
+        arm(&mut timers, now + Duration::from_secs(1), Timer::Probe(2));
+        arm(&mut timers, now + Duration::from_secs(7), Timer::Probe(1));
+        assert_eq!(timers.len(), 2);
+        assert!(timers.contains(&(now + Duration::from_secs(7), Timer::Probe(1))));
+        assert!(timers.contains(&(now + Duration::from_secs(1), Timer::Probe(2))));
     }
 }
