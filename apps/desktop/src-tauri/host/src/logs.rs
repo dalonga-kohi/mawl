@@ -2,9 +2,9 @@
 //!
 //! The server already censors the launch token and the master key in its own log lines; the ring
 //! redacts them again, because stderr (a crash trace, a Node warning) bypasses the server's logger.
-//! Redaction only catches a whole secret, so it relies on its callers never splitting one: `process::read_lines`
-//! carries the tail of a cut 64 KiB piece into the next piece, and `push` redacts before it cuts
-//! a line to [`MAX_LINE_BYTES`].
+//! Redaction only catches a whole token or key, so it relies on its callers never splitting one:
+//! `process::read_lines` carries the tail of a cut 64 KiB piece into the next piece, and `push`
+//! redacts both before it cuts a line to [`MAX_LINE_BYTES`].
 
 use std::collections::VecDeque;
 
