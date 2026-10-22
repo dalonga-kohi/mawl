@@ -205,10 +205,8 @@ export function createRouter({ version, providers, runs, events, profiles, user 
           if (err instanceof CredentialUnreadableError) {
             throw errors.CREDENTIAL_UNREADABLE({ data: { id: err.id } })
           }
-          // A plain ORPCError like SIGN_IN_UNAVAILABLE: the owner waits a moment and checks again.
-          if (err instanceof ProviderTestRateLimitedError) {
-            throw new ORPCError('RATE_LIMITED', { status: 429 })
-          }
+          // Typed in the contract: the owner waits a moment and checks again.
+          if (err instanceof ProviderTestRateLimitedError) throw errors.RATE_LIMITED()
           return notFound(errors)(err)
         }),
       ),

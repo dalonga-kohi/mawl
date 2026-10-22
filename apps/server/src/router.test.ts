@@ -125,6 +125,8 @@ describe('providers procedures', () => {
     await expect(call(limited.providers.test, { id: CRED })).rejects.toMatchObject({
       code: 'RATE_LIMITED',
       status: 429,
+      // Declared in the contract, so typed clients can tell it apart.
+      defined: true,
     })
   })
 

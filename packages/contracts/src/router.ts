@@ -182,6 +182,8 @@ export const contract = {
       .errors({
         // The stored key cannot be decrypted, e.g. the server's master key changed.
         CREDENTIAL_UNREADABLE: { status: 409, data: z.object({ id: CredentialId }) },
+        // Too many checks in a short time (a small per-process bucket); wait and try again.
+        RATE_LIMITED: { status: 429 },
       })
       .input(ProviderTestInput)
       .output(ProviderTestResult),

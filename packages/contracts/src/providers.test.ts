@@ -150,6 +150,10 @@ describe('providers router contract', () => {
     )
   })
 
+  it('test declares RATE_LIMITED (429) for the per-process check bucket', () => {
+    expect(contract.providers.test['~orpc'].errorMap).toHaveProperty('RATE_LIMITED.status', 429)
+  })
+
   it('delete and test declare NOT_FOUND', () => {
     expect(Object.keys(contract.providers.delete['~orpc'].errorMap)).toContain('NOT_FOUND')
     expect(Object.keys(contract.providers.test['~orpc'].errorMap)).toContain('NOT_FOUND')
