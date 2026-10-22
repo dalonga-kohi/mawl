@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
+import { open, unlink } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -154,6 +154,25 @@ async function checkHostKey(
 }
 
 /**
+ * Best effort before the delete: overwrite the key with zeros and flush, so the bytes are less
+ * likely to linger in free disk blocks (no guarantee on SSDs or copy-on-write filesystems). Any
+ * failure is ignored; the delete still runs and reports its own failure.
+ */
+async function overwriteWithZeros(file: string): Promise<void> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(file, 'r+')
+    const { size } = await handle.stat()
+    await handle.write(Buffer.alloc(size), 0, size, 0)
+    await handle.sync()
+  } catch {
+    // Ignored on purpose (see above).
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+/**
  * The migration's last step: the old key file goes once the key it holds is in Credential Manager
  * (the host read it back) and decrypted a stored secret (or none exists yet). A failed delete only
  * warns, with the error code: the key is safe, and the next boot tries again.
@@ -163,6 +182,7 @@ async function retireKeyFile(
   remove: (path: string) => Promise<void>,
   logger: Logger,
 ): Promise<void> {
+  await overwriteWithZeros(file)
   try {
     await remove(file)
     logger.info({ file }, 'master key moved to Windows Credential Manager; deleted the old file')

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CreateDbOptions, DbHandle } from '@mawl/db'
@@ -399,6 +399,47 @@ describe('startServer with the master key from the desktop host', () => {
       }),
     ).rejects.toThrow(/exactly 32 bytes/)
     expect((await readFile(keyFile())).length).toBe(5)
+  })
+
+  it('migration: overwrites master.key with zeros before deleting it', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    let atUnlink: Buffer | undefined
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'verified',
+      unlinkKeyFile: async (path) => {
+        atUnlink = await readFile(path)
+        await rm(path)
+      },
+    })
+    await server.stop()
+    expect(atUnlink?.length).toBe(32)
+    expect(atUnlink?.every((b) => b === 0)).toBe(true)
+    expect(await exists(keyFile())).toBe(false)
+  })
+
+  it('migration: still deletes master.key when overwriting it fails', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    await chmod(keyFile(), 0o444)
+    let deleted = false
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'verified',
+      unlinkKeyFile: async (path) => {
+        await chmod(path, 0o666)
+        await rm(path)
+        deleted = true
+      },
+    })
+    await server.stop()
+    expect(deleted).toBe(true)
+    expect(await exists(keyFile())).toBe(false)
   })
 
   it('still boots when an equal master.key cannot be deleted, and says so', async () => {
