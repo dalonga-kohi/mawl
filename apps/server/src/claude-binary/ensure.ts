@@ -14,8 +14,10 @@ import {
 import { join, posix } from 'node:path'
 import { finished } from 'node:stream/promises'
 import { list } from 'tar'
+import { z } from 'zod'
 import type { Logger } from '../logger.ts'
 import { type ClaudeBinaryManifest, platformKey } from './manifest.ts'
+import { retryTransient } from './retry.ts'
 
 export type ClaudeBinaryErrorCode =
   | 'unsupported_platform'
@@ -61,11 +63,14 @@ export interface EnsureClaudeBinaryOptions {
   maxBinaryBytes?: number
   /** Whole-download deadline. Defaults to 10 minutes. */
   timeoutMs?: number
+  /** Cap on entries read from the tarball. Defaults to 10 000 (the real one has a handful). */
+  maxEntries?: number
 }
 
 const DEFAULT_MAX_DOWNLOAD = 400 * 1024 * 1024
 const DEFAULT_MAX_BINARY = 1024 * 1024 * 1024
 const DEFAULT_TIMEOUT_MS = 10 * 60_000
+const DEFAULT_MAX_ENTRIES = 10_000
 const MARKER = '.verified'
 
 const noopLogger = { info: () => {}, warn: () => {} }
@@ -74,6 +79,8 @@ interface Flight {
   promise: Promise<string>
   controller: AbortController
   waiters: number
+  /** Every caller aborted: the install is winding down and must not take new callers. */
+  dying: boolean
 }
 /** Installs under way in this process, by target directory. */
 const flights = new Map<string, Flight>()
@@ -111,16 +118,31 @@ export function ensureClaudeBinary(opts: EnsureClaudeBinaryOptions): Promise<str
   const target = join(finalDir, isWin ? 'claude.exe' : 'claude')
 
   let flight = flights.get(finalDir)
+  if (flight?.dying) {
+    // Let the aborted install finish its cleanup, then start (or join) a fresh one.
+    return flight.promise.then(
+      () => ensureClaudeBinary(opts),
+      () => ensureClaudeBinary(opts),
+    )
+  }
   if (!flight) {
     const controller = new AbortController()
     const created: Flight = {
       controller,
       waiters: 0,
-      promise: install({ ...opts, controller, root, finalDir, target, isWin, pkg, key }).finally(
-        () => {
-          if (flights.get(finalDir) === created) flights.delete(finalDir)
-        },
-      ),
+      dying: false,
+      promise: installSafely({
+        ...opts,
+        controller,
+        root,
+        finalDir,
+        target,
+        isWin,
+        pkg,
+        key,
+      }).finally(() => {
+        if (flights.get(finalDir) === created) flights.delete(finalDir)
+      }),
     }
     // Waiters handle the outcome; this keeps an abandoned flight from becoming unhandled.
     created.promise.catch(() => {})
@@ -143,7 +165,10 @@ function wait(flight: Flight, signal: AbortSignal | undefined): Promise<string> 
     }
     const onAbort = () => {
       if (!leave()) return
-      if (flight.waiters === 0) flight.controller.abort()
+      if (flight.waiters === 0) {
+        flight.dying = true
+        flight.controller.abort()
+      }
       reject(new ClaudeBinaryError('aborted', 'Claude binary install was cancelled'))
     }
     signal?.addEventListener('abort', onAbort, { once: true })
@@ -168,13 +193,37 @@ interface InstallContext extends EnsureClaudeBinaryOptions {
   key: string
 }
 
-/** True when `<finalDir>` holds the binary that was verified against this integrity. */
+/** What `.verified` holds: the tarball integrity the binary came from and the binary's size. */
+const Marker = z.strictObject({ integrity: z.string(), size: z.number().int().nonnegative() })
+
+/**
+ * True when `<finalDir>` holds a regular file of the size that was verified against this
+ * integrity. The binary is not re-hashed (277 MB); the marker and size catch a half-written or
+ * swapped file, not a deliberate edit by someone who already owns the data dir.
+ */
 async function isInstalled({ finalDir, target, pkg }: InstallContext): Promise<boolean> {
   try {
-    const [marker] = await Promise.all([readFile(join(finalDir, MARKER), 'utf8'), stat(target)])
-    return marker === pkg.integrity
+    const marker = Marker.parse(JSON.parse(await readFile(join(finalDir, MARKER), 'utf8')))
+    const info = await stat(target)
+    return info.isFile() && marker.integrity === pkg.integrity && marker.size === info.size
   } catch {
     return false
+  }
+}
+
+const cancelled = (cause?: unknown) =>
+  new ClaudeBinaryError('aborted', 'Claude binary install was cancelled', { cause })
+
+/** Any failure that is not already typed (fs errors name paths) becomes a generic extract_failed. */
+async function installSafely(ctx: InstallContext): Promise<string> {
+  try {
+    return await install(ctx)
+  } catch (err) {
+    if (err instanceof ClaudeBinaryError) throw err
+    if (ctx.controller.signal.aborted) throw cancelled(err)
+    throw new ClaudeBinaryError('extract_failed', 'The Claude binary could not be installed', {
+      cause: err,
+    })
   }
 }
 
@@ -192,12 +241,20 @@ async function install(ctx: InstallContext): Promise<string> {
     const bytes = await download(ctx, tarball)
     await mkdir(staging, { recursive: true })
     ctx.onProgress?.({ phase: 'extract', bytes })
-    await extractBinary(ctx, tarball, join(staging, ctx.isWin ? 'claude.exe' : 'claude'))
-    await writeFile(join(staging, MARKER), ctx.pkg.integrity)
+    if (ctx.controller.signal.aborted) throw cancelled()
+    const staged = join(staging, ctx.isWin ? 'claude.exe' : 'claude')
+    await extractBinary(ctx, tarball, staged)
+    const marker: z.infer<typeof Marker> = {
+      integrity: ctx.pkg.integrity,
+      size: (await stat(staged)).size,
+    }
+    await writeFile(join(staging, MARKER), JSON.stringify(marker))
+    if (ctx.controller.signal.aborted) throw cancelled()
     // A broken or foreign previous install is replaced; a good one that appeared meanwhile wins.
-    await rm(ctx.finalDir, { recursive: true, force: true })
+    // Windows can hold a fresh file for a moment (antivirus, indexer), hence the retries.
+    await retryTransient(() => rm(ctx.finalDir, { recursive: true, force: true }))
     try {
-      await rename(staging, ctx.finalDir)
+      await retryTransient(() => rename(staging, ctx.finalDir))
     } catch (err) {
       if (!(await isInstalled(ctx))) {
         throw new ClaudeBinaryError(
@@ -225,7 +282,12 @@ async function install(ctx: InstallContext): Promise<string> {
   }
 }
 
-/** Removes downloads and staging dirs a crashed run left behind. One server owns a data dir. */
+/**
+ * Removes downloads and staging dirs a crashed run left behind. This assumes one Mawl server per
+ * data dir (true in desktop mode: the host allows a single instance); a second process installing
+ * into the same dir would have its work deleted. In-process installs never overlap here because
+ * `flights` serialises them per version and a dying flight is awaited before a new one starts.
+ */
 async function sweepLeftovers(root: string): Promise<void> {
   for (const name of await readdir(root).catch(() => [])) {
     if (name.startsWith('.download-') || name.includes('.staging-')) {
@@ -281,7 +343,9 @@ async function download(ctx: InstallContext, file: string): Promise<number> {
     } catch (err) {
       fail(err)
     }
-    if (total !== undefined && received !== total) {
+    // A content-encoded body is decoded on the way in, so its length differs from the header;
+    // the sha512 check below still catches any truncation.
+    if (total !== undefined && !res.headers.has('content-encoding') && received !== total) {
       throw new ClaudeBinaryError('download_failed', 'The Claude binary download was cut short')
     }
   } finally {
@@ -323,6 +387,8 @@ async function extractBinary(ctx: InstallContext, tarball: string, dest: string)
   let written: Promise<void> | undefined
   let expected = 0
   let count = 0
+  let seen = 0
+  const maxEntries = ctx.maxEntries ?? DEFAULT_MAX_ENTRIES
 
   try {
     await list({
@@ -334,7 +400,10 @@ async function extractBinary(ctx: InstallContext, tarball: string, dest: string)
           entry.resume()
           return
         }
-        if (isUnsafePath(path)) problem = 'an entry has an unsafe path'
+        // Inflation of skipped entries is bounded by tar's own decompression-ratio guard (and the
+        // 400 MB download cap); this bounds the number of headers walked.
+        if (++seen > maxEntries) problem = 'the archive has too many entries'
+        else if (isUnsafePath(path)) problem = 'an entry has an unsafe path'
         else if (entry.type === 'SymbolicLink' || entry.type === 'Link') {
           problem = 'the archive contains a link'
         } else if (posix.normalize(path.replaceAll('\\', '/')) === wanted) {

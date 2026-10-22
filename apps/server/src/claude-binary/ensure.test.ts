@@ -446,3 +446,95 @@ describe('ensureClaudeBinary', () => {
     ).toBe('download_failed')
   })
 })
+
+describe('ensureClaudeBinary: review fixes', () => {
+  const slowAbortable = () =>
+    vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        }),
+    )
+
+  it('a call right after the last waiter aborted starts a fresh install instead of joining the dying one', async () => {
+    const tarball = goodTarball()
+    const manifest = manifestFor(tarball)
+    const dying = slowAbortable()
+    const controller = new AbortController()
+    const first = ensureClaudeBinary({
+      dataDir,
+      manifest,
+      ...win,
+      fetch: dying,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(dying).toHaveBeenCalled())
+    controller.abort()
+    const fresh = fakeFetch(tarball)
+    const second = ensureClaudeBinary({ dataDir, manifest, ...win, fetch: fresh })
+    expect(await errorCode(first)).toBe('aborted')
+    expect(await readFile(await second, 'utf8')).toBe(BINARY)
+    expect(fresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('turns an unexpected fs failure into extract_failed without naming a path', async () => {
+    const tarball = goodTarball()
+    const blocker = join(dataDir, 'not-a-dir')
+    await writeFile(blocker, 'file')
+    const err = await ensureClaudeBinary({
+      dataDir: blocker,
+      manifest: manifestFor(tarball),
+      ...win,
+      fetch: fakeFetch(tarball),
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    )
+    expect(err).toBeInstanceOf(ClaudeBinaryError)
+    expect((err as ClaudeBinaryError).code).toBe('extract_failed')
+    expect(err?.message).not.toContain(dataDir)
+  })
+
+  it('reinstalls when the installed binary has a different size than the verified one', async () => {
+    const tarball = goodTarball()
+    const manifest = manifestFor(tarball)
+    const path = await ensureClaudeBinary({ dataDir, manifest, ...win, fetch: fakeFetch(tarball) })
+    await writeFile(path, 'swapped-for-something-else')
+    const fetch = fakeFetch(tarball)
+    await ensureClaudeBinary({ dataDir, manifest, ...win, fetch })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(await readFile(path, 'utf8')).toBe(BINARY)
+  })
+
+  it('does not insist on content-length when the response is content-encoded', async () => {
+    const tarball = goodTarball()
+    const fetch = fakeFetch(tarball, {
+      headers: { 'content-encoding': 'gzip', 'content-length': String(tarball.length - 7) },
+    })
+    const path = await ensureClaudeBinary({
+      dataDir,
+      manifest: manifestFor(tarball),
+      ...win,
+      fetch,
+    })
+    expect(await readFile(path, 'utf8')).toBe(BINARY)
+  })
+
+  it('refuses a tarball with more entries than the cap', async () => {
+    const tarball = makeTarball([
+      ...Array.from({ length: 20 }, (_, i) => ({ path: `package/f${i}`, data: 'x' })),
+      { path: 'package/claude.exe', data: BINARY },
+    ])
+    expect(
+      await errorCode(
+        ensureClaudeBinary({
+          dataDir,
+          manifest: manifestFor(tarball),
+          ...win,
+          fetch: fakeFetch(tarball),
+          maxEntries: 10,
+        }),
+      ),
+    ).toBe('extract_failed')
+  })
+})
