@@ -3,6 +3,8 @@ import type { Duplex } from 'node:stream'
 import { ORPCError, onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/ws'
 import { type WebSocket, WebSocketServer } from 'ws'
+import { OWNER } from '../auth/principal.ts'
+import { protocolToken, tokenMatches, WS_PROTOCOL } from '../auth/token.ts'
 import type { Logger } from '../logger.ts'
 import type { createRouter, RouterContext } from '../router.ts'
 import { checkHost } from './host.ts'
@@ -26,6 +28,8 @@ export interface WsHubOptions {
   allowedOrigins?: readonly string[] | undefined
   /** The address the server listens on; its name is an accepted Host. Defaults to 127.0.0.1. */
   bindHost?: string | undefined
+  /** The token the upgrade must offer as the `mawl.token.<token>` subprotocol. Required. */
+  authToken: string
   /** How long close() waits for clients to answer the close frame before dropping them. */
   closeGraceMs?: number
   pingIntervalMs?: number
@@ -47,13 +51,19 @@ function reject(socket: Duplex, status: number, text: string): void {
 
 /**
  * Serves the oRPC router over WebSocket on the HTTP server's `upgrade` event, at `/ws` only.
- * Each socket carries its own connection state (the subscription cap). Authentication is the
- * device pairing of P6.1; until then the Origin check is the only gate for browsers.
+ * Each socket carries its own connection state (the subscription cap). Checks, in order: path,
+ * Host (DNS rebinding), Origin (browsers), the auth token subprotocol, then the connection cap.
  */
 export function attachWsHub(options: WsHubOptions): WsHub {
   const { server, logger } = options
   const allowed = options.allowedOrigins ?? []
-  const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD })
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: WS_MAX_PAYLOAD,
+    // Echo mawl.v1 only. Without this, ws selects the first offered protocol, which could be the
+    // token. onUpgrade has already refused any handshake that does not offer mawl.v1.
+    handleProtocols: (protocols) => (protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false),
+  })
   const handler = new RPCHandler<RouterContext>(options.router, {
     // Procedure path and error code only, as on the HTTP transport.
     clientInterceptors: [
@@ -113,6 +123,14 @@ export function attachWsHub(options: WsHubOptions): WsHub {
       logger.warn({ reason: verdict.reason, origin: origin?.slice(0, 200) }, 'upgrade rejected')
       return void reject(socket, 403, 'Forbidden')
     }
+    // Last of the checks, before the handshake completes. Browsers cannot set headers on a
+    // WebSocket, so the token arrives as a subprotocol; never from the url or another header.
+    const presented = protocolToken(req.headers['sec-websocket-protocol'])
+    if (!tokenMatches(presented, options.authToken)) {
+      // Missing and wrong look the same, to the client and in the log.
+      logger.warn({ reason: 'unauthorized' }, 'upgrade rejected')
+      return void reject(socket, 401, 'Unauthorized')
+    }
 
     if (wss.clients.size >= maxConnections) {
       logger.warn(
@@ -126,7 +144,10 @@ export function attachWsHub(options: WsHubOptions): WsHub {
       alive.add(ws)
       ws.on('pong', () => alive.add(ws))
       ws.on('error', (err) => logger.debug({ errName: err.name }, 'websocket error'))
-      void handler.upgrade(ws, { context: { connection: newConnectionState() } })
+      // Only reached with the right token: the socket acts for the owner.
+      void handler.upgrade(ws, {
+        context: { connection: newConnectionState(), principal: OWNER },
+      })
     })
   }
   server.on('upgrade', onUpgrade)

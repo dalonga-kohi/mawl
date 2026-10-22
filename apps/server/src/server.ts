@@ -259,6 +259,7 @@ export async function startServer(
         logger,
         allowedOrigins: config.allowedOrigins,
         bindHost: config.host,
+        authToken,
       })
     }
   } catch (err) {

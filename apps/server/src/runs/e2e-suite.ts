@@ -12,6 +12,7 @@ import type { ContractRouterClient } from '@orpc/contract'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
+import { TEST_AUTH_HEADERS, TEST_AUTH_TOKEN, TEST_WS_PROTOCOLS } from '../auth/test-util.ts'
 import { createLogger } from '../logger.ts'
 import { type RunningServer, startServer } from '../server.ts'
 import { createRunStore } from './store.ts'
@@ -59,11 +60,14 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
           siwcPort: 1455,
           siwcHost: '127.0.0.1',
           logLevel: 'silent',
+          ownerToken: TEST_AUTH_TOKEN,
         },
         { logger, resolveModel: async () => model() },
       )
       servers.push(server)
-      const client: Client = createORPCClient(new RPCLink({ url: `${server.url}/rpc` }))
+      const client: Client = createORPCClient(
+        new RPCLink({ url: `${server.url}/rpc`, headers: TEST_AUTH_HEADERS }),
+      )
       return { server, client }
     }
 
@@ -143,7 +147,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
       const { resolved } = fake([{ text: 'Hello from the fake model' }], 25)
       const { client, server } = await boot(url, () => resolved)
 
-      const ws = new WebSocket(`${server.url.replace('http', 'ws')}/ws`)
+      const ws = new WebSocket(`${server.url.replace('http', 'ws')}/ws`, TEST_WS_PROTOCOLS)
       try {
         const live: Client = createORPCClient(new WsLink({ websocket: ws as never }))
         const stream = await live.events.subscribe({ topics: ['profile:*'] })
@@ -176,6 +180,7 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
           siwcPort: 1455,
           siwcHost: '127.0.0.1',
           logLevel: 'silent',
+          ownerToken: TEST_AUTH_TOKEN,
         },
         {
           logger: createLogger({ level: 'silent' }),
@@ -185,7 +190,9 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
         },
       )
       servers.push(server)
-      const client: Client = createORPCClient(new RPCLink({ url: `${server.url}/rpc` }))
+      const client: Client = createORPCClient(
+        new RPCLink({ url: `${server.url}/rpc`, headers: TEST_AUTH_HEADERS }),
+      )
       const started = await client.runs.start({ profileId, prompt: 'hi' })
       await vi.waitFor(
         async () => {
