@@ -341,7 +341,7 @@ describe('ensureClaudeBinary', () => {
     const root = join(dataDir, 'claude')
     await mkdir(join(root, '9.9.9.staging-dead'), { recursive: true })
     await writeFile(join(root, '9.9.9.staging-dead', 'claude.exe'), 'partial')
-    await writeFile(join(root, '.download-dead.tgz'), 'partial')
+    await writeFile(join(root, '.download-9.9.9@dead.tgz'), 'partial')
     await ensureClaudeBinary({
       dataDir,
       manifest: manifestFor(tarball),
@@ -536,5 +536,27 @@ describe('ensureClaudeBinary: review fixes', () => {
         }),
       ),
     ).toBe('extract_failed')
+  })
+})
+
+describe('ensureClaudeBinary: sweep scope', () => {
+  it('leaves the downloads and staging dirs of other versions alone', async () => {
+    const tarball = goodTarball()
+    const root = join(dataDir, 'claude')
+    await mkdir(join(root, '1.0.0.staging-live'), { recursive: true })
+    await writeFile(join(root, '.download-1.0.0@live.tgz'), 'in flight')
+    await writeFile(join(root, '.download-9.9.9-beta@live.tgz'), 'in flight')
+    await ensureClaudeBinary({
+      dataDir,
+      manifest: manifestFor(tarball),
+      ...win,
+      fetch: fakeFetch(tarball),
+    })
+    expect((await readdir(root)).sort()).toEqual([
+      '.download-1.0.0@live.tgz',
+      '.download-9.9.9-beta@live.tgz',
+      '1.0.0.staging-live',
+      '9.9.9',
+    ])
   })
 })

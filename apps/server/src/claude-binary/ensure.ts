@@ -233,10 +233,10 @@ async function install(ctx: InstallContext): Promise<string> {
   const started = performance.now()
   const id = createHash('sha256').update(`${process.pid}:${started}:${Math.random()}`).digest('hex')
   const staging = `${ctx.finalDir}.staging-${id.slice(0, 12)}`
-  const tarball = join(ctx.root, `.download-${id.slice(0, 12)}.tgz`)
+  const tarball = join(ctx.root, `.download-${ctx.manifest.version}@${id.slice(0, 12)}.tgz`)
 
   await mkdir(ctx.root, { recursive: true })
-  await sweepLeftovers(ctx.root)
+  await sweepLeftovers(ctx.root, ctx.manifest.version)
   try {
     const bytes = await download(ctx, tarball)
     await mkdir(staging, { recursive: true })
@@ -283,14 +283,17 @@ async function install(ctx: InstallContext): Promise<string> {
 }
 
 /**
- * Removes downloads and staging dirs a crashed run left behind. This assumes one Mawl server per
- * data dir (true in desktop mode: the host allows a single instance); a second process installing
- * into the same dir would have its work deleted. In-process installs never overlap here because
- * `flights` serialises them per version and a dying flight is awaited before a new one starts.
+ * Removes the downloads and staging dirs of one version that a crashed run left behind. Other
+ * versions' files are never touched, since another install may be using them right now. This
+ * assumes one Mawl server per data dir (true in desktop mode: the host allows a single instance);
+ * a second process installing the same version into the same dir would have its work deleted.
+ * In-process installs of one version never overlap here because `flights` serialises them and a
+ * dying flight is awaited before a new one starts.
  */
-async function sweepLeftovers(root: string): Promise<void> {
+async function sweepLeftovers(root: string, version: string): Promise<void> {
   for (const name of await readdir(root).catch(() => [])) {
-    if (name.startsWith('.download-') || name.includes('.staging-')) {
+    // `@` cannot occur in a version, so `1.0` never claims the files of `1.0-beta`.
+    if (name.startsWith(`.download-${version}@`) || name.startsWith(`${version}.staging-`)) {
       await rm(join(root, name), { recursive: true, force: true }).catch(() => {})
     }
   }
