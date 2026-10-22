@@ -93,7 +93,10 @@ Rive is dropped for now: SVG + CSS keyframes (and Motion for state-to-state tran
 - **Tools page:** a pill segmented control with Connections (default), Skills and Plugins, kept in `?tab=` (an unknown value opens Connections); `/connections` redirects to `/tools?tab=connections`. MCP appears only in a row's detail view, per the plain-words rule. Each tab will be a list of round rows with an on/off toggle and an "Add" flow; until D2.8 (skills), D2.9 (connections) and D9.3 (plugin import) land, each shows an icon-tile empty state and no dead buttons.
 - **Scheduled page** (`/routines`): an empty state with an "Open a chat" link until D5.5 fills it.
 - **Settings** (U6) has a left list of pill links, a pill segmented track below 760 px, kept in `?section=`. Today it lists Appearance and Models and keys; Channels, Devices and Data join when they exist, never as empty tabs. Every section is a few round `--surface` cards. The profile dialog is separate from Settings and saves to the server (`user.update`).
+- **Workspace panel (U7):** tab control only in the header, no title; each tab is an `EmptyPanel`; the wide-screen open state is kept in `mawl.panel`. **Dialogs and palette (U7):** see DESIGN.md §9.
 - **Teammate colors:** a new teammate takes the next soft preset in turn, Lime first, so the first one wears Mawl's own color. Existing teammates keep their stored color.
+
+**Status (U7).** Built: the flat shell with a hideable sidebar and drawer, the workspace panel with a calm empty state in each of Computer, Memory and Run (open state remembered), Tools, Scheduled, Approvals, Settings (Appearance, Models and keys), the profile and new-teammate dialogs, and the round command palette. Mascots appear only on the landing, in the chat header and as teammate avatars. Left for later slices: real data in the panel tabs (D4, P4), the Files tab, Tools lists (D2.8, D2.9, D9.3), approvals data and the Scheduled list (D5.5).
 
 ## 6. Slices
 

@@ -139,8 +139,8 @@ Rules:
   - `--r-pill` 999 for every interactive control: buttons, inputs and selects, tabs, chips, badges, toggles, avatars. Icon buttons and the send button are circles.
   - `--r-xs` 8 for inline code, `kbd` and skeleton lines
   - `--r-sm` 12 for menu rows and code blocks inside a card
-  - `--r-md` 18 for message bubbles, notices, menus and textareas
-  - `--r-card` 24 for cards
+  - `--r-md` 18 for notices and menus
+  - `--r-card` 24 for cards and textareas (a several-line field reads as one soft card)
   - `--r-panel` 28 for panels and side sheets
   - `--r-dialog` 32 for dialogs, the window and the mobile sheet
   - Nested surfaces follow outer = inner + padding (a menu of 12 px rows with 6 px padding is 18).
@@ -153,7 +153,7 @@ Rules:
 - **Layout (desktop):**
   1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the word Mawl (display font, 24 px, no mascot) and a hide button; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; one bottom row with the profile button and a Settings gear. No New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
   2. Conversation (fluid): a flat, full-bleed pane on the same `--bg` as the sidebar: edge to edge, no tonal change, no radius, no inset, no outer border and no shadow.
-  3. Context panel, 360 px, collapsible, flat on `--bg` with a faint 1 px `--line` on its left edge: Computer / Memory / Run. Below 1100 px it is a sheet, which is raised and so uses `--surface`.
+  3. Context panel, 360 px, collapsible, flat on `--bg` with a faint 1 px `--line` on its left edge: Computer / Memory / Run. The header is only the segmented pill tabs (no title). Each tab has a calm `EmptyPanel` (round icon tile, title, one line, no mascot): Computer (monitor), Memory (book) and Run (activity; with a run it shows the tile and a few plain facts). Open or closed is remembered per browser (`mawl.panel`) and starts open. Below 1100 px it is a sheet, which is raised and so uses `--surface` and is never remembered.
   - The sidebar hides completely (`Ctrl+B` or the button); a round show button then appears in the page header. The choice is remembered.
   - Below 1100 px the context panel becomes a sheet. Below 760 px the sidebar is a left drawer with a rounded sheet edge opened from the header button. There is no bottom tab bar.
 
@@ -231,7 +231,7 @@ Mawl is drawn in code from the reference, so no mascot sheet and no onboarding i
 
 Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster, plus two Mawl-made pieces: `IconTile` (a round `--surface-2` tile with one icon) and `EmptyPanel` (icon tile, title, one line, optional action) for empty lists and pages. The mascot appears only on the new-chat landing, in the chat header and as teammate avatars. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
 
-- **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk).
+- **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk): a centered round card (`--r-panel` 28, on `--surface`) over the soft wash. It opens with a pill search field on `--surface-2` that has no focus ring (the highlighted row shows where you are); rows are pills with an icon, a label and a right-aligned shortcut hint where one exists (hide or show the sidebar). Groups (Go to, Appearance, Layout) have sentence-case headings, the list scrolls with the global scrollbar, and an empty search says "Nothing found". Rows are 44 px under `pointer-coarse`.
 - **Chat:**
   - Messages sit in one centered 720 px column. Assistant replies are plain on `--bg`, no bubble, at most 68ch wide. User messages are tail-less `--r-card` (24 px) bubbles on `--surface-2`, aligned right. Times show on hover or focus with a mouse and always on touch. Messages enter with opacity and y 6 to 0 on `spring.gentle`; streaming text ends in a soft caret pulse.
   - Markdown: code blocks are round `--surface` cards with a 1 px `--line`, the language and a Copy button, in JetBrains Mono; tables are round cards with a `--surface-2` header row.
@@ -254,6 +254,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
   - Appearance: Theme (a pill segmented control: Light, Dark, System), Accent color (round swatches Lime, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
   - Models and keys: each connected model is its own round card (mark, name, what it is, Check and Remove or Sign out), then one card per way to connect (ChatGPT plan, Claude plan with its steps opening inside the card, API key). Loading is a skeleton card, an unreachable server an inline card with Try again, and an empty list a card with an icon tile.
   - Later: Channels, Devices (QR pairing), Data.
+- **New teammate dialog** (`NewTeammateDialog`): a 32 px dialog with pill Name and Model fields, a round `Select` for the model connection (a native select with the pill look and our own chevron), a 24 px Job textarea card, and soft Cancel and primary Create pills. Errors sit under their field and say how to fix it; Create reads "Creating…" and is disabled while the server works; a failed create shows a danger notice. Escape closes it and returns focus.
 - **Your profile dialog** (from the sidebar's profile row, not part of Settings): Name and Personal context, saved on the server. The Save button reads "Saving…" while the save is in flight; the sidebar and greeting show the new name at once and roll back with a toast if the server refuses. Errors sit under their field ("Keep your name to 80 characters.", "Trim it by N characters.") and the context counter turns danger past 2000. Cancel and Escape drop the edits.
 - **Feedback:** Toasts (Sonner, bottom-center, mascot glyph), Skeletons (soft shimmer, no spinners in lists), Inline errors that say how to fix the problem.
 
