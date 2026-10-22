@@ -211,6 +211,7 @@ Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP,
 - [ ] **D2.10 Claude plan bridge.** (head-coder: providers + run engine; REDESIGN §5.6)
   - Mawl tools via `createSdkMcpServer`, every handler through policy and step recording.
   - Steering through streaming input (verify), approvals waiting inside the handler with a timeout that becomes a denial, and a "limited" label in the UI.
+  - Deferred from D1.3b (owner decision 2026-10-22): the Claude binary must be installed only on an explicit "Install Claude Code" click, never silently on the first Test or run. Until the owner installs it, testing or using the Claude plan fails with a typed "not installed" error. Offer "use my own Claude Code": detect `claude` on PATH or pick its path in Settings, and use it instead of downloading (today only `MAWL_CLAUDE_CODE_PATH` does this). The install action shows progress (`onProgress`). Headless/Docker keeps using the SDK package in the image.
 - [ ] **D2.11 Teammates UI.** (old P2.1; head-coder: UI) Persona editor, color and avatar, main, helper and fallback models, clone and archive, a computer slot (filled by D3).
 - [ ] **D2.12 Activity feed + audit log UI.** (old P2.6) Filterable by profile, type and time.
 - [ ] **D2.13 Loop eval set.** About 20 fixed tasks (fake model in CI, real model by hand), scoring tool choice, approvals respected, steering honoured and prompt-injection resistance.
