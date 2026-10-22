@@ -337,17 +337,19 @@ mod tests {
     }
 
     #[test]
-    fn every_allowed_link_has_a_target_without_a_token_or_userinfo() {
+    fn every_allowed_link_has_a_target_that_is_the_app_origin_plus_its_path_and_nothing_more() {
+        let thread = format!("mawl://t/ada?thread={THREAD}");
         for u in [
             "mawl://t",
             "mawl://t/ada",
             "mawl://settings",
             "mawl://approvals",
+            thread.as_str(),
         ] {
-            let target = link_target(&app(), &ok(u)).unwrap();
-            assert_eq!(target.username(), "");
-            assert_eq!(target.fragment(), None);
-            assert!(same_origin(&target, &app()));
+            let path = ok(u);
+            let target = link_target(&app(), &path).unwrap();
+            // Exactly origin + path: no userinfo, no fragment, no extra query, no token.
+            assert_eq!(target.as_str(), format!("http://127.0.0.1:47420{path}"));
         }
     }
 
@@ -359,13 +361,5 @@ mod tests {
         pending.set("/settings".into());
         assert_eq!(pending.take().as_deref(), Some("/settings"));
         assert_eq!(pending.take(), None);
-    }
-
-    #[test]
-    fn never_returns_something_that_is_not_an_absolute_in_app_path() {
-        for u in ["mawl://t/ada", "mawl://settings", "mawl://t"] {
-            let p = ok(u);
-            assert!(p.starts_with('/') && !p.starts_with("//"));
-        }
     }
 }

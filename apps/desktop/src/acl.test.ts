@@ -57,8 +57,14 @@ describe('the host commands ACL', () => {
     const lib = read('src/lib.rs')
     expect(lib).not.toContain('take_pending_navigation')
     expect(lib).not.toContain('mawl://navigate')
-    expect(lib).not.toContain('emit_to')
     expect(manifestCommands()).not.toContain('take_pending_navigation')
+    // No capability names a navigation permission or lets a page drive webviews (the splash does use events).
+    for (const capability of capabilities) {
+      for (const permission of capability.permissions) {
+        const id = typeof permission === 'string' ? permission : permission.identifier
+        expect(id, capability.identifier).not.toMatch(/navigat|^core:webview/)
+      }
+    }
   })
 
   it('grants nothing to a remote origin', () => {
