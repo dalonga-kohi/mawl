@@ -181,6 +181,12 @@ impl<U: HostUi> Driver<U> {
         let mut queue = vec![event];
         while let Some(event) = queue.pop() {
             match event {
+                Event::Health(_, Health::Foreign) => {
+                    let port = self.shared.port.load(Ordering::SeqCst);
+                    self.note(&format!(
+                        "another program answers on port {port} without Mawl's proof; not opening it"
+                    ));
+                }
                 Event::Exited(gen, code) => {
                     if self.current.as_ref().is_some_and(|(g, _)| *g == gen) {
                         // Dropping the process ends its job: nothing it started outlives it.
@@ -214,8 +220,9 @@ impl<U: HostUi> Driver<U> {
             Effect::Probe(gen) => {
                 let port = self.shared.port.load(Ordering::SeqCst);
                 let tx = self.tx.clone();
+                let token = self.config.token.clone();
                 thread::spawn(move || {
-                    let health = probe(port, PROBE_TIMEOUT);
+                    let health = probe(port, PROBE_TIMEOUT, &token);
                     let _ = tx.send(Msg::Event(Event::Health(gen, health)));
                 });
             }

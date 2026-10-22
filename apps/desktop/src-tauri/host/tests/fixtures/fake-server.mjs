@@ -3,6 +3,7 @@
 // The test picks a behavior by writing `behavior` into the working directory (the data dir),
 // because the supervisor clears the environment.
 import { spawn } from 'node:child_process'
+import { createHmac } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 
@@ -60,9 +61,22 @@ function boot() {
   log('migrations applied')
   server = http
     .createServer((req, res) => {
-      const ok = req.url === '/healthz' && req.headers.host === `127.0.0.1:${process.env.MAWL_PORT}`
-      res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ ok }))
+      const url = new URL(req.url ?? '/', 'http://x')
+      const ok =
+        url.pathname === '/healthz' && req.headers.host === `127.0.0.1:${process.env.MAWL_PORT}`
+      const nonce = url.searchParams.get('n')
+      // The same identity proof the real server gives (apps/server/src/health-identity.ts).
+      const id = nonce
+        ? createHmac('sha256', token)
+            .update(`mawl/healthz-identity/v1:${nonce}`)
+            .digest('base64url')
+        : undefined
+      const body = JSON.stringify(id ? { ok, id } : { ok })
+      res.writeHead(ok ? 200 : 503, {
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(body),
+      })
+      res.end(body)
     })
     .listen(Number(process.env.MAWL_PORT), '127.0.0.1', () => log('listening'))
 }

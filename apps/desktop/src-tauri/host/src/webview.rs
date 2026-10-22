@@ -1,12 +1,15 @@
 //! How the main window treats the launch token and navigation.
 //!
 //! The window starts on the bundled splash (Tauri's own origin) and moves to the web app the
-//! server serves at `http://127.0.0.1:<port>/` once `/healthz` answers. The token reaches that page
-//! through an initialization script, which the webview runs in the main frame before any page
-//! script. The script only defines the token on the app's scheme and host, and the navigation
-//! handler keeps the main frame on the splash or the app's exact origin, so no other page ever
-//! runs in a frame that receives it. The port is not compared in the script because the server
-//! may move to a new port during a restart; navigation is.
+//! server serves at `http://127.0.0.1:<port>/` once `/healthz` answers with the proof that it is
+//! our server (`health::identity_proof`). The token reaches that page through an initialization
+//! script, which the webview runs in the main frame only, before any page script. The script only
+//! defines the token on the app's scheme and host, and the navigation handler keeps the main
+//! frame on the splash or the app's exact origin. What it does not cover: frames inside the app
+//! page get no initialization script (and the server's CSP forbids frames), and pop-ups are
+//! refused by the window's `on_new_window` handler, so they never load at all. The port is not
+//! compared in the script because the server may move to a new port during a restart;
+//! navigation compares it.
 
 use url::Url;
 

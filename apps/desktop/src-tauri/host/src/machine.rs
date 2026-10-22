@@ -63,6 +63,9 @@ pub enum Health {
     Unhealthy,
     /// Refused, timed out or not HTTP.
     Unreachable,
+    /// A 200 without the proof that it knows the launch token: another program holds the port.
+    /// Never ready; treated like a bad answer.
+    Foreign,
 }
 
 /// What the window shows. Serialized for the splash as `{ "phase": ..., ... }`.
@@ -583,6 +586,28 @@ mod tests {
         );
         let out = m.handle(Event::Timer(Timer::Restart(1)), 8_000);
         assert!(has(&out, Effect::Spawn(2)));
+    }
+
+    #[test]
+    fn an_answer_without_the_proof_is_never_ready_and_counts_as_bad() {
+        let mut m = Machine::new();
+        m.handle(Event::Start, 0);
+        let out = m.handle(Event::Health(1, Health::Foreign), 400);
+        assert!(!out
+            .iter()
+            .any(|e| matches!(e, Effect::Status(Status::Ready))));
+        assert_eq!(
+            m.status(),
+            Status::Starting {
+                stage: Stage::Database
+            }
+        );
+
+        let mut m = ready();
+        for t in 0..UNHEALTHY_LIMIT as u64 {
+            m.handle(Event::Health(1, Health::Foreign), 1_000 + t);
+        }
+        assert!(matches!(m.status(), Status::Restarting { .. }));
     }
 
     #[test]
