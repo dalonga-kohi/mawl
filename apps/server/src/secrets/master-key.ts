@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, link, mkdir, open, readFile, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -42,6 +42,41 @@ async function readKey(file: string): Promise<Uint8Array> {
     )
   }
   return new Uint8Array(bytes)
+}
+
+/**
+ * Desktop migration check, for a master key that came from the host (Windows Credential Manager).
+ * Returns the path of a `master.key` in `dir` that holds the same key, so the caller can delete it
+ * once a decrypt proved the key; `undefined` when there is no such file. A file with another key
+ * (or another size) throws MasterKeyError and is left as it is: it may be the key that encrypted
+ * the stored secrets, and only the owner can tell which one to keep.
+ */
+export async function matchingKeyFile(dir: string, key: Uint8Array): Promise<string | undefined> {
+  const file = join(dir, MASTER_KEY_FILE)
+  let bytes: Buffer
+  try {
+    bytes = await readFile(file)
+  } catch (e) {
+    if (code(e) === 'ENOENT') return undefined
+    throw e
+  }
+  try {
+    if (bytes.length !== MASTER_KEY_BYTES) {
+      throw new MasterKeyError(
+        `Master key file ${file} must be exactly ${MASTER_KEY_BYTES} bytes (found ${bytes.length}). ` +
+          'Mawl left it and the key in Windows Credential Manager unchanged.',
+      )
+    }
+    if (key.length !== MASTER_KEY_BYTES || !timingSafeEqual(bytes, key)) {
+      throw new MasterKeyError(
+        `The master key in Windows Credential Manager differs from ${file}. Mawl changed neither; ` +
+          'keep the one that encrypted your stored keys and remove the other.',
+      )
+    }
+    return file
+  } finally {
+    bytes.fill(0)
+  }
 }
 
 /** Writes `data` to `file` with flag wx (fails with EEXIST), mode 0600, and fsyncs it. */
