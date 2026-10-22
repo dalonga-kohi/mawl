@@ -6,7 +6,11 @@ import { z } from 'zod'
  * Public data, no secrets.
  */
 export const ClaudeBinaryManifest = z.strictObject({
-  version: z.string().min(1),
+  // The version becomes a directory name: letters, digits, `.`, `+` and `-` only, and no `..`.
+  version: z
+    .string()
+    .regex(/^[0-9A-Za-z][0-9A-Za-z.+-]*$/)
+    .refine((v) => !v.includes('..')),
   packages: z.record(
     z.string().min(1),
     z.strictObject({
@@ -30,7 +34,7 @@ export function platformKey(platform: string, arch: string, isMusl: boolean): st
 
 /** `'@anthropic-ai/claude-agent-sdk-<key>@<ver>':` then `resolution: {integrity: sha512-...}`. */
 const ENTRY =
-  /^ {2}'@anthropic-ai\/claude-agent-sdk-([a-z0-9-]+)@([^'(]+)':\r?\n {4}resolution: \{integrity: (sha512-[A-Za-z0-9+/]+=*)\}/gm
+  /^ {2}'@anthropic-ai\/claude-agent-sdk-([a-z0-9-]+)@([^'(]+)':\r?\n {4}resolution: \{integrity: (sha512-[A-Za-z0-9+/]+=*)[,}]/gm
 
 /**
  * Builds the manifest from pnpm-lock.yaml's `packages:` entries. Run at build time only: the
