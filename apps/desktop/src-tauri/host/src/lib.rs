@@ -10,6 +10,7 @@ pub mod autostart;
 pub mod deep_link;
 pub mod driver;
 pub mod env;
+pub mod external_link;
 pub mod health;
 pub mod launch;
 pub mod logs;
