@@ -186,7 +186,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 
 ## Images and assets
 
-Never fabricate illustrations in code. Ask the user to generate them, with a ready-to-paste prompt (DESIGN.md §8 has the mascot, app-icon and onboarding prompts). Use an SVG placeholder until then, track it as `[!] waiting for image` in PLAN, and put delivered files in `design/assets/`. Still pending: Pip mascot sheet, app icon, onboarding illustration.
+Never fabricate illustrations in code. Ask the user to generate them, with a ready-to-paste prompt (DESIGN.md §8 has the mascot, app-icon and onboarding prompts). Use an SVG placeholder until then, track it as `[!] waiting for image` in PLAN, and put delivered files in `design/assets/`. The app icon was drawn in code at the user's explicit request (`design/assets/app-icon.svg`); the mascot is code too (DESIGN.md §8). Still pending: onboarding illustration, tray art per status.
 
 ## Commands
 
