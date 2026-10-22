@@ -29,6 +29,8 @@ services:
     environment:
       DATABASE_URL: postgres://mawl:${MAWL_DB_PASSWORD}@db:5432/mawl
       MAWL_ALLOWED_ORIGINS: ${MAWL_ALLOWED_ORIGINS:-}
+      # Empty: the server generates the owner token into /secrets/owner-token on first start.
+      MAWL_OWNER_TOKEN: ${MAWL_OWNER_TOKEN:-}
     ports:
       # Host loopback only: there is no device sign-in yet, so nothing else may reach the server.
       - "127.0.0.1:7420:7420"

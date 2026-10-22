@@ -69,6 +69,12 @@ describe('infra/compose/docker-compose.yml', () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: compose interpolation, not a JS template
     expect(server.environment?.MAWL_ALLOWED_ORIGINS).toBe('${MAWL_ALLOWED_ORIGINS:-}')
   })
+
+  it('passes an optional owner token through, never a fixed one', () => {
+    // Empty means unset: the server then generates one into the mawl-secrets volume.
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: compose interpolation, not a JS template
+    expect(server.environment?.MAWL_OWNER_TOKEN).toBe('${MAWL_OWNER_TOKEN:-}')
+  })
 })
 
 describe('server process lifecycle', () => {
