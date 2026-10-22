@@ -111,6 +111,24 @@ describe('providers.test egress guard and rate limit (PGlite)', () => {
     expect(resolveHost).not.toHaveBeenCalled()
   })
 
+  it('refuses redirects on both paths: the default url and an owner-typed one', async () => {
+    const redirects: (RequestRedirect | undefined)[] = []
+    dns['llm.example.com'] = ['93.184.215.14']
+    const service = make({
+      fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
+        redirects.push(init?.redirect)
+        return new Response(null, { status: 200 })
+      }) as typeof globalThis.fetch,
+    })
+    await service.test(ollama())
+    await service.test({
+      provider: 'openai_compatible',
+      label: 'x',
+      baseUrl: 'https://llm.example.com/v1',
+    })
+    expect(redirects).toEqual(['error', 'error'])
+  })
+
   it('tests a public address that resolves publicly', async () => {
     dns['llm.example.com'] = ['93.184.215.14']
     const service = make()
