@@ -59,6 +59,15 @@ export interface ClaudeCodeOptions
   query?: ClaudeQueryFn
   /** The login check the model runs before a query. Tests inject it so the binary never spawns. */
   checkLogin?: () => Promise<ProviderTestResult>
+  /**
+   * Finds (desktop: installs on first use) the binary's path, called only when a Claude plan
+   * credential is tested or turned into a model, never at boot. It wins over
+   * `pathToClaudeCodeExecutable`; undefined falls back to that and then to core's lookup. The
+   * signal fires on `abortPending()` and `close()` (server shutdown), so a download ends then. A
+   * rejection is reported as unreachable (test) or a provider error (model), and its message is
+   * never logged.
+   */
+  resolveExecutable?: (signal: AbortSignal) => Promise<string | undefined>
 }
 
 export type TestTarget = { id: CredentialId } | ProviderCredentialInput
@@ -83,7 +92,12 @@ export interface ProviderService {
   startChatGptSignIn(): Promise<ChatGptStartResult>
   /** Throws SignInAttemptNotFoundError for an unknown id. */
   chatGptSignInStatus(attemptId: string): ChatGptAttemptStatus
-  /** Ends a pending sign-in attempt. Call on shutdown. */
+  /**
+   * Aborts any Claude binary download in flight (and refuses new ones). Call first on shutdown, so
+   * a run waiting for the binary does not hold the worker's stop. Idempotent.
+   */
+  abortPending(): void
+  /** Ends a pending sign-in attempt and aborts pending downloads. Call on shutdown. */
   close(): Promise<void>
 }
 
@@ -112,6 +126,15 @@ const toPublic = (row: PublicRow): ProviderCredential => ({
   createdAt: row.createdAt.toISOString(),
 })
 
+/** Log fields for a failed executable lookup: a typed code when there is one, never the message. */
+function executableFailure(err: unknown): { errName: string; code?: unknown } {
+  const code = (err as { code?: unknown } | null)?.code
+  return {
+    errName: err instanceof Error ? err.name : 'unknown',
+    ...(typeof code === 'string' ? { code } : {}),
+  }
+}
+
 /** A token problem is reported as the closest key-test outcome; the reason is never leaked. */
 function testFailureFor(reason: ProviderFailureReason): ProviderTestResult {
   if (reason === 'temporarily_unavailable') return { ok: false, reason: 'unreachable' }
@@ -134,6 +157,19 @@ export function createProviderService({
     ...(fetch ? { fetch } : {}),
     options: chatgptOptions ?? { hostId: null, port: 0, bindHost: '127.0.0.1' },
   })
+
+  /** The Claude options for core, with the executable resolved now (and only for the Claude plan). */
+  const installs = new AbortController()
+
+  async function claudeOptionsFor(
+    kind: ProviderConnection['kind'],
+  ): Promise<Omit<ClaudeCodeOptions, 'resolveExecutable'> | undefined> {
+    if (!claudeCode) return undefined
+    const { resolveExecutable, ...rest } = claudeCode
+    if (kind !== 'anthropic_claude_code' || !resolveExecutable) return rest
+    const path = await resolveExecutable(installs.signal)
+    return path ? { ...rest, pathToClaudeCodeExecutable: path } : rest
+  }
 
   async function resolveCredential(id: CredentialId): Promise<ProviderConnection> {
     const [row] = await db
@@ -246,9 +282,16 @@ export function createProviderService({
           secret: target.secret ?? null,
         }
       }
+      let claude: Awaited<ReturnType<typeof claudeOptionsFor>>
+      try {
+        claude = await claudeOptionsFor(conn.kind)
+      } catch (err) {
+        logger.warn(executableFailure(err), 'claude binary unavailable')
+        return { ok: false, reason: 'unreachable' }
+      }
       const result = await testCredential(conn, {
         ...(fetch ? { fetch } : {}),
-        ...(claudeCode ? { claudeCode } : {}),
+        ...(claude ? { claudeCode: claude } : {}),
       })
       logger.info(
         { provider: conn.kind, ok: result.ok, ...(result.ok ? {} : { reason: result.reason }) },
@@ -261,15 +304,26 @@ export function createProviderService({
 
     async createModel(id, modelId) {
       const conn = await resolveCredential(id)
+      let claude: Awaited<ReturnType<typeof claudeOptionsFor>>
+      try {
+        claude = await claudeOptionsFor(conn.kind)
+      } catch (err) {
+        logger.warn(executableFailure(err), 'claude binary unavailable')
+        throw new ProviderFailureError('provider_error')
+      }
       return createLanguageModel(conn, modelId, {
         ...(fetch ? { fetch } : {}),
-        ...(claudeCode ? { claudeCode } : {}),
+        ...(claude ? { claudeCode: claude } : {}),
         ...(conn.kind === 'openai_chatgpt' ? { chatgpt: { tokens: chatgpt.tokens(id) } } : {}),
       })
     },
 
     startChatGptSignIn: () => chatgpt.start(),
     chatGptSignInStatus: (attemptId) => chatgpt.status(attemptId),
-    close: () => chatgpt.close(),
+    abortPending: () => installs.abort(),
+    close() {
+      installs.abort()
+      return chatgpt.close()
+    },
   }
 }

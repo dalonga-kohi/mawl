@@ -198,7 +198,7 @@ Do as much as the unmodified binary allows:
    - **Claude Agent SDK.**
      - It resolves and spawns from an install-dir layout (`claude.exe` 2.1.302; `auth status` shows logged out on an empty config dir).
      - Its JS bundles cleanly with esbuild (1.28 MB) and works with an explicit `pathToClaudeCodeExecutable`. **Decision:** bundle it, drop it from esbuild `external`, and always pass the path.
-     - **The Claude binary is not in the installer** (126 MB packed, 277 MB unpacked). On first choice of the Claude plan, download the npm tarball of the pinned SDK's exact platform package, verify its sha512 against the lockfile's, and extract it to `<data>\claude\<ver>\claude.exe` (about 1 s). It stays the unmodified binary.
+     - **The Claude binary is not in the installer** (126 MB packed, 277 MB unpacked). On first choice of the Claude plan, download the npm tarball of the pinned SDK's exact platform package, verify its sha512 against the lockfile's, and extract it to `<data>\claude\<ver>\claude.exe` (about 1 s). It stays the unmodified binary. Built in D1.3b (`apps/server/src/claude-binary/`): the pin is embedded at build time from `pnpm-lock.yaml`, the download is hash-checked before anything is extracted, and the lookup runs on first use of the Claude plan, never at boot.
    - **Supervisor (Rust).**
      - `std::process::Command`; the shell plugin isn't needed.
      - `env_clear()` plus an allowlist; `CREATE_NO_WINDOW`.

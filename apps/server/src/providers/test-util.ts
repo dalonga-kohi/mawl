@@ -12,5 +12,6 @@ export const unusedProviders: ProviderService = {
   chatGptSignInStatus: () => {
     throw new Error('providers.chatGptSignInStatus not stubbed')
   },
+  abortPending: () => {},
   close: () => Promise.resolve(),
 }

@@ -23,8 +23,9 @@ ENV NODE_ENV=production \
     CLAUDE_CONFIG_DIR=/claude
 WORKDIR /app
 
-# The bundle keeps the Claude Agent SDK external (it finds its native binary beside itself), so
-# install exactly that package for this image's architecture. npm picks the matching glibc
+# The bundle inlines the Claude Agent SDK's JS but not its native binary, and the server hands the
+# SDK an explicit path to the platform package installed here (node_modules beside dist/). Install
+# exactly that package for this image's architecture. npm picks the matching glibc
 # `@anthropic-ai/claude-agent-sdk-linux-<arch>` binary package; `claude` on PATH is the same binary,
 # which makes `docker compose exec server claude auth login` work.
 RUN npm install --omit=dev --no-save --no-package-lock --no-audit --no-fund --ignore-scripts \
