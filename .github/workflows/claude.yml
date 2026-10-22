@@ -1,12 +1,12 @@
 name: Claude
 
-# Claude Code on GitHub: reviews same-repo pull requests and answers @claude from the owner,
+# Claude Code on GitHub: reviews same-repo pull requests labeled `claude-review` and answers @claude from the owner,
 # members and collaborators. Auth is a Claude Code token from `claude setup-token`, stored as
 # the CLAUDE_CODE_OAUTH_TOKEN repository secret. scripts/claude-workflow.test.ts checks this file.
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [labeled]
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -16,9 +16,11 @@ permissions: {}
 
 jobs:
   review:
+    # Opt-in: only runs when the `claude-review` label is added to a PR.
     # Fork PRs never get the secret, so they are skipped rather than failing.
     if: >-
       github.event_name == 'pull_request' &&
+      github.event.label.name == 'claude-review' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
