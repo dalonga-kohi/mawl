@@ -9,7 +9,9 @@
 //! go through (never `file:`, `javascript:`, `data:`, `blob:`, `mailto:`, `mawl:` or any custom
 //! scheme). A link to this machine is refused whatever its port: `http://127.0.0.1:<other port>`
 //! could be another local service (a database admin page, a dev server) that the page was tricked
-//! into poking with the owner's browser session. The app's own origin never leaves the webview,
+//! into poking with the owner's browser session. Private and link-local addresses (`192.168.x.x`,
+//! `10.x.x.x`, `169.254.x.x`, `fe80::`) are allowed on purpose: owners share LAN links such as an
+//! Ollama box, and those are not this machine. The app's own origin never leaves the webview,
 //! because the launch token only exists there. The URL handed to the browser is the link as given
 //! and nothing is added to it, so the launch token cannot end up in it.
 
@@ -55,8 +57,9 @@ fn is_local_host(target: &Url) -> bool {
         Some(Host::Ipv6(ip)) => {
             ip.is_loopback()
                 || ip.is_unspecified()
+                // `to_ipv4` covers both `::ffff:a.b.c.d` and the older `::a.b.c.d`.
                 || ip
-                    .to_ipv4_mapped()
+                    .to_ipv4()
                     .is_some_and(|v4| v4.is_loopback() || v4.is_unspecified())
         }
     }
@@ -147,6 +150,10 @@ mod tests {
             "http://tauri.localhost/splash.html",
             "http://[::1]:8080/",
             "http://[::ffff:127.0.0.1]/",
+            "http://[::127.0.0.1]/",
+            "http://[::7f00:1]/",
+            "http://[::0.0.0.0]:80/",
+            "http://[0:0:0:0:0:0:7f00:1]/",
             "http://0.0.0.0:80/",
             "http://[::]/",
             "http://2130706433/",
@@ -154,6 +161,21 @@ mod tests {
             "http://0177.0.0.1/",
         ] {
             assert_eq!(link(u), ExternalLink::Block, "{u}");
+        }
+    }
+
+    #[test]
+    fn private_and_link_local_addresses_stay_allowed_on_purpose() {
+        // Owners share LAN links (an Ollama box, a NAS); only this machine is off limits.
+        for u in [
+            "http://192.168.1.10:11434/",
+            "http://10.0.0.5/",
+            "http://172.16.0.1/",
+            "http://169.254.1.1/",
+            "http://[fe80::1]/",
+            "http://[fd00::1]/",
+        ] {
+            assert_eq!(link(u), ExternalLink::Open, "{u}");
         }
     }
 
