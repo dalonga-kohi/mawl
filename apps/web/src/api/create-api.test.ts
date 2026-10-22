@@ -2,12 +2,19 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApi, socketUrl } from './create-api.ts'
 
+const TOKEN = 'create-api-token_0123456789abcdefghijk'
+
 /** Records every socket the client opens; never connects. */
 class RecordingSocket {
   static opened: string[] = []
+  static protocols: unknown[] = []
   readyState = 0
-  constructor(readonly url: string) {
+  constructor(
+    readonly url: string,
+    protocols?: string | string[],
+  ) {
     RecordingSocket.opened.push(url)
+    RecordingSocket.protocols.push(protocols)
   }
   addEventListener() {}
   removeEventListener() {}
@@ -21,11 +28,12 @@ describe('createApi', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     RecordingSocket.opened = []
+    RecordingSocket.protocols = []
   })
 
   it('runs queries and the event stream over one shared socket', async () => {
     vi.stubGlobal('WebSocket', RecordingSocket)
-    const api = createApi('http://localhost:5173')
+    const api = createApi(TOKEN, 'http://localhost:5173')
     const live = api.live(new QueryClient())
     void api.profiles.list().catch(() => {})
     live.start()
@@ -34,6 +42,7 @@ describe('createApi', () => {
     // One macrotask: lets every queued call reach the link before counting.
     await new Promise((r) => setTimeout(r, 0))
     expect(RecordingSocket.opened).toEqual(['ws://localhost:5173/ws'])
+    expect(RecordingSocket.protocols).toEqual([['mawl.v1', `mawl.token.${TOKEN}`]])
     live.stop()
   })
 })
