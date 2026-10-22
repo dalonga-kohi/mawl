@@ -287,28 +287,47 @@ mod tests {
 
     #[test]
     fn enter_and_leave_never_interleave_across_threads() {
-        use std::sync::Arc;
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::{Arc, Barrier};
         use std::thread;
-        // The navigation closures observe that the other side is not mid-navigation.
+        use std::time::Duration;
+        // The navigation closures observe that no other navigation is in progress. To make an
+        // overlap likely if the lock were missing, the threads start together and every
+        // navigation stays "inside" for a while (yields plus a short sleep), so the others run
+        // into that window.
+        const THREADS: usize = 6;
         let presence = Arc::new(Presence::new());
         let inside = Arc::new(AtomicBool::new(false));
+        let navigations = Arc::new(AtomicUsize::new(0));
+        let start = Arc::new(Barrier::new(THREADS));
         let mut handles = Vec::new();
-        for i in 0..4 {
+        for i in 0..THREADS {
             let presence = Arc::clone(&presence);
             let inside = Arc::clone(&inside);
+            let navigations = Arc::clone(&navigations);
+            let start = Arc::clone(&start);
             handles.push(thread::spawn(move || {
-                for n in 0..500 {
+                start.wait();
+                for n in 0..300 {
                     let check = || {
                         assert!(
                             !inside.swap(true, Ordering::SeqCst),
                             "navigations overlapped"
                         );
+                        for _ in 0..8 {
+                            thread::yield_now();
+                        }
+                        thread::sleep(Duration::from_micros(50));
+                        navigations.fetch_add(1, Ordering::SeqCst);
                         inside.store(false, Ordering::SeqCst);
                     };
-                    match (i + n) % 3 {
+                    match (i + n) % 4 {
                         0 => presence.set_ready(true),
                         1 => {
                             presence.try_enter(check);
+                        }
+                        2 => {
+                            presence.open_link(check, || {});
                         }
                         _ => {
                             presence.leave(check);
@@ -320,5 +339,7 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
+        // The race was exercised, not skipped: many navigations actually ran.
+        assert!(navigations.load(Ordering::SeqCst) > 100);
     }
 }
