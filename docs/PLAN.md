@@ -139,7 +139,9 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
 - [ ] **D1.3b Bundled Claude binary.** (split from D1.3)
   - Build: bundle `@anthropic-ai/claude-agent-sdk` JS into `server.mjs` (drop it from esbuild `external`) and always pass `pathToClaudeCodeExecutable`.
   - The Claude binary on first use: download the pinned platform package tarball, verify the lockfile sha512, extract to `<data>\claude\<ver>\`. Never modified (Anthropic terms).
-- [ ] **D1.4 Local launch-token auth.** (head-coder; security. Propose head-reviewer)
+- [x] **D1.4 Local launch-token auth.** (839d89a..fa99f55 plus the docs commit; scoped package tests only, no Docker suites, no Playwright run, no full gate) (head-coder; security. Propose head-reviewer)
+  - *As built:* `/rpc` needs `Authorization: Bearer <token>`, `/ws` the subprotocols `mawl.v1` + `mawl.token.<token>` (server echoes `mawl.v1` only); sha256 + `timingSafeEqual`; order Host, Origin, token; missing and wrong both 401 with one generic answer; never read from a url. Desktop uses the stdin launch token (boot fails without it); headless uses `MAWL_OWNER_TOKEN` or a generated `<secrets>/owner-token` shown once on stderr. `createApp`/`attachWsHub`/`createMawlClient` require the token. `/rpc` bodies capped at 1 MiB (413). `events.subscribe` needs the owner principal and scopes topics with `scopeTopics`. `providers.test`: SSRF guard (resolve once, pinned connect, blocked ranges always refused, private only for stored credentials or with the additive `allowPrivateNetwork` flag; new failure `blocked_address`), token bucket 10 + 1/3 s (`RATE_LIMITED` 429). Web: `OwnerTokenGate` (launch token, sessionStorage, typed token checked with `health.get`), the Add dialog asks before a private address. e2e and compose use a fixed or generated owner token. Contracts additions: `auth.ts` constants, `ProviderTestInput`, `blocked_address`.
+  - Follow-ups: guard run-time model calls to a stored base url the same way (today only `providers.test` is guarded); a Settings toggle for private addresses if the dialog prompt is not enough.
   - Every `/rpc` call and the `/ws` upgrade require the per-launch token, in a header or the WS subprotocol, never in a URL. It's checked in constant time, on top of the Host and Origin checks.
   - Headless mode uses a generated owner token until device auth (D8.1).
   - Review notes from P1.2/P1.3/P1.5, carried over:
@@ -154,6 +156,7 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
     - Graceful quit: close stdin, then wait at least ~25 s (the 10 s shutdown deadline plus up to 15 s of `pg_ctl stop`) before the kill-on-close job object takes the tree down.
     - Restart the server when `/healthz` answers 503: if its Postgres dies, the server logs it and keeps running; it never exits on its own.
     - Create the Windows job object. It also covers Rust `std` spawn handle inheritance, which can keep the stdin pipe open in another child and hide the parent's death.
+    - From D1.4: inject the launch token into the webview as `window.__MAWL_LAUNCH_TOKEN__` with an initialization script (before any page script runs), never in the url; the web app's `OwnerTokenGate` then opens without asking.
   - Follow-up from D1.1 (D1.3 head review): add an `onSpawn`/abort hook to `startEmbeddedPostgres`, so the emergency stop can be registered before the readiness wait (initdb or WAL recovery can take up to 60 s). Today it is registered only once Postgres is ready.
   - Advanced: "connect to a remote Mawl" instead of the local server.
   - Review note from P1.3b: the desktop app can run the SIWC loopback flow itself; with the server on the same host, the server-side flow is enough for v1.
