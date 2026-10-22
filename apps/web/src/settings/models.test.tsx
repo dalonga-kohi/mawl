@@ -297,4 +297,20 @@ describe('settings, models: API keys', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
     expect(await within(dialog).findByText(/The server didn't accept these details/)).toBeTruthy()
   })
+
+  it('asks the owner to wait when the server limits key checks', async () => {
+    const fake = fakeProvidersApi()
+    fake.state.testError = new ApiError('RATE_LIMITED')
+    const { user } = await renderApp('/settings?section=models', { providers: fake.api })
+    await user.click(await within(models()).findByRole('button', { name: 'Add an API key' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add an API key' })
+    await user.type(within(dialog).getByLabelText('API key'), 'sk-test')
+    await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+    expect(
+      await within(dialog).findByText(
+        'Too many checks in a row. Wait a few seconds, then try again.',
+      ),
+    ).toBeTruthy()
+    expect(fake.state.created).toEqual([])
+  })
 })

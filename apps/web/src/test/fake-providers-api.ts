@@ -114,6 +114,7 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
     created: [] as ProviderCredentialInput[],
     removed: [] as string[],
     createError: null as Error | null,
+    testError: null as Error | null,
     statusError: null as Error | null,
     statusCalls: 0,
   }
@@ -145,6 +146,7 @@ export function fakeProvidersApi(initial: ProviderCredential[] = []) {
     },
     test: async (target) => {
       state.tested.push(target)
+      if (state.testError) throw state.testError
       if ('id' in target) return state.testResults.get(target.id) ?? { ok: true, latencyMs: 87 }
       return typeof state.inlineTest === 'function' ? state.inlineTest(target) : state.inlineTest
     },

@@ -88,15 +88,20 @@ function Form({ catalog, onDone }: { catalog: ProviderDescriptor[]; onDone: () =
       toast(`${input.label} connected`)
       onDone()
     },
-    onError: (e) =>
+    onError: (e) => {
+      setPrivateRetry(null)
+      const code = errorCode(e)
       setErrors({
         form:
-          errorCode(e) === 'VALIDATION'
+          code === 'VALIDATION'
             ? "The server didn't accept these details. Check each field and try again."
-            : errorCode(e) === undefined
-              ? "Couldn't reach the Mawl server. Check that it's running, then try again."
-              : "Mawl couldn't save this connection. Try again.",
-      }),
+            : code === 'RATE_LIMITED'
+              ? 'Too many checks in a row. Wait a few seconds, then try again.'
+              : code === undefined
+                ? "Couldn't reach the Mawl server. Check that it's running, then try again."
+                : "Mawl couldn't save this connection. Try again.",
+      })
+    },
   })
 
   const changeKind = (next: ProviderKind) => {
