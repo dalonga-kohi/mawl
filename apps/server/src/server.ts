@@ -4,10 +4,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord } from '@mawl/core'
-import { createDb, migrate, migrationsFolder } from '@mawl/db'
+import { createDb, type DbHandle, migrate, migrationsFolder } from '@mawl/db'
 import { createApp } from './app.ts'
-import type { Config } from './config.ts'
+import type { Config, EmbeddedPgConfig } from './config.ts'
 import { probeDb } from './db-probe.ts'
+import { type EmbeddedPostgres, startEmbeddedPostgres } from './embedded-pg/index.ts'
 import { createLiveEvents, type LiveEvents } from './events/live.ts'
 import { createEventsService } from './events/service.ts'
 import { createPgSource } from './events/source.ts'
@@ -41,6 +42,8 @@ export interface BootOverrides {
   events?: boolean
   /** Replaces the provider-backed model lookup, so tests can run the engine with a fake model. */
   resolveModel?: (run: RunRecord, profile: ProfileRecord) => Promise<ResolvedModel>
+  /** Replaces the D1.1 embedded Postgres (desktop mode without DATABASE_URL). */
+  startEmbeddedPostgres?: typeof startEmbeddedPostgres
 }
 
 export interface RunningServer {
@@ -97,12 +100,16 @@ function closeServer(server: Server): Promise<void> {
  * recovery of unfinished runs), the event bus (before the worker, so no event is missed), then listen
  * and attach the /ws hub. Anything that fails after the database opened closes
  * it before the error propagates. Stop order: sockets, listener, abort running jobs, worker, delta
- * coalescer, event bus, providers, database.
+ * coalescer, event bus, providers, database, then the embedded Postgres when desktop mode started one
+ * (it starts right after the secrets and is stopped on any later boot failure too).
  */
 export async function startServer(
   config: Config,
   overrides: BootOverrides = {},
 ): Promise<RunningServer> {
+  if (!config.databaseUrl && !config.embeddedPg) {
+    throw new Error('no database configured: set DATABASE_URL, or MAWL_PG_ROOT in desktop mode')
+  }
   const logger = overrides.logger ?? createLogger({ level: config.logLevel })
   const version = readVersion()
 
@@ -120,16 +127,43 @@ export async function startServer(
   // database opens, so a bad file leaves nothing to close.
   const hostId = await loadOrCreateHostId(config.secretsDir)
 
-  const databaseUrl = config.databaseUrl
-  if (!databaseUrl) throw new Error('embedded Postgres is not wired into boot yet')
-  const handle = (overrides.createDb ?? createDb)(databaseUrl, {
-    // Idle client errors must not crash the process. Name and code only: messages can hold the url.
-    onError: (err) =>
-      logger.error(
-        { errName: err.name, code: (err as { code?: unknown }).code },
-        'database pool error',
-      ),
-  })
+  // Desktop mode without DATABASE_URL: the bundled Postgres, started after the secrets (a bad
+  // secrets dir leaves nothing to stop) and stopped last, also when boot fails below.
+  let embeddedPg: EmbeddedPostgres | undefined
+  let databaseUrl: string
+  if (config.databaseUrl) {
+    databaseUrl = config.databaseUrl
+  } else {
+    // Checked at the top, before anything was created.
+    const roots = config.embeddedPg as EmbeddedPgConfig
+    const pg = await (overrides.startEmbeddedPostgres ?? startEmbeddedPostgres)({
+      ...roots,
+      logger,
+    })
+    embeddedPg = pg
+    databaseUrl = pg.connectionString
+    void pg.exited.then((exit) => {
+      if (!exit.expected) {
+        // The server keeps answering, with /healthz at 503, so the desktop host restarts it.
+        logger.error({ code: exit.code, signal: exit.signal }, 'embedded postgres exited')
+      }
+    })
+  }
+
+  let handle: DbHandle
+  try {
+    handle = (overrides.createDb ?? createDb)(databaseUrl, {
+      // Idle client errors must not crash the process. Name and code only: messages can hold the url.
+      onError: (err) =>
+        logger.error(
+          { errName: err.name, code: (err as { code?: unknown }).code },
+          'database pool error',
+        ),
+    })
+  } catch (err) {
+    await embeddedPg?.stop()
+    throw err
+  }
   let server: Server
   let url: string
   let providers: ReturnType<typeof createProviderService> | undefined
@@ -218,6 +252,7 @@ export async function startServer(
     await live?.stop().catch(() => {})
     await providers?.close().catch(() => {})
     await handle.close().catch(() => {})
+    await embeddedPg?.stop()
     throw err
   }
 
@@ -229,16 +264,22 @@ export async function startServer(
     secretBox,
     stop() {
       stopping ??= (async () => {
-        // Sockets first: closing them ends the subscription streams that would hold the listener open.
-        await hub?.close()
-        await closeServer(server)
-        // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
-        registry.abortAll(ABORT_SHUTDOWN)
-        await worker?.stop()
-        // Last deltas out while the bus can still carry them, then the bus.
-        await live?.stop()
-        await providers?.close()
-        await handle.close()
+        try {
+          // Sockets first: closing them ends the subscription streams that would hold the listener open.
+          await hub?.close()
+          await closeServer(server)
+          // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
+          registry.abortAll(ABORT_SHUTDOWN)
+          await worker?.stop()
+          // Last deltas out while the bus can still carry them, then the bus.
+          await live?.stop()
+          await providers?.close()
+          await handle.close()
+        } finally {
+          // Last, since everything above may still talk to it, and even when a step failed, so
+          // no postgres outlives the server. Its stop() never rejects.
+          await embeddedPg?.stop()
+        }
         logger.info('stopped')
       })()
       return stopping
