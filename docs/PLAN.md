@@ -175,7 +175,7 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
   - Advanced: "connect to a remote Mawl" instead of the local server.
   - Review note from P1.3b: the desktop app can run the SIWC loopback flow itself; with the server on the same host, the server-side flow is enough for v1.
   - *Tests:* supervisor state machine (Rust unit tests), deep links, e2e boot on the Windows CI job.
-- [~] **D1.6 Master key in Windows Credential Manager.** (head-coder: secrets)
+- [x] **D1.6 Master key in Windows Credential Manager.** (6a6bff0..e5e3f30; scoped Rust, server typecheck, biome and the touched vitest files only; no Docker suite, full gate or e2e; head-review not run; the real Credential Manager is not exercised: run `cargo test -p mawl-host -- --ignored` once on Windows) (head-coder: secrets)
   - Desktop mode keeps the master key in Credential Manager. The host reads it and passes it to the server over stdin. The file in `secrets/` stays for headless mode.
   - The key arrives on the stdin line after the launch token. `readLaunchToken()` keeps those bytes in `remainder()` today (up to 64 KiB, nothing parses them yet). Replace it with a one-shot `takeRemainder()` that hands the bytes over, detaches and zero-fills the internal buffer, and stops buffering after the first key line; parse it with a timeout.
   - Never hold the master key as a `Buffer` in an object that may be logged: `redactDeep` only scrubs strings and `registerSecretValue` only accepts strings, so register the key's string form and keep the bytes out of log calls.
