@@ -3,6 +3,7 @@
 //! The match over [`Status`] has no wildcard on purpose: a new status must get a decision here.
 
 use crate::machine::Status;
+use crate::remote::RemoteHealth;
 
 /// Which icon variant the tray shows. The names are stable so real art can replace the dots.
 // TODO(mascot): the Pip mascot sheet does not exist yet (docs/DESIGN.md section 8, CLAUDE.md
@@ -33,6 +34,21 @@ pub fn tray_presentation(status: Status) -> TrayPresentation {
         Status::Stopping => ("Mawl is stopping", TrayVariant::Stopping),
         Status::Stopped => ("Mawl has stopped", TrayVariant::Stopped),
         Status::Failed { .. } => ("Mawl could not start", TrayVariant::Failed),
+    };
+    TrayPresentation { tooltip, variant }
+}
+
+/// The tray while the window shows a remote Mawl (no local server): `None` until the first check.
+pub fn remote_presentation(health: Option<RemoteHealth>) -> TrayPresentation {
+    let (tooltip, variant) = match health {
+        None => ("Connecting to your remote Mawl", TrayVariant::Starting),
+        Some(RemoteHealth::Ready) => ("Connected to your remote Mawl", TrayVariant::Ready),
+        Some(
+            RemoteHealth::Unreachable
+            | RemoteHealth::NotMawl
+            | RemoteHealth::TokenRefused
+            | RemoteHealth::Unhealthy,
+        ) => ("Can't reach your remote Mawl", TrayVariant::Failed),
     };
     TrayPresentation { tooltip, variant }
 }
@@ -125,6 +141,34 @@ mod tests {
             let p = tray_presentation(status);
             assert_eq!(p.tooltip, tooltip, "{status:?}");
             assert_eq!(p.variant, variant, "{status:?}");
+        }
+    }
+
+    #[test]
+    fn a_remote_mawl_has_its_own_copy() {
+        use crate::remote::RemoteHealth;
+        let p = remote_presentation(None);
+        assert_eq!(
+            (p.tooltip, p.variant),
+            ("Connecting to your remote Mawl", TrayVariant::Starting)
+        );
+        let p = remote_presentation(Some(RemoteHealth::Ready));
+        assert_eq!(
+            (p.tooltip, p.variant),
+            ("Connected to your remote Mawl", TrayVariant::Ready)
+        );
+        for health in [
+            RemoteHealth::Unreachable,
+            RemoteHealth::NotMawl,
+            RemoteHealth::TokenRefused,
+            RemoteHealth::Unhealthy,
+        ] {
+            let p = remote_presentation(Some(health));
+            assert_eq!(
+                (p.tooltip, p.variant),
+                ("Can't reach your remote Mawl", TrayVariant::Failed),
+                "{health:?}"
+            );
         }
     }
 
