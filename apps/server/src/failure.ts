@@ -1,7 +1,7 @@
 import { ConfigError } from './config.ts'
 import { EmbeddedPgError } from './embedded-pg/index.ts'
 import { LaunchTokenError } from './launch-token.ts'
-import { MasterKeyError, SecretDecryptError } from './secrets/index.ts'
+import { HostKeyError, MasterKeyError, SecretDecryptError } from './secrets/index.ts'
 
 export interface FailureInfo {
   errName: string
@@ -10,13 +10,13 @@ export interface FailureInfo {
 }
 
 /** Classes whose messages we wrote and know hold no secrets (names, paths, sizes only). */
-const OWN_ERRORS = [ConfigError, MasterKeyError, SecretDecryptError, LaunchTokenError]
+const OWN_ERRORS = [ConfigError, MasterKeyError, SecretDecryptError, LaunchTokenError, HostKeyError]
 
 /**
  * Classes with a closed set of lower-case codes, which are kept. EmbeddedPgError's message wraps
  * foreign error text, so only its code is logged; the desktop host maps the code to its own copy.
  */
-const TYPED_CODE_ERRORS = [EmbeddedPgError, LaunchTokenError]
+const TYPED_CODE_ERRORS = [EmbeddedPgError, LaunchTokenError, HostKeyError]
 
 /**
  * What may be logged about a failure we did not expect. Foreign errors (pg, node, libraries)
