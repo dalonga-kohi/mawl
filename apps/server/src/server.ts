@@ -6,6 +6,12 @@ import { serve } from '@hono/node-server'
 import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord } from '@mawl/core'
 import { createDb, type DbHandle, migrate, migrationsFolder } from '@mawl/db'
 import { createApp } from './app.ts'
+import {
+  type ClaudeBinaryManifest,
+  createClaudeExecutableResolver,
+  embeddedClaudeManifest,
+  ensureClaudeBinary,
+} from './claude-binary/index.ts'
 import type { Config, EmbeddedPgConfig } from './config.ts'
 import { probeDb } from './db-probe.ts'
 import { type EmbeddedPostgres, startEmbeddedPostgres } from './embedded-pg/index.ts'
@@ -50,6 +56,10 @@ export interface BootOverrides {
    * Postgres), for the lifecycle's hard-exit paths that skip stop(). Idempotent, never rejects.
    */
   registerEmergencyStop?: (stop: () => Promise<unknown>) => void
+  /** Replaces the build-embedded Claude binary pin (absent when running from source). */
+  claudeManifest?: ClaudeBinaryManifest
+  /** Replaces the first-use Claude binary download. */
+  ensureClaudeBinary?: typeof ensureClaudeBinary
 }
 
 export interface RunningServer {
@@ -189,6 +199,14 @@ export async function startServer(
       claudeCode: {
         configDir: config.claudeConfigDir,
         pathToClaudeCodeExecutable: config.claudeCodePath,
+        // Looked up (desktop: downloaded) when the Claude plan is first tested or used, not now.
+        resolveExecutable: createClaudeExecutableResolver({
+          explicitPath: config.claudeCodePath,
+          dataDir: config.dataDir,
+          manifest: overrides.claudeManifest ?? embeddedClaudeManifest(),
+          logger,
+          ensure: overrides.ensureClaudeBinary ?? ensureClaudeBinary,
+        }),
       },
     })
     // Set before anything else can fail, so the catch below can close it.

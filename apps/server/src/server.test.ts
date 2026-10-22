@@ -238,6 +238,28 @@ describe('startServer with the embedded Postgres', () => {
     expect(pg.pgStop).toHaveBeenCalledTimes(1)
   })
 
+  it('does not fetch the Claude binary at boot, even with a pinned manifest in desktop mode', async () => {
+    const ensureClaudeBinary = vi.fn(async () => join(dir, 'claude', '1.0.0', 'claude.exe'))
+    const server = await startServer(desktopConfig(), {
+      logger: logger(),
+      ...fakes(),
+      ...embedded(),
+      claudeManifest: {
+        version: '1.0.0',
+        packages: {
+          'win32-x64': { url: 'https://registry.example/x.tgz', integrity: 'sha512-AA' },
+        },
+      },
+      ensureClaudeBinary,
+    })
+    try {
+      expect((await fetch(`${server.url}/healthz`)).status).toBe(200)
+      expect(ensureClaudeBinary).not.toHaveBeenCalled()
+    } finally {
+      await server.stop()
+    }
+  })
+
   it('registers an emergency stop for it, and none without it', async () => {
     const pg = embedded()
     const registerEmergencyStop = vi.fn()
