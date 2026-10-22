@@ -1,0 +1,55 @@
+# Expo Skills Index
+
+Every skill in this directory is a sibling folder containing a `SKILL.md`. Skills are discovered **one level deep** - `skills/<skill-name>/SKILL.md` - so this index groups them for humans; the filesystem stays flat.
+
+## Start Here
+
+Load this first for any Expo/EAS task, then route to the specific skill below.
+
+| Skill | Use it for |
+| --- | --- |
+| `expo-overview` | Router and shared setup rules; the entry point when a request is vague or the user hasn't named a specific Expo tool. |
+
+## Framework (open source)
+
+Free, open-source Expo SDK and React Native skills.
+
+| Skill | Use it for |
+| --- | --- |
+| `expo-project-structure` | Folder structure for a new Expo app: `src/` layout, routes-only `app/`, screens, server code, platform-specific files. |
+| `expo-router` | Expo Router navigation: file-based routes, links, native stacks, modals, sheets, native tabs, and headers. |
+| `expo-animation` | Polished React Native animations and gestures with Reanimated, Gesture Handler, Expo Router, and expo-haptics. |
+| `expo-native-ui` | Native-feeling screen styling, semantic colors, controls, icons, media, and visual effects. |
+| `expo-design-system` | In-app design systems: a token theme (color, spacing, typography, radius, shadow, motion), reusable component conventions, and design-system drift audits. |
+| `expo-ui` | `@expo/ui` native components: universal cross-platform first, plus SwiftUI and Jetpack Compose. |
+| `expo-data-fetching` | API calls, React Query, SWR, caching, offline support, and Expo Router data loaders. |
+| `expo-dom` | Expo DOM components for gradually using web code in native apps. |
+| `expo-web-to-native` | Migrating an existing web/React app (Next.js, Vite, CRA) to a native iOS/Android app with Expo. |
+| `expo-module` | Expo native modules and views with Swift, Kotlin, TypeScript, config plugins, and autolinking. |
+| `expo-brownfield` | Adding Expo or React Native to an existing iOS or Android app. |
+| `expo-dev-client` | Development clients (local builds are free; EAS Build/TestFlight is a paid step). |
+| `expo-examples` | The `expo/examples` repo of `with-*` integrations to adapt or scaffold from. |
+| `expo-app-clip` | iOS App Clip targets, AASA files, associated domains, and Smart App Banners. |
+| `expo-upgrade` | Expo SDK upgrades, dependency conflicts, deprecated packages, and cache cleanup. |
+
+## Services & paid distribution
+
+Skills whose core purpose uses paid Expo Application Services (EAS). Each `SKILL.md` opens with a costs/plan-limits callout.
+
+| Skill | Use it for | Paid dependency |
+| --- | --- | --- |
+| `eas-app-stores` | Build and submit iOS/Android apps: Expo and other React Native projects, plus existing native apps; TestFlight, profiles, versioning, and metadata. | EAS + Apple/Google accounts |
+| `eas-hosting` | Deploying Expo websites and Expo Router API routes to EAS Hosting: secrets, custom domains, Cloudflare Workers. | EAS Hosting usage |
+| `eas-workflows` | EAS Workflow YAML files and CI/CD automation. | EAS build/compute minutes |
+| `eas-observe` | EAS Observe setup and launch, route, event, and version metrics. | EAS Observe usage |
+| `eas-update` | EAS Update setup, OTA publishing, runtime compatibility, testing, and debugging. | EAS Update usage |
+| `eas-update-insights` | EAS Update health, crash rates, launch counts, payload size, and rollout gates. | EAS Update usage |
+| `eas-simulator` | Remote iOS/Android simulators on EAS cloud, driven from the CLI or an agent, with browser preview. | EAS Simulator usage |
+
+## Adding a skill
+
+1. Create `skills/<skill-name>/SKILL.md` (one level deep - do not nest under a category folder, or it will not be discovered).
+2. Write a frontmatter `description` that says what the skill does and when to use it.
+3. For a services skill, open the body with a costs/plan-limits callout right after the H1.
+4. Add the skill to the table above, to `skills.sh.json`, and to the root and plugin `README.md` lists.
+5. Bump the version in all four plugin manifests (see `CONTRIBUTING.md`).
