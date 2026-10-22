@@ -87,7 +87,7 @@ describe('executeRun: budgets', () => {
   })
 
   it('fails budget_wall_clock before a step when the clock says time is up', async () => {
-    const { store, runId, deps, model, clock } = setup([{ text: 'never' }])
+    const { store, runId, deps, model } = setup([{ text: 'never' }])
     const run = store.runs.get(runId)
     if (run) {
       run.budget = { maxWallClockMs: 60_000 }
