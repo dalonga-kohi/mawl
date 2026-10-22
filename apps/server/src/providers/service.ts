@@ -150,6 +150,12 @@ export interface ProviderService {
    * fails with a ProviderFailureError (closed reason) when the plan cannot be used.
    */
   createModel(id: CredentialId, modelId: string): Promise<LanguageModel>
+  /**
+   * Proves the master key is the one that encrypted the stored secrets by decrypting one of them
+   * (the lowest id; every row's AAD is its own). `empty` when nothing is stored yet. Throws
+   * SecretDecryptError under another key. The plaintext is dropped at once and never logged.
+   */
+  verifyMasterKey(): Promise<'verified' | 'empty'>
   startChatGptSignIn(): Promise<ChatGptStartResult>
   /** Throws SignInAttemptNotFoundError for an unknown id. */
   chatGptSignInStatus(attemptId: string): ChatGptAttemptStatus
@@ -408,6 +414,17 @@ export function createProviderService({
         ...(claude ? { claudeCode: claude } : {}),
         ...(conn.kind === 'openai_chatgpt' ? { chatgpt: { tokens: chatgpt.tokens(id) } } : {}),
       })
+    },
+
+    async verifyMasterKey() {
+      const [row] = await db
+        .select({ id: providerCredentials.id, secretEnc: providerCredentials.secretEnc })
+        .from(providerCredentials)
+        .orderBy(asc(providerCredentials.id))
+        .limit(1)
+      if (!row) return 'empty'
+      secretBox.decrypt(row.secretEnc, aad(row.id))
+      return 'verified'
     },
 
     startChatGptSignIn: () => chatgpt.start(),

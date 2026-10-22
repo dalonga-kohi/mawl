@@ -5,7 +5,7 @@ import { count, eq } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.ts'
-import { createSecretBox } from '../secrets/index.ts'
+import { createSecretBox, SecretDecryptError } from '../secrets/index.ts'
 import {
   CredentialNotFoundError,
   CredentialUnreadableError,
@@ -144,6 +144,25 @@ export function describeProviderService(name: string, make: () => Promise<MadeSe
       await expect(service.resolveCredential(missing)).rejects.toBeInstanceOf(
         CredentialNotFoundError,
       )
+    })
+
+    it('verifyMasterKey: empty with no stored secret, verified when one decrypts', async () => {
+      const { service } = await setup()
+      await expect(service.verifyMasterKey()).resolves.toBe('empty')
+      await service.create(input())
+      await expect(service.verifyMasterKey()).resolves.toBe('verified')
+    })
+
+    it('verifyMasterKey throws SecretDecryptError under another master key, logging no secret', async () => {
+      const { service } = await setup()
+      await service.create(input())
+      const other = createProviderService({
+        db: made.db,
+        secretBox: await createSecretBox(new Uint8Array(randomBytes(32))),
+        logger: createLogger({ level: 'silent' }),
+      })
+      await expect(other.verifyMasterKey()).rejects.toBeInstanceOf(SecretDecryptError)
+      expect(logLines.join('')).not.toContain(SECRET)
     })
 
     it('a ciphertext moved to another row does not decrypt (AAD binds it to its row)', async () => {
