@@ -57,6 +57,11 @@ impl ServerProcess {
         }
         let mut child = cmd.spawn()?;
 
+        // The child joins the job just after it starts, not suspended (std has no
+        // CREATE_SUSPENDED + resume). That gap is safe: until the token line below arrives, the
+        // server only parses its env and waits on stdin (`readLaunchToken` runs before
+        // `startServer`), so it cannot have started Postgres or any other process yet. If joining
+        // fails, the child is killed and the spawn fails.
         #[cfg(windows)]
         if let Err(err) = job.assign(&child) {
             let _ = child.kill();
