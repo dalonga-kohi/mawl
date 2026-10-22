@@ -7,6 +7,12 @@ import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord 
 import { createDb, type DbHandle, migrate, migrationsFolder } from '@mawl/db'
 import { createApp } from './app.ts'
 import { resolveAuthToken } from './auth/resolve.ts'
+import {
+  type ClaudeBinaryManifest,
+  createClaudeExecutableResolver,
+  embeddedClaudeManifest,
+  ensureClaudeBinary,
+} from './claude-binary/index.ts'
 import type { Config, EmbeddedPgConfig } from './config.ts'
 import { probeDb } from './db-probe.ts'
 import { type EmbeddedPostgres, startEmbeddedPostgres } from './embedded-pg/index.ts'
@@ -53,6 +59,10 @@ export interface BootOverrides {
   registerEmergencyStop?: (stop: () => Promise<unknown>) => void
   /** Shows a newly generated headless owner token once (main writes it to stderr, unredacted). */
   announceOwnerToken?: (text: string) => void
+  /** Replaces the build-embedded Claude binary pin (absent when running from source). */
+  claudeManifest?: ClaudeBinaryManifest
+  /** Replaces the first-use Claude binary download. */
+  ensureClaudeBinary?: typeof ensureClaudeBinary
 }
 
 export interface RunningServer {
@@ -196,6 +206,14 @@ export async function startServer(
       claudeCode: {
         configDir: config.claudeConfigDir,
         pathToClaudeCodeExecutable: config.claudeCodePath,
+        // Looked up (desktop: downloaded) when the Claude plan is first tested or used, not now.
+        resolveExecutable: createClaudeExecutableResolver({
+          explicitPath: config.claudeCodePath,
+          dataDir: config.dataDir,
+          manifest: overrides.claudeManifest ?? embeddedClaudeManifest(),
+          logger,
+          ensure: overrides.ensureClaudeBinary ?? ensureClaudeBinary,
+        }),
       },
     })
     // Set before anything else can fail, so the catch below can close it.
@@ -263,6 +281,7 @@ export async function startServer(
       })
     }
   } catch (err) {
+    providers?.abortPending()
     registry.abortAll(ABORT_SHUTDOWN)
     await worker?.stop().catch(() => {})
     await live?.stop().catch(() => {})
@@ -285,6 +304,8 @@ export async function startServer(
           // Sockets first: closing them ends the subscription streams that would hold the listener open.
           () => hub?.close(),
           () => closeServer(server),
+          // A run waiting on the Claude binary download would otherwise hold the worker's stop.
+          () => providers?.abortPending(),
           // Running jobs stop at once and leave their runs `running`, so the next boot resumes them.
           () => registry.abortAll(ABORT_SHUTDOWN),
           () => worker?.stop(),
