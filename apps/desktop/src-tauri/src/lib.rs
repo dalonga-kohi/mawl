@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod session_end;
 mod shell;
 mod tray;
 
@@ -76,7 +78,9 @@ pub fn run() {
             // OS, arrive through `on_open_url`.
             // The window shows itself once the splash has painted, so no raise here.
             if let Some(urls) = app.deep_link().get_current()? {
-                let path = urls.iter().find_map(|u| deep_link::parse_deep_link(u.as_str()));
+                let path = urls
+                    .iter()
+                    .find_map(|u| deep_link::parse_deep_link(u.as_str()));
                 if let (Some(path), Some(shell)) = (path, app.try_state::<shell::Shell>()) {
                     shell.open_link(app.handle(), &path);
                 }

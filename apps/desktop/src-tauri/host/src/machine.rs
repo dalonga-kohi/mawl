@@ -877,10 +877,7 @@ mod tests {
 
         let mut booting = Machine::new();
         booting.handle(Event::Start, 0);
-        assert_eq!(
-            booting.handle(Event::ProbeNow, 10),
-            vec![Effect::Probe(1)]
-        );
+        assert_eq!(booting.handle(Event::ProbeNow, 10), vec![Effect::Probe(1)]);
     }
 
     #[test]

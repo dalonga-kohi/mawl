@@ -156,14 +156,15 @@ mod tests {
         let presence = Presence::new();
         let window = FakeWindow::new();
         let pending = crate::deep_link::PendingLink::new();
-        assert!(!presence.open_link(
-            || window.go("link"),
-            || pending.set("/t/ada".into())
-        ));
+        assert!(!presence.open_link(|| window.go("link"), || pending.set("/t/ada".into())));
         assert_eq!(window.page(), "splash");
         presence.set_ready(true);
         assert!(presence.try_enter(|| {
-            window.go(if pending.take().is_some() { "link" } else { "app" })
+            window.go(if pending.take().is_some() {
+                "link"
+            } else {
+                "app"
+            })
         }));
         assert_eq!(window.page(), "link");
     }

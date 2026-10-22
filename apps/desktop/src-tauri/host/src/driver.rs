@@ -135,7 +135,7 @@ impl Supervisor {
     }
 }
 
-/// Arms 	imer at t. An identical pending timer is replaced, so an extra probe (after a
+/// Arms `timer` at `at`. An identical pending timer is replaced, so an extra probe (after a
 /// wake from sleep) cannot leave two probe cadences running side by side.
 fn arm(timers: &mut Vec<(Instant, Timer)>, at: Instant, timer: Timer) {
     timers.retain(|(_, pending)| *pending != timer);

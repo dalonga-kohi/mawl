@@ -9,8 +9,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use mawl_host::autostart::launched_hidden;
-use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::deep_link::{link_target, PendingLink};
+use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::external_link::{external_link, ExternalLink, OpenLimiter};
 use mawl_host::launch::{self, Layout};
 use mawl_host::machine::Status;
@@ -376,6 +376,11 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             allowed
         })
         .build()?;
+    // A logoff or shutdown must stop the server cleanly, and a wake from sleep probes it.
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        crate::session_end::install(app, hwnd.0 as usize);
+    }
     if window.url().ok().as_ref() != Some(&splash) {
         eprintln!("mawl: the splash loaded from an unexpected url");
     }

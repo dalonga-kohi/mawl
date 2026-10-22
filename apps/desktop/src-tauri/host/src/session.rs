@@ -82,10 +82,7 @@ mod tests {
 
     #[test]
     fn a_real_end_waits_and_a_called_off_one_does_not() {
-        assert_eq!(
-            session_action(WM_ENDSESSION, 1),
-            SessionAction::WaitForStop
-        );
+        assert_eq!(session_action(WM_ENDSESSION, 1), SessionAction::WaitForStop);
         // Only the low 32 bits are the BOOL.
         assert_eq!(
             session_action(WM_ENDSESSION, 0x1_0000_0001),
@@ -119,7 +116,11 @@ mod tests {
 
     #[test]
     fn other_messages_are_ignored() {
-        for msg in [0, 0x0010 /* WM_CLOSE */, 0x0012 /* WM_QUIT */, 0x0113] {
+        for msg in [
+            0, 0x0010, /* WM_CLOSE */
+            0x0012, /* WM_QUIT */
+            0x0113,
+        ] {
             assert_eq!(session_action(msg, 1), SessionAction::Ignore, "{msg}");
         }
     }
