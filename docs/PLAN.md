@@ -105,7 +105,7 @@ Goal: a comforting, playful, uncrowded UI on shadcn, with the new Mawl mascot, p
 ## D1 — Desktop host (install and go)
 Goal: download the installer, open Mawl from the tray, chat with a teammate. No Docker, no terminal. See REDESIGN §4.
 
-- [~] **D1.1 Embedded Postgres lifecycle.** (head-coder: process lifecycle and concurrency)
+- [x] **D1.1 Embedded Postgres lifecycle.** (2137c4a..462656f; 117 unit tests green, real-binary suite 8/8 run by the coder on Windows; reviewer found 2 majors, fixed; full Docker gate not run) (head-coder: process lifecycle and concurrency)
   - A server module owns the bundled EDB Postgres 17.10:
     - first run: `initdb --no-sync` into a staging dir, then rename it into place
     - spawn `postgres` on a free 127.0.0.1 port with a generated password under the data root
