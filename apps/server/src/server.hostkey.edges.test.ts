@@ -143,7 +143,7 @@ describe('startServer with a host master key, edge cases', () => {
       },
     }).catch((e: unknown) => e as Error)
     expect(err).not.toBeInstanceOf(MasterKeyError)
-    expect(err.message).toBe('connection reset')
+    expect((err as Error).message).toBe('connection reset')
     expect((await readFile(keyFile())).equals(raw)).toBe(true)
     expect(f.close).toHaveBeenCalledTimes(1)
   })
@@ -262,9 +262,11 @@ describe('matchingKeyFile', () => {
     const err = await matchingKeyFile(dir, new Uint8Array(randomBytes(32))).catch(
       (e: unknown) => e as Error,
     )
-    expect(err.message).toContain('master.key')
+    expect(err).toBeInstanceOf(MasterKeyError)
+    const message = (err as Error).message
+    expect(message).toContain('master.key')
     for (const enc of [raw.toString('hex'), raw.toString('base64'), raw.toString('base64url')]) {
-      expect(err.message).not.toContain(enc)
+      expect(message).not.toContain(enc)
     }
   })
 })
