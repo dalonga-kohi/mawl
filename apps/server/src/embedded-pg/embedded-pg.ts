@@ -121,8 +121,10 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
   const clusterDir = join(opts.dataRoot, CLUSTER_DIR)
 
   await requireBinaries(opts.pgRoot)
-  await removeStaleArtifacts(opts.dataRoot)
   const state = await inspectCluster(opts.dataRoot)
+  // A first run cleans up inside initCluster; a warm boot cleans up here. Two server instances
+  // on one data root are unsupported: single instance is the desktop host's job (D1.5).
+  if (state.state === 'valid') await removeStaleArtifacts(opts.dataRoot)
   if (state.state === 'corrupt') {
     throw new EmbeddedPgError(
       'data_dir_corrupt',
@@ -283,6 +285,10 @@ async function waitUntilReady({
     if (exit) return { kind: 'exited', exit }
     const result = await deps.probe(conn)
     if (exit) return { kind: 'exited', exit }
+    // 'ready' can arrive while our postgres is already dying (its exit not yet observed), in
+    // theory from a foreign server that holds our port. Accepting it is safe: a foreign server
+    // only answers 'ready' if it knows our random 256-bit password, and a postgres that dies
+    // after this point surfaces through `exited` (expected: false) like any later crash.
     if (result === 'ready') return { kind: 'ready' }
     if (result === 'auth_failed') {
       // If our postgres lost the port race, the probe may have reached whoever holds the port
