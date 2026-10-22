@@ -117,6 +117,95 @@ describe('installLifecycle shutdown()', () => {
   })
 })
 
+describe('installLifecycle emergency stop', () => {
+  function withEmergency(emergencyStop: () => Promise<unknown>, stop = async () => {}) {
+    const proc = new EventEmitter()
+    const exit = vi.fn()
+    const spy = vi.fn(emergencyStop)
+    installLifecycle({
+      logger: createLogger({ level: 'silent' }),
+      stop,
+      exit,
+      proc,
+      emergencyStop: spy,
+      deadlineMs: 10_000,
+    })
+    return { proc, exit, emergencyStop: spy }
+  }
+
+  it.each(['uncaughtException', 'unhandledRejection'])(
+    'runs it before exiting 1 on %s',
+    async (event) => {
+      let release!: () => void
+      const s = withEmergency(() => new Promise<void>((r) => (release = r)))
+      s.proc.emit(event, new Error('x'))
+      expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(s.exit).not.toHaveBeenCalled()
+      release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(s.exit).toHaveBeenCalledWith(1)
+    },
+  )
+
+  it('runs it before exiting 1 on a second signal', async () => {
+    const s = withEmergency(
+      async () => {},
+      () => new Promise(() => {}),
+    )
+    s.proc.emit('SIGTERM')
+    s.proc.emit('SIGTERM')
+    expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(s.exit).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('runs it before exiting 1 when the shutdown deadline passes', async () => {
+    const s = withEmergency(
+      async () => {},
+      () => new Promise(() => {}),
+    )
+    s.proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(10_001)
+    expect(s.emergencyStop).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('exits 1 after 3 s when it hangs', async () => {
+    const s = withEmergency(() => new Promise(() => {}))
+    s.proc.emit('uncaughtException', new Error('x'))
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(s.exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2)
+    expect(s.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('exits 1 when it throws or rejects', async () => {
+    const sync = withEmergency(() => {
+      throw new Error('sync')
+    })
+    sync.proc.emit('uncaughtException', new Error('x'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sync.exit).toHaveBeenCalledWith(1)
+    const rejected = withEmergency(async () => {
+      throw new Error('async')
+    })
+    rejected.proc.emit('unhandledRejection', new Error('x'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(rejected.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('is not run on a clean shutdown, and exits only once', async () => {
+    const s = withEmergency(async () => {})
+    s.proc.emit('SIGTERM')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(s.emergencyStop).not.toHaveBeenCalled()
+    expect(s.exit).toHaveBeenCalledTimes(1)
+    expect(s.exit).toHaveBeenCalledWith(0)
+  })
+})
+
 describe('stopAfterBoot', () => {
   function pending() {
     let resolve!: (s: { stop: () => Promise<void> }) => void

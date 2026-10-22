@@ -14,15 +14,24 @@ export interface LifecycleDeps {
   booted?: Promise<unknown>
   /** Hard shutdown deadline, counted from when boot settles. Defaults to 10 s. */
   deadlineMs?: number
+  /**
+   * Best-effort cleanup before every hard exit 1 (fatal error, deadline, second signal) that
+   * skips the graceful stop: stops the embedded Postgres so no postgres.exe is orphaned.
+   */
+  emergencyStop?: () => unknown
+  /** How long the emergency stop may take before the exit happens anyway. Defaults to 3 s. */
+  emergencyStopTimeoutMs?: number
 }
 
 const DEFAULT_DEADLINE_MS = 10_000
+const DEFAULT_EMERGENCY_STOP_TIMEOUT_MS = 3_000
 
 /**
  * Wires process signals and fatal-error events.
  * - First SIGINT/SIGTERM: graceful stop, exit 0; a 10 s deadline forces exit 1.
  * - A second signal exits 1 immediately.
  * - unhandledRejection / uncaughtException: log name and code only, exit 1.
+ * - Every hard exit 1 first runs `emergencyStop` for at most 3 s; it never throws.
  *
  * Returns `shutdown(reason)`, which starts the same graceful stop from code (the desktop parent
  * watchdog on stdin EOF). It counts as the first signal.
@@ -34,14 +43,47 @@ export function installLifecycle({
   proc,
   booted = Promise.resolve(),
   deadlineMs = DEFAULT_DEADLINE_MS,
+  emergencyStop,
+  emergencyStopTimeoutMs = DEFAULT_EMERGENCY_STOP_TIMEOUT_MS,
 }: LifecycleDeps): { shutdown(reason: string): void } {
   let shuttingDown = false
+  let exiting = false
+
+  /** Exit 1 without the graceful stop, after the emergency stop settles or times out. */
+  const hardExit = () => {
+    if (exiting) return
+    exiting = true
+    if (!emergencyStop) {
+      exit(1)
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, emergencyStopTimeoutMs)
+    })
+    // Started synchronously, so it is under way even if the process dies before the next tick.
+    let cleanup: Promise<unknown>
+    try {
+      cleanup = Promise.resolve(emergencyStop()).catch(() => {})
+    } catch {
+      cleanup = Promise.resolve()
+    }
+    void Promise.race([cleanup, timeout]).then(() => {
+      clearTimeout(timer)
+      exit(1)
+    })
+  }
+  const exitOnce = (code: number) => {
+    if (exiting) return
+    exiting = true
+    exit(code)
+  }
 
   // signal is a signal name, or a reason such as stdin_eof from shutdown().
   const onSignal = (signal: string) => {
     if (shuttingDown) {
       logger.warn({ signal }, 'second signal, exiting now')
-      exit(1)
+      hardExit()
       return
     }
     shuttingDown = true
@@ -56,7 +98,7 @@ export function installLifecycle({
       if (done) return
       deadline = setTimeout(() => {
         logger.error('shutdown deadline exceeded')
-        exit(1)
+        hardExit()
       }, deadlineMs)
       deadline.unref()
     }
@@ -64,13 +106,13 @@ export function installLifecycle({
       () => {
         done = true
         clearTimeout(deadline)
-        exit(0)
+        exitOnce(0)
       },
       (err: unknown) => {
         done = true
         clearTimeout(deadline)
         logger.error(describeFailure(err), 'shutdown failed')
-        exit(1)
+        exitOnce(1)
       },
     )
   }
@@ -80,7 +122,7 @@ export function installLifecycle({
     if (fataling) return
     fataling = true
     logger.fatal({ ...describeFailure(err), kind }, 'fatal error')
-    exit(1)
+    hardExit()
   }
 
   proc.on('SIGINT', () => onSignal('SIGINT'))
