@@ -144,8 +144,11 @@ async function checkHostKey(
   } catch (err) {
     if (!(err instanceof SecretDecryptError)) throw err
     throw new MasterKeyError(
-      'The master key in Windows Credential Manager does not decrypt the stored secrets. ' +
-        'Boot stopped so they are not lost; restore the old key to Credential Manager.',
+      'The master key in Windows Credential Manager (entry Mawl/master-key) does not decrypt ' +
+        'the stored provider keys, so boot stopped instead of discarding them. To recover, put ' +
+        'the old key back into that entry from a backup. Without the old key the stored provider ' +
+        'keys cannot be recovered, and deleting the entry does not help: Mawl then creates ' +
+        'another key, and the old encrypted provider keys still fail this check.',
     )
   }
 }

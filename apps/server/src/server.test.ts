@@ -312,7 +312,13 @@ describe('startServer with the master key from the desktop host', () => {
       },
     }).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(MasterKeyError)
-    expect(String((err as Error).message)).toMatch(/does not decrypt/)
+    const message = String((err as Error).message)
+    expect(message).toMatch(/does not decrypt/)
+    // Names the recovery that works, and is honest that deleting the entry does not.
+    expect(message).toMatch(/Mawl\/master-key/)
+    expect(message).toMatch(/from a backup/)
+    expect(message).toMatch(/cannot be recovered/)
+    expect(message).toMatch(/deleting the entry does not help/)
     expect(f.close).toHaveBeenCalledTimes(1)
   })
 
