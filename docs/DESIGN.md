@@ -225,7 +225,7 @@ Mawl is a soft lemon-lime mochi: a round blob with two round ears and a small pa
 
 ### Image requests
 
-Mawl is drawn in code from the reference, so no mascot sheet and no onboarding illustration are needed. Only the **app icon** is still pending: the user will generate it from a new prompt once Mawl is final, and the prompt will be added here then.
+Mawl is drawn in code from the reference, so no mascot sheet and no onboarding illustration are needed. The **app icon** is drawn in code too, at the user's request: Mawl tilted 8° and cropped by the bottom edge on a rounded near-black tile with a soft lime glow and three gold sparkles, no paw. Source `design/assets/app-icon.svg` (PNG renders `app-icon.png` and a light variant `app-icon-light.png`); the desktop sizes in `apps/desktop/src-tauri/icons/` come from `pnpm exec tauri icon design/assets/app-icon.png`. The Windows ICO and the Dock icon use the black version; the light one is for a light-theme tray or the web. Nothing is pending for images except tray art per status (`TODO(mascot)` in the tray code).
 
 ## 9. Components (inventory)
 

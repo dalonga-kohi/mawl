@@ -119,6 +119,8 @@ The installer (D1.7) bundles the server, Node and Postgres. From a checkout you 
 2. Give the server a database in the same shell: either `$env:MAWL_PG_ROOT='<folder from infra/desktop/fetch-pg.ps1>'` for the embedded Postgres, or `$env:DATABASE_URL='postgres://…'` for one you run.
 3. Run `pnpm --filter @mawl/desktop dev`. Tauri starts Vite on port 5173 and opens the window on the splash. The host starts `node` from your PATH on `apps/server/dist/server.mjs`, always on port 7420 (Vite's proxy target), and opens the app from Vite once the server answers `/healthz`.
 
+A development build never registers start at login (it would point at a debug executable), and the tray's "Start Mawl at login" item stays off and disabled. An installed Mawl turns it on at its first run; the owner can switch it off from the tray menu and it stays off. A login start (Mawl.exe --autostart) keeps the window in the tray.
+
 A development build passes only `DATABASE_URL`, `MAWL_PG_ROOT` and `LOG_LEVEL` from your shell to the server, on top of the system variables; everything else is cleared. Data goes to the same `%LOCALAPPDATA%\app.mawl.desktop` folder as an installed Mawl.
 
 To look at the splash in a browser, run the web dev server (`pnpm --filter @mawl/web dev`) and open `http://127.0.0.1:5173/splash.html?demo=boot` (or `demo=failed`, `restarting`, `stopping`). Do not open `apps/web/splash.html` as a file: the browser blocks its module script under CORS, because a file page has no origin.

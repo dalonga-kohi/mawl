@@ -31,11 +31,16 @@ pub fn same_origin(a: &Url, b: &Url) -> bool {
 }
 
 /// Whether the main frame may load `target`. Everything else is refused.
+///
+/// On the splash's origin only the splash page itself (same path; a query or fragment is fine) is
+/// allowed: the rest of the web build is served from the same origin, and that origin has IPC.
+/// The app's origin is allowed whole, and callers pass it only while the server is ready.
 pub fn allow_navigation(target: &Url, splash: &Url, app: Option<&Url>) -> bool {
     if target.as_str() == "about:blank" {
         return true;
     }
-    same_origin(target, splash) || app.is_some_and(|app| same_origin(target, app))
+    let is_splash = same_origin(target, splash) && target.path() == splash.path();
+    is_splash || app.is_some_and(|app| same_origin(target, app))
 }
 
 /// The script that defines `window.__MAWL_LAUNCH_TOKEN__` on the app's pages only. Read-only and
@@ -96,9 +101,47 @@ mod tests {
     }
 
     #[test]
+    fn only_the_exact_splash_page_is_allowed_on_the_local_origin() {
+        let splash = url("http://tauri.localhost/splash.html");
+        let allow = |t: &str| allow_navigation(&url(t), &splash, None);
+        // The query is allowed on the exact path; the fragment is not part of the path either.
+        assert!(allow("http://tauri.localhost/splash.html"));
+        assert!(allow("http://tauri.localhost/splash.html?x=1"));
+        assert!(allow("http://tauri.localhost/splash.html#a"));
+        // The rest of the web build lives on the same origin and has local-origin IPC.
+        assert!(!allow("http://tauri.localhost/index.html"));
+        assert!(!allow("http://tauri.localhost/"));
+        assert!(!allow("http://tauri.localhost/splash.html/"));
+        assert!(!allow("http://tauri.localhost/assets/x.js"));
+        assert!(!allow("http://tauri.localhost/%73plash.html/../index.html"));
+        // The dev server (Vite) is held to the same rule.
+        let dev = url("http://localhost:5173/splash.html");
+        assert!(allow_navigation(
+            &url("http://localhost:5173/splash.html"),
+            &dev,
+            None
+        ));
+        assert!(!allow_navigation(
+            &url("http://localhost:5173/"),
+            &dev,
+            None
+        ));
+        assert!(!allow_navigation(
+            &url("http://localhost:5173/src/main.tsx"),
+            &dev,
+            None
+        ));
+    }
+
+    #[test]
     fn the_tauri_scheme_compares_by_scheme_and_host() {
         let splash = url("tauri://localhost/splash.html");
-        assert!(allow_navigation(&url("tauri://localhost/"), &splash, None));
+        assert!(allow_navigation(
+            &url("tauri://localhost/splash.html"),
+            &splash,
+            None
+        ));
+        assert!(!allow_navigation(&url("tauri://localhost/"), &splash, None));
         assert!(!allow_navigation(&url("tauri://evil/"), &splash, None));
     }
 

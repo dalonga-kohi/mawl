@@ -4,18 +4,23 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use mawl_host::autostart::launched_hidden;
 use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::launch::{self, Layout};
 use mawl_host::machine::Status;
+use mawl_host::markers::first_close_hint;
+use mawl_host::notice::{Notice, NoticeTracker};
 use mawl_host::port;
+use mawl_host::presence::Presence;
 use mawl_host::token::LaunchToken;
 use mawl_host::webview::{allow_navigation, app_url, launch_token_script};
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
+use tauri_plugin_notification::NotificationExt;
 
 pub const MAIN_WINDOW: &str = "main";
 /// The splash listens for this event (`apps/web/src/splash/bridge.ts`).
@@ -35,12 +40,16 @@ pub struct Shell {
     pub supervisor: Supervisor,
     splash: Url,
     dev_app: Option<Url>,
-    /// The main window shows the app (not the splash).
-    in_app: AtomicBool,
+    /// Whether the window shows the app, decided together with the server being ready, so a crash
+    /// can never leave it on a dead port (see `mawl_host::presence`).
+    presence: Arc<Presence>,
     quitting: AtomicBool,
-    /// The window was shown once at launch. Later splash loads (a restart while Mawl sits in the
+    /// The window was shown once at launch (set from the start for a login launch, which stays in
+    /// the tray until the owner opens it). Later splash loads (a restart while Mawl sits in the
     /// tray) must not pop it up again.
     shown: AtomicBool,
+    /// The close-to-tray hint was handled in this run, whatever the marker file says.
+    close_hinted: AtomicBool,
     /// The supervisor finished: the app may exit now.
     stopped: Arc<AtomicBool>,
 }
@@ -60,20 +69,24 @@ impl Shell {
 
 struct TauriUi {
     app: AppHandle,
+    presence: Arc<Presence>,
     stopped: Arc<AtomicBool>,
+    notices: Mutex<NoticeTracker>,
+    clock: Instant,
 }
 
 impl HostUi for TauriUi {
     fn status(&self, status: Status) {
+        self.presence.note_status(status);
+        crate::tray::update(&self.app, status);
+        self.notify_about(status);
         let _ = self.app.emit_to(MAIN_WINDOW, STATUS_EVENT, status);
         if status == Status::Ready {
             let app = self.app.clone();
             thread::spawn(move || {
                 thread::sleep(ENTER_FALLBACK);
                 if let Some(shell) = app.try_state::<Shell>() {
-                    if shell.supervisor.status() == Status::Ready {
-                        enter_app_now(&app, &shell);
-                    }
+                    enter_app_now(&app, &shell);
                 }
             });
         }
@@ -81,11 +94,11 @@ impl HostUi for TauriUi {
 
     fn leave_app(&self) {
         if let Some(shell) = self.app.try_state::<Shell>() {
-            if shell.in_app.swap(false, Ordering::SeqCst) {
+            shell.presence.leave(|| {
                 if let Some(window) = self.app.get_webview_window(MAIN_WINDOW) {
                     let _ = window.navigate(shell.splash.clone());
                 }
-            }
+            });
         }
     }
 
@@ -95,13 +108,70 @@ impl HostUi for TauriUi {
     }
 }
 
-fn enter_app_now(app: &AppHandle, shell: &Shell) {
-    if shell.in_app.swap(true, Ordering::SeqCst) {
+impl TauriUi {
+    /// A native notification for the status change, when the owner needs one (mawl_host::notice).
+    fn notify_about(&self, status: Status) {
+        let notice = {
+            let now_ms = u64::try_from(self.clock.elapsed().as_millis()).unwrap_or(u64::MAX);
+            let visible = window_visible(&self.app);
+            let mut tracker = self.notices.lock().unwrap_or_else(|e| e.into_inner());
+            tracker.on_status(status, now_ms, visible)
+        };
+        if let Some(notice) = notice {
+            notify(&self.app, notice);
+        }
+    }
+}
+
+/// Shown and not minimized.
+fn window_visible(app: &AppHandle) -> bool {
+    app.get_webview_window(MAIN_WINDOW)
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+}
+
+fn notify(app: &AppHandle, notice: Notice) {
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title(notice.title)
+        .body(notice.body)
+        .show()
+    {
+        eprintln!("mawl: could not show a notification: {e}");
+    }
+}
+
+/// The first time the window closes to the tray, say that Mawl keeps running. Never blocks the
+/// close: a failed write or notification is only logged.
+pub fn hint_first_close(app: &AppHandle) {
+    let Some(shell) = app.try_state::<Shell>() else {
+        return;
+    };
+    if shell.close_hinted.swap(true, Ordering::SeqCst) {
         return;
     }
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-        let _ = window.navigate(shell.app_url());
+    let Ok(data_dir) = app.path().app_local_data_dir() else {
+        return;
+    };
+    if first_close_hint(&data_dir) {
+        notify(
+            app,
+            Notice {
+                title: "Mawl is still running",
+                body: "Your teammates keep working. Open Mawl from the tray icon, or choose Quit Mawl to stop everything.",
+            },
+        );
     }
+}
+
+/// Navigates to the app only if the server is ready at this instant; the check and the navigation
+/// happen under one lock, so leave_app cannot slip in between.
+fn enter_app_now(app: &AppHandle, shell: &Shell) {
+    shell.presence.try_enter(|| {
+        if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+            let _ = window.navigate(shell.app_url());
+        }
+    });
 }
 
 /// `http://tauri.localhost/` on Windows, `tauri://localhost/` elsewhere; the dev server in dev.
@@ -170,7 +240,9 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let token_page = dev_app.clone().unwrap_or_else(|| app_url(port));
     let init_script = launch_token_script(token.expose(), &token_page);
 
+    let start_hidden = launched_hidden(&std::env::args().collect::<Vec<_>>());
     let stopped = Arc::new(AtomicBool::new(false));
+    let presence = Arc::new(Presence::new());
     let supervisor = Supervisor::start(
         SupervisorConfig {
             command,
@@ -182,17 +254,24 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         },
         TauriUi {
             app: app.clone(),
+            presence: Arc::clone(&presence),
             stopped: Arc::clone(&stopped),
+            notices: Mutex::new(NoticeTracker::new(Status::Starting {
+                stage: mawl_host::machine::Stage::Database,
+            })),
+            clock: Instant::now(),
         },
     );
     let splash = splash_url(app);
+    let nav_presence = Arc::clone(&presence);
     app.manage(Shell {
         supervisor: supervisor.clone(),
         splash: splash.clone(),
         dev_app: dev_app.clone(),
-        in_app: AtomicBool::new(false),
+        presence,
         quitting: AtomicBool::new(false),
-        shown: AtomicBool::new(false),
+        shown: AtomicBool::new(start_hidden),
+        close_hinted: AtomicBool::new(false),
         stopped,
     });
 
@@ -214,7 +293,10 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             let current = dev_app
                 .clone()
                 .unwrap_or_else(|| app_url(supervisor.port()));
-            allow_navigation(target, &nav_splash, Some(&current))
+            // The app origin (which receives the launch token) loads only while the server is
+            // ready: during a restart another local process could hold the freed port.
+            let app_origin = nav_presence.app_allowed().then_some(&current);
+            allow_navigation(target, &nav_splash, app_origin)
         })
         .build()?;
     if window.url().ok().as_ref() != Some(&splash) {
@@ -281,9 +363,7 @@ pub fn quit_app(app: AppHandle) {
 
 #[tauri::command]
 pub fn enter_app(app: AppHandle, shell: tauri::State<'_, Shell>) {
-    if shell.supervisor.status() == Status::Ready {
-        enter_app_now(&app, &shell);
-    }
+    enter_app_now(&app, &shell);
 }
 
 #[tauri::command]
