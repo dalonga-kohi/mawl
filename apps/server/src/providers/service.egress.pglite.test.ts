@@ -112,7 +112,7 @@ describe('providers.test egress guard and rate limit (PGlite)', () => {
   })
 
   it('refuses redirects on both paths: the default url and an owner-typed one', async () => {
-    const redirects: (RequestRedirect | undefined)[] = []
+    const redirects: RequestInit['redirect'][] = []
     dns['llm.example.com'] = ['93.184.215.14']
     const service = make({
       fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
