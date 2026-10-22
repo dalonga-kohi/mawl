@@ -76,6 +76,36 @@ describe('command palette', () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Control>}k{/Control}')
     await user.keyboard('zzzqqq')
-    expect(await screen.findByText('No matches. Try a view name like "Settings".')).toBeTruthy()
+    expect(await screen.findByText('Nothing found')).toBeTruthy()
+  })
+
+  it('is a round card with a pill search field and pill rows with a shortcut hint', async () => {
+    const { user } = await renderApp('/t')
+    await user.keyboard('{Control>}k{/Control}')
+    const dialog = await screen.findByRole('dialog', { name: 'Command palette' })
+    expect(dialog.className).toContain('rounded-panel')
+    const search = within(dialog).getByRole('combobox')
+    expect(search.className).toContain('rounded-pill')
+    expect(search.className).toContain('outline-none')
+    expect(search.getAttribute('aria-label')).toBe('Search commands')
+    const row = within(dialog).getByRole('option', { name: /sidebar/i })
+    expect(row.className).toContain('rounded-pill')
+    expect(row.className).toContain('pointer-coarse:h-11')
+    expect(within(row).getByText(/^(Ctrl B|⌘B)$/)).toBeTruthy()
+  })
+
+  it('names its groups in sentence case', async () => {
+    const { user } = await renderApp('/t')
+    await user.keyboard('{Control>}k{/Control}')
+    const dialog = await screen.findByRole('dialog', { name: 'Command palette' })
+    const headings = [...dialog.querySelectorAll('[cmdk-group-heading]')].map((h) => h.textContent)
+    expect(headings).toEqual(['Go to', 'Appearance', 'Layout'])
+  })
+
+  it('hides and shows the sidebar from the palette', async () => {
+    const { user } = await renderApp('/t')
+    await user.keyboard('{Control>}k{/Control}')
+    await user.click(await screen.findByRole('option', { name: /Hide sidebar/ }))
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Sidebar' })).toBeNull())
   })
 })

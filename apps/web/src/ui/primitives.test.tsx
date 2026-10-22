@@ -141,7 +141,7 @@ describe('Modal', () => {
 })
 
 describe('Input and Textarea', () => {
-  it('draws inputs as pills and textareas as rounded boxes, both marking invalid state', () => {
+  it('draws inputs as pills and textareas as 24 px cards, both marking invalid state', () => {
     render(
       <>
         <Input aria-label="Name" aria-invalid />
@@ -156,7 +156,7 @@ describe('Input and Textarea', () => {
         'aria-[invalid=true]:shadow-[0_0_0_2px_var(--danger)]',
       ]),
     )
-    expect(classes(screen.getByRole('textbox', { name: 'Job' }))).toContain('rounded-md')
+    expect(classes(screen.getByRole('textbox', { name: 'Job' }))).toContain('rounded-card')
   })
 })
 

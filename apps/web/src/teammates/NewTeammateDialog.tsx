@@ -10,9 +10,8 @@ import { toast } from 'sonner'
 import { errorCode } from '../api/providers-api.ts'
 import { useCredentials } from '../settings/models/queries.ts'
 import { Button, buttonClass } from '../ui/Button.tsx'
-import { cn } from '../ui/cn.ts'
-import { Textarea } from '../ui/Input.tsx'
-import { fieldClass, Modal } from '../ui/Modal.tsx'
+import { Input, Select, Textarea } from '../ui/Input.tsx'
+import { Modal } from '../ui/Modal.tsx'
 import { useCreateProfile } from './queries.ts'
 
 /** A sensible first model per provider, where Mawl knows one; otherwise the owner types it. */
@@ -96,12 +95,12 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
     ) : null
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={ids.name} className="text-small font-semibold text-text-2">
+        <label htmlFor={ids.name} className="text-small font-semibold">
           Name
         </label>
-        <input
+        <Input
           id={ids.name}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -109,32 +108,30 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
           autoComplete="off"
           aria-invalid={Boolean(errors.name)}
           aria-describedby={errors.name ? `${ids.name}-error` : undefined}
-          className={cn(fieldClass, 'h-11')}
         />
         {error(ids.name, errors.name)}
       </div>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={ids.credential} className="text-small font-semibold text-text-2">
+        <label htmlFor={ids.credential} className="text-small font-semibold">
           Model connection
         </label>
-        <select
+        <Select
           id={ids.credential}
           value={credentialId}
           onChange={(e) => pickCredential(e.target.value)}
-          className={cn(fieldClass, 'h-11')}
         >
           {usable.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={ids.model} className="text-small font-semibold text-text-2">
+        <label htmlFor={ids.model} className="text-small font-semibold">
           Model
         </label>
-        <input
+        <Input
           id={ids.model}
           value={model}
           onChange={(e) => {
@@ -146,12 +143,12 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
           spellCheck={false}
           aria-invalid={Boolean(errors.model)}
           aria-describedby={errors.model ? `${ids.model}-error` : undefined}
-          className={cn(fieldClass, 'h-11 font-mono text-small')}
+          className="font-mono text-small"
         />
         {error(ids.model, errors.model)}
       </div>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={ids.job} className="text-small font-semibold text-text-2">
+        <label htmlFor={ids.job} className="text-small font-semibold">
           Job (optional)
         </label>
         <Textarea
@@ -164,12 +161,12 @@ function Form({ credentials, onDone }: { credentials: ProviderCredential[]; onDo
         <p className="text-small text-text-2">One or two sentences. You can change it later.</p>
       </div>
       {errors.form ? (
-        <p role="alert" className="rounded-md bg-danger-soft p-3 text-small text-danger">
+        <p role="alert" className="rounded-md bg-danger-soft px-3.5 py-2.5 text-small text-danger">
           {errors.form}
         </p>
       ) : null}
       <div className="flex justify-end gap-2 pt-1">
-        <Button variant="ghost" onClick={onDone}>
+        <Button variant="soft" onClick={onDone}>
           Cancel
         </Button>
         <Button type="submit" variant="primary" disabled={create.isPending}>
@@ -195,7 +192,7 @@ export function NewTeammateDialog({
       {credentials.isPending ? (
         <p className="text-small text-text-2">Loading your model connections…</p>
       ) : credentials.isError ? (
-        <p role="alert" className="rounded-md bg-danger-soft p-3 text-small text-danger">
+        <p role="alert" className="rounded-md bg-danger-soft px-3.5 py-2.5 text-small text-danger">
           Couldn't load your model connections. Check that the Mawl server is running.
         </p>
       ) : usable.length === 0 ? (

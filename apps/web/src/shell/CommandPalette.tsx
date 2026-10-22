@@ -1,7 +1,7 @@
 import { accentPresets } from '@mawl/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
-import { Laptop, Monitor, Moon, Search, Sun, Wind } from 'lucide-react'
+import { Laptop, Monitor, Moon, PanelLeft, Search, Sun, Wind } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
 import { type ReactNode, useEffect } from 'react'
@@ -10,6 +10,7 @@ import { useAppearance } from '../appearance/AppearanceProvider.tsx'
 import { overlayFade, transitions } from '../motion/presets.ts'
 import { ALL_NAV } from './nav.ts'
 import { useShell } from './ShellContext.tsx'
+import { sidebarShortcutLabel } from './shortcuts.ts'
 
 /** "⌘K" on Apple platforms, "Ctrl K" elsewhere; both shortcuts work everywhere. */
 export const paletteShortcutLabel = () =>
@@ -23,30 +24,33 @@ function Item({
   onSelect,
   keywords,
   icon,
+  hint,
 }: {
   children: string
   onSelect: () => void
   keywords?: string[]
   icon: ReactNode
+  hint?: string
 }) {
   return (
     <Command.Item
       onSelect={onSelect}
       keywords={keywords ?? []}
-      className="flex h-10 cursor-pointer items-center gap-3 rounded-sm px-3 text-body text-text select-none data-[selected=true]:bg-accent-soft data-[selected=true]:text-accent-ink [&_svg]:size-[18px] [&_svg]:text-text-2 data-[selected=true]:[&_svg]:text-accent-ink"
+      className="accent-tween flex h-10 cursor-pointer items-center gap-3 rounded-pill px-3.5 text-body text-text select-none pointer-coarse:h-11 data-[selected=true]:bg-surface-2 [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-text-2 data-[selected=true]:[&_svg]:text-accent-ink"
     >
       {icon}
-      {children}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {hint ? <kbd className="shrink-0 font-ui text-micro text-text-3">{hint}</kbd> : null}
     </Command.Item>
   )
 }
 
 const groupClass =
-  'px-1 pb-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:text-micro [&_[cmdk-group-heading]]:text-text-2'
-
+  'pb-1 [&_[cmdk-group-heading]]:px-3.5 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-text-2'
 /** ⌘K / Ctrl+K: jump to a view or change appearance without leaving the keyboard. */
 export function CommandPalette() {
-  const { paletteOpen, setPaletteOpen, panelOpen, setPanelOpen } = useShell()
+  const { paletteOpen, setPaletteOpen, panelOpen, setPanelOpen, sidebarVisible, toggleSidebar } =
+    useShell()
   const { appearance, setTheme, setAccent, setReduceMotion } = useAppearance()
   const navigate = useNavigate()
 
@@ -79,23 +83,24 @@ export function CommandPalette() {
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined}>
               <motion.div
-                className="fixed top-[12vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-dialog bg-surface shadow-2"
+                className="fixed top-[14vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-panel bg-surface p-2 shadow-2"
                 initial={{ opacity: 0, scale: 0.98, y: -6 }}
                 animate={{ opacity: 1, scale: 1, y: 0, transition: transitions.gentle }}
                 exit={{ opacity: 0, scale: 0.98, transition: transitions.exit }}
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
                 <Command label="Command palette" loop>
-                  <div className="flex items-center gap-3 border-b border-line px-4">
+                  <div className="flex items-center gap-3 rounded-pill bg-surface-2 px-4">
                     <Search className="size-[18px] shrink-0 text-text-3" aria-hidden="true" />
                     <Command.Input
+                      aria-label="Search commands"
                       placeholder="Search or jump to…"
-                      className="h-13 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3"
+                      className="h-11 flex-1 rounded-pill bg-transparent text-body text-text outline-none placeholder:text-text-3 pointer-coarse:h-12"
                     />
                   </div>
-                  <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain py-1">
-                    <Command.Empty className="px-4 py-8 text-center text-small text-text-2">
-                      No matches. Try a view name like "Settings".
+                  <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain pt-1">
+                    <Command.Empty className="px-4 py-10 text-center text-small text-text-2">
+                      Nothing found
                     </Command.Empty>
                     <Command.Group heading="Go to" className={groupClass}>
                       {ALL_NAV.map((item) => {
@@ -165,6 +170,14 @@ export function CommandPalette() {
                       </Item>
                     </Command.Group>
                     <Command.Group heading="Layout" className={groupClass}>
+                      <Item
+                        keywords={['navigation', 'menu', 'teammates']}
+                        icon={<PanelLeft aria-hidden="true" />}
+                        hint={sidebarShortcutLabel()}
+                        onSelect={run(toggleSidebar)}
+                      >
+                        {sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+                      </Item>{' '}
                       <Item
                         keywords={['context', 'computer', 'panel', 'sidebar']}
                         icon={<Monitor aria-hidden="true" />}
