@@ -7,6 +7,7 @@ import {
   type ProviderCredentialInput,
   type ProviderCredentialRemoved,
   type ProviderFailureReason,
+  type ProviderTestInput,
   type ProviderTestResult,
 } from '@mawl/contracts'
 import {
@@ -15,6 +16,7 @@ import {
   createLanguageModel,
   type ProviderConnection,
   ProviderFailureError,
+  resolveBaseUrl,
   testCredential,
 } from '@mawl/core'
 import { schema } from '@mawl/db'
@@ -22,6 +24,7 @@ import { asc, eq } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import { type SecretBox, SecretDecryptError } from '../secrets/index.ts'
 import { type ChatGptOptions, createChatGptAuth } from './chatgpt/auth.ts'
+import { createGuardedFetch, EgressBlockedError, type ResolveHost } from './egress/guarded-fetch.ts'
 import { CredentialNotFoundError, CredentialUnreadableError, type ProvidersDb } from './types.ts'
 
 export {
@@ -40,8 +43,15 @@ export interface ProviderServiceDeps {
   db: ProvidersDb
   secretBox: SecretBox
   logger: Logger
-  /** Used for key tests only; defaults to the global fetch. */
+  /**
+   * Used for key tests only; defaults to the global fetch, and for an owner-typed url to the
+   * guarded fetch's pinned transport. Tests inject it (the guard still vets the address first).
+   */
   fetch?: typeof globalThis.fetch
+  /** DNS for the SSRF guard. Defaults to the system resolver; tests inject a fake one. */
+  resolveHost?: ResolveHost
+  /** The per-process token bucket on `test`. Defaults: 10 at once, one more every 3 s. */
+  testRateLimit?: TestRateLimitOptions
   /** Sign in with ChatGPT. Without a host id the sign-in cannot start. */
   chatgpt?: ChatGptOptions
   /**
@@ -61,7 +71,58 @@ export interface ClaudeCodeOptions
   checkLogin?: () => Promise<ProviderTestResult>
 }
 
-export type TestTarget = { id: CredentialId } | ProviderCredentialInput
+export type TestTarget = ProviderTestInput
+
+export interface TestRateLimitOptions {
+  capacity?: number
+  refillMs?: number
+  /** Monotonic ms clock. Defaults to performance.now. */
+  now?: () => number
+}
+
+/** `test` was called too often; nothing was looked up or sent. */
+export class ProviderTestRateLimitedError extends Error {
+  constructor() {
+    super('Too many provider tests; try again shortly')
+    this.name = 'ProviderTestRateLimitedError'
+  }
+}
+
+/** A small token bucket: `capacity` at once, one more every `refillMs`. */
+function tokenBucket({
+  capacity = 10,
+  refillMs = 3000,
+  now = () => performance.now(),
+}: TestRateLimitOptions) {
+  let tokens = capacity
+  let last = now()
+  return {
+    take(): boolean {
+      const t = now()
+      const gained = Math.floor((t - last) / refillMs)
+      if (gained > 0) {
+        tokens = Math.min(capacity, tokens + gained)
+        last = tokens === capacity ? t : last + gained * refillMs
+      }
+      if (tokens < 1) return false
+      tokens--
+      return true
+    },
+  }
+}
+
+/**
+ * Whether a key test may skip the SSRF guard: only when the url it calls is the provider's own
+ * default (a constant, such as Ollama on localhost), never one the owner typed.
+ */
+function isDefaultUrl(conn: ProviderConnection): boolean {
+  if (conn.baseUrl === null) return true
+  try {
+    return resolveBaseUrl(conn.kind, conn.baseUrl) === resolveBaseUrl(conn.kind, null)
+  } catch {
+    return false
+  }
+}
 
 export interface ProviderService {
   list(): Promise<ProviderCredential[]>
@@ -124,9 +185,12 @@ export function createProviderService({
   secretBox,
   logger,
   fetch,
+  resolveHost,
+  testRateLimit = {},
   chatgpt: chatgptOptions,
   claudeCode,
 }: ProviderServiceDeps): ProviderService {
+  const testBucket = tokenBucket(testRateLimit)
   const chatgpt = createChatGptAuth({
     db,
     secretBox,
@@ -220,6 +284,8 @@ export function createProviderService({
     },
 
     async test(target) {
+      // Before any lookup or request: a key test must not become a scanner.
+      if (!testBucket.take()) throw new ProviderTestRateLimitedError()
       let conn: ProviderConnection
       if ('id' in target) {
         conn = await resolveCredential(target.id)
@@ -246,12 +312,38 @@ export function createProviderService({
           secret: target.secret ?? null,
         }
       }
-      const result = await testCredential(conn, {
-        ...(fetch ? { fetch } : {}),
+      // SSRF guard for any url the owner typed: resolved once, metadata and link-local refused,
+      // private networks only with the opt-in. A stored credential was saved by the owner, so
+      // its private address stays testable; an unsaved one needs `allowPrivateNetwork`.
+      let blocked: EgressBlockedError | undefined
+      let testFetch = fetch
+      if (conn.kind !== 'anthropic_claude_code' && !isDefaultUrl(conn)) {
+        const guarded = createGuardedFetch({
+          allowPrivate: 'id' in target ? true : target.allowPrivateNetwork === true,
+          ...(resolveHost ? { resolve: resolveHost } : {}),
+          ...(fetch ? { transport: (url, init) => fetch(url.toString(), init) } : {}),
+        })
+        testFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+          try {
+            return await guarded(input, init)
+          } catch (err) {
+            if (err instanceof EgressBlockedError) blocked = err
+            throw err
+          }
+        }) as typeof globalThis.fetch
+      }
+      const tested = await testCredential(conn, {
+        ...(testFetch ? { fetch: testFetch } : {}),
         ...(claudeCode ? { claudeCode } : {}),
       })
+      const result: ProviderTestResult = blocked ? { ok: false, reason: 'blocked_address' } : tested
       logger.info(
-        { provider: conn.kind, ok: result.ok, ...(result.ok ? {} : { reason: result.reason }) },
+        {
+          provider: conn.kind,
+          ok: result.ok,
+          ...(result.ok ? {} : { reason: result.reason }),
+          ...(blocked ? { why: blocked.why } : {}),
+        },
         'provider credential tested',
       )
       return result

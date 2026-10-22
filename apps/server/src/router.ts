@@ -15,6 +15,7 @@ import {
   CredentialNotFoundError,
   CredentialUnreadableError,
   type ProviderService,
+  ProviderTestRateLimitedError,
   SignInAttemptNotFoundError,
   SignInUnavailableError,
 } from './providers/service.ts'
@@ -203,6 +204,10 @@ export function createRouter({ version, providers, runs, events, profiles, user 
         providers.test(input).catch((err: unknown) => {
           if (err instanceof CredentialUnreadableError) {
             throw errors.CREDENTIAL_UNREADABLE({ data: { id: err.id } })
+          }
+          // A plain ORPCError like SIGN_IN_UNAVAILABLE: the owner waits a moment and checks again.
+          if (err instanceof ProviderTestRateLimitedError) {
+            throw new ORPCError('RATE_LIMITED', { status: 429 })
           }
           return notFound(errors)(err)
         }),

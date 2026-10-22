@@ -6,6 +6,7 @@ import {
   CredentialNotFoundError,
   CredentialUnreadableError,
   type ProviderService,
+  ProviderTestRateLimitedError,
 } from './providers/service.ts'
 import { unusedProviders } from './providers/test-util.ts'
 import { createRouter } from './router.ts'
@@ -108,6 +109,40 @@ describe('providers procedures', () => {
       status: 409,
       data: { id: UNREADABLE },
     })
+  })
+
+  it('test answers 429 RATE_LIMITED when the test bucket is empty', async () => {
+    const limited = createRouter({
+      version: '1',
+      providers: {
+        ...providers,
+        test: async () => {
+          throw new ProviderTestRateLimitedError()
+        },
+      },
+      runs: unusedRuns,
+    })
+    await expect(call(limited.providers.test, { id: CRED })).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      status: 429,
+    })
+  })
+
+  it('test passes the private network opt-in to the service', async () => {
+    const seen: unknown[] = []
+    const spy = createRouter({
+      version: '1',
+      providers: {
+        ...providers,
+        test: async (target) => {
+          seen.push(target)
+          return { ok: true, latencyMs: 1 }
+        },
+      },
+      runs: unusedRuns,
+    })
+    await call(spy.providers.test, { id: CRED, allowPrivateNetwork: true })
+    expect(seen).toEqual([{ id: CRED, allowPrivateNetwork: true }])
   })
 
   it('test accepts a stored id', async () => {
