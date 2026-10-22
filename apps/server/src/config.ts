@@ -11,6 +11,8 @@ export type Mode = (typeof MODES)[number]
 /** Under MAWL_DATA_DIR in desktop mode (ARCHITECTURE: `{pg-data,secrets,claude,logs,artifacts}`). */
 export const DESKTOP_PG_DATA_DIR = 'pg-data'
 export const DESKTOP_SECRETS_DIR = 'secrets'
+/** The only bind addresses desktop mode accepts. */
+export const DESKTOP_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', 'localhost'])
 
 /** Treat an empty string like an unset variable. */
 const optional = <T extends z.ZodType>(schema: T) =>
@@ -115,6 +117,7 @@ const ModeSchema = z
     MAWL_DATA_DIR: z.unknown().optional(),
     MAWL_PG_ROOT: z.unknown().optional(),
     MAWL_SECRETS_DIR: z.unknown().optional(),
+    MAWL_HOST: z.unknown().optional(),
   })
   .superRefine((env, ctx) => {
     const set = (v: unknown): v is string => typeof v === 'string' && v !== ''
@@ -131,6 +134,12 @@ const ModeSchema = z
     absolute('MAWL_DATA_DIR', env.MAWL_DATA_DIR)
     // A relative dir would follow the host's working directory, which may be the install dir.
     if (set(env.MAWL_SECRETS_DIR)) absolute('MAWL_SECRETS_DIR', env.MAWL_SECRETS_DIR)
+    // The desktop server is reachable from this machine only (no device auth until D8.1).
+    if (set(env.MAWL_HOST) && !DESKTOP_HOSTS.has(env.MAWL_HOST)) {
+      ctx.addIssue(
+        issue('MAWL_HOST', `must be one of ${[...DESKTOP_HOSTS].join(', ')} in desktop mode`),
+      )
+    }
     // Without a database url the server runs the embedded Postgres from the install's `pg\`.
     if (!set(env.DATABASE_URL)) absolute('MAWL_PG_ROOT', env.MAWL_PG_ROOT)
   })

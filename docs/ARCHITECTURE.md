@@ -127,7 +127,7 @@ flowchart TB
     | `DATABASE_URL` | required in headless | `postgres://` or `postgresql://` URL. Optional in desktop mode: when set, it is used and no embedded Postgres starts |
     | `MAWL_DATA_DIR` | unset | desktop only, required, absolute: Tauri's `app_local_data_dir`, never the install dir. Holds `pg-data\` and, by default, `secrets\`. Ignored in headless mode |
     | `MAWL_PG_ROOT` | unset | desktop only, absolute, required when `DATABASE_URL` is unset: the install's `pg\` with `bin\initdb`, `postgres`, `pg_ctl`. Ignored in headless mode |
-    | `MAWL_HOST` | `127.0.0.1` | bind address (compose sets `0.0.0.0`) |
+    | `MAWL_HOST` | `127.0.0.1` | bind address (compose sets `0.0.0.0`). Desktop mode accepts only `127.0.0.1`, `::1` or `localhost` |
     | `MAWL_PORT` | `7420` | HTTP port |
     | `MAWL_SECRETS_DIR` | `.mawl/secrets` (desktop: `<MAWL_DATA_DIR>/secrets`) | holds `master.key` and `siwc-host-id` (compose: `/secrets`) |
     | `MAWL_SIWC_PORT` | `1455` | loopback port of the Sign in with ChatGPT callback |

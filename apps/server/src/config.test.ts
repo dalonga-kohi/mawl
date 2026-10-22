@@ -243,6 +243,44 @@ describe('parseConfig modes', () => {
     expect(cfg.port).toBe(51234)
   })
 
+  it.each(['127.0.0.1', '::1', 'localhost'])(
+    'desktop accepts the loopback MAWL_HOST %s',
+    (host) => {
+      const cfg = parseConfig({
+        MAWL_MODE: 'desktop',
+        MAWL_DATA_DIR: dataDir,
+        MAWL_PG_ROOT: pgRoot,
+        MAWL_HOST: host,
+      })
+      expect(cfg.host).toBe(host)
+    },
+  )
+
+  it.each(['0.0.0.0', '192.168.77.13', 'hunter2-host.example'])(
+    'desktop rejects the non-loopback MAWL_HOST %s, naming the variable only',
+    (host) => {
+      let message = ''
+      try {
+        parseConfig({
+          MAWL_MODE: 'desktop',
+          MAWL_DATA_DIR: dataDir,
+          MAWL_PG_ROOT: pgRoot,
+          MAWL_HOST: host,
+        })
+      } catch (err) {
+        message = (err as Error).message
+      }
+      expect(message).toContain('MAWL_HOST')
+      expect(message).not.toContain(host)
+    },
+  )
+
+  it('headless still allows any MAWL_HOST', () => {
+    expect(parseConfig({ DATABASE_URL: URL_WITH_PASSWORD, MAWL_HOST: '0.0.0.0' }).host).toBe(
+      '0.0.0.0',
+    )
+  })
+
   it('keeps the loopback defaults a desktop install relies on', () => {
     const cfg = parseConfig({ MAWL_MODE: 'desktop', MAWL_DATA_DIR: dataDir, MAWL_PG_ROOT: pgRoot })
     expect(cfg.siwcPort).toBe(1455)
