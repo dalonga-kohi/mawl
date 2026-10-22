@@ -130,13 +130,14 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
   - build pgvector v0.8.7 with MSVC (`nmake /F Makefile.win`) and run `installcheck`
   - upload `vector.dll` + control + SQL as a hashed artifact
   - The MinGW recipe stays the local fallback. Actions pinned by full SHA (existing test).
-- [ ] **D1.3 Desktop server mode.**
+- [~] **D1.3 Desktop server mode.** (head-coder: server boot, DB lifecycle, secrets handling; split 2026-10-22, the Claude binary and SDK bundling moved to D1.3b)
   - Config: `MAWL_MODE=desktop|headless`, `MAWL_DATA_DIR` (Tauri's `app_local_data_dir`, `%LOCALAPPDATA%\app.mawl.desktop`, never the install dir). `DATABASE_URL` is optional in desktop mode, which uses D1.1 with binaries from `MAWL_PG_ROOT` (the install's `pg\`).
   - Port via env, launch token on stdin's first line, never argv. Exit on stdin EOF (parent watchdog; D0.2 saw the server ignore EOF today).
-  - Build: bundle `@anthropic-ai/claude-agent-sdk` JS into `server.mjs` (drop it from esbuild `external`) and always pass `pathToClaudeCodeExecutable`.
-  - The Claude binary on first use: download the pinned platform package tarball, verify the lockfile sha512, extract to `<data>\claude\<ver>\`. Never modified (Anthropic terms).
   - SIWC callback on the real loopback; the Ollama default `http://localhost:11434`.
   - *Tests:* config matrix, watchdog exit, no token in logs.
+- [ ] **D1.3b Bundled Claude binary.** (split from D1.3)
+  - Build: bundle `@anthropic-ai/claude-agent-sdk` JS into `server.mjs` (drop it from esbuild `external`) and always pass `pathToClaudeCodeExecutable`.
+  - The Claude binary on first use: download the pinned platform package tarball, verify the lockfile sha512, extract to `<data>\claude\<ver>\`. Never modified (Anthropic terms).
 - [ ] **D1.4 Local launch-token auth.** (head-coder; security. Propose head-reviewer)
   - Every `/rpc` call and the `/ws` upgrade require the per-launch token, in a header or the WS subprotocol, never in a URL. It's checked in constant time, on top of the Host and Origin checks.
   - Headless mode uses a generated owner token until device auth (D8.1).
