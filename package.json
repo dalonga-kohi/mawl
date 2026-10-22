@@ -16,6 +16,7 @@
     "typecheck:root": "tsc --noEmit -p .",
     "test": "turbo test",
     "test:workspace": "vitest run --project workspace",
+    "test:docker": "vitest run .pg.test.ts postgres.smoke.test.ts",
     "test:e2e": "pnpm --filter @mawl/web e2e"
   },
   "devDependencies": {
