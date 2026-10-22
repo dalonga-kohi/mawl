@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
 use mawl_host::session::{
-    session_action, wait_bounded, SessionAction, END_SESSION_WAIT, PBT_APMRESUMEAUTOMATIC,
+    session_action, wait_bounded, EndWait, SessionAction, END_SESSION_WAIT, PBT_APMRESUMEAUTOMATIC,
     WAIT_STEP, WM_ENDSESSION, WM_POWERBROADCAST, WM_QUERYENDSESSION,
 };
 use tauri::{AppHandle, Manager};
@@ -43,6 +43,7 @@ const BLOCK_REASON: &str = "Mawl is saving your work";
 const SUBCLASS_ID: usize = 0x4D41_574C;
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
+static END_WAIT: EndWait = EndWait::new();
 /// The main window's handle: the wake from sleep is broadcast to every top-level window, and the
 /// supervisor is asked once.
 static MAIN_HWND: AtomicUsize = AtomicUsize::new(0);
@@ -108,8 +109,13 @@ unsafe extern "system" fn window_proc(
                 // A session end that arrives without the query (a restart by the Restart
                 // Manager, say) still stops the server first. `begin_quit` runs once.
                 shell::begin_quit(app);
-                let stopped = || app.try_state::<Shell>().is_none_or(|s| s.may_exit());
-                wait_bounded(stopped, END_SESSION_WAIT, WAIT_STEP);
+                // Only the first window waits; the message reaches every top-level window in turn and
+                // the waits would add up. Waits for the server process to be gone, not for the
+                // app exit: that goes through this very thread.
+                if END_WAIT.claim() {
+                    let gone = || app.try_state::<Shell>().is_none_or(|s| s.server_gone());
+                    wait_bounded(gone, END_SESSION_WAIT, WAIT_STEP);
+                }
                 unblock_shutdown(hwnd);
             }
             SessionAction::EndCancelled => unblock_shutdown(hwnd),

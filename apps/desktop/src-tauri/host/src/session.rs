@@ -5,6 +5,7 @@
 //! Without this, a logoff can end the host with no `ExitRequested`: the job object then kills the
 //! embedded Postgres hard and the next start runs WAL recovery.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -47,6 +48,22 @@ pub fn session_action(msg: u32, wparam: usize) -> SessionAction {
         WM_ENDSESSION => SessionAction::EndCancelled,
         WM_POWERBROADCAST if wparam == PBT_APMRESUMEAUTOMATIC as usize => SessionAction::ProbeNow,
         _ => SessionAction::Ignore,
+    }
+}
+
+/// Lets exactly one window handler do the bounded wait for a session end. Every top-level window
+/// of the UI thread gets `WM_ENDSESSION`, and the later ones find the work done (or timed out).
+#[derive(Debug, Default)]
+pub struct EndWait(AtomicBool);
+
+impl EndWait {
+    pub const fn new() -> Self {
+        Self(AtomicBool::new(false))
+    }
+
+    /// True for the first caller only.
+    pub fn claim(&self) -> bool {
+        !self.0.swap(true, Ordering::SeqCst)
     }
 }
 
@@ -105,13 +122,22 @@ mod tests {
             SessionAction::ProbeNow
         );
         // Suspend (4), resume-suspend (7), battery low (9), status change (10): nothing to do.
-        for wparam in [0, 4, 7, 9, 10, 11, 18 + 1] {
+        for wparam in [0, 4, 7, 9, 10, 11, 19] {
             assert_eq!(
                 session_action(WM_POWERBROADCAST, wparam),
                 SessionAction::Ignore,
                 "{wparam}"
             );
         }
+    }
+
+    #[test]
+    fn only_the_first_window_waits_for_the_end_of_the_session() {
+        // The message goes to every subclassed window in turn; waiting in each would add up.
+        let gate = EndWait::new();
+        assert!(gate.claim());
+        assert!(!gate.claim());
+        assert!(!gate.claim());
     }
 
     #[test]

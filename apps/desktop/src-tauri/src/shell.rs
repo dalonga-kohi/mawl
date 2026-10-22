@@ -48,7 +48,12 @@ pub struct Shell {
     presence: Arc<Presence>,
     /// A deep link that arrived before the server was ready; the first entry into the app uses it.
     pending_link: Arc<PendingLink>,
-    quitting: AtomicBool,
+    /// "Quit Mawl" or a session end began: the UI thread may be waiting on the supervisor (a
+    /// Windows logoff), so the supervisor thread must not call into the window, tray or
+    /// notifications any more.
+    quitting: Arc<AtomicBool>,
+    /// The server process is gone (set by `HostUi::server_gone`, before any UI call).
+    server_gone: Arc<AtomicBool>,
     /// The window was shown once at launch (set from the start for a login launch, which stays in
     /// the tray until the owner opens it). Later splash loads (a restart while Mawl sits in the
     /// tray) must not pop it up again.
@@ -69,6 +74,12 @@ impl Shell {
 
     pub fn may_exit(&self) -> bool {
         self.stopped.load(Ordering::SeqCst)
+    }
+
+    /// Whether the server and its Postgres have stopped. A logoff waits on this, not on
+    /// `may_exit`: the exit goes through the UI thread, which is the one waiting.
+    pub fn server_gone(&self) -> bool {
+        self.server_gone.load(Ordering::SeqCst)
     }
 
     /// Where the window goes when it enters the app: a link that arrived early, else the root.
@@ -133,6 +144,8 @@ struct TauriUi {
     app: AppHandle,
     presence: Arc<Presence>,
     stopped: Arc<AtomicBool>,
+    quitting: Arc<AtomicBool>,
+    server_gone: Arc<AtomicBool>,
     notices: Mutex<NoticeTracker>,
     clock: Instant,
 }
@@ -140,6 +153,10 @@ struct TauriUi {
 impl HostUi for TauriUi {
     fn status(&self, status: Status) {
         self.presence.note_status(status);
+        // From here on the UI thread may be blocked on us; window and tray calls would wait for it.
+        if self.quitting.load(Ordering::SeqCst) {
+            return;
+        }
         crate::tray::update(&self.app, status);
         self.notify_about(status);
         let _ = self.app.emit_to(MAIN_WINDOW, STATUS_EVENT, status);
@@ -155,6 +172,9 @@ impl HostUi for TauriUi {
     }
 
     fn leave_app(&self) {
+        if self.quitting.load(Ordering::SeqCst) {
+            return;
+        }
         if let Some(shell) = self.app.try_state::<Shell>() {
             shell.presence.leave(|| {
                 if let Some(window) = self.app.get_webview_window(MAIN_WINDOW) {
@@ -162,6 +182,10 @@ impl HostUi for TauriUi {
                 }
             });
         }
+    }
+
+    fn server_gone(&self) {
+        self.server_gone.store(true, Ordering::SeqCst);
     }
 
     fn exit(&self) {
@@ -312,6 +336,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
 
     let start_hidden = launched_hidden(&std::env::args().collect::<Vec<_>>());
     let stopped = Arc::new(AtomicBool::new(false));
+    let quitting = Arc::new(AtomicBool::new(false));
+    let server_gone = Arc::new(AtomicBool::new(false));
     let presence = Arc::new(Presence::new());
     let supervisor = Supervisor::start(
         SupervisorConfig {
@@ -326,6 +352,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
             app: app.clone(),
             presence: Arc::clone(&presence),
             stopped: Arc::clone(&stopped),
+            quitting: Arc::clone(&quitting),
+            server_gone: Arc::clone(&server_gone),
             notices: Mutex::new(NoticeTracker::new(Status::Starting {
                 stage: mawl_host::machine::Stage::Database,
             })),
@@ -340,7 +368,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         dev_app: dev_app.clone(),
         presence,
         pending_link: Arc::new(PendingLink::new()),
-        quitting: AtomicBool::new(false),
+        quitting,
+        server_gone,
         shown: AtomicBool::new(start_hidden),
         close_hinted: AtomicBool::new(false),
         stopped,
