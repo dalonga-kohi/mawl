@@ -130,4 +130,79 @@ describe('Claude subscription provider on the server (PGlite)', () => {
     expect(seen[0]?.prompt).toBe('hi')
     expect(seen[0]?.env?.CLAUDE_CONFIG_DIR).toBe('/data/claude')
   })
+
+  describe('resolving the executable on first use', () => {
+    it('does not resolve at construction or for other providers', async () => {
+      let resolved = 0
+      const service = await makeService({
+        resolveExecutable: async () => {
+          resolved++
+          return '/data/claude/1.0.0/claude'
+        },
+        run: async () => ({ stdout: status() }),
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      expect(resolved).toBe(0)
+      const other = await service.create({ provider: 'ollama', label: 'o' })
+      await service.test({ id: other.id }).catch(() => {})
+      expect(resolved).toBe(0)
+      await service.test({ id })
+      expect(resolved).toBe(1)
+    })
+
+    it('tests with the resolved path', async () => {
+      const commands: string[] = []
+      const service = await makeService({
+        resolveExecutable: async () => '/data/claude/1.0.0/claude',
+        run: async (cmd) => {
+          commands.push(cmd)
+          return { stdout: status() }
+        },
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      expect((await service.test({ id })).ok).toBe(true)
+      expect((await service.test({ provider: 'anthropic_claude_code', label: 'c' })).ok).toBe(true)
+      expect(commands).toEqual(['/data/claude/1.0.0/claude', '/data/claude/1.0.0/claude'])
+    })
+
+    it('builds the model with the resolved path', async () => {
+      const paths: Array<string | undefined> = []
+      const service = await makeService({
+        resolveExecutable: async () => '/data/claude/1.0.0/claude',
+        checkLogin: async () => ({ ok: true, latencyMs: 1 }),
+        query: (params) => {
+          paths.push(params.options.pathToClaudeCodeExecutable)
+          return (async function* () {
+            yield {
+              type: 'result',
+              subtype: 'success',
+              is_error: false,
+              stop_reason: 'end_turn',
+              usage: { input_tokens: 1, output_tokens: 1 },
+            }
+          })()
+        },
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      const model = await service.createModel(id, 'sonnet')
+      await model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })
+      expect(paths).toEqual(['/data/claude/1.0.0/claude'])
+    })
+
+    it('reports a failed install as unreachable on test and a provider error on createModel', async () => {
+      const service = await makeService({
+        resolveExecutable: async () => {
+          throw new Error('download failed in /secret/dir')
+        },
+      })
+      const { id } = await service.create({ provider: 'anthropic_claude_code', label: 'c' })
+      expect(await service.test({ id })).toEqual({ ok: false, reason: 'unreachable' })
+      await expect(service.createModel(id, 'sonnet')).rejects.toMatchObject({
+        reason: 'provider_error',
+      })
+      expect(logLines.join('')).not.toContain('/secret/dir')
+    })
+  })
 })
