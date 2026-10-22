@@ -1,6 +1,7 @@
 import type { LenientEnvelope, Topic } from '@mawl/contracts'
+import type { Principal } from '../auth/principal.ts'
 import type { EventBus } from './bus.ts'
-import { topicFilter } from './topics.ts'
+import { scopeTopics, topicFilter } from './topics.ts'
 
 export const DEFAULT_MAX_QUEUE = 1000
 export const DEFAULT_MAX_PER_CONNECTION = 20
@@ -94,6 +95,8 @@ export interface EventsServiceOptions {
 
 export interface SubscribeContext {
   connection: ConnectionState
+  /** Who subscribes; the topics are scoped to what they may see (see scopeTopics). */
+  principal: Principal
   /** Aborted when the client goes away. */
   signal?: AbortSignal
 }
@@ -117,12 +120,15 @@ export function createEventsService(options: EventsServiceOptions): EventsServic
   const pageSize = options.replayPageSize ?? DEFAULT_REPLAY_PAGE_SIZE
 
   return {
-    async *subscribe(input, { connection, signal }) {
+    async *subscribe(input, { connection, principal, signal }) {
       if (signal?.aborted) return
+      // Server-side, before the bus or the table is touched: both the live filter and the
+      // replay query use only the scoped topics.
+      const topics = scopeTopics(principal, input.topics)
       if (connection.subscriptions >= maxPerConnection) throw new TooManySubscriptionsError()
       connection.subscriptions++
       const queue = new EventQueue(maxQueue)
-      const matches = topicFilter(input.topics)
+      const matches = topicFilter(topics)
       const detach = bus.subscribe((event) => {
         if (matches(event)) queue.push(event)
       })
@@ -140,7 +146,7 @@ export function createEventsService(options: EventsServiceOptions): EventsServic
             const page = await bus.replay({
               since: lastSent,
               upTo: high,
-              topics: input.topics,
+              topics,
               limit: pageSize,
             })
             for (const event of page) {

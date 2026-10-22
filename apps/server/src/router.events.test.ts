@@ -1,6 +1,7 @@
 import { type LenientEnvelope, newId } from '@mawl/contracts'
 import { call } from '@orpc/server'
 import { describe, expect, it, vi } from 'vitest'
+import { OWNER } from './auth/principal.ts'
 import {
   type ConnectionState,
   type EventsService,
@@ -30,6 +31,9 @@ const routerWith = (events?: EventsService) =>
     ...(events ? { events } : {}),
   })
 
+/** What the /rpc and /ws transports pass once the auth token checked out. */
+const OWNER_CTX = { context: { principal: OWNER } }
+
 async function collect(it: AsyncIterable<unknown>): Promise<unknown[]> {
   const out: unknown[] = []
   for await (const item of it) out.push(item)
@@ -51,7 +55,7 @@ describe('events.subscribe', () => {
     const stream = await call(
       routerWith(events).events.subscribe,
       { topics: ['profile:*'], since: '5' },
-      { context: { connection }, signal: ctl.signal },
+      { context: { connection, principal: OWNER }, signal: ctl.signal },
     )
     expect(await collect(stream)).toEqual([envelope])
     expect(seen[0]?.connection).toBe(connection)
@@ -60,7 +64,11 @@ describe('events.subscribe', () => {
 
   it('uses a fresh connection state when the transport has none (HTTP)', async () => {
     const subscribe = vi.fn(async function* () {})
-    const stream = await call(routerWith({ subscribe }).events.subscribe, { topics: ['profile:*'] })
+    const stream = await call(
+      routerWith({ subscribe }).events.subscribe,
+      { topics: ['profile:*'] },
+      OWNER_CTX,
+    )
     await collect(stream)
     expect(subscribe.mock.calls[0]).toBeDefined()
   })
@@ -72,7 +80,11 @@ describe('events.subscribe', () => {
         throw new ResyncRequiredError()
       },
     }
-    const stream = await call(routerWith(events).events.subscribe, { topics: ['profile:*'] })
+    const stream = await call(
+      routerWith(events).events.subscribe,
+      { topics: ['profile:*'] },
+      OWNER_CTX,
+    )
     await expect(collect(stream)).rejects.toMatchObject({ code: 'RESYNC_REQUIRED', status: 409 })
   })
 
@@ -83,7 +95,11 @@ describe('events.subscribe', () => {
         throw new TooManySubscriptionsError()
       },
     }
-    const stream = await call(routerWith(events).events.subscribe, { topics: ['profile:*'] })
+    const stream = await call(
+      routerWith(events).events.subscribe,
+      { topics: ['profile:*'] },
+      OWNER_CTX,
+    )
     await expect(collect(stream)).rejects.toMatchObject({
       code: 'TOO_MANY_SUBSCRIPTIONS',
       status: 429,
@@ -97,13 +113,44 @@ describe('events.subscribe', () => {
         throw new Error('db down')
       },
     }
-    const stream = await call(routerWith(events).events.subscribe, { topics: ['profile:*'] })
+    const stream = await call(
+      routerWith(events).events.subscribe,
+      { topics: ['profile:*'] },
+      OWNER_CTX,
+    )
     await expect(collect(stream)).rejects.toThrow('db down')
+  })
+
+  it('refuses a caller without the owner principal with UNAUTHORIZED, before touching the bus', async () => {
+    const subscribe = vi.fn(async function* () {})
+    for (const context of [{}, { connection: newConnectionState() }]) {
+      const stream = await call(
+        routerWith({ subscribe }).events.subscribe,
+        { topics: ['profile:*'] },
+        { context },
+      )
+      await expect(collect(stream)).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 })
+    }
+    expect(subscribe).not.toHaveBeenCalled()
+  })
+
+  it('passes the principal to the events service, which scopes the topics', async () => {
+    const seen: unknown[] = []
+    const events: EventsService = {
+      // biome-ignore lint/correctness/useYield: records the context only
+      async *subscribe(_input, ctx) {
+        seen.push(ctx.principal)
+      },
+    }
+    await collect(
+      await call(routerWith(events).events.subscribe, { topics: ['profile:*'] }, OWNER_CTX),
+    )
+    expect(seen).toEqual([OWNER])
   })
 
   it('stays a 501 stub when the server was built without an events service', async () => {
     await expect(
-      call(routerWith().events.subscribe, { topics: ['profile:*'] }),
+      call(routerWith().events.subscribe, { topics: ['profile:*'] }, OWNER_CTX),
     ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' })
   })
 })

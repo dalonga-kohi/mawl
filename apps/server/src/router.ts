@@ -221,9 +221,13 @@ export function createRouter({ version, providers, runs, events, profiles, user 
     events: {
       subscribe: events
         ? os.events.subscribe.handler(async function* ({ input, context, signal, errors }) {
+            // Defence in depth: the transports set the principal only after the auth token
+            // checked out, so a router reached any other way streams nothing.
+            if (!context.principal) throw errors.UNAUTHORIZED()
             try {
               yield* events.subscribe(input, {
                 connection: context.connection ?? newConnectionState(),
+                principal: context.principal,
                 ...(signal ? { signal } : {}),
               })
             } catch (err) {

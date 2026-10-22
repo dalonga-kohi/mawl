@@ -1,6 +1,7 @@
 import { newId, type ProfileId, profileTopic, type RunId, runTopic } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
-import { topicFilter } from './topics.ts'
+import { OWNER } from '../auth/principal.ts'
+import { scopeTopics, topicFilter } from './topics.ts'
 
 const profileA = newId('profile')
 const profileB = newId('profile')
@@ -8,6 +9,17 @@ const runA = newId('run')
 const runB = newId('run')
 
 const event = (profileId: ProfileId, runId?: RunId) => ({ profileId, ...(runId ? { runId } : {}) })
+
+describe('scopeTopics', () => {
+  it('lets the owner subscribe to every topic: every profile and run is theirs', () => {
+    const topics = ['profile:*', profileTopic(profileA), runTopic(runA)] as const
+    expect(scopeTopics(OWNER, topics)).toEqual(topics)
+  })
+
+  it('refuses any other principal, so a new kind cannot inherit the owner scope by accident', () => {
+    expect(() => scopeTopics({ kind: 'device' } as never, ['profile:*'])).toThrow(/principal/)
+  })
+})
 
 describe('topicFilter', () => {
   it('profile:* matches every event', () => {
