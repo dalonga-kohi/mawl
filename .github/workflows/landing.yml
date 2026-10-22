@@ -1,0 +1,33 @@
+name: Landing page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - .github/workflows/landing.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Plain static files: nothing to build, upload site/ as is.
+      - name: Deploy
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=mawl --branch=main
