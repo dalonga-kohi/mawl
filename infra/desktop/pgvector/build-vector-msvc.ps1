@@ -94,6 +94,8 @@ try {
     throw "scratch Postgres did not start (pg_ctl exit $($ctl.ExitCode))"
   }
 
+  # pg_regress lives under lib\pgxs and finds libpq.dll only through PATH (exit 0xc0000135 otherwise).
+  $env:PATH = "$pgroot\bin;$env:PATH"
   $env:PGHOST = '127.0.0.1'; $env:PGPORT = "$Port"; $env:PGUSER = 'postgres'
   Invoke-Native 'installcheck' { nmake.exe /nologo /F Makefile.win installcheck }
 } finally {
