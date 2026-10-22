@@ -17,4 +17,5 @@ pub mod port;
 pub mod presence;
 pub mod process;
 pub mod token;
+pub mod tray;
 pub mod webview;
