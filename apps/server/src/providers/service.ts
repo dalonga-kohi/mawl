@@ -154,6 +154,7 @@ export interface ProviderService {
    * Proves the master key is the one that encrypted the stored secrets by decrypting one of them
    * (the lowest id; every row's AAD is its own). `empty` when nothing is stored yet. Throws
    * SecretDecryptError under another key. The plaintext is dropped at once and never logged.
+   * A spot check, not a full scan: only the lowest-id row is decrypted.
    */
   verifyMasterKey(): Promise<'verified' | 'empty'>
   startChatGptSignIn(): Promise<ChatGptStartResult>
