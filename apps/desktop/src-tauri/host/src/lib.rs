@@ -6,6 +6,7 @@
 //! - `health`: the `/healthz` probe
 //! - `deep_link`: the `mawl://` allowlist (pure)
 
+pub mod autostart;
 pub mod deep_link;
 pub mod driver;
 pub mod env;
@@ -13,6 +14,7 @@ pub mod health;
 pub mod launch;
 pub mod logs;
 pub mod machine;
+pub mod markers;
 pub mod port;
 pub mod presence;
 pub mod process;
