@@ -1,6 +1,11 @@
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LaunchTokenError, MAX_REMAINDER_BYTES, readLaunchToken } from './launch-token.ts'
+import {
+  __internalRemainderOf,
+  LaunchTokenError,
+  MAX_REMAINDER_BYTES,
+  readLaunchToken,
+} from './launch-token.ts'
 
 const TOKEN = 'Zx9-launch_Token-0123456789abcdefghijKLMN'
 
@@ -86,33 +91,111 @@ describe('readLaunchToken', () => {
   })
 })
 
-describe('readLaunchToken remainder', () => {
-  it('keeps the bytes after the token line, from the same chunk and later ones', async () => {
+describe('readLaunchToken takeRemainder', () => {
+  it('keeps the line after the token from the same chunk, and nothing after it', async () => {
     const input = new PassThrough()
     const reading = readLaunchToken(input)
-    input.write(`${TOKEN}\nkey-line-1\n`)
-    const { remainder } = await reading
-    expect(remainder().toString()).toBe('key-line-1\n')
-    input.write('key-line-2\n')
+    input.write(`${TOKEN}\nkey-line-1\nlater`)
+    const launch = await reading
+    await launch.remainderReady
+    expect(launch.takeRemainder().toString()).toBe('key-line-1\n')
+  })
+
+  it('joins a second line split across chunks and settles only once it is complete', async () => {
+    const input = new PassThrough()
+    const launch = await Promise.all([readLaunchToken(input), input.write(`${TOKEN}\nkey-`)]).then(
+      ([l]) => l,
+    )
+    let ready = false
+    void launch.remainderReady.then(() => {
+      ready = true
+    })
     await tick()
-    expect(remainder().toString()).toBe('key-line-1\nkey-line-2\n')
+    expect(ready).toBe(false)
+    input.write('line\r\n')
+    await launch.remainderReady
+    expect(launch.takeRemainder().toString()).toBe('key-line\r\n')
   })
 
-  it('is empty when nothing follows the token line', async () => {
+  it('is one-shot: hands the bytes over, zero-fills its own copy, and the second call is empty', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\nsecret-key-line\n`)
+    const launch = await reading
+    await launch.remainderReady
+    const first = launch.takeRemainder()
+    expect(first.toString()).toBe('secret-key-line\n')
+    expect(launch.takeRemainder().length).toBe(0)
+    // What it handed over is the caller's own: zeroing it changes nothing inside.
+    first.fill(0)
+    expect(launch.takeRemainder().length).toBe(0)
+  })
+
+  it('zero-fills the internal buffer and the stdin chunks the key passed through', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    const first = Buffer.from(`${TOKEN}\nsecret-`)
+    const second = Buffer.from('key-line\ntrailing')
+    input.write(first)
+    const launch = await reading
+    input.write(second)
+    await launch.remainderReady
+    const internal = __internalRemainderOf(launch)
+    expect(internal?.subarray(0, 16).toString()).toBe('secret-key-line\n')
+    expect(launch.takeRemainder().toString()).toBe('secret-key-line\n')
+    expect(internal?.every((b) => b === 0)).toBe(true)
+    expect(first.every((b) => b === 0)).toBe(true)
+    expect(second.every((b) => b === 0)).toBe(true)
+  })
+
+  it('stops buffering after the key line: later data is not kept', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\nkey\n`)
+    const launch = await reading
+    input.write(Buffer.alloc(MAX_REMAINDER_BYTES * 4, 0x61))
+    await tick()
+    expect(launch.takeRemainder().toString()).toBe('key\n')
+  })
+
+  it('stops buffering after a take, even before the key line arrived', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.write(`${TOKEN}\npartial`)
+    const launch = await reading
+    expect(launch.takeRemainder().toString()).toBe('partial')
+    input.write('-more\n')
+    await tick()
+    expect(launch.takeRemainder().length).toBe(0)
+    await launch.remainderReady
+  })
+
+  it('caps a second line without a newline and settles, so a runaway parent cannot grow memory', async () => {
     const input = new PassThrough()
     const reading = readLaunchToken(input)
     input.write(`${TOKEN}\n`)
-    expect((await reading).remainder().length).toBe(0)
-  })
-
-  it('caps what it keeps, so a runaway parent cannot grow memory', async () => {
-    const input = new PassThrough()
-    const reading = readLaunchToken(input)
-    input.write(`${TOKEN}\n`)
-    const { remainder } = await reading
+    const launch = await reading
     input.write(Buffer.alloc(MAX_REMAINDER_BYTES + 10, 0x61))
-    await tick()
-    expect(remainder().length).toBe(MAX_REMAINDER_BYTES)
+    await launch.remainderReady
+    expect(launch.takeRemainder().length).toBe(MAX_REMAINDER_BYTES)
+  })
+
+  it('settles with what it has when stdin ends before the key line ends', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.end(`${TOKEN}\nkey-without-newline`)
+    const launch = await reading
+    await launch.remainderReady
+    expect(launch.takeRemainder().toString()).toBe('key-without-newline')
+  })
+
+  it('is empty when nothing follows the token line and stdin ends', async () => {
+    const input = new PassThrough()
+    const reading = readLaunchToken(input)
+    input.end(`${TOKEN}\n`)
+    const launch = await reading
+    await launch.remainderReady
+    expect(launch.takeRemainder().length).toBe(0)
   })
 })
 

@@ -6,6 +6,7 @@ import { readLaunchToken } from './launch-token.ts'
 import { installLifecycle, type LifecycleDeps, stopAfterBoot } from './lifecycle.ts'
 import { createLogger } from './logger.ts'
 import { registerSecretValue } from './redact.ts'
+import { readHostMasterKey } from './secrets/index.ts'
 import { startServer } from './server.ts'
 
 export interface MainDeps {
@@ -19,13 +20,16 @@ export interface MainDeps {
   logStream?: DestinationStream
   startServer?: typeof startServer
   tokenTimeoutMs?: number
+  /** How long the master key line may take after the token line. */
+  keyTimeoutMs?: number
 }
 
 /**
  * The process entrypoint, with its process pieces injected. Order: config, logger, then in
- * desktop mode the launch token from stdin's first line, then boot. Signals are handled from the
- * start; in desktop mode stdin closing after the token (the host died or let go) stops the server
- * the same way. Exits 1 on a bad config, a missing or invalid token, or a failed boot.
+ * desktop mode the launch token from stdin's first line and the master key from its second, then
+ * boot. Signals are handled from the start; in desktop mode stdin closing after the token (the
+ * host died or let go) stops the server the same way. Exits 1 on a bad config, a missing or
+ * invalid token or key, or a failed boot.
  */
 export function runMain(deps: MainDeps): void {
   let config: Config
@@ -62,13 +66,20 @@ export function runMain(deps: MainDeps): void {
         announceOwnerToken: (text) => void deps.stderr.write(text),
       })
     }
-    const { token: launchToken } = await readLaunchToken(deps.stdin(), {
+    const launch = await readLaunchToken(deps.stdin(), {
       ...(deps.tokenTimeoutMs === undefined ? {} : { timeoutMs: deps.tokenTimeoutMs }),
       onParentGone: () => shutdown?.('stdin_eof'),
     })
+    const launchToken = launch.token
     // Before anything can log it. Kept in memory only; D1.4 checks requests against it.
     registerSecretValue(launchToken)
-    return start({ ...config, launchToken }, { logger, registerEmergencyStop })
+    // The second line: the master key from Windows Credential Manager (D1.6). Its text form is
+    // registered before anything can log it; the bytes go to startServer only, never to a log call.
+    const hostMasterKey = await readHostMasterKey(launch, {
+      ...(deps.keyTimeoutMs === undefined ? {} : { timeoutMs: deps.keyTimeoutMs }),
+    })
+    registerSecretValue(hostMasterKey.encoded())
+    return start({ ...config, launchToken }, { logger, registerEmergencyStop, hostMasterKey })
   })()
 
   ;({ shutdown } = installLifecycle({

@@ -6,6 +6,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use mawl_host::logs::{LogRing, Source, MAX_LINE_BYTES};
+use mawl_host::master_key::MemoryStore;
 use mawl_host::token::LaunchToken;
 
 fn lines_of(bytes: Vec<u8>) -> Vec<String> {
@@ -55,6 +56,29 @@ fn a_token_spanning_the_64_kib_read_split_does_not_leak_a_fragment() {
     assert!(
         run < 8,
         "a {run}-character fragment of the launch token reached the diagnostics"
+    );
+}
+
+#[test]
+fn a_master_key_spanning_the_64_kib_read_split_does_not_leak_a_fragment() {
+    let token = LaunchToken::generate().unwrap();
+    let dir = std::env::temp_dir().join("mawl-redaction-key-edge");
+    let (key, _) = mawl_host::master_key::resolve(&MemoryStore::default(), &dir).unwrap();
+    let k = key.expose();
+    let split = 64 * 1024;
+    let mut bytes = vec![b'x'; split - 20];
+    bytes.extend_from_slice(k.as_bytes());
+    bytes.extend_from_slice(b"\nnext line\n");
+    let mut ring = LogRing::new(token);
+    ring.redact_key(&key);
+    for line in lines_of(bytes) {
+        ring.push(Source::Stderr, &line);
+    }
+    let text = ring.diagnostics(&["header".to_string()]);
+    let run = longest_token_run(&text, k);
+    assert!(
+        run < 8,
+        "a {run}-character fragment of the master key reached the diagnostics"
     );
 }
 

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { open, unlink } from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +21,7 @@ import { createLiveEvents, type LiveEvents } from './events/live.ts'
 import { createEventsService } from './events/service.ts'
 import { createPgSource } from './events/source.ts'
 import { attachWsHub, type WsHub } from './events/ws.ts'
+import { describeFailure } from './failure.ts'
 import { createLogger, type Logger } from './logger.ts'
 import { createProfileService } from './profiles/service.ts'
 import { createProviderService } from './providers/service.ts'
@@ -30,9 +32,13 @@ import { createRunService } from './runs/service.ts'
 import { type RunWorker, startRunWorker } from './runs/worker.ts'
 import {
   createSecretBox,
+  type HostMasterKey,
   loadOrCreateHostId,
   loadOrCreateMasterKey,
+  MasterKeyError,
+  matchingKeyFile,
   type SecretBox,
+  SecretDecryptError,
 } from './secrets/index.ts'
 import { runTeardown } from './teardown.ts'
 import { createUserService } from './user/service.ts'
@@ -63,6 +69,17 @@ export interface BootOverrides {
   claudeManifest?: ClaudeBinaryManifest
   /** Replaces the first-use Claude binary download. */
   ensureClaudeBinary?: typeof ensureClaudeBinary
+  /**
+   * Desktop: the master key the host read from Windows Credential Manager and sent on stdin. Used
+   * instead of `master.key`, checked against the stored secrets after migrations (boot fails if it
+   * does not decrypt them), and an old `master.key` holding the same key is deleted after that
+   * check. The bytes are taken once and zeroed after the secret box is built.
+   */
+  hostMasterKey?: HostMasterKey
+  /** Replaces the stored-secret decrypt check (unit tests with a fake database). */
+  verifyMasterKey?: (secretBox: SecretBox) => Promise<'verified' | 'empty'>
+  /** Replaces the delete of a migrated `master.key` (tests of a failed delete). */
+  unlinkKeyFile?: (path: string) => Promise<void>
 }
 
 export interface RunningServer {
@@ -115,7 +132,71 @@ function closeServer(server: Server): Promise<void> {
 }
 
 /**
- * Boot order: master key, database, migrations, the Graphile Worker (its own migrations, then
+ * The host's key must open the stored secrets: a key that does not would orphan every one of them
+ * (the Credential Manager entry was lost and the host made a new key), so boot stops instead.
+ */
+async function checkHostKey(
+  secretBox: SecretBox,
+  verify: (secretBox: SecretBox) => Promise<'verified' | 'empty'>,
+): Promise<void> {
+  try {
+    await verify(secretBox)
+  } catch (err) {
+    if (!(err instanceof SecretDecryptError)) throw err
+    throw new MasterKeyError(
+      'The master key in Windows Credential Manager (entry Mawl/master-key) does not decrypt ' +
+        'the stored provider keys, so boot stopped instead of discarding them. To recover, put ' +
+        'the old key back into that entry from a backup. Without the old key the stored provider ' +
+        'keys cannot be recovered, and deleting the entry does not help: Mawl then creates ' +
+        'another key, and the old encrypted provider keys still fail this check.',
+    )
+  }
+}
+
+/**
+ * Best effort before the delete: overwrite the key with zeros and flush, so the bytes are less
+ * likely to linger in free disk blocks (no guarantee on SSDs or copy-on-write filesystems). Any
+ * failure is ignored; the delete still runs and reports its own failure.
+ */
+async function overwriteWithZeros(file: string): Promise<void> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(file, 'r+')
+    const { size } = await handle.stat()
+    await handle.write(Buffer.alloc(size), 0, size, 0)
+    await handle.sync()
+  } catch {
+    // Ignored on purpose (see above).
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+/**
+ * The migration's last step: the old key file goes once the key it holds is in Credential Manager
+ * (the host read it back) and decrypted a stored secret (or none exists yet). A failed delete only
+ * warns, with the error code: the key is safe, and the next boot tries again.
+ */
+async function retireKeyFile(
+  file: string,
+  remove: (path: string) => Promise<void>,
+  logger: Logger,
+): Promise<void> {
+  await overwriteWithZeros(file)
+  try {
+    await remove(file)
+    logger.info({ file }, 'master key moved to Windows Credential Manager; deleted the old file')
+  } catch (err) {
+    logger.warn(
+      { file, ...describeFailure(err) },
+      'could not delete the old master key file; it holds the same key, so it is safe to delete',
+    )
+  }
+}
+
+/**
+ * Boot order: master key (desktop: the host's, checked against an old `master.key`), database,
+ * migrations, the desktop key's decrypt check (then the old key file is deleted), the Graphile Worker (its own migrations, then
  * recovery of unfinished runs), the event bus (before the worker, so no event is missed), then listen
  * and attach the /ws hub. Anything that fails after the database opened closes
  * it before the error propagates. Stop order: sockets, listener, abort running jobs, worker, delta
@@ -132,9 +213,23 @@ export async function startServer(
   const logger = overrides.logger ?? createLogger({ level: config.logLevel })
   const version = readVersion()
 
-  const masterKey = await loadOrCreateMasterKey(config.secretsDir, {
-    onWarning: (message) => logger.warn(message),
-  })
+  // Desktop: the key from the host (Credential Manager); headless: the file in the secrets dir.
+  const hostKey = overrides.hostMasterKey
+  let retiredKeyFile: string | undefined
+  let masterKey: Uint8Array
+  if (hostKey) {
+    masterKey = hostKey.take()
+    try {
+      retiredKeyFile = await matchingKeyFile(config.secretsDir, masterKey)
+    } catch (err) {
+      masterKey.fill(0)
+      throw err
+    }
+  } else {
+    masterKey = await loadOrCreateMasterKey(config.secretsDir, {
+      onWarning: (message) => logger.warn(message),
+    })
+  }
   let secretBox: SecretBox
   try {
     secretBox = await createSecretBox(masterKey)
@@ -218,6 +313,15 @@ export async function startServer(
     })
     // Set before anything else can fail, so the catch below can close it.
     providers = providerService
+    if (hostKey) {
+      await checkHostKey(
+        secretBox,
+        overrides.verifyMasterKey ?? (() => providerService.verifyMasterKey()),
+      )
+      if (retiredKeyFile) {
+        await retireKeyFile(retiredKeyFile, overrides.unlinkKeyFile ?? unlink, logger)
+      }
+    }
     if (overrides.events !== false) {
       live = createLiveEvents({
         db: handle.db,

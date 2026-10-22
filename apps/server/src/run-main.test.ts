@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -8,6 +9,9 @@ import { type MainDeps, runMain } from './run-main.ts'
 import type { BootOverrides, RunningServer } from './server.ts'
 
 const TOKEN = 'RunMain-launch_token-0123456789abcdefXYZ'
+const KEY_BYTES = randomBytes(32)
+/** The host's format: base64url, 43 characters. */
+const KEY = KEY_BYTES.toString('base64url')
 const DESKTOP_ENV = {
   MAWL_MODE: 'desktop',
   MAWL_DATA_DIR: resolve('mawl-run-main-data'),
@@ -21,7 +25,7 @@ afterEach(() => {
 
 function setup(
   env: Record<string, string>,
-  opts: { boot?: Promise<RunningServer>; tokenTimeoutMs?: number } = {},
+  opts: { boot?: Promise<RunningServer>; tokenTimeoutMs?: number; keyTimeoutMs?: number } = {},
 ) {
   const out: string[] = []
   const stdin = new PassThrough()
@@ -44,10 +48,14 @@ function setup(
       overrides.push(o)
       // The real server logs through this logger; prove the token is censored there too.
       o?.logger?.info({ token: config.launchToken, echo: `x${config.launchToken}` }, 'boot')
+      // And the master key's text form, unkeyed and in a message.
+      const key = o?.hostMasterKey?.encoded()
+      o?.logger?.info({ note: `k${key}k`, key: o?.hostMasterKey }, `saw key ${key}`)
       return opts.boot ?? server
     },
   }
   if (opts.tokenTimeoutMs !== undefined) deps.tokenTimeoutMs = opts.tokenTimeoutMs
+  if (opts.keyTimeoutMs !== undefined) deps.keyTimeoutMs = opts.keyTimeoutMs
   runMain(deps)
   return { out, stdin, stop, exit, started, overrides, proc, getStdin, text: () => out.join('') }
 }
@@ -78,7 +86,7 @@ describe('runMain', () => {
 
   it('in desktop mode never offers a way to print a token', async () => {
     const s = setup(DESKTOP_ENV)
-    s.stdin.write(`${TOKEN}\n`)
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
     await vi.waitFor(() => expect(s.started).toHaveLength(1))
     expect(s.overrides[0]?.announceOwnerToken).toBeUndefined()
   })
@@ -87,7 +95,7 @@ describe('runMain', () => {
     const s = setup(DESKTOP_ENV)
     await new Promise((r) => setImmediate(r))
     expect(s.started).toHaveLength(0)
-    s.stdin.write(`${TOKEN}\n`)
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
     await vi.waitFor(() => expect(s.started).toHaveLength(1))
     expect(s.started[0]?.launchToken).toBe(TOKEN)
     expect(s.text()).toContain('boot')
@@ -96,7 +104,7 @@ describe('runMain', () => {
 
   it('stops gracefully and exits 0 when stdin ends after the token', async () => {
     const s = setup(DESKTOP_ENV)
-    s.stdin.write(`${TOKEN}\n`)
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
     await vi.waitFor(() => expect(s.started).toHaveLength(1))
     s.stdin.end()
     await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(0))
@@ -110,7 +118,7 @@ describe('runMain', () => {
       finish = r
     })
     const s = setup(DESKTOP_ENV, { boot })
-    s.stdin.end(`${TOKEN}\n`)
+    s.stdin.end(`${TOKEN}\n${KEY}\n`)
     await vi.waitFor(() => expect(s.started).toHaveLength(1))
     await new Promise((r) => setImmediate(r))
     expect(s.exit).not.toHaveBeenCalled()
@@ -152,6 +160,62 @@ describe('runMain', () => {
       expect(s.exit).toHaveBeenCalledWith(1)
       expect(s.started).toHaveLength(0)
       expect(s.text()).toContain('no first line on stdin in time')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('in desktop mode passes the master key line to the server, and no log line carries it', async () => {
+    const s = setup(DESKTOP_ENV)
+    s.stdin.write(`${TOKEN}\n`)
+    await new Promise((r) => setImmediate(r))
+    expect(s.started).toHaveLength(0)
+    s.stdin.write(`${KEY}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    const key = s.overrides[0]?.hostMasterKey
+    expect(Buffer.from(key?.take() ?? []).equals(KEY_BYTES)).toBe(true)
+    expect(s.text()).toContain('saw key [Redacted]')
+    expect(s.text()).not.toContain(KEY)
+    expect(JSON.stringify(s.started[0])).not.toContain(KEY)
+  })
+
+  it('never reads a master key in headless mode', async () => {
+    const s = setup({ DATABASE_URL: 'postgres://mawl:pw@db/mawl' })
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    expect(s.overrides[0]?.hostMasterKey).toBeUndefined()
+  })
+
+  it('exits 1 without booting when stdin closes after the token but before the key', async () => {
+    const s = setup(DESKTOP_ENV)
+    s.stdin.end(`${TOKEN}\n`)
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
+    expect(s.started).toHaveLength(0)
+    expect(s.text()).toContain('master key missing')
+    expect(s.text()).toContain('HostKeyError')
+  })
+
+  it('exits 1 without booting on an invalid key line, never printing it', async () => {
+    const s = setup(DESKTOP_ENV)
+    const bad = `${KEY.slice(0, 40)}!!!`
+    s.stdin.write(`${TOKEN}\n${bad}\n`)
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
+    expect(s.started).toHaveLength(0)
+    expect(s.text()).toContain('master key invalid')
+    expect(s.text()).not.toContain(bad)
+    expect(s.text()).not.toContain(KEY.slice(0, 40))
+  })
+
+  it('applies keyTimeoutMs: no key line in time exits 1 without booting', async () => {
+    vi.useFakeTimers()
+    try {
+      const s = setup(DESKTOP_ENV, { keyTimeoutMs: 300 })
+      s.stdin.write(`${TOKEN}\n`)
+      await vi.advanceTimersByTimeAsync(299)
+      expect(s.exit).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(2)
+      expect(s.exit).toHaveBeenCalledWith(1)
+      expect(s.started).toHaveLength(0)
+      expect(s.text()).toContain('no second line on stdin in time')
     } finally {
       vi.useRealTimers()
     }

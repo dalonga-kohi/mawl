@@ -15,6 +15,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::launch::ServerCommand;
+use crate::master_key::{wipe, MasterKey};
 use crate::token::LaunchToken;
 
 /// Longest single line read from the server's output before it is cut.
@@ -30,13 +31,14 @@ pub struct ServerProcess {
 }
 
 impl ServerProcess {
-    /// Starts the server and writes the token line. `cwd` should be the data dir, never the
-    /// install dir. On error nothing is left running.
+    /// Starts the server and writes its two stdin lines: the launch token, then the master key.
+    /// `cwd` should be the data dir, never the install dir. On error nothing is left running.
     pub fn spawn(
         command: &ServerCommand,
         env: &[(String, String)],
         cwd: &Path,
         token: &LaunchToken,
+        key: &MasterKey,
     ) -> io::Result<Self> {
         #[cfg(windows)]
         let job = job::Job::kill_on_close()?;
@@ -70,9 +72,7 @@ impl ServerProcess {
         }
 
         let mut stdin = child.stdin.take().expect("stdin is piped");
-        let wrote = stdin
-            .write_all(format!("{}\n", token.expose()).as_bytes())
-            .and_then(|()| stdin.flush());
+        let wrote = write_secrets(&mut stdin, token, key);
         if let Err(err) = wrote {
             #[cfg(windows)]
             job.terminate();
@@ -140,6 +140,18 @@ impl Drop for ServerProcess {
     }
 }
 
+/// Writes `<token>\n<key>\n` in one write, from a buffer that is wiped afterwards.
+pub fn write_secrets(out: &mut impl Write, token: &LaunchToken, key: &MasterKey) -> io::Result<()> {
+    let mut line = Vec::with_capacity(token.expose().len() + key.expose().len() + 2);
+    line.extend_from_slice(token.expose().as_bytes());
+    line.push(b'\n');
+    line.extend_from_slice(key.expose().as_bytes());
+    line.push(b'\n');
+    let wrote = out.write_all(&line).and_then(|()| out.flush());
+    wipe(&mut line);
+    wrote
+}
+
 /// Reads `reader` line by line on a background thread until EOF. Lines longer than 64 KiB are
 /// split, so a runaway line cannot grow memory without bound.
 ///
@@ -176,9 +188,11 @@ pub fn read_lines(
     });
 }
 
-/// Bytes moved from a cut line to the next piece: longer than any launch token (43 characters).
+/// Bytes moved from a cut line to the next piece: longer than the launch token and the master key
+/// (43 characters each).
 pub const SPLIT_CARRY: usize = 128;
 const _: () = assert!(SPLIT_CARRY > crate::token::TOKEN_CHARS);
+const _: () = assert!(SPLIT_CARRY > crate::master_key::KEY_CHARS);
 
 #[cfg(windows)]
 mod job {
@@ -250,5 +264,23 @@ mod job {
                 CloseHandle(self.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::master_key::{resolve, MemoryStore};
+
+    #[test]
+    fn the_secrets_go_as_two_lines_token_first_then_the_key() {
+        let token = LaunchToken::generate().unwrap();
+        let dir = std::env::temp_dir().join(format!("mawl-process-lines-{}", std::process::id()));
+        let (key, _) = resolve(&MemoryStore::default(), &dir).unwrap();
+        let mut out = Vec::new();
+        write_secrets(&mut out, &token, &key).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        assert_eq!(text, format!("{}\n{}\n", token.expose(), key.expose()));
+        assert_eq!(text.lines().count(), 2);
     }
 }

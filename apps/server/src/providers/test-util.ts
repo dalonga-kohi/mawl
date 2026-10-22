@@ -8,6 +8,7 @@ export const unusedProviders: ProviderService = {
   test: () => Promise.reject(new Error('providers.test not stubbed')),
   resolveCredential: () => Promise.reject(new Error('providers.resolveCredential not stubbed')),
   createModel: () => Promise.reject(new Error('providers.createModel not stubbed')),
+  verifyMasterKey: () => Promise.reject(new Error('providers.verifyMasterKey not stubbed')),
   startChatGptSignIn: () => Promise.reject(new Error('providers.startChatGptSignIn not stubbed')),
   chatGptSignInStatus: () => {
     throw new Error('providers.chatGptSignInStatus not stubbed')

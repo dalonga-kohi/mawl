@@ -24,10 +24,15 @@ runMain({
       { echo: `x${config.launchToken}y` },
       `fixture saw ${config.launchToken}`,
     )
+    // The same for the master key's text form, which must be censored like the token.
+    const key = overrides?.hostMasterKey?.encoded()
+    overrides?.logger?.info({ echo: `x${key}y` }, `fixture saw key ${key}`)
     return startServer(config, {
       ...overrides,
       createDb: () => handle,
       migrate: async () => {},
+      // The fake database holds no secrets to decrypt.
+      verifyMasterKey: async () => 'empty',
       worker: false,
       events: false,
     })

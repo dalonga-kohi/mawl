@@ -3,7 +3,7 @@ import { ConfigError } from './config.ts'
 import { EmbeddedPgError } from './embedded-pg/index.ts'
 import { describeFailure } from './failure.ts'
 import { LaunchTokenError } from './launch-token.ts'
-import { MasterKeyError, SecretDecryptError } from './secrets/index.ts'
+import { HostKeyError, MasterKeyError, SecretDecryptError } from './secrets/index.ts'
 
 describe('describeFailure', () => {
   it('logs only the name and code for foreign errors, never the message', () => {
@@ -47,6 +47,14 @@ describe('describeFailure', () => {
       errName: 'LaunchTokenError',
       code: 'invalid',
       reason: expect.stringContaining('launch token invalid'),
+    })
+  })
+
+  it('keeps the code and fixed reason of a host master key error', () => {
+    expect(describeFailure(new HostKeyError('timeout'))).toMatchObject({
+      errName: 'HostKeyError',
+      code: 'timeout',
+      reason: expect.stringContaining('master key missing'),
     })
   })
 

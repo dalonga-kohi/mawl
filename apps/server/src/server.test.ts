@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CreateDbOptions, DbHandle } from '@mawl/db'
@@ -6,7 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Config } from './config.ts'
 import type { EmbeddedPostgres, PgConnection, StartOptions } from './embedded-pg/index.ts'
 import { createLogger } from './logger.ts'
-import { HOST_ID_FILE } from './secrets/index.ts'
+import {
+  createSecretBox,
+  HOST_ID_FILE,
+  HostMasterKey,
+  MasterKeyError,
+  SecretDecryptError,
+} from './secrets/index.ts'
 import { OWNER_TOKEN_FILE } from './secrets/owner-token.ts'
 import { startServer } from './server.ts'
 
@@ -247,6 +254,215 @@ describe('startServer', () => {
     } finally {
       await server.stop()
     }
+  })
+})
+
+describe('startServer with the master key from the desktop host', () => {
+  const desktop = (): Config => ({
+    ...config(),
+    mode: 'desktop',
+    dataDir: dir,
+    launchToken: LAUNCH_TOKEN,
+  })
+  const keyFile = () => join(dir, 'secrets', 'master.key')
+  const hostKey = (raw: Buffer) => new HostMasterKey(new Uint8Array(raw), raw.toString('base64url'))
+  const writeKeyFile = async (bytes: Buffer) => {
+    await mkdir(join(dir, 'secrets'), { recursive: true })
+    await writeFile(keyFile(), bytes)
+  }
+  const exists = (path: string) =>
+    stat(path).then(
+      () => true,
+      () => false,
+    )
+
+  it('uses it instead of a key file, creates none, and zeroes the bytes it took', async () => {
+    const raw = randomBytes(32)
+    const taken = new Uint8Array(raw)
+    const key = new HostMasterKey(taken, raw.toString('base64url'))
+    const verifyMasterKey = vi.fn(async () => 'empty' as const)
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: key,
+      verifyMasterKey,
+    })
+    try {
+      const other = await createSecretBox(new Uint8Array(raw))
+      const blob = other.encrypt('stored-secret', 'provider_credentials:a')
+      expect(server.secretBox.decrypt(blob, 'provider_credentials:a')).toBe('stored-secret')
+      expect(await exists(keyFile())).toBe(false)
+      expect(verifyMasterKey).toHaveBeenCalledTimes(1)
+      expect(taken.every((b) => b === 0)).toBe(true)
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('aborts boot when it does not decrypt the stored secrets, and closes the database', async () => {
+    const f = fakes()
+    const stored = (await createSecretBox(new Uint8Array(randomBytes(32)))).encrypt('s', 'row:1')
+    const err = await startServer(desktop(), {
+      logger: logger(),
+      ...f,
+      hostMasterKey: hostKey(randomBytes(32)),
+      verifyMasterKey: async (box) => {
+        box.decrypt(stored, 'row:1')
+        return 'verified'
+      },
+    }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(MasterKeyError)
+    const message = String((err as Error).message)
+    expect(message).toMatch(/does not decrypt/)
+    // Names the recovery that works, and is honest that deleting the entry does not.
+    expect(message).toMatch(/Mawl\/master-key/)
+    expect(message).toMatch(/from a backup/)
+    expect(message).toMatch(/cannot be recovered/)
+    expect(message).toMatch(/deleting the entry does not help/)
+    expect(f.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('migration: an equal master.key is deleted only after the decrypt check passed', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    let fileDuringVerify: boolean | undefined
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => {
+        fileDuringVerify = await exists(keyFile())
+        return 'verified'
+      },
+    })
+    await server.stop()
+    expect(fileDuringVerify).toBe(true)
+    expect(await exists(keyFile())).toBe(false)
+  })
+
+  it('migration: an equal master.key is also retired when there is nothing to decrypt yet', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'empty',
+    })
+    await server.stop()
+    expect(await exists(keyFile())).toBe(false)
+  })
+
+  it('migration: a failed decrypt check keeps an equal master.key', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    await expect(
+      startServer(desktop(), {
+        logger: logger(),
+        ...fakes(),
+        hostMasterKey: hostKey(raw),
+        verifyMasterKey: async () => {
+          throw new SecretDecryptError()
+        },
+      }),
+    ).rejects.toBeInstanceOf(MasterKeyError)
+    expect((await readFile(keyFile())).equals(raw)).toBe(true)
+  })
+
+  it('migration: a master.key that differs aborts boot before the database, touching neither key', async () => {
+    const fileKey = randomBytes(32)
+    await writeKeyFile(fileKey)
+    const f = fakes()
+    const pg = vi.fn()
+    const err = await startServer(desktop(), {
+      logger: logger(),
+      ...f,
+      hostMasterKey: hostKey(randomBytes(32)),
+      verifyMasterKey: async () => 'verified',
+      startEmbeddedPostgres: pg,
+    }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(MasterKeyError)
+    expect(String((err as Error).message)).toMatch(/differs/)
+    expect(f.createDb).not.toHaveBeenCalled()
+    expect(pg).not.toHaveBeenCalled()
+    expect((await readFile(keyFile())).equals(fileKey)).toBe(true)
+  })
+
+  it('migration: a wrong-sized master.key aborts boot and is left alone', async () => {
+    await writeKeyFile(Buffer.alloc(5, 1))
+    await expect(
+      startServer(desktop(), {
+        logger: logger(),
+        ...fakes(),
+        hostMasterKey: hostKey(randomBytes(32)),
+        verifyMasterKey: async () => 'verified',
+      }),
+    ).rejects.toThrow(/exactly 32 bytes/)
+    expect((await readFile(keyFile())).length).toBe(5)
+  })
+
+  it('migration: overwrites master.key with zeros before deleting it', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    let atUnlink: Buffer | undefined
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'verified',
+      unlinkKeyFile: async (path) => {
+        atUnlink = await readFile(path)
+        await rm(path)
+      },
+    })
+    await server.stop()
+    expect(atUnlink?.length).toBe(32)
+    expect(atUnlink?.every((b) => b === 0)).toBe(true)
+    expect(await exists(keyFile())).toBe(false)
+  })
+
+  it('migration: still deletes master.key when overwriting it fails', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    await chmod(keyFile(), 0o444)
+    let deleted = false
+    const server = await startServer(desktop(), {
+      logger: logger(),
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'verified',
+      unlinkKeyFile: async (path) => {
+        await chmod(path, 0o666)
+        await rm(path)
+        deleted = true
+      },
+    })
+    await server.stop()
+    expect(deleted).toBe(true)
+    expect(await exists(keyFile())).toBe(false)
+  })
+
+  it('still boots when an equal master.key cannot be deleted, and says so', async () => {
+    const raw = randomBytes(32)
+    await writeKeyFile(raw)
+    const lines: string[] = []
+    const log = createLogger({
+      level: 'info',
+      stream: { write: (c: string) => void lines.push(c) },
+    })
+    const server = await startServer(desktop(), {
+      logger: log,
+      ...fakes(),
+      hostMasterKey: hostKey(raw),
+      verifyMasterKey: async () => 'verified',
+      unlinkKeyFile: async () => {
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' })
+      },
+    })
+    await server.stop()
+    expect(lines.join('')).toContain('could not delete the old master key file')
+    expect(lines.join('')).toContain('EBUSY')
+    expect(lines.join('')).not.toContain(raw.toString('base64url'))
   })
 })
 

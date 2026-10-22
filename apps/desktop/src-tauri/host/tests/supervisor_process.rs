@@ -10,9 +10,11 @@ use std::time::{Duration, Instant};
 use mawl_host::driver::{HostUi, Supervisor, SupervisorConfig};
 use mawl_host::launch::ServerCommand;
 use mawl_host::machine::{Failure, Status};
+use mawl_host::master_key::{self, KeyStore, MemoryStore};
 use mawl_host::port;
 use mawl_host::process::ServerProcess;
-use mawl_host::token::LaunchToken;
+use mawl_host::token::{base64url, LaunchToken};
+use sha2::{Digest, Sha256};
 
 fn node() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
@@ -79,15 +81,36 @@ fn wait_for(
     }
 }
 
+struct Started {
+    supervisor: Supervisor,
+    rx: Receiver<UiEvent>,
+    token: LaunchToken,
+    dir: PathBuf,
+    store: Arc<MemoryStore>,
+}
+
 fn start(
     name: &str,
     behavior: &str,
 ) -> Option<(Supervisor, Receiver<UiEvent>, LaunchToken, PathBuf)> {
+    start_with(name, behavior, MemoryStore::default(), |_| {})
+        .map(|s| (s.supervisor, s.rx, s.token, s.dir))
+}
+
+fn start_with(
+    name: &str,
+    behavior: &str,
+    store: MemoryStore,
+    prepare: impl FnOnce(&Path),
+) -> Option<Started> {
     let Some(node) = node() else {
         eprintln!("skipped: node is not on PATH");
         return None;
     };
     let dir = data_dir(name, behavior);
+    prepare(&dir);
+    let store = Arc::new(store);
+    let key_store: Arc<dyn KeyStore> = store.clone();
     let token = LaunchToken::generate().unwrap();
     let (tx, rx) = mpsc::channel();
     let mut host_env: Vec<(String, String)> = std::env::vars().collect();
@@ -107,10 +130,17 @@ fn start(
             port: port::choose_port(None, |_| false).unwrap(),
             fixed_port: false,
             token: token.clone(),
+            key_store,
         },
         TestUi(Mutex::new(tx)),
     );
-    Some((supervisor, rx, token, dir))
+    Some(Started {
+        supervisor,
+        rx,
+        token,
+        dir,
+        store,
+    })
 }
 
 #[test]
@@ -147,6 +177,93 @@ fn boots_to_ready_with_a_clean_env_and_quits_through_stdin() {
     assert!(asked.elapsed() < Duration::from_secs(10));
     assert!(supervisor.diagnostics(&[]).contains("stdin closed"));
     let _ = fs::remove_dir_all(dir);
+}
+
+fn sha256_hex(text: &str) -> String {
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+#[test]
+fn the_master_key_is_the_second_stdin_line_and_never_reaches_the_diagnostics() {
+    let Some(s) = start_with("key", "ok", MemoryStore::default(), |_| {}) else {
+        return;
+    };
+    wait_for(&s.rx, Duration::from_secs(20), |e| {
+        matches!(e, UiEvent::Status(Status::Ready))
+    });
+    // First run: a key was generated and kept in the store.
+    let stored = s.store.entry().expect("the key was stored");
+    assert_eq!(stored.len(), master_key::KEY_BYTES);
+    let line = base64url(&stored);
+    let text = s.supervisor.diagnostics(&["Mawl test".into()]);
+    assert!(text.contains(r#""keyLength":43"#), "{text}");
+    assert!(
+        text.contains(&format!(r#""keySha256":"{}""#, sha256_hex(&line))),
+        "the server got another key:\n{text}"
+    );
+    assert!(text.contains("warning: key=[redacted]"));
+    assert!(text.contains("new master key created"));
+    assert!(!text.contains(&line), "master key leaked:\n{text}");
+    assert!(!text.contains(s.token.expose()));
+    s.supervisor.stop();
+    wait_for(&s.rx, Duration::from_secs(20), |e| {
+        matches!(e, UiEvent::Exit)
+    });
+    let _ = fs::remove_dir_all(s.dir);
+}
+
+#[test]
+fn an_old_key_file_is_imported_into_the_store_and_sent_to_the_server() {
+    let old: Vec<u8> = (100..132).collect();
+    let Some(s) = start_with("import", "ok", MemoryStore::default(), |dir| {
+        let file = master_key::key_file(dir);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, (100..132).collect::<Vec<u8>>()).unwrap();
+    }) else {
+        return;
+    };
+    wait_for(&s.rx, Duration::from_secs(20), |e| {
+        matches!(e, UiEvent::Status(Status::Ready))
+    });
+    assert_eq!(s.store.entry().as_deref(), Some(old.as_slice()));
+    let text = s.supervisor.diagnostics(&[]);
+    assert!(text.contains(&sha256_hex(&base64url(&old))), "{text}");
+    assert!(text.contains("copied from secrets\\master.key"));
+    // Only the server deletes it, after a decrypt proved the key.
+    assert!(master_key::key_file(&s.dir).exists());
+    s.supervisor.stop();
+    wait_for(&s.rx, Duration::from_secs(20), |e| {
+        matches!(e, UiEvent::Exit)
+    });
+    let _ = fs::remove_dir_all(s.dir);
+}
+
+#[test]
+fn a_failing_key_store_fails_the_spawn_and_is_retried_without_a_server() {
+    let store = MemoryStore::failing(std::io::ErrorKind::PermissionDenied);
+    let Some(s) = start_with("keyfail", "ok", store, |_| {}) else {
+        return;
+    };
+    wait_for(&s.rx, Duration::from_secs(10), |e| {
+        matches!(
+            e,
+            UiEvent::Status(Status::Restarting {
+                reason: Failure::SpawnFailed,
+                ..
+            })
+        )
+    });
+    let text = s.supervisor.diagnostics(&[]);
+    assert!(text.contains("cannot get the master key"), "{text}");
+    assert!(!text.contains("server started"), "{text}");
+    s.supervisor.stop();
+    wait_for(&s.rx, Duration::from_secs(20), |e| {
+        matches!(e, UiEvent::Exit)
+    });
+    let _ = fs::remove_dir_all(s.dir);
 }
 
 #[test]
@@ -187,6 +304,7 @@ fn a_missing_install_fails_without_restarting() {
             port: 1,
             fixed_port: true,
             token: LaunchToken::generate().unwrap(),
+            key_store: Arc::new(MemoryStore::default()),
         },
         TestUi(Mutex::new(tx)),
     );
@@ -219,6 +337,7 @@ fn killing_the_server_ends_everything_it_started() {
         ),
     ];
     let token = LaunchToken::generate().unwrap();
+    let (key, _) = master_key::resolve(&MemoryStore::default(), &dir).unwrap();
     let command = ServerCommand {
         program: node,
         script: fixture(),
@@ -226,7 +345,7 @@ fn killing_the_server_ends_everything_it_started() {
         web_dir: None,
         dev: false,
     };
-    let process = ServerProcess::spawn(&command, &env, &dir, &token).unwrap();
+    let process = ServerProcess::spawn(&command, &env, &dir, &token, &key).unwrap();
     let exited = Arc::new(Mutex::new(None));
     let slot = Arc::clone(&exited);
     process.watch_exit(move |code| *slot.lock().unwrap() = Some(code));

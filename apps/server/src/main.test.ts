@@ -16,6 +16,8 @@ afterEach(async () => {
 const SERVER_DIR = join(import.meta.dirname, '..')
 /** Distinctive, so any echo in the output is caught. */
 const TOKEN = 'Wd0g-DISTINCT_launch-token-9f3k2m7q1x8z4c6v'
+/** A master key line in the host's format (43 base64url characters), distinctive as well. */
+const KEY = 'Mk7q-DISTINCT_master-key-0a1b2c3d4e5f6g7h8g'
 
 const runMain = (env: Record<string, string>, stdin?: string) =>
   runNode(['--import', 'tsx', 'src/main.ts'], {
@@ -108,15 +110,27 @@ describe('main entrypoint in desktop mode', () => {
     expect(output).not.toContain('DISTINCT_bad')
   }, 60_000)
 
+  it('exits 1 with a clear error when stdin closes after the token but before the master key', async () => {
+    const { code, output } = await runMain(
+      { ...desktopEnv(), DATABASE_URL: 'postgres://mawl:pw@127.0.0.1:1/mawl' },
+      `${TOKEN}\n`,
+    )
+    expect(code).toBe(1)
+    expect(output).toContain('master key missing')
+    expect(output).toContain('HostKeyError')
+  }, 60_000)
+
   // Nothing on this path logs the token, so this checks boot-failure output only. The redaction
   // itself is proven below (the fixture logs the token on purpose) and in run-main/logger tests.
   it('boot-failure output after a valid token contains neither the token nor the db password', async () => {
     const { code, output } = await runMain(
       { ...desktopEnv(), DATABASE_URL: 'postgres://mawl:hunter2-pw@127.0.0.1:1/mawl' },
-      `${TOKEN}\n`,
+      `${TOKEN}\n${KEY}\n`,
     )
     expect(code).toBe(1)
     expect(output).toContain('boot failed')
+    expect(output).not.toContain(KEY)
+    expect(output).not.toContain('DISTINCT_master')
     expect(output).not.toContain(TOKEN)
     expect(output).not.toContain('DISTINCT_launch')
     expect(output).not.toContain('hunter2-pw')
@@ -134,13 +148,16 @@ describe('main entrypoint in desktop mode', () => {
       },
     })
     try {
-      proc.child.stdin.write(`${TOKEN}\n`)
+      proc.child.stdin.write(`${TOKEN}\n${KEY}\n`)
       await proc.waitForOutput(/"msg":"listening"/)
       expect((await fetch(`http://127.0.0.1:${port}/healthz`)).status).toBe(200)
       proc.child.stdin.end()
       expect(await proc.exited).toBe(0)
       const output = proc.output()
       expect(output).toContain('fixture saw [Redacted]')
+      expect(output).toContain('fixture saw key [Redacted]')
+      expect(output).not.toContain(KEY)
+      expect(output).not.toContain('DISTINCT_master')
       expect(output).toContain('stdin_eof')
       expect(output).toContain('"msg":"stopped"')
       expect(output).not.toContain(TOKEN)

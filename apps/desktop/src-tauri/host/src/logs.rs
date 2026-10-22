@@ -1,14 +1,15 @@
 //! The server's recent output, kept for "Copy diagnostics", and the boot stage read from it.
 //!
-//! The server already censors the launch token in its own log lines; the ring redacts it again,
-//! because stderr (a crash trace, a Node warning) bypasses the server's logger. Redaction only
-//! catches a whole token, so it relies on its callers never splitting one: `process::read_lines`
-//! carries the tail of a cut 64 KiB piece into the next piece, and `push` redacts before it cuts
-//! a line to [`MAX_LINE_BYTES`].
+//! The server already censors the launch token and the master key in its own log lines; the ring
+//! redacts them again, because stderr (a crash trace, a Node warning) bypasses the server's logger.
+//! Redaction only catches a whole token or key, so it relies on its callers never splitting one:
+//! `process::read_lines` carries the tail of a cut 64 KiB piece into the next piece, and `push`
+//! redacts both before it cuts a line to [`MAX_LINE_BYTES`].
 
 use std::collections::VecDeque;
 
 use crate::machine::Stage;
+use crate::master_key::MasterKey;
 use crate::token::LaunchToken;
 
 pub const MAX_LINES: usize = 400;
@@ -36,6 +37,8 @@ impl Source {
 pub struct LogRing {
     lines: VecDeque<String>,
     token: LaunchToken,
+    /// Master keys the host sent (normally one; a new one is added if the store changed).
+    keys: Vec<MasterKey>,
     max_lines: usize,
 }
 
@@ -48,13 +51,30 @@ impl LogRing {
         Self {
             lines: VecDeque::with_capacity(max_lines.min(MAX_LINES)),
             token,
+            keys: Vec::new(),
             max_lines: max_lines.max(1),
         }
     }
 
-    /// Stores one line: token redacted first, then cut to [`MAX_LINE_BYTES`] on a char boundary.
+    /// Also redacts `key` from now on, in new lines and in the diagnostics header. Call it before
+    /// the key is written to a server.
+    pub fn redact_key(&mut self, key: &MasterKey) {
+        if !self.keys.contains(key) {
+            self.keys.push(key.clone());
+        }
+    }
+
+    fn redact(&self, text: &str) -> String {
+        let mut clean = self.token.redact(text);
+        for key in &self.keys {
+            clean = key.redact(&clean);
+        }
+        clean
+    }
+
+    /// Stores one line: secrets redacted first, then cut to [`MAX_LINE_BYTES`] on a char boundary.
     pub fn push(&mut self, source: Source, line: &str) {
-        let clean = self.token.redact(line.trim_end_matches(['\r', '\n']));
+        let clean = self.redact(line.trim_end_matches(['\r', '\n']));
         let mut cut = clean.len().min(MAX_LINE_BYTES);
         while !clean.is_char_boundary(cut) {
             cut -= 1;
@@ -75,7 +95,7 @@ impl LogRing {
     pub fn diagnostics(&self, header: &[String]) -> String {
         let mut out = String::new();
         for line in header {
-            out.push_str(&self.token.redact(line));
+            out.push_str(&self.redact(line));
             out.push('\n');
         }
         out.push_str("\nRecent server output (oldest first):\n");
@@ -128,6 +148,27 @@ mod tests {
         let text = r.diagnostics(&[format!("header {}", token.expose())]);
         assert!(!text.contains(token.expose()));
         assert!(text.contains("[err] Error: bad token [redacted]\n"));
+        assert!(text.contains("header [redacted]"));
+    }
+
+    #[test]
+    fn the_master_key_never_reaches_the_ring_or_the_diagnostics() {
+        let (mut r, token) = ring(10);
+        let dir = std::env::temp_dir().join("mawl-logs-key-test");
+        let (key, _) =
+            crate::master_key::resolve(&crate::master_key::MemoryStore::default(), &dir).unwrap();
+        r.redact_key(&key);
+        r.redact_key(&key);
+        r.push(
+            Source::Stderr,
+            &format!("crash with {} and {}\n", key.expose(), token.expose()),
+        );
+        let filler = "x".repeat(MAX_LINE_BYTES - 10);
+        r.push(Source::Stdout, &format!("{filler}{}", key.expose()));
+        let text = r.diagnostics(&[format!("header {}", key.expose())]);
+        assert!(!text.contains(key.expose()));
+        assert!(!text.contains(&key.expose()[..10]));
+        assert!(text.contains("[err] crash with [redacted] and [redacted]\n"));
         assert!(text.contains("header [redacted]"));
     }
 
