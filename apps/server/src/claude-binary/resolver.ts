@@ -42,7 +42,15 @@ export function createClaudeExecutableResolver({
   return async (signal) => {
     if (explicitPath) return explicitPath
     // Bundled, the SDK cannot find a package beside itself, so it is always given a path.
-    if (!dataDir || !manifest) return resolveBundled() ?? undefined
+    if (!dataDir || !manifest) {
+      const bundled = resolveBundled()
+      if (!bundled) {
+        logger.warn(
+          'no Claude Code binary found: set MAWL_CLAUDE_CODE_PATH or install the SDK package',
+        )
+      }
+      return bundled ?? undefined
+    }
     return ensure({
       dataDir,
       manifest,

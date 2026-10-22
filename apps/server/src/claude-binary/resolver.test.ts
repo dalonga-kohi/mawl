@@ -60,6 +60,17 @@ describe('createClaudeExecutableResolver', () => {
     expect(ensure).not.toHaveBeenCalled()
   })
 
+  it('warns once per lookup when no binary can be found at all', async () => {
+    const warn = vi.fn()
+    const resolve = createClaudeExecutableResolver({
+      logger: { info: vi.fn(), warn },
+      resolveBundled: () => null,
+    })
+    expect(await resolve()).toBeUndefined()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(warn.mock.calls)).toMatch(/claude/i)
+  })
+
   it('passes an install failure on, typed', async () => {
     const ensure = vi.fn(async () => {
       throw new ClaudeBinaryError('integrity_mismatch', 'bad')
