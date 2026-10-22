@@ -17,12 +17,19 @@ runMain({
   proc: process,
   exit: (code) => process.exit(code),
   stderr: process.stderr,
-  startServer: (config, overrides) =>
-    startServer(config, {
+  startServer: (config, overrides) => {
+    // Deliberately logs the token, unkeyed and inside a message, so the test proves the
+    // registered-value redaction works in a real process, not only that nothing printed it.
+    overrides?.logger?.info(
+      { echo: `x${config.launchToken}y` },
+      `fixture saw ${config.launchToken}`,
+    )
+    return startServer(config, {
       ...overrides,
       createDb: () => handle,
       migrate: async () => {},
       worker: false,
       events: false,
-    }),
+    })
+  },
 })

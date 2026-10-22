@@ -108,7 +108,9 @@ describe('main entrypoint in desktop mode', () => {
     expect(output).not.toContain('DISTINCT_bad')
   }, 60_000)
 
-  it('never prints the token when boot fails after reading it', async () => {
+  // Nothing on this path logs the token, so this checks boot-failure output only. The redaction
+  // itself is proven below (the fixture logs the token on purpose) and in run-main/logger tests.
+  it('boot-failure output after a valid token contains neither the token nor the db password', async () => {
     const { code, output } = await runMain(
       { ...desktopEnv(), DATABASE_URL: 'postgres://mawl:hunter2-pw@127.0.0.1:1/mawl' },
       `${TOKEN}\n`,
@@ -138,6 +140,7 @@ describe('main entrypoint in desktop mode', () => {
       proc.child.stdin.end()
       expect(await proc.exited).toBe(0)
       const output = proc.output()
+      expect(output).toContain('fixture saw [Redacted]')
       expect(output).toContain('stdin_eof')
       expect(output).toContain('"msg":"stopped"')
       expect(output).not.toContain(TOKEN)
