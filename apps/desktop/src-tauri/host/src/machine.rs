@@ -51,6 +51,8 @@ pub enum Failure {
     Unhealthy,
     /// The server did not become healthy within [`BOOT_TIMEOUT_MS`].
     BootTimeout,
+    /// The server's files are missing: a restart cannot help, reinstalling can.
+    NotInstalled,
 }
 
 /// The answer of one `/healthz` probe.
@@ -99,6 +101,8 @@ pub enum Event {
     /// Start the first server.
     Start,
     SpawnFailed(Gen),
+    /// The server's files are missing; final, no restarts.
+    LaunchFailed(Gen),
     /// The server's log shows it reached this stage.
     Progress(Gen, Stage),
     Health(Gen, Health),
@@ -227,6 +231,17 @@ impl Machine {
                     self.after_exit(Failure::SpawnFailed, now_ms, &mut out);
                 }
             }
+            Event::LaunchFailed(gen) => {
+                if self.is_current(gen) {
+                    self.running = None;
+                    self.phase = if self.phase == Phase::Stopping {
+                        out.push(Effect::Exit);
+                        Phase::Stopped
+                    } else {
+                        Phase::Failed(Failure::NotInstalled)
+                    };
+                }
+            }
             Event::Progress(gen, stage) => {
                 if self.is_current(gen) {
                     if let Phase::Starting(Stage::Database) = self.phase {
@@ -261,6 +276,11 @@ impl Machine {
         // A new server always announces itself, even when the status reads the same as before.
         if after != before || out.iter().any(|e| matches!(e, Effect::Spawn(_))) {
             out.push(Effect::Status(after));
+        }
+        // Exit is always last, so the window hears the final status before the app goes.
+        if let Some(i) = out.iter().position(|e| *e == Effect::Exit) {
+            let exit = out.remove(i);
+            out.push(exit);
         }
         out
     }
@@ -673,6 +693,22 @@ mod tests {
     }
 
     #[test]
+    fn a_missing_install_fails_at_once_without_restarts() {
+        let mut m = Machine::new();
+        m.handle(Event::Start, 0);
+        let out = m.handle(Event::LaunchFailed(1), 5);
+        assert_eq!(
+            last_status(&out),
+            Some(Status::Failed {
+                reason: Failure::NotInstalled
+            })
+        );
+        assert!(!out.iter().any(|e| matches!(e, Effect::SetTimer { .. })));
+        // Quit from there exits at once.
+        assert!(has(&m.handle(Event::Stop, 10), Effect::Exit));
+    }
+
+    #[test]
     fn a_boot_that_hangs_is_killed_and_restarted() {
         let mut m = Machine::new();
         m.handle(Event::Start, 0);
@@ -742,7 +778,7 @@ mod tests {
             vec![Effect::Kill(1)]
         );
         let out = m.handle(Event::Exited(1, None), 31_100);
-        assert!(has(&out, Effect::Exit));
+        assert_eq!(out.last(), Some(&Effect::Exit));
         assert_eq!(last_status(&out), Some(Status::Stopped));
         assert!(!out.iter().any(|e| matches!(e, Effect::SetTimer { .. })));
     }
