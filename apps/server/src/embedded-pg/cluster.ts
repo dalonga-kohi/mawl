@@ -1,7 +1,9 @@
-import { access, readFile, stat } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { access, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { EmbeddedPgError } from './errors.ts'
+import { type Clock, type LineLogger, runToExit, type SpawnFn, silentLogger } from './process.ts'
 
 /** The Postgres major the bundle ships. A cluster from any other major is not started. */
 export const PG_MAJOR = '17'
@@ -73,4 +75,144 @@ export async function inspectCluster(dataRoot: string): Promise<ClusterState> {
   const parsed = passwordSchema.safeParse(raw.trim())
   if (!parsed.success) return { state: 'corrupt', reason: 'the password file is malformed' }
   return { state: 'valid', password: parsed.data }
+}
+
+/** The superuser initdb creates. */
+export const SUPERUSER = 'mawl'
+
+export type RenameFn = (from: string, to: string) => Promise<void>
+
+export interface InitOptions {
+  pgRoot: string
+  dataRoot: string
+  spawn: SpawnFn
+  clock: Clock
+  logger?: LineLogger
+  /** Cold initdb is about 4 s with --no-sync; the cap only catches a hung tool. */
+  initdbTimeoutMs?: number
+  rename?: RenameFn
+  /** Deletes a file or dir tree; injectable so tests can make cleanup fail. */
+  remove?: (path: string) => Promise<void>
+}
+
+/** Retries cover Windows' transient locks (Defender, the indexer) on fresh files. */
+export const removeTree = (path: string) =>
+  rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+
+/** Windows codes for "a file in this dir is open" (Defender scanning fresh files, an indexer). */
+const TRANSIENT_FS_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const RENAME_ATTEMPTS = 8
+
+/**
+ * Deletes staging dirs and pwfiles a crashed first run left behind. Never touches the cluster.
+ * Best-effort: a leftover that cannot be deleted now is retried on the next boot.
+ * Two server instances on one data root are unsupported (they would race here and on the
+ * cluster); the desktop host enforces a single instance (D1.5).
+ */
+export async function removeStaleArtifacts(
+  dataRoot: string,
+  remove: (path: string) => Promise<void> = removeTree,
+): Promise<void> {
+  const names = await readdir(dataRoot).catch(() => [])
+  for (const name of names) {
+    if (name.startsWith(STAGING_PREFIX) || name.startsWith(PWFILE_PREFIX)) {
+      await remove(join(dataRoot, name)).catch(() => {})
+    }
+  }
+}
+
+/**
+ * First run: `initdb --no-sync` into a staging dir, fsync it with `initdb --sync-only`, write the
+ * password file, then rename the finished cluster into place. The rename is the commit point, so
+ * a crash at any earlier moment leaves no `cluster/` and the next boot starts over. Syncing before
+ * the rename means a committed cluster is on disk, not only in the OS cache (power loss).
+ * Returns the generated superuser password.
+ */
+export async function initCluster(opts: InitOptions): Promise<string> {
+  const { pgRoot, dataRoot, spawn, clock, logger = silentLogger } = opts
+  const doRename = opts.rename ?? rename
+  const remove = opts.remove ?? removeTree
+  // Cleanup never masks the error that made us clean up.
+  const removeQuietly = (path: string) =>
+    remove(path).catch((err: unknown) => {
+      logger.warn({ path, err: String(err) }, 'embedded postgres could not delete a leftover')
+    })
+  await mkdir(dataRoot, { recursive: true })
+  await removeStaleArtifacts(dataRoot, remove)
+
+  const id = randomBytes(6).toString('hex')
+  const staging = join(dataRoot, `${STAGING_PREFIX}${id}`)
+  const pwfile = join(dataRoot, `${PWFILE_PREFIX}${id}`)
+  // 256 bits. Stored under the data root (never %TEMP%); mode 0o600 is best-effort on Windows,
+  // where the per-user %LOCALAPPDATA% ACL is what protects it.
+  const password = randomBytes(32).toString('base64url')
+
+  const fail = async (message: string, detail?: string): Promise<never> => {
+    await removeQuietly(staging)
+    throw new EmbeddedPgError('initdb_failed', message, detail)
+  }
+
+  await writeFile(pwfile, `${password}\n`, { mode: 0o600 })
+  let result: Awaited<ReturnType<typeof runToExit>>
+  try {
+    result = await runToExit(
+      spawn,
+      binaryPath(pgRoot, 'initdb'),
+      [
+        `--pgdata=${staging}`,
+        `--username=${SUPERUSER}`,
+        `--pwfile=${pwfile}`,
+        '--auth=scram-sha-256',
+        '--encoding=UTF8',
+        // C locale: English server messages (lc_messages) and no dependence on the Windows
+        // display language, whose locale names initdb cannot always map.
+        '--no-locale',
+        '--no-sync',
+      ],
+      { clock, timeoutMs: opts.initdbTimeoutMs ?? 120_000, logger, source: 'initdb' },
+    )
+  } finally {
+    await removeQuietly(pwfile)
+  }
+
+  if (result.timedOut) return fail('initdb timed out', result.output)
+  if (result.code !== 0) {
+    return fail(
+      `initdb failed (${result.error ?? `exit code ${result.code ?? result.signal}`})`,
+      result.output,
+    )
+  }
+
+  // About 6.5 s on a fresh cluster (cold initdb is about 4 s): still well under initdb with fsync
+  // on (17-34 s). A failure is only a warning: the cluster is complete, just not yet durable.
+  const sync = await runToExit(
+    spawn,
+    binaryPath(pgRoot, 'initdb'),
+    ['--sync-only', '-D', staging],
+    { clock, timeoutMs: opts.initdbTimeoutMs ?? 120_000, logger, source: 'initdb-sync' },
+  )
+  if (sync.code !== 0 || sync.timedOut) {
+    logger.warn(
+      { code: sync.code, timedOut: sync.timedOut },
+      'initdb --sync-only failed; the new cluster may not survive a power loss',
+    )
+  }
+
+  // The password is written before the commit point; without a cluster it is simply ignored.
+  await writeFile(join(dataRoot, PASSWORD_FILE), `${password}\n`, { mode: 0o600 })
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await doRename(staging, join(dataRoot, CLUSTER_DIR))
+      break
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? ''
+      if (!TRANSIENT_FS_CODES.has(code) || attempt >= RENAME_ATTEMPTS) {
+        return fail(`could not move the new cluster into place (${code || String(err)})`)
+      }
+      // 50 ms doubling, capped at 1 s: about 3.5 s in total before giving up.
+      await clock.sleep(Math.min(1_000, 50 * 2 ** (attempt - 1)))
+    }
+  }
+  logger.info({ dataRoot }, 'embedded postgres cluster initialised')
+  return password
 }
