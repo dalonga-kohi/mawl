@@ -7,7 +7,13 @@
     ".nvmrc",
     "docs/ARCHITECTURE.md"
   ],
-  "globalEnv": ["CI", "MAWL_REQUIRE_DOCKER", "MAWL_PG_ROOT", "MAWL_REQUIRE_EMBEDDED_PG"],
+  "globalEnv": [
+    "CI",
+    "MAWL_REQUIRE_DOCKER",
+    "MAWL_SKIP_DOCKER_SUITES",
+    "MAWL_PG_ROOT",
+    "MAWL_REQUIRE_EMBEDDED_PG"
+  ],
   "tasks": {
     "lint": { "dependsOn": ["//#lint:root"] },
     "//#lint:root": {},

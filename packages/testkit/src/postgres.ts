@@ -66,11 +66,15 @@ const isSet = (v: string | undefined) => v !== undefined && v !== '' && v !== '0
 /**
  * What to do about a Postgres suite: run when Docker is up; otherwise skip locally, but fail
  * when CI or MAWL_REQUIRE_DOCKER is set, so CI can never go green by skipping.
+ *
+ * MAWL_SKIP_DOCKER_SUITES is the one deliberate opt-out: the fast GitHub Actions gate sets it
+ * because Travis runs these suites (see .travis.yml). It wins over everything else.
  */
 export function dockerPolicy(
   available: boolean,
   env: Record<string, string | undefined> = process.env,
 ): 'run' | 'skip' | 'fail' {
+  if (isSet(env.MAWL_SKIP_DOCKER_SUITES)) return 'skip'
   if (available) return 'run'
   return isSet(env.CI) || isSet(env.MAWL_REQUIRE_DOCKER) ? 'fail' : 'skip'
 }
@@ -110,15 +114,18 @@ export function withPostgres(opts: WithPostgresOptions = {}): () => string {
   let skipNote: string | undefined
 
   beforeAll(async () => {
-    const available = await probeDocker(opts.probe)
-    const policy = dockerPolicy(available, opts.env)
+    const env = opts.env ?? process.env
+    // Opted out: don't even probe Docker, which can take 30 s on a cold engine.
+    const optedOut = isSet(env.MAWL_SKIP_DOCKER_SUITES)
+    const available = optedOut ? false : await probeDocker(opts.probe)
+    const policy = dockerPolicy(available, env)
     if (policy === 'fail') {
       throw new Error(
         'Docker is required (CI or MAWL_REQUIRE_DOCKER is set) but is not available for Postgres tests',
       )
     }
     if (policy === 'skip') {
-      skipNote = 'Docker is not available'
+      skipNote = optedOut ? 'MAWL_SKIP_DOCKER_SUITES is set' : 'Docker is not available'
       process.stderr.write(`[testkit] ${skipNote}: skipping Postgres integration suite\n`)
       return
     }
