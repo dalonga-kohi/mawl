@@ -157,23 +157,28 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
 
   for (let attempt = 1; ; attempt++) {
     const port = await deps.findFreePort()
-    const child = spawn(
-      binaryPath(opts.pgRoot, 'postgres'),
-      [
-        '-D',
-        clusterDir,
-        '-p',
-        String(port),
-        '-c',
-        `listen_addresses=${LOOPBACK}`,
-        // Output comes to us over the pipe; the collector would detach it into files.
-        '-c',
-        'logging_collector=off',
-      ],
-      SPAWN_OPTS,
-    )
-    const tail = new OutputTail(logger, 'postgres').attach(child)
+    let child: PgChild
+    try {
+      child = spawn(
+        binaryPath(opts.pgRoot, 'postgres'),
+        [
+          '-D',
+          clusterDir,
+          '-p',
+          String(port),
+          '-c',
+          `listen_addresses=${LOOPBACK}`,
+          // Output comes to us over the pipe; the collector would detach it into files.
+          '-c',
+          'logging_collector=off',
+        ],
+        SPAWN_OPTS,
+      )
+    } catch (err) {
+      throw new EmbeddedPgError('start_failed', `Could not spawn postgres: ${errorText(err)}`)
+    }
     const exited = waitForExit(child)
+    const tail = new OutputTail(logger, 'postgres')
     const probeConn: PgConnection = {
       host: LOOPBACK,
       port,
@@ -182,7 +187,20 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
       database: 'postgres',
     }
 
-    const outcome = await waitUntilReady({ deps, exited, conn: probeConn, opts })
+    // From here on a postmaster is running: any unexpected throw must stop it before
+    // surfacing, or it would outlive the failed boot.
+    let outcome: ReadyOutcome
+    try {
+      tail.attach(child)
+      outcome = await waitUntilReady({ deps, exited, conn: probeConn, opts })
+    } catch (err) {
+      await stopChild(child, exited)
+      throw new EmbeddedPgError(
+        'start_failed',
+        `Postgres startup check failed: ${errorText(err)}`,
+        tail.text(),
+      )
+    }
     if (outcome.kind === 'ready') {
       const conn: PgConnection = { ...probeConn, database: opts.database }
       try {
@@ -191,7 +209,7 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
         await stopChild(child, exited)
         throw new EmbeddedPgError(
           'start_failed',
-          `Could not create the ${opts.database} database: ${err instanceof Error ? err.message : String(err)}`,
+          `Could not create the ${opts.database} database: ${errorText(err)}`,
           tail.text(),
         )
       }
@@ -236,6 +254,8 @@ export async function startEmbeddedPostgres(options: StartOptions): Promise<Embe
     )
   }
 }
+
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 type ReadyOutcome =
   | { kind: 'ready' }

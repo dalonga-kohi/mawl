@@ -280,6 +280,36 @@ describe('startEmbeddedPostgres', () => {
     await pg.stop()
   })
 
+  it('stops postgres and fails with start_failed when the readiness probe throws', async () => {
+    await warmCluster()
+    const h = harness({
+      probe: async () => {
+        throw new Error('probe exploded')
+      },
+    })
+    const err = await startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps }).catch(
+      (e: unknown) => e,
+    )
+    expect(err).toMatchObject({ code: 'start_failed' })
+    expect((err as Error).message).toContain('probe exploded')
+    const [postgres] = h.spawn.of('postgres')
+    expect(postgres?.exitCode !== null || postgres?.signalCode !== null).toBe(true)
+  })
+
+  it('fails with start_failed when spawning postgres throws synchronously', async () => {
+    await warmCluster()
+    const h = harness({
+      postgres: () => {
+        throw new Error('spawn EINVAL')
+      },
+    })
+    const err = await startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps }).catch(
+      (e: unknown) => e,
+    )
+    expect(err).toMatchObject({ code: 'start_failed' })
+    expect((err as Error).message).toContain('spawn EINVAL')
+  })
+
   it('keeps the latest output for diagnostics', async () => {
     await warmCluster()
     const h = harness()
