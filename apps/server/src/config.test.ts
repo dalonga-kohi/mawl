@@ -279,6 +279,16 @@ describe('parseConfig modes', () => {
       ['DATABASE_URL'],
     ],
     ['desktop with nothing set', { MAWL_MODE: 'desktop' }, ['MAWL_DATA_DIR', 'MAWL_PG_ROOT']],
+    [
+      'desktop with a relative MAWL_SECRETS_DIR',
+      {
+        MAWL_MODE: 'desktop',
+        MAWL_DATA_DIR: dataDir,
+        MAWL_PG_ROOT: pgRoot,
+        MAWL_SECRETS_DIR: 'rel/hunter2-secrets',
+      },
+      ['MAWL_SECRETS_DIR'],
+    ],
   ])('rejects %s, naming the variables but never the values', (_label, env, names) => {
     const message = messageOf(env)
     for (const name of names) expect(message).toContain(name)

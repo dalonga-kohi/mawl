@@ -114,6 +114,7 @@ const ModeSchema = z
     DATABASE_URL: z.unknown().optional(),
     MAWL_DATA_DIR: z.unknown().optional(),
     MAWL_PG_ROOT: z.unknown().optional(),
+    MAWL_SECRETS_DIR: z.unknown().optional(),
   })
   .superRefine((env, ctx) => {
     const set = (v: unknown): v is string => typeof v === 'string' && v !== ''
@@ -128,6 +129,8 @@ const ModeSchema = z
     }
     if (mode !== 'desktop') return // EnvSchema reports the bad MAWL_MODE.
     absolute('MAWL_DATA_DIR', env.MAWL_DATA_DIR)
+    // A relative dir would follow the host's working directory, which may be the install dir.
+    if (set(env.MAWL_SECRETS_DIR)) absolute('MAWL_SECRETS_DIR', env.MAWL_SECRETS_DIR)
     // Without a database url the server runs the embedded Postgres from the install's `pg\`.
     if (!set(env.DATABASE_URL)) absolute('MAWL_PG_ROOT', env.MAWL_PG_ROOT)
   })
