@@ -9,6 +9,7 @@
       "!.claude/worktrees",
       "!docs",
       "!packages/ui/src/tokens.css",
+      "!packages/core/src/prompts/blocks.generated.ts",
       "!packages/db/drizzle/meta",
       "!**/node_modules",
       "!**/.turbo",

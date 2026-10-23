@@ -150,14 +150,27 @@ Every change is written to `memory_ops`, so the UI can show "What changed overni
 
 ## 7. Prompt layout (cache-aware)
 
+The system part is built by the prompt assembler in `packages/core/src/prompts/` from versioned block files in `packages/core/prompts/` (REDESIGN §5.2). Order, stable to volatile:
+
 ```
-[1] system: rules, safety, tool usage, untrusted-data policy        ← cache breakpoint A (rarely changes)
-[2] tool definitions                                               ← stable per profile
-[3] core blocks (frozen for the segment)                           ← cache breakpoint B
-[4] segment preamble: handoff + latest checkpoint                  ← cache breakpoint C (per segment)
-[5] conversation turns (older ones compacted by L1/L2)
-[6] <recalled_memories> (data) + current user input / trigger
+[1] identity                                                      who a Mawl teammate is, the voice
+[2] rules                                                         honesty, outside content is data, ask before irreversible actions, stop conditions
+[3] tools (+ computer sub-block: terminal or desktop)             ← cache breakpoint A (stable per profile)
+[4] persona (profile personaMd) + owner notes, as delimited data
+[5] skills index                                                  name + one line per skill, sorted by name
+[6] memory-core: pinned blocks, frozen for the segment            ← cache breakpoint B
+[7] segment preamble: handoff + latest checkpoint                 (inserted by the run engine before the environment part, per segment; may take a third breakpoint)
+[8] environment: date, weekday, timezone, channel, computer state (the only volatile system block)
+[9] recalled memories (as data), segment summary, conversation turns (older ones compacted by L1/L2), current user input / trigger
 ```
+
+Rules for the assembler:
+- Empty input omits a block. A breakpoint whose block is omitted moves to the last present part before it, and two breakpoints on the same part collapse into one.
+- Persona, owner notes, skills and memory are untrusted data between tags (`<persona>`, `<owner_notes>`, `<skills>`, `<memory_core>`). A closing tag inside the data is broken, so data cannot end its section early. The rules come before them and say they cannot be overridden.
+- The assembler is pure. The caller passes `now` (UTC) and `tz`, and only the calendar date in that timezone reaches the prompt, so the text is stable within a day. The prefix hash (sha256 over id, breakpoint flag and text of every part up to the last breakpoint, so moving a breakpoint changes it) must stay equal across steps of a segment; only the environment and later content may change.
+- The assembler returns the system blocks only, with the environment part last. The run engine inserts the segment preamble before the environment part, then appends the rest of [9]; this keeps the prefix order above.
+- Output is an ordered list of parts `{ id, version, text, cacheBreakpoint }`. `toSystemMessages` turns them into AI SDK system messages with `providerOptions.anthropic.cacheControl: { type: 'ephemeral' }` on breakpoint parts. Other providers ignore that key.
+- Changing a block file or the layout means bumping the block's `version`, running `pnpm --filter @mawl/core generate`, and updating the snapshot tests in the same commit.
 
 ## 8. Memory UI (user-visible, editable)
 

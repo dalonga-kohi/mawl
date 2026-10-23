@@ -267,6 +267,7 @@ A user can cancel a run from any non-terminal state (SPEC F6). Waiting states do
 The loop design is REDESIGN §5. In short:
 - A ReAct loop on this durable step engine, plus a steering queue and a follow-up queue (`run_inbox`, injected at step boundaries).
 - Truncated tool calls are failed, never executed.
+- The system prompt is assembled from versioned blocks (`packages/core/prompts/*.md` compiled into `blocks.generated.ts`) by a pure assembler with two cache breakpoints; layout in MEMORY §7.
 - A capped `finishTurn` hook (receipts plug in here), per-profile fallback models, and tool idempotency keys.
 - Approvals park the call and replay its exact stored arguments.
 - `delegate` subagents run inside the parent's turn.
