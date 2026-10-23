@@ -101,6 +101,12 @@ impl Presence {
     /// The host checked a remote Mawl again while the window may show it. Proven: the app stays
     /// allowed. Not proven: not ready any more, and back to the splash when the window was in the
     /// app (the splash checks again before it enters). Returns whether the window left the app.
+    ///
+    /// "Proven" is the caller's verdict (`remote::Recheck`), not "ready": a remote that answers
+    /// 503 with a valid proof is the right server without its database, so an app page that is
+    /// already open stays and the origin stays allowed (the page works again once the database is
+    /// back). Entering from the splash is stricter on purpose: `check_remote` allows the app
+    /// origin only on `Ready`, so a new page never opens on a sick remote.
     pub fn recheck(&self, proven: bool, navigate_to_splash: impl FnOnce()) -> bool {
         if proven {
             self.set_ready(true);
