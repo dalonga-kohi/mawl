@@ -474,7 +474,18 @@ All event types are defined as zod schemas in `packages/contracts`.
   - the server sidecar: signed `node.exe` as `mawl-server.exe` + `server.mjs` (with the Claude Agent SDK JS bundled in), `drizzle\`
   - the web build
   - the pruned EDB Postgres 17.10 binaries with an MSVC-built `vector.dll` (REDESIGN §10.1) and the app-local VC++ runtime
-- About 46 MiB in total (REDESIGN §10.2).
+- About 46 MiB in total (REDESIGN §10.2); `pnpm --filter @mawl/desktop size-budget` fails a setup over 60 MiB.
+- *Install layout (D1.7a).* NSIS `currentUser` installs to `%LOCALAPPDATA%\Mawl` and registers `mawl://` under `HKCU\Software\Classes` (the Tauri NSIS template reads `plugins.deep-link.desktop.schemes`; the host also registers it at runtime). On Windows Tauri's `resource_dir` is the install dir, so the host (`host/src/launch.rs`) finds:
+
+  | Path | From |
+  |---|---|
+  | `Mawl.exe` | the Tauri host |
+  | `mawl-server.exe` | `externalBin` `bundle-stage/binaries/mawl-server-<triple>.exe`, the renamed `node.exe` (major from `.nvmrc`) |
+  | `server\server.mjs`, `server\drizzle\` | `pnpm --filter @mawl/server build` |
+  | `server\web\` | `pnpm --filter @mawl/web build` (also embedded in `Mawl.exe` as `frontendDist` for the splash) |
+  | `pg\` | `infra/desktop/fetch-pg.ps1`, plus `vector.dll` in `pg\lib`, `vector.control` and `vector--0.8.7.sql` in `pg\share\extension`, plus the VC++ runtime the EDB zip lacks in `pg\bin` (`VCRUNTIME140`, `VCRUNTIME140_1`, `MSVCP140`) |
+
+  `apps/desktop/src/bundle/stage.ts` assembles the gitignored `src-tauri/bundle-stage/` (sidecar included, swapped in whole) and refuses unverified inputs: pgvector files not listed in `SHA256SUMS.txt`, a fetch-pg marker other than the pinned one, a VC++ runtime from `System32` without `--allow-system-vc`; `src-tauri/tauri.bundle.conf.json` (sidecar and resource map) is merged only by the release build, because tauri-build copies both on every cargo build. Steps in RUNNING.md, "Building the desktop installer locally".
 - The Claude Code native binary is not in the installer. It is downloaded on first use of the Claude plan, checked against the lockfile's sha512, and run unmodified from the data dir.
 - Auto-update uses the Tauri updater against GitHub Releases.
 - Computer images are pulled from GHCR on first use, never built locally.

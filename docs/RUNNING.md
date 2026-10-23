@@ -125,6 +125,23 @@ A development build passes only `DATABASE_URL`, `MAWL_PG_ROOT` and `LOG_LEVEL` f
 
 To look at the splash in a browser, run the web dev server (`pnpm --filter @mawl/web dev`) and open `http://127.0.0.1:5173/splash.html?demo=boot` (or `demo=failed`, `restarting`, `stopping`). Do not open `apps/web/splash.html` as a file: the browser blocks its module script under CORS, because a file page has no origin.
 
+## Building the desktop installer locally
+
+The installer is a per-user NSIS setup (no admin). Building it takes two steps: stage the files, then run the Tauri build. Both run on Windows only.
+
+1. Get the pgvector files with their checksums. Either download the `pgvector-windows` workflow artifact (`vector.dll`, `vector.control`, `vector--0.8.7.sql` and `SHA256SUMS.txt`), or build them locally with `infra/desktop/pgvector/build-vector-mingw.ps1` and point at its Postgres root (the folder with `lib\vector.dll`). The stage step refuses files that `SHA256SUMS.txt` does not list with a matching hash. A local MinGW build has no such file, so write one yourself in that folder; doing so says you vouch for those files:
+   `Get-ChildItem lib\vector.dll, share\extension\vector.control, share\extension\vector--0.8.7.sql | ForEach-Object { '{0}  {1}' -f (Get-FileHash $_).Hash.ToLower(), $_.Name } | Set-Content SHA256SUMS.txt`
+2. Stage everything: `pnpm --filter @mawl/desktop stage --pgvector <folder>`. This:
+   - checks that the `node` running it has the major version in `.nvmrc` (pass `--node <path>` to use another `node.exe`);
+   - runs `infra/desktop/fetch-pg.ps1` into `apps/desktop/src-tauri/target/bundle-cache/pg` (a 318 MiB download the first time, then cached; pass `--pg <folder>` to use a bundle you already fetched). The folder's `.mawl-pg-bundle` marker must name the pinned Postgres version and zip hash; the marker itself is not shipped;
+   - adds the VC++ runtime DLLs the Postgres zip lacks (`VCRUNTIME140.dll`, `VCRUNTIME140_1.dll`, `MSVCP140.dll`) to `pg\bin`, from `--vc-runtime <folder>` or else the Visual Studio redist folder (`VCToolsRedistDir`, set in a VS developer shell). Without either it stops. On a PC without Visual Studio, `--allow-system-vc` copies them from `System32` instead (x64 Windows only), which is fine for a local test build but not for a release;
+   - builds the server and the web app;
+   - writes `apps/desktop/src-tauri/bundle-stage/`: `server\`, `pg\`, `binaries\mawl-server-<triple>.exe` (the renamed `node.exe`) and `stage.json` (what was staged: versions, the VC++ DLLs with their paths and file versions, the web build's hashes). The triple comes from `rustc -vV` (`x86_64-pc-windows-gnu` on a MinGW toolchain, `x86_64-pc-windows-msvc` in CI); pass `--triple` to override. The folder is gitignored. A failed run leaves the previous stage as it was.
+3. Build: `pnpm --filter @mawl/desktop build`. It merges `src-tauri/tauri.bundle.conf.json` (the sidecar and the resource map) into the Tauri config and first runs `stage:check`, which fails with a list of problems if the stage is incomplete, has no sidecar for the target triple, or the web build changed since staging (stage again then). The setup lands in `apps/desktop/src-tauri/target/release/bundle/nsis/`.
+4. Check the size: `pnpm --filter @mawl/desktop size-budget` fails when the setup is over 60 MiB.
+
+`tauri dev` and `cargo test` do not need a stage: only the release build merges the bundle config.
+
 ## Troubleshooting
 
 - Port 7420 or 1455 is already in use (compose reports `ports are not available` or `address already in use`): stop the program that holds the port, then run `up -d` again. To find it, run `lsof -i :7420` in bash, or in PowerShell `Get-NetTCPConnection -LocalPort 7420,1455 -State Listen | Select-Object LocalPort, OwningProcess` and then `Get-Process -Id <OwningProcess>`. Do not move the ports in the compose file: the ChatGPT sign-in redirect only works on 1455.

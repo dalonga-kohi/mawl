@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": "pnpm --filter @mawl/desktop stage:check"
+  },
+  "bundle": {
+    "externalBin": ["bundle-stage/binaries/mawl-server"],
+    "resources": {
+      "bundle-stage/server/": "server/",
+      "bundle-stage/pg/": "pg/"
+    }
+  }
+}

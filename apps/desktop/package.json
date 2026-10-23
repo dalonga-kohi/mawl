@@ -8,7 +8,10 @@
   },
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "tauri build --config src-tauri/tauri.bundle.conf.json",
+    "stage": "node src/bundle/stage.ts",
+    "stage:check": "node src/bundle/stage.ts --check",
+    "size-budget": "node src/bundle/size-budget.ts",
     "test:rust": "cargo test --workspace --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
