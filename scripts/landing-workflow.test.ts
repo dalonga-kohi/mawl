@@ -44,8 +44,11 @@ describe('landing workflow', () => {
     const setupNode = stepUsing('actions/setup-node')
     const deploy = stepUsing('cloudflare/wrangler-action')
     expect(setupNode?.with?.['node-version-file']).toBe('.nvmrc')
-    expect(deploy?.with?.command).toBe(
-      `pages deploy "${workspace}/site" --project-name=mawl --branch=main`,
+    expect(String(deploy?.with?.command).trim()).toBe(
+      [
+        'pages project create mawl --production-branch=main || true',
+        `pages deploy "${workspace}/site" --project-name=mawl --branch=main`,
+      ].join('\n'),
     )
   })
 

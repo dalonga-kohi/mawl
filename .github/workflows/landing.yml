@@ -46,4 +46,6 @@ jobs:
           packageManager: npm
           workingDirectory: ${{ runner.temp }}/mawl-pages
           wranglerVersion: '4.152.0'
-          command: pages deploy "${{ github.workspace }}/site" --project-name=mawl --branch=main
+          command: |
+            pages project create mawl --production-branch=main || true
+            pages deploy "${{ github.workspace }}/site" --project-name=mawl --branch=main
