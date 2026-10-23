@@ -1,13 +1,55 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  BINARIES_DIR,
   checkNodeVersion,
   missingFromStage,
+  PG_MARKER_TEXT,
+  PG_VERSION,
+  PG_ZIP_SHA256,
   parseRustcHost,
+  peFileVersion,
   REQUIRED_STAGE_FILES,
+  SIDECAR_BASE,
+  STAGE_DIR,
   sidecarFileName,
 } from './layout.ts'
 
+describe('the Postgres bundle pins', () => {
+  it('match the pins in infra/desktop/fetch-pg.ps1, which writes the marker', () => {
+    const script = readFileSync(
+      resolve(import.meta.dirname, '../../../../infra/desktop/fetch-pg.ps1'),
+      'utf8',
+    )
+    expect(/^\$Version = '([^']+)'$/m.exec(script)?.[1]).toBe(PG_VERSION)
+    expect(/^\$Sha256 = '([0-9A-F]{64})'$/m.exec(script)?.[1]).toBe(PG_ZIP_SHA256)
+    expect(script).toContain('$MarkerText = "postgresql $Version $Sha256"')
+    expect(PG_MARKER_TEXT).toBe(`postgresql ${PG_VERSION} ${PG_ZIP_SHA256}`)
+  })
+})
+
+describe('PE file versions', () => {
+  it('reads the version from the VS_FIXEDFILEINFO block', () => {
+    const buf = Buffer.alloc(64)
+    buf.writeUInt32LE(0xfeef04bd, 20)
+    buf.writeUInt32LE(0x00010000, 24) // struct version
+    buf.writeUInt32LE(14 * 65536 + 44, 28) // MS: 14.44
+    buf.writeUInt32LE(35211 * 65536, 32) // LS: 35211.0
+    expect(peFileVersion(buf)).toBe('14.44.35211.0')
+  })
+
+  it('has no version without the block', () => {
+    expect(peFileVersion(Buffer.from('MZ not a versioned dll'))).toBeUndefined()
+  })
+})
+
 describe('the bundle layout', () => {
+  it('keeps the sidecar inside the stage, so it is swapped in with the rest', () => {
+    expect(BINARIES_DIR).toBe(`${STAGE_DIR}/binaries`)
+    expect(SIDECAR_BASE).toBe(`${STAGE_DIR}/binaries/mawl-server`)
+  })
+
   it('names the sidecar after the Rust target triple, as Tauri looks it up', () => {
     expect(sidecarFileName('x86_64-pc-windows-gnu')).toBe('mawl-server-x86_64-pc-windows-gnu.exe')
     expect(sidecarFileName('x86_64-pc-windows-msvc')).toBe('mawl-server-x86_64-pc-windows-msvc.exe')

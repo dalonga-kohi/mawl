@@ -88,6 +88,8 @@ describe('the installer config', () => {
 
   it('never commits the stage or the sidecar binaries', () => {
     const ignore = read('.gitignore').split(/\r?\n/)
-    for (const entry of [`/${STAGE_DIR}/`, `/${BINARIES_DIR}/`]) expect(ignore).toContain(entry)
+    for (const suffix of ['', '.next', '.old']) expect(ignore).toContain(`/${STAGE_DIR}${suffix}/`)
+    // The sidecar lives inside the ignored stage.
+    expect(BINARIES_DIR.startsWith(`${STAGE_DIR}/`)).toBe(true)
   })
 })

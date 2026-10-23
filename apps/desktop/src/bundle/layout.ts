@@ -1,7 +1,7 @@
 // The installed layout the Tauri host expects (host/src/launch.rs), and the staging paths that
 // produce it. `tauri build --config src-tauri/tauri.bundle.conf.json` maps the stage into the
 // installer: `bundle-stage/server/` -> `<resource_dir>\server\`, `bundle-stage/pg/` ->
-// `<resource_dir>\pg\`, and `binaries/mawl-server-<triple>.exe` -> `mawl-server.exe` beside
+// `<resource_dir>\pg\`, and `bundle-stage/binaries/mawl-server-<triple>.exe` -> `mawl-server.exe` beside
 // `Mawl.exe`. A config test keeps the three in step.
 //
 // Pure functions only: this file runs under Vitest and, through stage.ts, under plain Node 24
@@ -9,12 +9,25 @@
 
 /** Relative to `apps/desktop/src-tauri`, like every path in the Tauri config. */
 export const STAGE_DIR = 'bundle-stage'
-export const BINARIES_DIR = 'binaries'
+/** Inside the stage, so the sidecar is swapped in with the files it runs (not a resource). */
+export const BINARIES_DIR = `${STAGE_DIR}/binaries`
 /** The `bundle.externalBin` entry; Tauri appends `-<triple>.exe`. */
 export const SIDECAR_BASE = `${BINARIES_DIR}/mawl-server`
 /** The name the installer gives the sidecar (`launch::SIDECAR_EXE`). */
 export const SIDECAR_EXE = 'mawl-server.exe'
 export const PGVECTOR_VERSION = '0.8.7'
+
+/**
+ * The pins of infra/desktop/fetch-pg.ps1 (a test keeps them equal) and the marker it writes into
+ * a finished bundle. The stager accepts a Postgres dir only with exactly this marker.
+ */
+export const PG_VERSION = '17.10-1'
+export const PG_ZIP_SHA256 = 'F9AAFCA58E7026A1EF2CAEEE711ACF761671E57904D430ADC85F468374F5A821'
+export const PG_MARKER_FILE = '.mawl-pg-bundle'
+export const PG_MARKER_TEXT = `postgresql ${PG_VERSION} ${PG_ZIP_SHA256}`
+
+/** The web build's entry pages; their hashes tie a stage to the build Tauri embeds. */
+export const WEB_ENTRY_FILES = ['index.html', 'splash.html'] as const
 
 /** `bundle.resources`: stage dir -> resource dir. */
 export const RESOURCE_MAP: Readonly<Record<string, string>> = {
@@ -79,6 +92,19 @@ export function checkNodeVersion(nodeVersion: string, nvmrc: string): string {
     throw new Error(`the sidecar would be Node ${bare}, but .nvmrc wants ${wanted}`)
   }
   return bare
+}
+
+/**
+ * The file version of a PE image from its VS_FIXEDFILEINFO block (signature 0xFEEF04BD, then the
+ * struct version, then dwFileVersionMS and dwFileVersionLS), for the record in stage.json.
+ */
+export function peFileVersion(image: Uint8Array): string | undefined {
+  const bytes = Buffer.from(image.buffer, image.byteOffset, image.byteLength)
+  const at = bytes.indexOf(Buffer.from([0xbd, 0x04, 0xef, 0xfe]))
+  if (at < 0 || at + 16 > bytes.length) return undefined
+  const ms = bytes.readUInt32LE(at + 8)
+  const ls = bytes.readUInt32LE(at + 12)
+  return `${ms >>> 16}.${ms & 0xffff}.${ls >>> 16}.${ls & 0xffff}`
 }
 
 /** The required files missing from `stageDir` (joined with `/`), in REQUIRED_STAGE_FILES order. */
