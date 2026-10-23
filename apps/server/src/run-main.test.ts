@@ -282,3 +282,37 @@ describe('runMain', () => {
     expect(s.text()).toContain('launch token missing')
   })
 })
+
+describe('runMain boot abort edges', () => {
+  it('an aborted error with no shutdown behind it is still a boot failure', async () => {
+    let fail!: (err: unknown) => void
+    const boot = new Promise<RunningServer>((_, reject) => {
+      fail = reject
+    })
+    const s = setup(DESKTOP_ENV, { boot })
+    s.stdin.write(`${TOKEN}\n${KEY}\n`)
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    // Nobody shut down, so the signal never fired: `aborted` here is not a clean exit.
+    expect(s.overrides[0]?.bootSignal?.aborted).toBe(false)
+    fail(new EmbeddedPgError('aborted', 'The Postgres start was aborted by a shutdown'))
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(1))
+    expect(s.exit).not.toHaveBeenCalledWith(0)
+    expect(s.text()).toContain('boot failed')
+  })
+
+  it('a second signal during an aborted boot does not abort or exit twice', async () => {
+    let fail!: (err: unknown) => void
+    const boot = new Promise<RunningServer>((_, reject) => {
+      fail = reject
+    })
+    const s = setup({ DATABASE_URL: 'postgres://mawl:pw@db/mawl' }, { boot })
+    await vi.waitFor(() => expect(s.started).toHaveLength(1))
+    s.proc.emit('SIGTERM')
+    fail(new EmbeddedPgError('aborted', 'The Postgres start was aborted by a shutdown'))
+    await vi.waitFor(() => expect(s.exit).toHaveBeenCalledWith(0))
+    s.proc.emit('SIGINT')
+    await new Promise((r) => setImmediate(r))
+    expect(s.exit).not.toHaveBeenCalledWith(1)
+    expect(s.text()).not.toContain('boot failed')
+  })
+})
