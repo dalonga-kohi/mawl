@@ -299,6 +299,42 @@ pub fn check(
     }
 }
 
+/// How often the host checks a remote Mawl again while the window shows it.
+pub const RECHECK_EVERY: Duration = Duration::from_secs(15);
+/// Silent answers in a row before the window leaves the app.
+const UNREACHABLE_MISSES: u8 = 2;
+
+/// The host's periodic re-check of a remote Mawl while the window shows its app (there is no
+/// supervisor to send the window back to the splash). An answer that is not the proven Mawl
+/// (`NotMawl`, `TokenRefused`) leaves at once, so the page stops sending the token to whoever
+/// answers now; silence leaves after [`UNREACHABLE_MISSES`] in a row, so one lost packet does not
+/// reload the app. A proven Mawl that lost its database (`Unhealthy`) is still the right server.
+#[derive(Debug, Default)]
+pub struct Recheck {
+    misses: u8,
+}
+
+impl Recheck {
+    /// Whether the window may stay on the app after this answer.
+    pub fn keeps_app(&mut self, health: RemoteHealth) -> bool {
+        let keep = match health {
+            RemoteHealth::Ready | RemoteHealth::Unhealthy => {
+                self.misses = 0;
+                true
+            }
+            RemoteHealth::Unreachable => {
+                self.misses = self.misses.saturating_add(1);
+                self.misses < UNREACHABLE_MISSES
+            }
+            RemoteHealth::NotMawl | RemoteHealth::TokenRefused => false,
+        };
+        if !keep {
+            self.misses = 0;
+        }
+        keep
+    }
+}
+
 /// One GET over HTTP or HTTPS (the OS's TLS and certificate store), no redirects, no cookies, a
 /// small body limit, [`CHECK_TIMEOUT`] in all.
 pub fn fetch_once(url: &Url) -> Option<(u16, Vec<u8>)> {
@@ -693,6 +729,26 @@ mod tests {
             check(&origin(), &token(), |_| None),
             RemoteHealth::Unreachable
         );
+    }
+
+    #[test]
+    fn the_recheck_leaves_at_once_for_an_impostor_and_after_two_misses_for_silence() {
+        use RemoteHealth::*;
+        let mut r = Recheck::default();
+        assert!(r.keeps_app(Ready));
+        // A proven Mawl that lost its database is still the right server.
+        assert!(r.keeps_app(Unhealthy));
+        assert!(!r.keeps_app(NotMawl));
+        assert!(!r.keeps_app(TokenRefused));
+        // One silent answer is a blip; two in a row leave.
+        assert!(r.keeps_app(Unreachable));
+        assert!(!r.keeps_app(Unreachable));
+        // Leaving starts the count again, and so does any proven answer.
+        assert!(r.keeps_app(Unreachable));
+        assert!(r.keeps_app(Ready));
+        assert!(r.keeps_app(Unreachable));
+        assert!(!r.keeps_app(TokenRefused));
+        assert!(r.keeps_app(Unreachable));
     }
 
     /// Serves one connection with `response`; returns the port and the request it saw.
