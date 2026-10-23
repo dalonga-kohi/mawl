@@ -20,12 +20,15 @@ use mawl_host::markers::{first_close_hint, release, FIRST_CLOSE_HINT_FILE};
 use mawl_host::master_key::{system_store_named, wipe, KeyStore};
 use mawl_host::notice::{Notice, NoticeTracker};
 use mawl_host::port;
-use mawl_host::presence::{Held, Presence};
+use mawl_host::presence::Presence;
 use mawl_host::remote::{
-    self, RemoteHealth, RemoteToken, TokenError, UrlError, WindowTarget, TOKEN_CREDENTIAL,
+    self, Recheck, RemoteHealth, RemoteToken, TokenError, UrlError, WindowTarget, RECHECK_EVERY,
+    TOKEN_CREDENTIAL,
 };
 use mawl_host::token::LaunchToken;
-use mawl_host::webview::{allow_navigation, app_url, launch_token_script, same_origin};
+use mawl_host::webview::{
+    allow_navigation, app_url, launch_token_script, open_denied_externally, same_origin, TokenScope,
+};
 use serde::Serialize;
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
@@ -74,11 +77,11 @@ pub struct Shell {
     presence: Arc<Presence>,
     /// A deep link that arrived before the server was ready; the first entry into the app uses it.
     pending_link: Arc<PendingLink>,
-    /// The app origin the window last entered: a server that comes back on another port moves the
-    /// held page there.
-    entered: Mutex<Option<Url>>,
     /// Where the remote Mawl's token lives (Windows Credential Manager, `Mawl/remote-token`).
     token_store: Arc<dyn KeyStore>,
+    /// Held across a connect's check, token write and target write, and across a switch back to
+    /// this PC, so two calls at once can never leave target A saved with token B.
+    connecting: Mutex<()>,
     /// "Quit Mawl" or a session end began: the UI thread may be waiting on the supervisor (a
     /// Windows logoff), so the supervisor thread must not call into the window, tray or
     /// notifications any more.
@@ -124,7 +127,8 @@ impl Shell {
         }
     }
 
-    /// A wake from sleep: probe the local server now. A remote page reconnects by itself.
+    /// A wake from sleep: probe the local server now. A remote Mawl is re-checked on its own
+    /// cadence (`watch_remote`).
     pub fn probe_now(&self) {
         if let Backend::Local(supervisor) = &self.backend {
             supervisor.probe_now();
@@ -146,29 +150,13 @@ impl Shell {
         self.relaunch.load(Ordering::SeqCst)
     }
 
-    fn remember_entered(&self, origin: Url) {
-        *self.entered.lock().unwrap_or_else(|e| e.into_inner()) = Some(origin);
-    }
-
     /// Where the window goes when it enters the app: a link that arrived early, else the root.
-    /// Remembers the origin, so a held page can tell whether the server came back on it.
     fn entry_url(&self) -> Url {
         let base = self.app_url();
-        self.remember_entered(base.clone());
         self.pending_link
             .take()
             .and_then(|path| link_target(&base, &path))
             .unwrap_or(base)
-    }
-
-    /// Whether the server is back on the origin the window entered.
-    fn same_origin_as_entered(&self) -> bool {
-        let current = self.app_url();
-        self.entered
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .as_ref()
-            .is_some_and(|entered| same_origin(entered, &current))
     }
 
     /// Opens an allowlisted in-app path (from `deep_link::parse_deep_link`). The app page has no
@@ -179,10 +167,7 @@ impl Shell {
             return;
         };
         self.presence.open_link(
-            || {
-                self.remember_entered(self.app_url());
-                navigate(app, target.clone());
-            },
+            || navigate(app, target.clone()),
             || self.pending_link.set(path.to_owned()),
         );
     }
@@ -263,30 +248,10 @@ struct TauriUi {
 
 impl HostUi for TauriUi {
     fn status(&self, status: Status) {
+        self.presence.note_status(status);
         // From here on the UI thread may be blocked on us; window and tray calls would wait for it.
         if self.quitting.load(Ordering::SeqCst) {
-            self.presence.note_status(status);
             return;
-        }
-        let held = match self.app.try_state::<Shell>() {
-            Some(shell) => shell.presence.on_status(
-                status,
-                shell.same_origin_as_entered(),
-                || navigate(&self.app, shell.splash.clone()),
-                || navigate(&self.app, shell.entry_url()),
-            ),
-            None => {
-                self.presence.note_status(status);
-                Held::NotHeld
-            }
-        };
-        if held == Held::Resumed {
-            // A link that waited out the restart.
-            if let Some(shell) = self.app.try_state::<Shell>() {
-                if let Some(path) = shell.pending_link.take() {
-                    shell.open_link(&self.app, &path);
-                }
-            }
         }
         crate::tray::update(&self.app, status);
         self.notify_about(status);
@@ -297,10 +262,17 @@ impl HostUi for TauriUi {
     }
 
     fn leave_app(&self) {
-        // The page stays (it shows a reconnecting banner); the app origin closes to new loads.
-        let held = self.presence.hold();
-        if held && !self.quitting.load(Ordering::SeqCst) {
+        // Back to the splash: no app page is kept through a restart, because it would reconnect to
+        // the old origin with the token before anything proved who answers there.
+        if self.quitting.load(Ordering::SeqCst) {
+            return;
+        }
+        if let Some(shell) = self.app.try_state::<Shell>() {
+            // While the page is still there, so the splash shows the owner's theme.
             pull_appearance(&self.app);
+            shell
+                .presence
+                .leave(|| navigate(&self.app, shell.splash.clone()));
         }
     }
 
@@ -395,6 +367,43 @@ pub fn hint_first_close(app: &AppHandle) {
         // The owner never saw it: the next run shows it again (not twice in this one).
         release(&data_dir, FIRST_CLOSE_HINT_FILE);
     }
+}
+
+/// While the window shows a remote Mawl's app, checks it again every `RECHECK_EVERY` with the
+/// origin-bound proof and sends the window back to the splash when the answer is no longer that
+/// Mawl (`remote::Recheck`); the splash checks again before it enters. A remote Mawl has no
+/// supervisor, so this is what stops its page from talking on to whoever answers that origin later.
+fn watch_remote(app: &AppHandle) {
+    let app = app.clone();
+    thread::spawn(move || {
+        let mut recheck = Recheck::default();
+        loop {
+            thread::sleep(RECHECK_EVERY);
+            let Some(shell) = app.try_state::<Shell>() else {
+                continue;
+            };
+            if shell.quitting.load(Ordering::SeqCst) {
+                return;
+            }
+            let Backend::Remote(link) = &shell.backend else {
+                return;
+            };
+            if !shell.presence.in_app() {
+                recheck = Recheck::default();
+                continue;
+            }
+            let health = remote::check(&link.origin, &link.token, remote::fetch_once);
+            *link.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(health);
+            if shell.quitting.load(Ordering::SeqCst) {
+                return;
+            }
+            let keep = recheck.keeps_app(health);
+            shell
+                .presence
+                .recheck(keep, || navigate(&app, shell.splash.clone()));
+            crate::tray::update_remote(&app, Some(health));
+        }
+    });
 }
 
 /// Navigates to the app only if the server is ready at this instant; the check and the navigation
@@ -546,7 +555,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         Some((origin, token)) => {
             // No local server: nothing to stop at quit, nothing to wait for at logoff.
             flags.server_gone.store(true, Ordering::SeqCst);
-            let script = launch_token_script(token.expose(), &origin);
+            let script = launch_token_script(token.expose(), &origin, TokenScope::Origin);
             let link = RemoteLink {
                 origin,
                 token,
@@ -562,7 +571,9 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
                 None
             };
             let token_page = dev_app.clone().unwrap_or_else(|| app_url(port));
-            let script = launch_token_script(token.expose(), &token_page);
+            // The port may move within a run; the navigation rule pins the current one.
+            let script =
+                launch_token_script(token.expose(), &token_page, TokenScope::LoopbackAnyPort);
             (Backend::Local(supervisor), script, dev_app)
         }
     };
@@ -576,8 +587,8 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         dev_app,
         presence,
         pending_link: Arc::new(PendingLink::new()),
-        entered: Mutex::new(None),
         token_store,
+        connecting: Mutex::new(()),
         quitting: flags.quitting,
         server_gone: flags.server_gone,
         shown: AtomicBool::new(start_hidden),
@@ -615,12 +626,14 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
                 return false;
             };
             let current = shell.app_url();
-            // The app origin (which receives the token) loads only while the server is ready
+            // The app origin (which receives the token) loads only while the supervisor is Ready
             // (during a restart another local process could hold the freed port) or, for a remote
-            // Mawl, only after it proved it knows the token.
+            // Mawl, while its last check proved that a server holding the token answers for this
+            // origin (`remote::check`, repeated by `watch_remote`).
             let app_origin = nav_presence.app_allowed().then_some(&current);
             let allowed = allow_navigation(target, &nav_splash, app_origin);
-            if !allowed {
+            // A refused load of the app's own origin stays refused: it is not a browser link.
+            if !allowed && open_denied_externally(target, &current) {
                 open_externally(&nav_app, &gate, target);
             }
             allowed
@@ -633,6 +646,10 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     }
     if window.url().ok().as_ref() != Some(&splash) {
         eprintln!("mawl: the splash loaded from an unexpected url");
+    }
+
+    if matches!(app.state::<Shell>().backend, Backend::Remote(_)) {
+        watch_remote(app);
     }
 
     let handle = app.clone();
@@ -820,10 +837,11 @@ pub fn check_remote(app: AppHandle) -> RemoteHealth {
     health
 }
 
-/// "Connect": checks the address and the token, asks the remote to prove it knows the token,
-/// keeps the token in Credential Manager and the address in the data dir, then starts Mawl again
-/// on the remote. Nothing is saved unless the remote proved itself. The token never reaches a log
-/// line, a URL or the diagnostics.
+/// "Connect": checks the address and the token, asks the remote for the origin-bound proof that a
+/// server holding the token answers there, keeps the token in Credential Manager and the address
+/// in the data dir, then starts Mawl again on the remote. Nothing is saved unless the remote proved
+/// itself. The check and both writes run under one lock, so parallel calls cannot mix them. The
+/// token never reaches a log line, a URL or the diagnostics.
 #[tauri::command(async)]
 pub fn connect_remote(app: AppHandle, url: String, token: String) -> Result<(), ConnectError> {
     let mut raw = token;
@@ -833,11 +851,12 @@ pub fn connect_remote(app: AppHandle, url: String, token: String) -> Result<(), 
     drop(raw);
     let origin = remote::parse_remote_url(&url).map_err(|reason| ConnectError::Url { reason })?;
     let token = parsed.map_err(|reason| ConnectError::Token { reason })?;
+    let shell = app.try_state::<Shell>().ok_or(ConnectError::Store)?;
+    let _connecting = shell.connecting.lock().unwrap_or_else(|e| e.into_inner());
     let health = remote::check(&origin, &token, remote::fetch_once);
     if health != RemoteHealth::Ready {
         return Err(ConnectError::Remote { health });
     }
-    let shell = app.try_state::<Shell>().ok_or(ConnectError::Store)?;
     remote::store_token(shell.token_store.as_ref(), &token).map_err(|e| {
         eprintln!("mawl: could not keep the remote Mawl's token: {e}");
         ConnectError::Store
@@ -856,6 +875,7 @@ pub fn connect_remote(app: AppHandle, url: String, token: String) -> Result<(), 
 #[tauri::command]
 pub fn use_local_mawl(app: AppHandle) -> Result<(), ConnectError> {
     let shell = app.try_state::<Shell>().ok_or(ConnectError::Store)?;
+    let _connecting = shell.connecting.lock().unwrap_or_else(|e| e.into_inner());
     remote::save_target(&shell.data_dir, &WindowTarget::Local).map_err(|e| {
         eprintln!("mawl: could not switch back to this PC's server: {e}");
         ConnectError::Store
