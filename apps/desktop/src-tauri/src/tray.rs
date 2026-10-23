@@ -1,9 +1,13 @@
-//! The tray icon: its icon and tooltip follow the supervisor, and its menu holds the status line,
-//! "Open Mawl", the "Start Mawl at login" switch and "Quit Mawl". What each status says lives in
-//! `mawl_host::tray`; this file only applies it.
+//! The tray icon: its icon and tooltip follow the supervisor (or the remote Mawl's last check), and
+//! its menu holds the status line, "Open Mawl", "Connect to a remote Mawl…", the "Start Mawl at
+//! login" switch and "Quit Mawl". What each status says lives in `mawl_host::tray`; this file only
+//! applies it.
 
 use mawl_host::machine::Status;
-use mawl_host::tray::{dot_color, paint_status_dot, tray_presentation};
+use mawl_host::remote::RemoteHealth;
+use mawl_host::tray::{
+    dot_color, paint_status_dot, remote_presentation, tray_presentation, TrayPresentation,
+};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, CheckMenuItemBuilder, MenuBuilder, MenuItem, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -17,11 +21,15 @@ const OPEN_ID: &str = "open";
 const QUIT_ID: &str = "quit";
 const AUTOSTART_ID: &str = "autostart";
 const STATUS_ID: &str = "status";
+/// "Connect to a remote Mawl…", or "Change remote Mawl…" while the window shows one. Both open
+/// the splash's form, which also holds "Use this PC's Mawl".
+const TARGET_ID: &str = "target";
 
 /// The menu items that change while the app runs.
 struct TrayItems {
     status: MenuItem<tauri::Wry>,
     autostart: CheckMenuItem<tauri::Wry>,
+    target: MenuItem<tauri::Wry>,
 }
 
 /// What the OS says about the login item. Dev builds never register one (it would point at a
@@ -38,6 +46,7 @@ pub fn build(app: &AppHandle, show_window: fn(&AppHandle)) -> tauri::Result<()> 
         .enabled(false)
         .build(app)?;
     let open = MenuItemBuilder::with_id(OPEN_ID, "Open Mawl").build(app)?;
+    let target = MenuItemBuilder::with_id(TARGET_ID, "Connect to a remote Mawl…").build(app)?;
     let autostart = CheckMenuItemBuilder::with_id(AUTOSTART_ID, "Start Mawl at login")
         .checked(autostart_enabled(app))
         .enabled(!tauri::is_dev())
@@ -47,11 +56,16 @@ pub fn build(app: &AppHandle, show_window: fn(&AppHandle)) -> tauri::Result<()> 
         .item(&status)
         .separator()
         .item(&open)
+        .item(&target)
         .item(&autostart)
         .separator()
         .item(&quit)
         .build()?;
-    app.manage(TrayItems { status, autostart });
+    app.manage(TrayItems {
+        status,
+        autostart,
+        target,
+    });
 
     let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip(initial.tooltip)
@@ -59,6 +73,11 @@ pub fn build(app: &AppHandle, show_window: fn(&AppHandle)) -> tauri::Result<()> 
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id().as_ref() {
             OPEN_ID => show_window(app),
+            TARGET_ID => {
+                // The splash's form: it holds "Connect" and, for a remote, "Use this PC's Mawl".
+                show_window(app);
+                shell::show_connect(app);
+            }
             QUIT_ID => shell::begin_quit(app),
             AUTOSTART_ID => toggle_autostart(app),
             _ => {}
@@ -82,7 +101,23 @@ pub fn build(app: &AppHandle, show_window: fn(&AppHandle)) -> tauri::Result<()> 
 
 /// Applies a supervisor status to the tooltip, the icon and the status line.
 pub fn update(app: &AppHandle, status: Status) {
-    let presentation = tray_presentation(status);
+    apply(app, tray_presentation(status));
+}
+
+/// Applies the last check of a remote Mawl (`None` before the first one).
+pub fn update_remote(app: &AppHandle, health: Option<RemoteHealth>) {
+    apply(app, remote_presentation(health));
+}
+
+/// The window shows a remote Mawl: say so in the menu.
+pub fn show_remote_target(app: &AppHandle) {
+    if let Some(items) = app.try_state::<TrayItems>() {
+        let _ = items.target.set_text("Change remote Mawl…");
+    }
+    update_remote(app, None);
+}
+
+fn apply(app: &AppHandle, presentation: TrayPresentation) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_tooltip(Some(presentation.tooltip));
         if let Some(icon) = icon_for(app, presentation.variant) {

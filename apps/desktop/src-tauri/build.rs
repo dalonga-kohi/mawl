@@ -8,6 +8,11 @@ const COMMANDS: &[&str] = &[
     "quit_app",
     "enter_app",
     "splash_shown",
+    "host_target",
+    "splash_appearance",
+    "check_remote",
+    "connect_remote",
+    "use_local_mawl",
 ];
 
 fn main() {

@@ -393,3 +393,122 @@ describe('stop', () => {
     expect(h.spawn.of('pg_ctl')).toHaveLength(0)
   })
 })
+
+describe('startEmbeddedPostgres onSpawn and abort', () => {
+  /**
+   * A probe that hangs until `release()` and then answers not_ready: a postgres in a long WAL
+   * recovery, without the virtual clock running into the start timeout meanwhile.
+   */
+  function heldProbe() {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const probe: EmbeddedPgDeps['probe'] = async () => {
+      await held
+      return 'not_ready'
+    }
+    return { probe, release: () => release() }
+  }
+
+  it('hands out a stop for the spawned postgres before the readiness wait', async () => {
+    await warmCluster()
+    const held = heldProbe()
+    const h = harness({ probe: held.probe })
+    const stops: (() => Promise<{ clean: boolean }>)[] = []
+    const starting = startEmbeddedPostgres({
+      pgRoot,
+      dataRoot,
+      deps: h.deps,
+      onSpawn: (stop) => stops.push(stop),
+    }).catch((err: unknown) => err)
+    await vi.waitFor(() => expect(stops).toHaveLength(1))
+    // The emergency stop works while the start still waits: pg_ctl stops this postgres.
+    expect(await stops[0]?.()).toEqual({ clean: true })
+    expect(h.spawn.of('postgres')[0]?.exitCode).toBe(0)
+    // The start then sees its postgres gone and fails instead of hanging.
+    held.release()
+    expect(await starting).toMatchObject({ code: 'start_failed' })
+  })
+
+  it('calls onSpawn once per postgres, also on a port retry', async () => {
+    await warmCluster()
+    const busy = new Set([5501])
+    let first = true
+    const h = harness({
+      busy,
+      postgres: (child) => {
+        if (first) {
+          first = false
+          child.exit(1)
+        }
+      },
+    })
+    const onSpawn = vi.fn()
+    const pg = await startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps, onSpawn })
+    expect(onSpawn).toHaveBeenCalledTimes(2)
+    await pg.stop()
+  })
+
+  it('an abort during the readiness wait stops postgres and rejects with aborted', async () => {
+    await warmCluster()
+    // The probe never answers: the abort must not wait for it.
+    const h = harness({ probe: heldProbe().probe })
+    const controller = new AbortController()
+    const starting = startEmbeddedPostgres({
+      pgRoot,
+      dataRoot,
+      deps: h.deps,
+      signal: controller.signal,
+    }).catch((err: unknown) => err)
+    await vi.waitFor(() => expect(h.spawn.of('postgres')).toHaveLength(1))
+    controller.abort()
+    expect(await starting).toMatchObject({ name: 'EmbeddedPgError', code: 'aborted' })
+    // A clean pg_ctl stop, not a kill: no WAL recovery on the next start.
+    expect(h.spawn.of('pg_ctl')).toHaveLength(1)
+    expect(h.spawn.of('postgres')[0]?.exitCode).toBe(0)
+    expect(h.spawn.of('postgres')[0]?.kills).toHaveLength(0)
+  })
+
+  it('an abort before the start spawns nothing', async () => {
+    await warmCluster()
+    const h = harness()
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps, signal: controller.signal }),
+    ).rejects.toMatchObject({ code: 'aborted' })
+    expect(h.spawn.children).toHaveLength(0)
+  })
+
+  it('an abort during a cold initdb spawns no postgres afterwards', async () => {
+    const h = harness()
+    const controller = new AbortController()
+    const original = h.deps.spawn
+    h.deps.spawn = (command, args, opts) => {
+      const child = original(command, args, opts)
+      if (args.includes('--sync-only')) controller.abort()
+      return child
+    }
+    await expect(
+      startEmbeddedPostgres({ pgRoot, dataRoot, deps: h.deps, signal: controller.signal }),
+    ).rejects.toMatchObject({ code: 'aborted' })
+    expect(h.spawn.of('postgres')).toHaveLength(0)
+  })
+
+  it('an abort after ready changes nothing', async () => {
+    await warmCluster()
+    const h = harness()
+    const controller = new AbortController()
+    const pg = await startEmbeddedPostgres({
+      pgRoot,
+      dataRoot,
+      deps: h.deps,
+      signal: controller.signal,
+    })
+    controller.abort()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(h.spawn.of('pg_ctl')).toHaveLength(0)
+    await pg.stop()
+  })
+})

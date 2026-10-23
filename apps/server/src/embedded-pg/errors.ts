@@ -9,6 +9,8 @@
  * - `port_unavailable`: every port we picked was taken before Postgres could bind it.
  * - `start_timeout`: Postgres did not accept connections in time (it was stopped again).
  * - `start_failed`: Postgres exited during startup for another reason (see `detail`).
+ * - `aborted`: the caller's `signal` fired before Postgres was ready (a shutdown during boot); a
+ *   postgres that had been spawned was stopped first.
  */
 export const EMBEDDED_PG_ERROR_CODES = [
   'binaries_missing',
@@ -17,6 +19,7 @@ export const EMBEDDED_PG_ERROR_CODES = [
   'port_unavailable',
   'start_timeout',
   'start_failed',
+  'aborted',
 ] as const
 
 export type EmbeddedPgErrorCode = (typeof EMBEDDED_PG_ERROR_CODES)[number]

@@ -44,6 +44,10 @@ describe('the host commands ACL', () => {
   it('declares every registered command in the app manifest, and nothing else', () => {
     expect(manifestCommands()).toEqual(handlerCommands())
     expect(manifestCommands()).toContain('quit_app')
+    // The remote Mawl's commands take an address and a token: only the splash may call them.
+    for (const command of ['connect_remote', 'use_local_mawl', 'check_remote', 'host_target']) {
+      expect(manifestCommands()).toContain(command)
+    }
   })
 
   it('allows each command once, through the local-only host capability', () => {

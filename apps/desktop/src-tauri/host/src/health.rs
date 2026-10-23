@@ -1,11 +1,14 @@
 //! `GET /healthz` on the loopback server, over a plain TCP socket (no HTTP client dependency).
 //!
 //! A 200 alone does not prove the answer came from our server: another process of the same user
-//! could hold the port. So every probe sends a fresh random nonce (`?n=`), and our server answers
-//! with `id` = HMAC-SHA256(key = launch token, `IDENTITY_DOMAIN` + nonce), base64url. Only a
-//! process that knows the token can compute it; the value does not reveal the token, and a fresh
-//! nonce per probe means an old answer cannot be replayed. `/healthz` stays unauthenticated.
-//! Mirrored in `apps/server/src/health-identity.ts`.
+//! could hold the port. So every probe sends a fresh random nonce (`?n=`) and the origin it used
+//! (`?o=`), and our server answers with `id` = HMAC-SHA256(key = token, the concatenation of
+//! `IDENTITY_DOMAIN`, nonce and origin), base64url. Only a process that knows the token can compute it; the value does not
+//! reveal the token, a fresh nonce per probe means an old answer cannot be replayed, and the origin
+//! in the MAC means a proof obtained for one origin fails a check for another (a look-alike origin
+//! relaying the probe to the real server, `remote.rs`). The server proves only origins it counts
+//! as its own (its HostPolicy). `/healthz` stays unauthenticated. Mirrored in
+//! `apps/server/src/health-identity.ts`.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
@@ -19,21 +22,29 @@ use crate::token::{base64url, LaunchToken};
 
 pub const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 /// Domain separation, so this HMAC can never be confused with any other use of the token.
-pub const IDENTITY_DOMAIN: &str = "mawl/healthz-identity/v1:";
+pub const IDENTITY_DOMAIN: &str = "mawl/healthz-identity/v2:";
 const NONCE_BYTES: usize = 18;
 /// The answer is a small JSON object; anything bigger is not our server.
 const MAX_RESPONSE: usize = 4 * 1024;
 
-/// The `id` our server returns for `nonce`.
-pub fn identity_proof(token: &str, nonce: &str) -> String {
+/// The `id` our server returns for `nonce` asked through `origin` (`scheme://host[:port]`, no
+/// trailing slash, as `Url::origin().ascii_serialization()` gives it). The nonce is base64url (no
+/// `:`) and the origin starts with `http://` or `https://`, so the two split one way only.
+pub fn identity_proof(token: &str, nonce: &str, origin: &str) -> String {
     let mut mac =
         Hmac::<Sha256>::new_from_slice(token.as_bytes()).expect("HMAC takes a key of any length");
     mac.update(IDENTITY_DOMAIN.as_bytes());
     mac.update(nonce.as_bytes());
+    mac.update(origin.as_bytes());
     base64url(&mac.finalize().into_bytes())
 }
 
-fn new_nonce() -> Option<String> {
+/// The origin the local probe uses: `http://127.0.0.1:<port>`.
+pub fn local_origin(port: u16) -> String {
+    format!("http://127.0.0.1:{port}")
+}
+
+pub(crate) fn new_nonce() -> Option<String> {
     let mut bytes = [0u8; NONCE_BYTES];
     getrandom::fill(&mut bytes).ok()?;
     Some(base64url(&bytes))
@@ -54,7 +65,7 @@ pub fn probe(port: u16, timeout: Duration, token: &LaunchToken) -> Health {
     if status != 200 {
         return Health::Unhealthy;
     }
-    let expected = identity_proof(token.expose(), &nonce);
+    let expected = identity_proof(token.expose(), &nonce, &local_origin(port));
     let id = serde_json::from_slice::<serde_json::Value>(&body)
         .ok()
         .and_then(|v| v.get("id")?.as_str().map(str::to_owned));
@@ -64,7 +75,7 @@ pub fn probe(port: u16, timeout: Duration, token: &LaunchToken) -> Health {
     }
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
@@ -74,7 +85,7 @@ fn fetch(port: u16, nonce: &str, timeout: Duration) -> Option<(u16, Vec<u8>)> {
     stream.set_read_timeout(Some(timeout)).ok()?;
     stream.set_write_timeout(Some(timeout)).ok()?;
     let request = format!(
-        "GET /healthz?n={nonce} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
+        "GET /healthz?n={nonce}&o=http%3A%2F%2F127.0.0.1%3A{port} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
     );
     stream.write_all(request.as_bytes()).ok()?;
     let mut response = Vec::new();
@@ -161,15 +172,34 @@ mod tests {
 
     #[test]
     fn the_proof_matches_the_servers_node_crypto() {
-        // node: createHmac('sha256', token).update(IDENTITY_DOMAIN + nonce).digest('base64url')
+        // node: createHmac('sha256', token).update(IDENTITY_DOMAIN + nonce + origin).digest('base64url')
+        // Same vectors as apps/server/src/health-identity.test.ts.
         let token = "A".repeat(43);
+        assert_eq!(IDENTITY_DOMAIN, "mawl/healthz-identity/v2:");
         assert_eq!(
-            identity_proof(&token, "nonce-0123456789abcdef"),
-            "dc8lbpULN4pFq5l1YGMpGXjfCBh8w-gMbEyvvwluwFA"
+            identity_proof(&token, "nonce-0123456789abcdef", "http://127.0.0.1:7420"),
+            "_ZIk-YGbotCsazOcJxgmrUUZ9XJH-P3cXYvWhQlsrGI"
         );
-        // The proof is not the token and changes with the nonce.
-        assert!(!identity_proof(&token, "x").contains(&token));
-        assert_ne!(identity_proof(&token, "a"), identity_proof(&token, "b"));
+        assert_eq!(
+            identity_proof(&token, "nonce-0123456789abcdef", "https://mawl.example.com"),
+            "iro1oJSCGdnqUbZvjwbm84bkG0LGESNudAbimurco-c"
+        );
+        // The proof is not the token and changes with the nonce and with the origin.
+        let o = "http://127.0.0.1:1";
+        assert!(!identity_proof(&token, "x", o).contains(&token));
+        assert_ne!(
+            identity_proof(&token, "a", o),
+            identity_proof(&token, "b", o)
+        );
+        assert_ne!(
+            identity_proof(&token, "a", o),
+            identity_proof(&token, "a", "http://127.0.0.1:2")
+        );
+    }
+
+    #[test]
+    fn the_local_origin_is_the_loopback_port() {
+        assert_eq!(local_origin(47_420), "http://127.0.0.1:47420");
     }
 
     /// Serves one connection: `respond(request)` builds the response from the request line.
@@ -189,9 +219,23 @@ mod tests {
         (port, handle)
     }
 
+    fn query_of(request: &str, key: &str) -> String {
+        let line = request.lines().next().unwrap();
+        let target = line.split(' ').nth(1).unwrap();
+        let url = url::Url::parse(&format!("http://x{target}")).unwrap();
+        url.query_pairs()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.into_owned())
+            .unwrap()
+    }
+
     fn nonce_of(request: &str) -> String {
-        let start = request.find("?n=").unwrap() + 3;
-        request[start..].split(' ').next().unwrap().to_string()
+        query_of(request, "n")
+    }
+
+    /// The proof our server gives for this request: its nonce and the origin it names.
+    fn proof_for(token: &str, request: &str) -> String {
+        identity_proof(token, &nonce_of(request), &query_of(request, "o"))
     }
 
     fn json(status: &str, body: &str) -> String {
@@ -206,12 +250,14 @@ mod tests {
         let token = LaunchToken::generate().unwrap();
         let key = token.clone();
         let (port, server) = serve_once(move |req| {
-            let id = identity_proof(key.expose(), &nonce_of(req));
+            let id = proof_for(key.expose(), req);
             json("200 OK", &format!(r#"{{"ok":true,"id":"{id}"}}"#))
         });
         assert_eq!(probe(port, PROBE_TIMEOUT, &token), Health::Ok);
         let request = server.join().unwrap();
         assert!(request.starts_with("GET /healthz?n="));
+        // The probe names the origin it used, so the proof is bound to it.
+        assert_eq!(query_of(&request, "o"), format!("http://127.0.0.1:{port}"));
         assert!(request.contains(&format!("Host: 127.0.0.1:{port}\r\n")));
         assert!(!request.to_ascii_lowercase().contains("authorization"));
         assert!(!request.contains(token.expose()));
@@ -228,14 +274,14 @@ mod tests {
             "not json".to_string(),
             format!(
                 r#"{{"ok":true,"id":"{}"}}"#,
-                identity_proof(other.expose(), "n")
+                identity_proof(other.expose(), "n", "http://127.0.0.1:1")
             ),
         ] {
             let other = other.clone();
             let (port, server) = serve_once(move |req| {
                 // The right construction with the wrong token, for this very nonce.
                 if body.contains("\"id\"") {
-                    let id = identity_proof(other.expose(), &nonce_of(req));
+                    let id = proof_for(other.expose(), req);
                     json("200 OK", &format!(r#"{{"ok":true,"id":"{id}"}}"#))
                 } else {
                     json("200 OK", &body)
@@ -249,9 +295,26 @@ mod tests {
     #[test]
     fn a_replayed_proof_for_another_nonce_is_refused() {
         let token = LaunchToken::generate().unwrap();
-        let old = identity_proof(token.expose(), "an-old-nonce-from-before");
+        let old = identity_proof(
+            token.expose(),
+            "an-old-nonce-from-before",
+            "http://127.0.0.1:1",
+        );
         let (port, server) =
             serve_once(move |_| json("200 OK", &format!(r#"{{"ok":true,"id":"{old}"}}"#)));
+        assert_eq!(probe(port, PROBE_TIMEOUT, &token), Health::Foreign);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn a_proof_for_another_origin_is_refused() {
+        // A relay on another port forwards the nonce, but the real server proves its own origin.
+        let token = LaunchToken::generate().unwrap();
+        let key = token.clone();
+        let (port, server) = serve_once(move |req| {
+            let id = identity_proof(key.expose(), &nonce_of(req), "http://127.0.0.1:1");
+            json("200 OK", &format!(r#"{{"ok":true,"id":"{id}"}}"#))
+        });
         assert_eq!(probe(port, PROBE_TIMEOUT, &token), Health::Foreign);
         server.join().unwrap();
     }

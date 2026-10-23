@@ -475,8 +475,10 @@ describe('startServer with the embedded Postgres', () => {
       order.push('pg.stop')
       return { clean: true }
     })
-    const startEmbeddedPostgres = vi.fn(async (_options: StartOptions) => {
+    const startEmbeddedPostgres = vi.fn(async (options: StartOptions) => {
       if (opts.fail) throw opts.fail
+      // Like the real one: the stop for the spawned postgres goes out before it is ready.
+      options.onSpawn?.(pgStop)
       order.push('pg.start')
       return {
         port: 50123,
@@ -567,6 +569,37 @@ describe('startServer with the embedded Postgres', () => {
     })
     await other.stop()
     expect(headless).not.toHaveBeenCalled()
+  })
+
+  it('registers the emergency stop through onSpawn, before Postgres is ready', async () => {
+    const registerEmergencyStop = vi.fn()
+    const spawnStop = vi.fn(async () => ({ clean: true }))
+    const pg = embedded()
+    const seenBeforeReady: number[] = []
+    pg.startEmbeddedPostgres.mockImplementationOnce(async (options: StartOptions) => {
+      options.onSpawn?.(spawnStop)
+      seenBeforeReady.push(registerEmergencyStop.mock.calls.length)
+      throw new Error('postgres never became ready')
+    })
+    await expect(
+      startServer(desktopConfig(), { logger: logger(), ...fakes(), ...pg, registerEmergencyStop }),
+    ).rejects.toThrow(/never became ready/)
+    expect(seenBeforeReady).toEqual([1])
+    await registerEmergencyStop.mock.calls[0]?.[0]()
+    expect(spawnStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes the boot abort signal to the Postgres start', async () => {
+    const pg = embedded()
+    const controller = new AbortController()
+    const server = await startServer(desktopConfig(), {
+      logger: logger(),
+      ...fakes(),
+      ...pg,
+      bootSignal: controller.signal,
+    })
+    expect(pg.startEmbeddedPostgres.mock.calls[0]?.[0].signal).toBe(controller.signal)
+    await server.stop()
   })
 
   it('still stops it when an earlier shutdown step fails', async () => {

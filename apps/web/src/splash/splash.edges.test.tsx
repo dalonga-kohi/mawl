@@ -16,7 +16,7 @@ function deferred<T>() {
 }
 
 function bridgeWith(overrides: Partial<HostBridge> = {}) {
-  let emit: (s: Status) => void = () => {}
+  let emit: ((s: Status) => void) | undefined
   const off = vi.fn()
   const bridge: HostBridge = {
     status: async () => ({ phase: 'starting', stage: 'database' }),
@@ -29,9 +29,21 @@ function bridgeWith(overrides: Partial<HostBridge> = {}) {
     quit: async () => {},
     enterApp: async () => {},
     shown: async () => {},
+    target: async () => ({ kind: 'local' }),
+    checkRemote: async () => 'ready',
+    connectRemote: async () => ({ ok: true }),
+    switchToLocal: async () => ({ ok: true }),
     ...overrides,
   }
-  return { bridge, off, emit: (s: Status) => act(() => emit(s)) }
+  return {
+    bridge,
+    off,
+    // The status view subscribes once the host said the target is this PC: wait for it.
+    emit: async (s: Status) => {
+      await vi.waitFor(() => expect(emit).toBeDefined())
+      await act(() => emit?.(s))
+    },
+  }
 }
 
 describe('splash races and failure paths', () => {
@@ -54,8 +66,10 @@ describe('splash races and failure paths', () => {
   it('unsubscribes when it unmounts before the subscription resolves', async () => {
     const sub = deferred<() => void>()
     const off = vi.fn()
-    const { bridge } = bridgeWith({ onStatus: () => sub.promise })
+    const onStatus = vi.fn(() => sub.promise)
+    const { bridge } = bridgeWith({ onStatus })
     const { unmount } = render(<Splash bridge={bridge} />)
+    await vi.waitFor(() => expect(onStatus).toHaveBeenCalled())
     unmount()
     await act(async () => sub.resolve(off))
     expect(off).toHaveBeenCalledTimes(1)
@@ -173,6 +187,8 @@ describe('splash races and failure paths', () => {
     expect(document.activeElement?.textContent).toBe('Try again')
     await user.tab()
     expect(document.activeElement?.textContent).toContain('Copy diagnostics')
+    await user.tab()
+    expect(document.activeElement?.textContent).toBe('Connect to a remote Mawl')
     await user.tab()
     expect(document.activeElement?.textContent).toBe('Quit Mawl')
   })

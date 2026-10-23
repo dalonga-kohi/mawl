@@ -63,6 +63,12 @@ export interface BootOverrides {
    * Postgres), for the lifecycle's hard-exit paths that skip stop(). Idempotent, never rejects.
    */
   registerEmergencyStop?: (stop: () => Promise<unknown>) => void
+  /**
+   * Fires when a shutdown arrives during boot (desktop: the host quits while Postgres starts). The
+   * embedded Postgres start then stops its postgres and boot rejects with
+   * `EmbeddedPgError('aborted')`. Other boot steps (migrations) are never cut off.
+   */
+  bootSignal?: AbortSignal
   /** Shows a newly generated headless owner token once (main writes it to stderr, unredacted). */
   announceOwnerToken?: (text: string) => void
   /** Replaces the build-embedded Claude binary pin (absent when running from source). */
@@ -257,9 +263,14 @@ export async function startServer(
     const pg = await (overrides.startEmbeddedPostgres ?? startEmbeddedPostgres)({
       ...roots,
       logger,
+      // Registered at the spawn, not at ready: initdb or WAL recovery can take up to 60 s, and a
+      // hard exit meanwhile must not orphan Postgres. The handle's stop() is the same function.
+      ...(overrides.registerEmergencyStop
+        ? { onSpawn: (stop: () => Promise<unknown>) => overrides.registerEmergencyStop?.(stop) }
+        : {}),
+      ...(overrides.bootSignal ? { signal: overrides.bootSignal } : {}),
     })
     embeddedPg = pg
-    overrides.registerEmergencyStop?.(() => pg.stop())
     databaseUrl = pg.connectionString
     void pg.exited.then((exit) => {
       if (!exit.expected) {

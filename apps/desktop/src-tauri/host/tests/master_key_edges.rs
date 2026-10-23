@@ -55,6 +55,10 @@ impl KeyStore for Script {
             None => Ok(()),
         }
     }
+
+    fn delete(&self) -> io::Result<()> {
+        panic!("the master key is never deleted");
+    }
 }
 
 #[test]

@@ -4,12 +4,13 @@
 //! server serves at `http://127.0.0.1:<port>/` once `/healthz` answers with the proof that it is
 //! our server (`health::identity_proof`). The token reaches that page through an initialization
 //! script, which the webview runs in the main frame only, before any page script. The script only
-//! defines the token on the app's scheme and host, and the navigation handler keeps the main
-//! frame on the splash or the app's exact origin. What it does not cover: frames inside the app
-//! page get no initialization script (and the server's CSP forbids frames), and pop-ups are
-//! refused by the window's `on_new_window` handler, so they never load at all. The port is not
-//! compared in the script because the server may move to a new port during a restart;
-//! navigation compares it.
+//! defines the token on the app's origin ([`TokenScope`]), and the navigation handler keeps the
+//! main frame on the splash or the app's exact origin. What it does not cover: frames inside the
+//! app page get no initialization script (and the server's CSP forbids frames), and pop-ups are
+//! refused by the window's `on_new_window` handler, so they never load at all. A remote Mawl's
+//! script compares the whole origin, port included. The local script leaves the port out, because
+//! the server may move to a new port during a restart and the script is fixed when the window is
+//! built; for it the navigation rule pins the port (and the page is on `127.0.0.1`).
 
 use url::Url;
 
@@ -43,14 +44,41 @@ pub fn allow_navigation(target: &Url, splash: &Url, app: Option<&Url>) -> bool {
     is_splash || app.is_some_and(|app| same_origin(target, app))
 }
 
+/// Whether a denied navigation may go on to the browser: never for the app's own origin (a link
+/// the app opened while the server was not ready, which belongs in the window, not in a browser).
+pub fn open_denied_externally(target: &Url, app: &Url) -> bool {
+    !same_origin(target, app)
+}
+
+/// Which pages the token script defines the token on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenScope {
+    /// The app's exact origin, port included (a remote Mawl: its origin never changes in a run).
+    Origin,
+    /// The app's scheme and host on any port (this PC's server on `127.0.0.1`, which may move to
+    /// another port within a run; the navigation rule pins the current one).
+    LoopbackAnyPort,
+}
+
 /// The script that defines `window.__MAWL_LAUNCH_TOKEN__` on the app's pages only. Read-only and
 /// not enumerable, so a careless `JSON.stringify(window)`-style dump does not carry it.
-pub fn launch_token_script(token: &str, app: &Url) -> String {
+pub fn launch_token_script(token: &str, app: &Url, scope: TokenScope) -> String {
     let quote = |s: &str| serde_json::to_string(s).expect("a string always serializes");
+    let guard = match scope {
+        TokenScope::Origin => format!(
+            "location.origin !== {}",
+            quote(&app.origin().ascii_serialization())
+        ),
+        TokenScope::LoopbackAnyPort => format!(
+            "location.protocol !== {} || location.hostname !== {}",
+            quote(&format!("{}:", app.scheme())),
+            quote(app.host_str().unwrap_or(""))
+        ),
+    };
     format!(
         r#"(function () {{
   if (window.top !== window) return;
-  if (location.protocol !== {protocol} || location.hostname !== {host}) return;
+  if ({guard}) return;
   Object.defineProperty(window, "__MAWL_LAUNCH_TOKEN__", {{
     value: {token},
     writable: false,
@@ -59,8 +87,6 @@ pub fn launch_token_script(token: &str, app: &Url) -> String {
   }});
 }})();
 "#,
-        protocol = quote(&format!("{}:", app.scheme())),
-        host = quote(app.host_str().unwrap_or("")),
         token = quote(token),
     )
 }
@@ -146,15 +172,49 @@ mod tests {
     }
 
     #[test]
+    fn a_remote_script_compares_the_whole_origin_port_included() {
+        let remote = url("https://mawl.example.com:8443/");
+        let script = launch_token_script("abc_DEF-123", &remote, TokenScope::Origin);
+        assert!(script.contains(r#"location.origin !== "https://mawl.example.com:8443""#));
+        assert!(!script.contains("location.hostname"));
+        // A default port is not written, as `location.origin` does not show it either.
+        let plain = launch_token_script("t", &url("https://mawl.example.com/"), TokenScope::Origin);
+        assert!(plain.contains(r#"location.origin !== "https://mawl.example.com""#));
+    }
+
+    #[test]
+    fn a_denied_navigation_to_the_app_origin_is_not_sent_to_the_browser() {
+        let app = app_url(47_420);
+        assert!(!open_denied_externally(
+            &url("http://127.0.0.1:47420/t/sam"),
+            &app
+        ));
+        let remote = url("https://mawl.example.com/");
+        assert!(!open_denied_externally(
+            &url("https://mawl.example.com/x?y"),
+            &remote
+        ));
+        assert!(open_denied_externally(
+            &url("https://example.com/"),
+            &remote
+        ));
+        assert!(open_denied_externally(
+            &url("https://mawl.example.com:8443/"),
+            &remote
+        ));
+    }
+
+    #[test]
     fn the_script_guards_on_the_app_scheme_and_host_and_quotes_the_token() {
-        let script = launch_token_script("abc_DEF-123", &app_url(47_420));
+        let script =
+            launch_token_script("abc_DEF-123", &app_url(47_420), TokenScope::LoopbackAnyPort);
         assert!(script.contains(r#"location.protocol !== "http:""#));
         assert!(script.contains(r#"location.hostname !== "127.0.0.1""#));
         assert!(script.contains(r#"value: "abc_DEF-123""#));
         assert!(script.contains("writable: false"));
         assert!(script.contains("window.top !== window"));
         // A hostile value could not break out of the string literal.
-        let odd = launch_token_script("a\"b</script>", &app_url(1));
+        let odd = launch_token_script("a\"b</script>", &app_url(1), TokenScope::LoopbackAnyPort);
         assert!(odd.contains(r#""a\"b</script>""#));
     }
 }

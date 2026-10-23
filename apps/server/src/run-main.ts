@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream'
 import type { DestinationStream } from 'pino'
 import { type Config, ConfigError, parseConfig } from './config.ts'
+import { isEmbeddedPgError } from './embedded-pg/index.ts'
 import { describeFailure } from './failure.ts'
 import { readLaunchToken } from './launch-token.ts'
 import { installLifecycle, type LifecycleDeps, stopAfterBoot } from './lifecycle.ts'
@@ -54,6 +55,11 @@ export function runMain(deps: MainDeps): void {
   const registerEmergencyStop = (stop: () => Promise<unknown>) => {
     emergencyStops.add(stop)
   }
+  // A shutdown during boot aborts the embedded Postgres start (initdb or WAL recovery can take a
+  // minute, longer than the host waits); it stops that postgres and boot rejects with `aborted`.
+  const bootAbort = new AbortController()
+  const abortedByShutdown = (err: unknown) =>
+    bootAbort.signal.aborted && isEmbeddedPgError(err) && err.code === 'aborted'
 
   // Boot runs in the background so signals are handled from the start. A signal during boot
   // waits for boot to settle (never stop mid-migration), then stops; a failed boot exits 1.
@@ -62,6 +68,7 @@ export function runMain(deps: MainDeps): void {
       return start(config, {
         logger,
         registerEmergencyStop,
+        bootSignal: bootAbort.signal,
         // The one unredacted output: a newly generated owner token, shown once on stderr.
         announceOwnerToken: (text) => void deps.stderr.write(text),
       })
@@ -79,19 +86,33 @@ export function runMain(deps: MainDeps): void {
       ...(deps.keyTimeoutMs === undefined ? {} : { timeoutMs: deps.keyTimeoutMs }),
     })
     registerSecretValue(hostMasterKey.encoded())
-    return start({ ...config, launchToken }, { logger, registerEmergencyStop, hostMasterKey })
+    return start(
+      { ...config, launchToken },
+      { logger, registerEmergencyStop, hostMasterKey, bootSignal: bootAbort.signal },
+    )
   })()
 
+  const stopBooted = stopAfterBoot(booting)
   ;({ shutdown } = installLifecycle({
     logger,
-    stop: stopAfterBoot(booting),
+    // A boot that the shutdown aborted has already stopped its Postgres: nothing is left to stop.
+    stop: () =>
+      stopBooted().catch((err: unknown) => {
+        if (!abortedByShutdown(err)) throw err
+      }),
     booted: booting,
     exit: deps.exit,
     proc: deps.proc,
     emergencyStop: () => Promise.allSettled([...emergencyStops].map((stop) => stop())),
+    onShutdown: () => bootAbort.abort(),
   }))
 
   booting.catch((err: unknown) => {
+    if (abortedByShutdown(err)) {
+      // The shutdown exits 0 through the lifecycle.
+      logger.info('boot aborted by shutdown')
+      return
+    }
     // Name, code, and message only for our own error classes (see describeFailure).
     logger.fatal(describeFailure(err), 'boot failed')
     deps.exit(1)

@@ -57,6 +57,11 @@ pub fn run() {
             shell::quit_app,
             shell::enter_app,
             shell::splash_shown,
+            shell::host_target,
+            shell::splash_appearance,
+            shell::check_remote,
+            shell::connect_remote,
+            shell::use_local_mawl,
         ])
         .setup(|app| {
             // Registers the scheme at runtime, so links work from `tauri dev` without an installer.
@@ -66,10 +71,15 @@ pub fn run() {
             // The tray first, so status changes from the very first moment have an icon to update.
             tray::build(app.handle(), show_main_window)?;
 
-            // The server, then the window on the splash (it needs the token and port).
+            // The server (or the remote Mawl the owner chose), then the window on the splash (it
+            // needs the token and the origin).
             shell::start(app.handle())?;
             if let Some(shell) = app.try_state::<shell::Shell>() {
-                tray::update(app.handle(), shell.supervisor.status());
+                if shell.is_remote() {
+                    tray::show_remote_target(app.handle());
+                } else {
+                    tray::update(app.handle(), shell.status());
+                }
             }
             tray::enable_autostart_first_run(app.handle(), &app.path().app_local_data_dir()?);
 
@@ -107,10 +117,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Mawl");
 
-    app.run(|app, event| {
+    app.run(|app, event| match event {
         // Every exit goes through a clean server stop first; the supervisor exits the app when
         // the server and its Postgres are gone (or after the kill deadline).
-        if let RunEvent::ExitRequested { api, .. } = event {
+        RunEvent::ExitRequested { api, .. } => {
             let ready_to_exit = app
                 .try_state::<shell::Shell>()
                 .is_none_or(|shell| shell.may_exit());
@@ -119,5 +129,16 @@ pub fn run() {
                 shell::begin_quit(app);
             }
         }
+        // The window target changed: start Mawl again. Plugins see `Exit` before this callback
+        // (tauri 2.12 `on_event_loop_event`), so single-instance has released its lock and the
+        // new process becomes the running instance.
+        RunEvent::Exit
+            if app
+                .try_state::<shell::Shell>()
+                .is_some_and(|shell| shell.relaunch_requested()) =>
+        {
+            shell::spawn_relaunch();
+        }
+        _ => {}
     });
 }
