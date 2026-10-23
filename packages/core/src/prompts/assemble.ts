@@ -11,7 +11,9 @@ import { BLOCKS } from './blocks.generated.ts'
  * Layout, stable to volatile:
  *   1 identity, 2 rules, 3 tools (+ computer sub-block by kind), 4 persona (+ owner notes),
  *   5 skills-index, 6 memory-core, 7 environment.
- * The run engine adds the rest (segment preamble, recalled memories, summary, turns, input).
+ * The run engine adds the rest: the segment preamble (inserted BEFORE the environment part, so
+ * the environment stays the last system part and the prefix order holds), then recalled
+ * memories, summary, turns and input.
  *
  * Rule for optional blocks: empty input means the block is omitted, not rendered empty.
  * Tools, persona, skills and memory-core are omitted when their input is empty or blank; the
@@ -47,7 +49,7 @@ const timezone = z.string().refine(
 
 export const promptInputSchema = z.strictObject({
   /** Names of the tools offered this run. Empty: no tools block. */
-  toolNames: z.array(oneLine(80)).default([]),
+  toolNames: z.array(z.string().regex(/^[A-Za-z0-9_.:-]{1,80}$/)).default([]),
   /** The profile's persona text (personaMd). Untrusted data. */
   persona: z.string().default(''),
   /** The owner's personal context. Untrusted data. */
@@ -60,6 +62,9 @@ export const promptInputSchema = z.strictObject({
         description: oneLine(300),
       }),
     )
+    .refine((skills) => new Set(skills.map((s) => s.name)).size === skills.length, {
+      message: 'skill names must be unique',
+    })
     .default([]),
   /** Pinned memory blocks, frozen for the segment. Rendered in the order given. */
   memoryCore: z
@@ -79,7 +84,7 @@ export const promptInputSchema = z.strictObject({
         kind: ComputerKindSchema,
         state: z
           .string()
-          .regex(/^[a-z0-9 _.-]{1,40}$/i)
+          .regex(/^[a-z0-9 _.-]{0,40}$/i)
           .optional(),
       })
       .optional(),
@@ -122,15 +127,22 @@ const GROUP_THREE: readonly PromptPartId[] = [
 ]
 const PART_SEPARATOR = '\n\n'
 
+/** Section tags this module emits around untrusted data. */
+const SECTION_TAGS = ['persona', 'owner_notes', 'skills', 'memory_core'] as const
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 /**
- * Wraps untrusted text in `<tag>` delimiters. Any closing tag for `tag` inside the text is
- * broken with a backslash, so the data cannot end its own section early.
+ * Wraps untrusted text in `<tag>` delimiters. Inside the text, any opening or closing form of
+ * `tag` or of any other section tag (case-insensitive, with optional spaces) is broken with a
+ * backslash after the `<`, so data can neither end its own section nor forge another one.
  */
 export function delimitData(tag: string, text: string): string {
-  const closer = new RegExp(`<\\s*/\\s*(${tag})`, 'gi')
-  return `<${tag}>\n${text.trim().replace(closer, '<\\/$1')}\n</${tag}>`
+  const names = [...new Set([...SECTION_TAGS, tag])].map(escapeRegExp).join('|')
+  const marker = new RegExp(`<(\\s*/?\\s*)(${names})`, 'gi')
+  const safe = text.trim().replace(marker, (_m, gap: string, name: string) => `<\\${gap}${name}`)
+  return `<${tag}>\n${safe}\n</${tag}>`
 }
-
 function datePart(now: string, tz: string): { date: string; weekday: string } {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
@@ -198,18 +210,27 @@ export function assemblePrompt(rawInput: PromptInput): AssembledPrompt {
   parts.push(part('environment', environmentText(input.environment)))
 
   const lastGroupThree = lastIndexIn(parts, GROUP_THREE)
-  const lastCore = parts.length - 2 // the part before environment
-  for (const index of new Set([lastGroupThree, lastCore])) {
+  for (const index of new Set([lastGroupThree, lastPartBeforeEnvironment(parts)])) {
     const target = parts[index]
     if (target) target.cacheBreakpoint = true
   }
 
-  const lastBreakpoint = parts.findLastIndex((p) => p.cacheBreakpoint)
-  const prefix = parts
-    .slice(0, lastBreakpoint + 1)
-    .map((p) => p.text)
-    .join(PART_SEPARATOR)
-  return { parts, prefixHash: createHash('sha256').update(prefix).digest('hex') }
+  return { parts, prefixHash: hashPrefix(parts) }
+}
+
+/**
+ * sha256 hex over the id, breakpoint flag and text of every part up to and including the last
+ * breakpoint. The flag is part of the hash, so moving a breakpoint changes it.
+ */
+export function hashPrefix(parts: readonly PromptPart[]): string {
+  const last = parts.findLastIndex((p) => p.cacheBreakpoint)
+  const prefix = parts.slice(0, last + 1).map((p) => [p.id, p.cacheBreakpoint, p.text])
+  return createHash('sha256').update(JSON.stringify(prefix)).digest('hex')
+}
+
+/** The environment part is always last, so the second breakpoint goes on the part before it. */
+function lastPartBeforeEnvironment(parts: readonly PromptPart[]): number {
+  return parts.length - 2
 }
 
 function lastIndexIn(parts: PromptPart[], ids: readonly PromptPartId[]): number {
@@ -221,7 +242,8 @@ function environmentText(env: z.output<typeof promptInputSchema>['environment'])
   const lines = [`Date: ${date} (${weekday})`, `Timezone: ${env.tz}`, `Channel: ${env.channel}`]
   const computer = env.computer
   if (computer && computer.kind !== 'none') {
-    lines.push(`Computer: ${computer.kind}${computer.state ? `, ${computer.state}` : ''}`)
+    const state = computer.state?.trim()
+    lines.push(`Computer: ${computer.kind}${state ? `, ${state}` : ''}`)
   } else {
     lines.push('Computer: none')
   }

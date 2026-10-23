@@ -118,7 +118,7 @@ Computer: desktop, starting",
       "version": 1,
     },
   ],
-  "prefixHash": "25ee85152c0aeb26994c1f976dce4b7a96a1ca580be596bbb623ef651d17fbdb",
+  "prefixHash": "ec892e85fa4c916de8ca6594fc99d369dc0abbe468fdb4a5236c6461d482c29b",
 }
 `;
 
@@ -207,7 +207,7 @@ Computer: desktop, running",
       "version": 1,
     },
   ],
-  "prefixHash": "8fbb6a292f62ad6077b04383fdeb93958f2ca5f62723d63b49cf0a617aea3446",
+  "prefixHash": "9fdf5749b8e69a8e47adf0fc2c54ad6fcb429dcef09ae6ff463718b35de34197",
 }
 `;
 
@@ -299,7 +299,7 @@ Computer: none",
       "version": 1,
     },
   ],
-  "prefixHash": "f6c6a39033dd7677658da13b59443e85b05a7a60bda873c650e5caba6a978711",
+  "prefixHash": "5c5faa84acb976773156cbd0501f12347d0255d18d6090baa596f7fc49508db9",
 }
 `;
 
@@ -346,7 +346,7 @@ Computer: none",
       "version": 1,
     },
   ],
-  "prefixHash": "53d30ef1355454324d656eff128bebb1f9f0e236721ec374b217470d10aea4f7",
+  "prefixHash": "6cac016ed424827c1e86655366ecb3a0173a214ca0b42562c7e348b00d384b9c",
 }
 `;
 
@@ -454,7 +454,7 @@ Computer: none",
       "version": 1,
     },
   ],
-  "prefixHash": "d14c12d51729c8e7b9770031099b431df2cf8e8c67546a8841925f2d36feeccc",
+  "prefixHash": "6dcdcc26e6ad5e286b7df2852901d9dadfe5fe74025d9b5533cc6cd1a5116e77",
 }
 `;
 
@@ -575,6 +575,6 @@ Computer: terminal, running",
       "version": 1,
     },
   ],
-  "prefixHash": "44ada60b55132cc83449105004b6f8d61e68e64c3084a71b7ebf479eb627e4f9",
+  "prefixHash": "c43201876ae6a4d2618d0ada46c3f10329e7fe8c12d41f89e81b5e60aeadf959",
 }
 `;
