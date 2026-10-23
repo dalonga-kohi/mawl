@@ -43,12 +43,17 @@ pub fn remote_presentation(health: Option<RemoteHealth>) -> TrayPresentation {
     let (tooltip, variant) = match health {
         None => ("Connecting to your remote Mawl", TrayVariant::Starting),
         Some(RemoteHealth::Ready) => ("Connected to your remote Mawl", TrayVariant::Ready),
-        Some(
-            RemoteHealth::Unreachable
-            | RemoteHealth::NotMawl
-            | RemoteHealth::TokenRefused
-            | RemoteHealth::Unhealthy,
-        ) => ("Can't reach your remote Mawl", TrayVariant::Failed),
+        Some(RemoteHealth::Unreachable | RemoteHealth::NotMawl) => {
+            ("Can't reach your remote Mawl", TrayVariant::Failed)
+        }
+        // Proven Mawl, so it is reachable; the window stays on the app (`remote::Recheck`).
+        Some(RemoteHealth::Unhealthy) => (
+            "Your remote Mawl is up but its database is down",
+            TrayVariant::Failed,
+        ),
+        Some(RemoteHealth::TokenRefused) => {
+            ("Your remote Mawl refused the token", TrayVariant::Failed)
+        }
     };
     TrayPresentation { tooltip, variant }
 }
@@ -157,12 +162,7 @@ mod tests {
             (p.tooltip, p.variant),
             ("Connected to your remote Mawl", TrayVariant::Ready)
         );
-        for health in [
-            RemoteHealth::Unreachable,
-            RemoteHealth::NotMawl,
-            RemoteHealth::TokenRefused,
-            RemoteHealth::Unhealthy,
-        ] {
+        for health in [RemoteHealth::Unreachable, RemoteHealth::NotMawl] {
             let p = remote_presentation(Some(health));
             assert_eq!(
                 (p.tooltip, p.variant),
@@ -170,6 +170,29 @@ mod tests {
                 "{health:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_proven_remote_without_its_database_is_not_unreachable() {
+        use crate::remote::RemoteHealth;
+        let p = remote_presentation(Some(RemoteHealth::Unhealthy));
+        assert_eq!(
+            (p.tooltip, p.variant),
+            (
+                "Your remote Mawl is up but its database is down",
+                TrayVariant::Failed
+            )
+        );
+    }
+
+    #[test]
+    fn a_remote_that_refuses_the_token_says_so() {
+        use crate::remote::RemoteHealth;
+        let p = remote_presentation(Some(RemoteHealth::TokenRefused));
+        assert_eq!(
+            (p.tooltip, p.variant),
+            ("Your remote Mawl refused the token", TrayVariant::Failed)
+        );
     }
 
     #[test]
