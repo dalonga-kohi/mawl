@@ -71,12 +71,15 @@ function boot() {
       const ok =
         url.pathname === '/healthz' && req.headers.host === `127.0.0.1:${process.env.MAWL_PORT}`
       const nonce = url.searchParams.get('n')
-      // The same identity proof the real server gives (apps/server/src/health-identity.ts).
-      const id = nonce
-        ? createHmac('sha256', token)
-            .update(`mawl/healthz-identity/v1:${nonce}`)
-            .digest('base64url')
-        : undefined
+      const origin = url.searchParams.get('o')
+      // The same identity proof the real server gives (apps/server/src/health-identity.ts), for
+      // the loopback origin it is reached on.
+      const id =
+        nonce && origin === `http://127.0.0.1:${process.env.MAWL_PORT}`
+          ? createHmac('sha256', token)
+              .update(`mawl/healthz-identity/v2:${nonce}${origin}`)
+              .digest('base64url')
+          : undefined
       const body = JSON.stringify(id ? { ok, id } : { ok })
       res.writeHead(ok ? 200 : 503, {
         'content-type': 'application/json',

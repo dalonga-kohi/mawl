@@ -4,12 +4,18 @@
 //! - [`WindowTarget`] is where the window goes, kept in `<data>/window-target.json`. Only the
 //!   origin is stored there; the owner token lives in Windows Credential Manager
 //!   ([`TOKEN_CREDENTIAL`]), never in a file, a URL, argv, env or a log line.
-//! - [`parse_remote_url`] accepts `http` and `https` origins only: a host, no `user:pass@`, no path,
-//!   query or fragment (Mawl serves its app, `/rpc` and `/ws` at the root).
-//! - [`check`] asks the remote's `/healthz` with a fresh nonce and accepts it only with the identity
-//!   proof (`health::identity_proof`, keyed by the owner token). So the token is handed to a page of
-//!   that origin only after the server there proved it already knows the token; the probe itself
-//!   never sends it.
+//! - [`parse_remote_url`] accepts `https` origins, and plain `http` only to this machine (loopback),
+//!   so the token never crosses a network unencrypted: a host, no `user:pass@`, no path, query or
+//!   fragment (Mawl serves its app, `/rpc` and `/ws` at the root).
+//! - [`check`] asks the remote's `/healthz` with a fresh nonce and the origin it uses, and accepts
+//!   the answer only with the identity proof v2 (`health::identity_proof`: an HMAC keyed by the
+//!   owner token over the nonce and that origin). The probe itself never sends the token. A ready
+//!   answer shows that a server holding the token answered for this very origin: a look-alike origin
+//!   that relays the probe to the real Mawl gets a proof for the real origin, which fails here.
+//! - What the check does not cover: it runs when the window target is saved, at each start of Mawl
+//!   and on the host's periodic re-check while the app is shown, not before every request the app
+//!   page makes. Between two checks the page talks to the origin as TLS (or loopback) lets it; a DNS
+//!   or IP change in between is caught only by the next check.
 
 use std::fmt;
 use std::fs;
@@ -44,6 +50,8 @@ pub enum UrlError {
     NotAUrl,
     /// Not `http` or `https`.
     Scheme,
+    /// Plain `http` to a host that is not this machine.
+    Insecure,
     /// `user:pass@host`.
     UserInfo,
     NoHost,
@@ -79,7 +87,20 @@ pub fn parse_remote_url(input: &str) -> Result<Url, UrlError> {
     if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
         return Err(UrlError::NotAnOrigin);
     }
+    if url.scheme() == "http" && !is_loopback(&url) {
+        return Err(UrlError::Insecure);
+    }
     Ok(url)
+}
+
+/// `127.0.0.0/8`, `::1`, `localhost` and `*.localhost` (which resolve to this machine only).
+fn is_loopback(url: &Url) -> bool {
+    match url.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        Some(url::Host::Domain(name)) => name == "localhost" || name.ends_with(".localhost"),
+        None => false,
+    }
 }
 
 /// Why a token was refused.
@@ -232,7 +253,7 @@ pub enum RemoteHealth {
     NotMawl,
     /// A Mawl answered with a proof for another token: this token is wrong.
     TokenRefused,
-    /// Mawl answered 503: it runs but has lost its database.
+    /// Mawl answered 503 with the proof: it runs but has lost its database.
     Unhealthy,
 }
 
@@ -246,25 +267,35 @@ pub fn check(
     let Some(nonce) = new_nonce() else {
         return RemoteHealth::Unreachable;
     };
-    let Ok(url) = origin.join(&format!("healthz?n={nonce}")) else {
+    // `https://host[:port]`, no trailing slash: the form the server compares and MACs.
+    let used = origin.origin().ascii_serialization();
+    let Ok(mut url) = origin.join("healthz") else {
         return RemoteHealth::NotMawl;
     };
+    url.query_pairs_mut()
+        .append_pair("n", &nonce)
+        .append_pair("o", &used);
     let Some((status, body)) = fetch(&url) else {
         return RemoteHealth::Unreachable;
     };
-    match status {
-        200 => {}
-        503 => return RemoteHealth::Unhealthy,
-        _ => return RemoteHealth::NotMawl,
+    if !matches!(status, 200 | 503) {
+        return RemoteHealth::NotMawl;
     }
     let id = serde_json::from_slice::<serde_json::Value>(&body)
         .ok()
         .and_then(|v| v.get("id")?.as_str().map(str::to_owned));
-    let expected = identity_proof(token.expose(), &nonce);
-    match id {
-        None => RemoteHealth::NotMawl,
-        Some(id) if constant_time_eq(id.as_bytes(), expected.as_bytes()) => RemoteHealth::Ready,
-        Some(_) => RemoteHealth::TokenRefused,
+    let Some(id) = id else {
+        return RemoteHealth::NotMawl;
+    };
+    let expected = identity_proof(token.expose(), &nonce, &used);
+    if !constant_time_eq(id.as_bytes(), expected.as_bytes()) {
+        return RemoteHealth::TokenRefused;
+    }
+    // Only a proven Mawl may say it is sick.
+    if status == 200 {
+        RemoteHealth::Ready
+    } else {
+        RemoteHealth::Unhealthy
     }
 }
 
@@ -321,16 +352,31 @@ mod tests {
     }
 
     #[test]
-    fn accepts_http_and_https_origins_and_normalizes_them() {
+    fn accepts_https_origins_and_http_on_loopback_and_normalizes_them() {
         let ok = |s: &str| parse_remote_url(s).map(|u| u.to_string());
         assert_eq!(
             ok("https://mawl.tail1234.ts.net"),
             Ok("https://mawl.tail1234.ts.net/".into())
         );
         assert_eq!(
-            ok("  http://192.168.1.20:7420/  "),
-            Ok("http://192.168.1.20:7420/".into())
+            ok("  https://192.168.1.20:7420/  "),
+            Ok("https://192.168.1.20:7420/".into())
         );
+        // Plain http only to this machine: the token never crosses a network unencrypted.
+        assert_eq!(
+            ok("http://127.0.0.1:7420"),
+            Ok("http://127.0.0.1:7420/".into())
+        );
+        assert_eq!(ok("http://127.8.9.10:1"), Ok("http://127.8.9.10:1/".into()));
+        assert_eq!(
+            ok("http://localhost:7420"),
+            Ok("http://localhost:7420/".into())
+        );
+        assert_eq!(
+            ok("http://mawl.localhost:7420"),
+            Ok("http://mawl.localhost:7420/".into())
+        );
+        assert_eq!(ok("http://[::1]:7420"), Ok("http://[::1]:7420/".into()));
         assert_eq!(
             ok("HTTPS://Mawl.Example.COM:443"),
             Ok("https://mawl.example.com/".into())
@@ -341,9 +387,25 @@ mod tests {
             Ok("https://mawl.example.com/".into())
         );
         assert_eq!(
-            ok("http://[fd7a:115c::1]:7420"),
-            Ok("http://[fd7a:115c::1]:7420/".into())
+            ok("https://[fd7a:115c::1]:7420"),
+            Ok("https://[fd7a:115c::1]:7420/".into())
         );
+    }
+
+    #[test]
+    fn plain_http_to_another_machine_is_refused() {
+        for input in [
+            "http://192.168.1.20:7420",
+            "http://mawl.tail1234.ts.net",
+            "HTTP://Mawl.Example.COM",
+            "http://[fd7a:115c::1]:7420",
+            "http://10.0.0.1",
+            "http://0.0.0.0:7420",
+            "http://localhost.example.com",
+            "http://127.0.0.1.nip.io",
+        ] {
+            assert_eq!(parse_remote_url(input), Err(UrlError::Insecure), "{input}");
+        }
     }
 
     #[test]
@@ -490,23 +552,58 @@ mod tests {
         parse_remote_url("https://mawl.example.com").unwrap()
     }
 
-    /// A fetch that answers with the proof `prove` computes for the request's nonce.
+    fn query(url: &Url, key: &str) -> String {
+        url.query_pairs()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.into_owned())
+            .unwrap()
+    }
+
+    /// A fetch that answers with `body(nonce, origin)`, the nonce and origin the probe sent.
     fn answering(
         status: u16,
-        body: impl FnOnce(&str) -> String,
+        body: impl FnOnce(&str, &str) -> String,
     ) -> impl FnOnce(&Url) -> Option<(u16, Vec<u8>)> {
         move |url: &Url| {
             assert_eq!(url.path(), "/healthz");
             assert_eq!(url.host_str(), Some("mawl.example.com"));
-            let nonce = url
-                .query_pairs()
-                .find(|(k, _)| k == "n")
-                .map(|(_, v)| v.into_owned())
-                .unwrap();
             // The token never travels with the probe.
             assert!(!url.as_str().contains(TOKEN));
-            Some((status, body(&nonce).into_bytes()))
+            Some((
+                status,
+                body(&query(url, "n"), &query(url, "o")).into_bytes(),
+            ))
         }
+    }
+
+    fn proof_body(token: &str, nonce: &str, origin: &str) -> String {
+        format!(
+            r#"{{"ok":true,"id":"{}"}}"#,
+            identity_proof(token, nonce, origin)
+        )
+    }
+
+    #[test]
+    fn the_probe_names_the_origin_it_uses() {
+        let seen = std::cell::RefCell::new(None);
+        check(&origin(), &token(), |url| {
+            *seen.borrow_mut() = Some(url.clone());
+            None
+        });
+        let url = seen.into_inner().unwrap();
+        assert_eq!(query(&url, "o"), "https://mawl.example.com");
+        assert_eq!(query(&url, "n").len(), 24);
+        // A non-default port is part of the origin.
+        let seen = std::cell::RefCell::new(None);
+        let other = parse_remote_url("https://mawl.example.com:8443").unwrap();
+        check(&other, &token(), |url| {
+            *seen.borrow_mut() = Some(url.clone());
+            None
+        });
+        assert_eq!(
+            query(&seen.into_inner().unwrap(), "o"),
+            "https://mawl.example.com:8443"
+        );
     }
 
     #[test]
@@ -514,11 +611,23 @@ mod tests {
         let health = check(
             &origin(),
             &token(),
-            answering(200, |n| {
-                format!(r#"{{"ok":true,"id":"{}"}}"#, identity_proof(TOKEN, n))
-            }),
+            answering(200, |n, o| proof_body(TOKEN, n, o)),
         );
         assert_eq!(health, RemoteHealth::Ready);
+    }
+
+    #[test]
+    fn a_proof_relayed_from_another_origin_means_the_token_is_refused() {
+        // A look-alike at `origin()` relays the probe to the real Mawl, which proves only its own
+        // origin: the proof is right for the nonce and the token, but for origin A, not B.
+        let health = check(
+            &origin(),
+            &token(),
+            answering(200, |n, _| {
+                proof_body(TOKEN, n, "https://mawl.tail1234.ts.net")
+            }),
+        );
+        assert_eq!(health, RemoteHealth::TokenRefused);
     }
 
     #[test]
@@ -527,18 +636,12 @@ mod tests {
         let health = check(
             &origin(),
             &token(),
-            answering(200, |n| {
-                format!(r#"{{"ok":true,"id":"{}"}}"#, identity_proof(other, n))
-            }),
+            answering(200, |n, o| proof_body(other, n, o)),
         );
         assert_eq!(health, RemoteHealth::TokenRefused);
         // A replayed proof for an old nonce counts the same.
-        let old = identity_proof(TOKEN, "an-old-nonce");
-        let health = check(
-            &origin(),
-            &token(),
-            answering(200, |_| format!(r#"{{"ok":true,"id":"{old}"}}"#)),
-        );
+        let old = proof_body(TOKEN, "an-old-nonce", "https://mawl.example.com");
+        let health = check(&origin(), &token(), answering(200, |_, _| old));
         assert_eq!(health, RemoteHealth::TokenRefused);
     }
 
@@ -553,15 +656,39 @@ mod tests {
             (401, r#"{"ok":false}"#),
         ];
         for (status, body) in not_mawl {
-            let health = check(&origin(), &token(), answering(status, |_| body.to_string()));
+            let health = check(
+                &origin(),
+                &token(),
+                answering(status, |_, _| body.to_string()),
+            );
             assert_eq!(health, RemoteHealth::NotMawl, "{status} {body}");
         }
+        // A 503 counts as a sick Mawl only with the proof: an impostor cannot claim one.
         let health = check(
             &origin(),
             &token(),
-            answering(503, |_| r#"{"ok":false}"#.into()),
+            answering(503, |n, o| {
+                format!(r#"{{"ok":false,"id":"{}"}}"#, identity_proof(TOKEN, n, o))
+            }),
         );
         assert_eq!(health, RemoteHealth::Unhealthy);
+        let health = check(
+            &origin(),
+            &token(),
+            answering(503, |_, _| r#"{"ok":false}"#.into()),
+        );
+        assert_eq!(health, RemoteHealth::NotMawl);
+        let health = check(
+            &origin(),
+            &token(),
+            answering(503, |n, _| {
+                format!(
+                    r#"{{"ok":false,"id":"{}"}}"#,
+                    identity_proof(TOKEN, n, "https://elsewhere.example")
+                )
+            }),
+        );
+        assert_eq!(health, RemoteHealth::TokenRefused);
         assert_eq!(
             check(&origin(), &token(), |_| None),
             RemoteHealth::Unreachable

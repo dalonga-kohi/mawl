@@ -6,7 +6,7 @@ import { bodyLimit } from 'hono/body-limit'
 import { OWNER } from './auth/principal.ts'
 import { bearerToken, tokenMatches } from './auth/token.ts'
 import { checkHost, type HostPolicy } from './events/host.ts'
-import { HEALTH_NONCE_PATTERN, identityProof } from './health-identity.ts'
+import { identityProof, proofOrigin } from './health-identity.ts'
 import type { Logger } from './logger.ts'
 import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
@@ -110,13 +110,16 @@ export function createApp({
   })
 
   app.get('/healthz', async (c) => {
+    // The desktop host's nonce and origin: answer with the identity proof (see health-identity.ts).
+    const host = c.req.header('host') ?? new URL(c.req.url).host
+    const proof = proofOrigin({ n: c.req.query('n'), o: c.req.query('o') }, host, hosts)
+    if (proof.kind === 'refuse') {
+      logger.warn({ reason: 'proof_not_own_origin' }, 'healthz proof refused')
+      return c.json({ ok: false }, 403)
+    }
     const ok = await isHealthy(checkDb, healthTimeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS)
-    // The desktop host's nonce: answer with the identity proof (see health-identity.ts).
-    const nonce = c.req.query('n')
     const id =
-      nonce !== undefined && HEALTH_NONCE_PATTERN.test(nonce)
-        ? identityProof(authToken, nonce)
-        : undefined
+      proof.kind === 'prove' ? identityProof(authToken, proof.nonce, proof.origin) : undefined
     return c.json(id ? { ok, id } : { ok }, ok ? 200 : 503)
   })
 

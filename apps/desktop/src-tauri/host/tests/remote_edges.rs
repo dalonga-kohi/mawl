@@ -1,5 +1,5 @@
 //! Edge cases of the remote Mawl address and token checks, the stored target, the appearance file
-//! and the presence hold/enter/leave states.
+//! and the presence enter/leave/re-check states.
 
 use std::fs;
 use std::io;
@@ -9,9 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use mawl_host::appearance::{self, Theme};
-use mawl_host::machine::Status;
 use mawl_host::master_key::{KeyBytes, KeyStore, MemoryStore};
-use mawl_host::presence::{Held, Presence};
+use mawl_host::presence::Presence;
 use mawl_host::remote::{
     check, forget_token, load_target, load_token, parse_remote_token, parse_remote_url,
     save_target, store_token, RemoteHealth, TokenError, UrlError, WindowTarget, MAX_URL_BYTES,
@@ -35,14 +34,30 @@ fn url(s: &str) -> Result<String, UrlError> {
 fn ipv6_literals_and_ports_are_origins() {
     assert_eq!(url("https://[::1]:7420"), Ok("https://[::1]:7420/".into()));
     assert_eq!(
-        url("http://[fd7a:115c::1]"),
-        Ok("http://[fd7a:115c::1]/".into())
+        url("https://[fd7a:115c::1]"),
+        Ok("https://[fd7a:115c::1]/".into())
     );
+    // Plain http to another machine is refused, whatever the notation.
+    assert_eq!(url("http://[fd7a:115c::1]"), Err(UrlError::Insecure));
+    assert_eq!(url("http://[::ffff:192.168.1.20]"), Err(UrlError::Insecure));
+    assert_eq!(url("http://[::1]"), Ok("http://[::1]/".into()));
     // A bare IPv6 literal has no scheme and is not a valid host:port.
     assert!(url("::1").is_err());
     // Default ports are dropped, so the stored origin is canonical.
     assert_eq!(url("https://host:443"), Ok("https://host/".into()));
-    assert_eq!(url("http://host:80"), Ok("http://host/".into()));
+    assert_eq!(url("http://host:80"), Err(UrlError::Insecure));
+    assert_eq!(url("http://127.0.0.1:80"), Ok("http://127.0.0.1/".into()));
+    // Hex, octal and short IPv4 forms normalize before the loopback rule.
+    assert_eq!(
+        url("http://0x7f000001:7420"),
+        Ok("http://127.0.0.1:7420/".into())
+    );
+    assert_eq!(
+        url("http://127.1:7420"),
+        Ok("http://127.0.0.1:7420/".into())
+    );
+    assert_eq!(url("http://0xc0a80114"), Err(UrlError::Insecure));
+    assert_eq!(url("http://LOCALHOST"), Ok("http://localhost/".into()));
     assert_eq!(url("host:7420"), Ok("https://host:7420/".into()));
     assert_eq!(url("https://host:65535"), Ok("https://host:65535/".into()));
     assert_eq!(url("https://host:65536"), Err(UrlError::NotAUrl));
@@ -317,7 +332,7 @@ fn target_file_edge_cases_all_mean_local() {
 #[test]
 fn saving_over_a_stale_partial_file_and_into_a_missing_dir_works() {
     let dir = temp_dir("save").join("nested").join("deeper");
-    let origin = parse_remote_url("http://192.168.1.20:7420").unwrap();
+    let origin = parse_remote_url("https://192.168.1.20:7420").unwrap();
     let target = WindowTarget::Remote { origin };
     save_target(&dir, &target).unwrap();
     fs::write(dir.join(format!("{TARGET_FILE}.partial")), "garbage").unwrap();
@@ -364,8 +379,9 @@ fn check_never_sends_the_token_and_handles_odd_bodies() {
         let h = check(&origin(), &token, move |_| Some((status, b"{}".to_vec())));
         assert_eq!(h, RemoteHealth::NotMawl, "status {status}");
     }
+    // A 503 without the proof is not a sick Mawl, it is not Mawl.
     let h = check(&origin(), &token, |_| Some((503, Vec::new())));
-    assert_eq!(h, RemoteHealth::Unhealthy);
+    assert_eq!(h, RemoteHealth::NotMawl);
 }
 
 #[test]
@@ -511,130 +527,12 @@ fn appearance_save_load_round_trip_and_hand_edited_file_is_rechecked() {
 
 // --- presence ---
 
-fn restarting() -> Status {
-    Status::Restarting {
-        attempt: 1,
-        reason: mawl_host::machine::Failure::Exited { code: Some(1) },
-        retry_in_ms: None,
-    }
-}
-
 #[test]
-fn hold_twice_then_leave_clears_the_hold() {
-    let p = Presence::new();
-    p.set_ready(true);
-    assert!(p.try_enter(|| {}));
-    assert!(p.hold());
-    assert!(p.hold());
-    let mut went = 0;
-    assert!(p.leave(|| went += 1));
-    assert_eq!(went, 1);
-    // The hold is gone: a later status settles nothing.
-    let held = p.on_status(Status::Ready, true, || panic!("splash"), || panic!("app"));
-    assert_eq!(held, Held::NotHeld);
-    // The window left the app, so ready enters again.
-    assert!(p.try_enter(|| {}));
-}
-
-#[test]
-fn a_held_page_is_not_entered_a_second_time() {
-    let p = Presence::new();
-    p.set_ready(true);
-    assert!(p.try_enter(|| {}));
-    assert!(p.hold());
-    // Splash command fires while held and ready flips: no second navigation.
-    p.set_ready(true);
-    assert!(!p.try_enter(|| panic!("entered twice")));
-}
-
-#[test]
-fn hold_before_enter_holds_nothing_and_ready_still_enters() {
-    let p = Presence::new();
-    assert!(!p.hold());
-    let held = p.on_status(Status::Ready, true, || panic!(), || panic!());
-    assert_eq!(held, Held::NotHeld);
-    assert!(p.app_allowed());
-    assert!(p.try_enter(|| {}));
-}
-
-#[test]
-fn on_status_not_ready_while_not_held_clears_app_allowed() {
-    let p = Presence::new();
-    p.set_ready(true);
-    let held = p.on_status(restarting(), true, || {}, || {});
-    assert_eq!(held, Held::NotHeld);
-    assert!(!p.app_allowed());
-}
-
-#[test]
-fn every_final_status_while_held_returns_to_the_splash_once() {
-    for status in [
-        Status::Stopping,
-        Status::Stopped,
-        Status::Failed {
-            reason: mawl_host::machine::Failure::Exited { code: None },
-        },
-    ] {
-        let p = Presence::new();
-        p.set_ready(true);
-        assert!(p.try_enter(|| {}));
-        assert!(p.hold());
-        let mut splash = 0;
-        assert_eq!(
-            p.on_status(status.clone(), true, || splash += 1, || panic!()),
-            Held::Left
-        );
-        assert_eq!(splash, 1);
-        assert_eq!(
-            p.on_status(status, true, || panic!("twice"), || panic!()),
-            Held::NotHeld
-        );
-        assert!(!p.app_allowed());
-    }
-}
-
-#[test]
-fn a_moved_server_navigates_once_and_a_second_ready_does_nothing() {
-    let p = Presence::new();
-    p.set_ready(true);
-    assert!(p.try_enter(|| {}));
-    assert!(p.hold());
-    let mut apps = 0;
-    assert_eq!(
-        p.on_status(Status::Ready, false, || panic!(), || apps += 1),
-        Held::Moved
-    );
-    assert_eq!(
-        p.on_status(Status::Ready, false, || panic!(), || apps += 1),
-        Held::NotHeld
-    );
-    assert_eq!(apps, 1);
-    // And the new page can be held again.
-    assert!(p.hold());
-}
-
-#[test]
-fn show_splash_while_held_drops_the_hold() {
-    let p = Presence::new();
-    p.set_ready(true);
-    assert!(p.try_enter(|| {}));
-    assert!(p.hold());
-    let mut n = 0;
-    p.show_splash(|| n += 1);
-    assert_eq!(n, 1);
-    assert_eq!(
-        p.on_status(Status::Ready, true, || panic!(), || panic!()),
-        Held::NotHeld
-    );
-    assert!(p.try_enter(|| {}));
-}
-
-#[test]
-fn a_link_arriving_while_held_is_deferred_and_a_poisoned_lock_recovers() {
+fn a_leave_then_a_link_is_deferred_and_a_poisoned_lock_recovers() {
     let p = Arc::new(Presence::new());
     p.set_ready(true);
     assert!(p.try_enter(|| {}));
-    assert!(p.hold());
+    assert!(p.leave(|| {}));
     let mut deferred = false;
     assert!(!p.open_link(|| panic!("navigated to a dead server"), || deferred = true));
     assert!(deferred);
@@ -651,7 +549,17 @@ fn a_link_arriving_while_held_is_deferred_and_a_poisoned_lock_recovers() {
 }
 
 #[test]
-fn hold_enter_leave_race_never_leaves_ready_and_unready_flags_split() {
+fn a_recheck_before_enter_never_navigates() {
+    let p = Presence::new();
+    assert!(!p.recheck(false, || panic!("not in the app")));
+    assert!(!p.app_allowed());
+    assert!(!p.recheck(true, || panic!("proven")));
+    assert!(p.app_allowed());
+    assert!(p.try_enter(|| {}));
+}
+
+#[test]
+fn enter_leave_recheck_race_never_leaves_ready_and_unready_flags_split() {
     for _ in 0..200 {
         let p = Arc::new(Presence::new());
         p.set_ready(true);
@@ -667,7 +575,7 @@ fn hold_enter_leave_race_never_leaves_ready_and_unready_flags_split() {
                     }
                 }
                 1 => {
-                    p.hold();
+                    p.recheck(false, || {});
                 }
                 _ => {
                     p.leave(|| {});
@@ -679,7 +587,8 @@ fn hold_enter_leave_race_never_leaves_ready_and_unready_flags_split() {
         }
         // At most one enter can win while nothing re-readies the server.
         assert!(enters.load(Ordering::SeqCst) <= 1);
-        // hold and leave both made the server not ready; the app origin must be closed.
+        // A failed re-check and a leave both made the server not ready; the origin must be closed.
         assert!(!p.app_allowed());
+        assert!(!p.in_app());
     }
 }

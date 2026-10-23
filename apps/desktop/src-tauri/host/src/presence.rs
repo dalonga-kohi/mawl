@@ -11,10 +11,11 @@
 //! The navigation callbacks must not take this lock again (they only start a navigation). The
 //! navigation guard reads [`Presence::app_allowed`], which is lock-free.
 //!
-//! A restart does not send the window back to the splash: [`Presence::hold`] keeps the app page
-//! (it shows a reconnecting banner and checks the server's identity proof before it sends the
-//! token again), while the app origin stays closed to new loads until the server is ready.
-//! [`Presence::on_status`] then resumes, moves or leaves the held page.
+//! A restart, a crash or a quit sends the window back to the splash ([`Presence::leave`]), and the
+//! next ready enters the app again with a fresh page. No app page is kept through an outage: it
+//! would reconnect to the old origin with the token before anything proved who answers there (the
+//! app has no proof check of its own yet). A remote Mawl, which has no supervisor, gets the same
+//! from the host's periodic re-check ([`Presence::recheck`]).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -25,24 +26,6 @@ use crate::machine::Status;
 struct State {
     ready: bool,
     in_app: bool,
-    /// The server went away while the window showed the app, and the page was kept (it shows its
-    /// reconnecting banner) instead of going back to the splash. Only with `in_app`.
-    held: bool,
-}
-
-/// What [`Presence::on_status`] did with a held app page.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Held {
-    /// Nothing is held.
-    NotHeld,
-    /// Still restarting: the page stays and keeps trying.
-    Waiting,
-    /// Ready on the same origin: the page reconnects by itself, no navigation.
-    Resumed,
-    /// Ready on another origin (the port moved): the window was sent to the new one.
-    Moved,
-    /// Failed for good or quitting: the window went back to the splash.
-    Left,
 }
 
 #[derive(Default)]
@@ -111,59 +94,24 @@ impl Presence {
             return false;
         }
         state.in_app = false;
-        state.held = false;
         navigate_to_splash();
         true
     }
 
-    /// The server is going away (a crash, a restart or a quit). Not ready any more, so the app
-    /// origin cannot load again; but a window that shows the app keeps its page, which shows a
-    /// reconnecting banner, instead of reloading through the splash. [`Presence::on_status`]
-    /// decides what happens next. Returns whether a page is held.
-    pub fn hold(&self) -> bool {
-        let mut state = self.lock();
-        state.ready = false;
-        self.ready_flag.store(false, Ordering::SeqCst);
-        state.held = state.in_app;
-        state.held
+    /// The host checked a remote Mawl again while the window may show it. Proven: the app stays
+    /// allowed. Not proven: not ready any more, and back to the splash when the window was in the
+    /// app (the splash checks again before it enters). Returns whether the window left the app.
+    pub fn recheck(&self, proven: bool, navigate_to_splash: impl FnOnce()) -> bool {
+        if proven {
+            self.set_ready(true);
+            return false;
+        }
+        self.leave(navigate_to_splash)
     }
 
-    /// A status change. Records whether the server is ready and settles a held page: `Ready` on
-    /// the same origin resumes it with no navigation, `Ready` on a new origin (`same_origin`
-    /// false: the port moved) runs `navigate_to_app`, a final failure or a quit runs
-    /// `navigate_to_splash`, and a restart keeps waiting. Both navigations run under the lock.
-    pub fn on_status(
-        &self,
-        status: Status,
-        same_origin: bool,
-        navigate_to_splash: impl FnOnce(),
-        navigate_to_app: impl FnOnce(),
-    ) -> Held {
-        let mut state = self.lock();
-        let ready = status == Status::Ready;
-        state.ready = ready;
-        self.ready_flag.store(ready, Ordering::SeqCst);
-        if !state.held {
-            return Held::NotHeld;
-        }
-        match status {
-            Status::Ready => {
-                state.held = false;
-                if same_origin {
-                    Held::Resumed
-                } else {
-                    navigate_to_app();
-                    Held::Moved
-                }
-            }
-            Status::Starting { .. } | Status::Restarting { .. } => Held::Waiting,
-            Status::Stopping | Status::Stopped | Status::Failed { .. } => {
-                state.held = false;
-                state.in_app = false;
-                navigate_to_splash();
-                Held::Left
-            }
-        }
+    /// Whether the window shows the app right now.
+    pub fn in_app(&self) -> bool {
+        self.lock().in_app
     }
 
     /// Shows a splash page (the "Connect to a remote Mawl" form) without touching readiness: the
@@ -171,7 +119,6 @@ impl Presence {
     pub fn show_splash(&self, navigate_to_splash: impl FnOnce()) {
         let mut state = self.lock();
         state.in_app = false;
-        state.held = false;
         navigate_to_splash();
     }
 
@@ -368,134 +315,44 @@ mod tests {
         }
     }
 
-    fn restarting() -> Status {
-        Status::Restarting {
+    #[test]
+    fn a_restart_returns_the_app_page_to_the_splash_and_ready_enters_again() {
+        // No page is kept through a restart: it would reconnect to the old origin with the token
+        // before anything proved who answers there.
+        let presence = Presence::new();
+        let window = FakeWindow::new();
+        presence.set_ready(true);
+        assert!(presence.try_enter(|| window.go("app")));
+        assert!(presence.leave(|| window.go("splash")));
+        presence.note_status(Status::Restarting {
             attempt: 1,
             reason: Failure::Exited { code: Some(1) },
             retry_in_ms: Some(1_000),
-        }
-    }
-
-    #[test]
-    fn a_restart_holds_the_app_page_and_the_next_ready_resumes_it_without_a_reload() {
-        let presence = Presence::new();
-        let window = FakeWindow::new();
-        presence.set_ready(true);
-        assert!(presence.try_enter(|| window.go("app")));
-        // The server goes away: the page stays, but the app origin may not load again.
-        assert!(presence.hold());
+        });
         assert!(!presence.app_allowed());
-        assert_eq!(
-            presence.on_status(
-                restarting(),
-                true,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::Waiting
-        );
-        assert_eq!(
-            presence.on_status(
-                Status::Starting {
-                    stage: Stage::Server
-                },
-                true,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::Waiting
-        );
-        assert_eq!(
-            presence.on_status(
-                Status::Ready,
-                true,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::Resumed
-        );
-        assert!(presence.app_allowed());
-        // No navigation at all: the page reconnected by itself.
-        assert_eq!(*window.log.borrow(), vec!["app"]);
-        // Still in the app: the 3 s fallback enter does nothing.
-        assert!(!presence.try_enter(|| window.go("app")));
-    }
-
-    #[test]
-    fn a_server_back_on_another_port_moves_the_page_there() {
-        let presence = Presence::new();
-        let window = FakeWindow::new();
-        presence.set_ready(true);
-        presence.try_enter(|| window.go("app"));
-        presence.hold();
-        assert_eq!(
-            presence.on_status(
-                Status::Ready,
-                false,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::Moved
-        );
-        assert_eq!(*window.log.borrow(), vec!["app", "moved"]);
-        assert!(!presence.try_enter(|| window.go("app")));
-    }
-
-    #[test]
-    fn a_final_failure_or_a_quit_while_held_shows_the_splash() {
-        for status in [
-            Status::Failed {
-                reason: Failure::Unhealthy,
-            },
-            Status::Stopping,
-            Status::Stopped,
-        ] {
-            let presence = Presence::new();
-            let window = FakeWindow::new();
-            presence.set_ready(true);
-            presence.try_enter(|| window.go("app"));
-            presence.hold();
-            assert_eq!(
-                presence.on_status(status, true, || window.go("splash"), || window.go("moved")),
-                Held::Left,
-                "{status:?}"
-            );
-            assert_eq!(window.page(), "splash");
-            // A later ready enters through the splash again.
-            presence.set_ready(true);
-            assert!(presence.try_enter(|| window.go("app")));
-        }
-    }
-
-    #[test]
-    fn hold_on_the_splash_holds_nothing() {
-        let presence = Presence::new();
-        let window = FakeWindow::new();
-        presence.set_ready(true);
-        assert!(!presence.hold());
-        assert_eq!(
-            presence.on_status(
-                Status::Ready,
-                true,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::NotHeld
-        );
-        assert!(window.log.borrow().is_empty());
-        // The normal enter still works.
+        presence.note_status(Status::Ready);
         assert!(presence.try_enter(|| window.go("app")));
+        assert_eq!(*window.log.borrow(), vec!["app", "splash", "app"]);
     }
 
     #[test]
-    fn a_link_while_held_waits_for_the_server() {
+    fn a_failed_remote_recheck_leaves_the_app_and_a_good_one_keeps_it() {
         let presence = Presence::new();
         let window = FakeWindow::new();
         presence.set_ready(true);
-        presence.try_enter(|| window.go("app"));
-        presence.hold();
-        assert!(!presence.open_link(|| window.go("link"), || window.go("deferred")));
-        assert_eq!(*window.log.borrow(), vec!["app", "deferred"]);
+        assert!(presence.try_enter(|| window.go("app")));
+        assert!(presence.in_app());
+        // Still proven: nothing moves.
+        assert!(!presence.recheck(true, || window.go("splash")));
+        assert!(presence.app_allowed());
+        // Not proven any more: back to the splash, the origin closes.
+        assert!(presence.recheck(false, || window.go("splash")));
+        assert!(!presence.in_app());
+        assert!(!presence.app_allowed());
+        assert_eq!(*window.log.borrow(), vec!["app", "splash"]);
+        // On the splash a failed re-check does not navigate again.
+        assert!(!presence.recheck(false, || window.go("splash")));
+        assert_eq!(*window.log.borrow(), vec!["app", "splash"]);
     }
 
     #[test]
@@ -506,22 +363,10 @@ mod tests {
         presence.try_enter(|| window.go("app"));
         presence.show_splash(|| window.go("connect"));
         assert_eq!(window.page(), "connect");
+        assert!(!presence.in_app());
         assert!(presence.app_allowed());
         // Cancel goes back in.
         assert!(presence.try_enter(|| window.go("app")));
-        // Also from a held page.
-        presence.hold();
-        presence.show_splash(|| window.go("connect"));
-        assert_eq!(
-            presence.on_status(
-                Status::Ready,
-                true,
-                || window.go("splash"),
-                || window.go("moved")
-            ),
-            Held::NotHeld
-        );
-        assert_eq!(window.page(), "connect");
     }
 
     #[test]
@@ -569,15 +414,10 @@ mod tests {
                             presence.open_link(check, || {});
                         }
                         3 => {
-                            presence.hold();
+                            presence.show_splash(check);
                         }
                         4 => {
-                            let status = if n % 2 == 0 {
-                                Status::Ready
-                            } else {
-                                Status::Stopping
-                            };
-                            presence.on_status(status, n % 3 == 0, check, check);
+                            presence.recheck(n % 2 == 0, check);
                         }
                         _ => {
                             presence.leave(check);
