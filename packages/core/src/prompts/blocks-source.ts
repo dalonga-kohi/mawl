@@ -17,6 +17,9 @@ export function parseBlockSource(id: string, source: string): BlockSource {
   if (!match?.[1]) {
     throw new Error(`block "${id}": first line must be "version: <positive integer>"`)
   }
+  if (!Number.isSafeInteger(Number(match[1]))) {
+    throw new Error(`block "${id}": version is too large to represent exactly`)
+  }
   if (lines[1] !== '') {
     throw new Error(`block "${id}": the version line must be followed by a blank line`)
   }

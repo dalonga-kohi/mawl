@@ -1,7 +1,7 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { generateBlocksModule, parseBlockSource } from './blocks-source.ts'
 
 describe('parseBlockSource', () => {
@@ -31,8 +31,18 @@ describe('parseBlockSource', () => {
 })
 
 describe('generateBlocksModule', () => {
-  it('emits one entry per .md file, sorted by id, ignoring other files', () => {
+  const dirs: string[] = []
+  const tempDir = () => {
     const dir = mkdtempSync(join(tmpdir(), 'mawl-prompts-'))
+    dirs.push(dir)
+    return dir
+  }
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('emits one entry per .md file, sorted by id, ignoring other files', () => {
+    const dir = tempDir()
     writeFileSync(join(dir, 'b-block.md'), 'version: 2\n\nSecond "quoted" text\n')
     writeFileSync(join(dir, 'a-block.md'), 'version: 1\n\nFirst\n')
     writeFileSync(join(dir, 'notes.txt'), 'ignored')
@@ -45,7 +55,7 @@ describe('generateBlocksModule', () => {
   })
 
   it('fails when a file in the directory has a malformed header', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'mawl-prompts-'))
+    const dir = tempDir()
     writeFileSync(join(dir, 'bad.md'), 'no header here\n')
     expect(() => generateBlocksModule(dir)).toThrow(/block "bad"/)
   })
