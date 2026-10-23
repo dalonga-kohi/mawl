@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
@@ -17,7 +17,17 @@ interface BundleSection {
   useLocalToolsDir?: boolean
   externalBin?: string[]
   resources?: Record<string, string> | string[]
-  windows?: { nsis?: { installMode?: string } }
+  windows?: {
+    nsis?: {
+      installMode?: string
+      sidebarImage?: string
+      headerImage?: string
+      installerIcon?: string
+      uninstallerIcon?: string
+      installerHooks?: string
+      languages?: string[]
+    }
+  }
 }
 interface Config {
   build?: { frontendDist?: string; beforeBuildCommand?: string }
@@ -86,6 +96,24 @@ describe('the installer config', () => {
     )
     const vite = readFileSync(resolve(srcTauri, '../../web/vitest.config.ts'), 'utf8')
     expect(vite).toContain("splash: resolve(import.meta.dirname, 'splash.html')")
+  })
+
+  it('brands the NSIS wizard with the Mawl art, icon and hooks, in English for now', () => {
+    const nsis = base.bundle?.windows?.nsis
+    expect(nsis?.sidebarImage).toBe('installer/sidebar.bmp')
+    expect(nsis?.headerImage).toBe('installer/header.bmp')
+    expect(nsis?.installerIcon).toBe('icons/icon.ico')
+    expect(nsis?.uninstallerIcon).toBe('icons/icon.ico')
+    expect(nsis?.installerHooks).toBe('installer/hooks.nsh')
+    expect(nsis?.languages).toEqual(['English'])
+    for (const path of [
+      nsis?.sidebarImage,
+      nsis?.headerImage,
+      nsis?.installerIcon,
+      nsis?.installerHooks,
+    ]) {
+      expect(existsSync(resolve(srcTauri, path ?? 'missing'))).toBe(true)
+    }
   })
 
   it('never commits the stage or the sidecar binaries', () => {

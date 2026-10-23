@@ -12,11 +12,13 @@
     "stage": "node src/bundle/stage.ts",
     "stage:check": "node src/bundle/stage.ts --check",
     "size-budget": "node src/bundle/size-budget.ts",
+    "art": "node src/installer-art/render.ts",
     "test:rust": "cargo test --workspace --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.12.1"
+    "@tauri-apps/cli": "2.12.1",
+    "playwright-core": "1.63.0"
   }
 }
