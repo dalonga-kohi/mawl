@@ -205,7 +205,8 @@ p {
   position: relative;
   min-height: 720px;
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 32px;
   align-items: center;
   padding-bottom: 116px;
 }
@@ -303,19 +304,17 @@ h1 {
 }
 .hero-scene {
   position: relative;
-  overflow-x: clip;
-  width: 118%;
-  aspect-ratio: 1.12;
-  margin-left: -12%;
+  width: 100%;
+  aspect-ratio: 1;
   align-self: center;
   isolation: isolate;
 }
 .scene-halo {
   position: absolute;
-  inset: -14% -14% -5%;
+  inset: 0;
   z-index: -2;
   background: radial-gradient(
-    ellipse at 54% 48%,
+    ellipse at 50% 48%,
     color-mix(in srgb, var(--accent) 17%, transparent) 0%,
     color-mix(in srgb, var(--accent) 6%, transparent) 32%,
     transparent 61%
@@ -324,10 +323,10 @@ h1 {
 .scene-orbit {
   position: absolute;
   z-index: -1;
-  left: 0;
-  right: -5%;
-  bottom: 15%;
-  height: 19%;
+  left: 12%;
+  right: 12%;
+  bottom: 21%;
+  height: 15%;
   border: 1px solid color-mix(in srgb, var(--accent) 11%, transparent);
   border-radius: 50%;
   transform: rotate(-12deg);
@@ -335,11 +334,11 @@ h1 {
 }
 .hero-mawl {
   position: absolute;
-  top: -3%;
-  left: -8%;
-  width: 119%;
-  max-width: none;
-  filter: drop-shadow(0 24px 45px color-mix(in srgb, var(--accent) 5%, transparent));
+  top: 8%;
+  left: 0;
+  width: 100%;
+  max-width: 100%;
+  filter: drop-shadow(0 16px 24px color-mix(in srgb, var(--accent) 5%, transparent));
   transform-origin: 50% 78%;
   height: auto;
   fill: none;
@@ -349,9 +348,9 @@ h1 {
   position: absolute;
   z-index: -1;
   left: 20%;
-  right: 5%;
-  bottom: 17%;
-  height: 10%;
+  right: 20%;
+  bottom: 25%;
+  height: 8%;
   border-radius: 50%;
   background: radial-gradient(
     ellipse,
@@ -362,8 +361,8 @@ h1 {
 }
 .scene-caption {
   position: absolute;
-  bottom: 4%;
-  right: 16%;
+  bottom: 9%;
+  right: 20%;
   color: var(--text-2);
   font-size: 12px;
 }
@@ -990,7 +989,7 @@ h1 {
 }
 .mascot-greeting {
   position: absolute;
-  inset: 0 0 12%;
+  inset: 0 0 8%;
   width: 100%;
   border: 0;
   padding: 0;
@@ -1092,8 +1091,8 @@ h1 {
 }
 .motion-toggle {
   position: absolute;
-  right: 3%;
-  bottom: 2%;
+  right: 6%;
+  bottom: 6%;
   display: grid;
   place-items: center;
   width: 44px;
@@ -1215,22 +1214,26 @@ h1 {
     width: calc(100% - 80px);
   }
   .hero {
-    min-height: 680px;
-    grid-template-columns: 1.2fr 1fr;
+    display: block;
+    min-height: 0;
+    padding: 80px 0 0;
+  }
+  .hero-copy {
+    max-width: 900px;
+    padding-top: 0;
+  }
+  .hero-baseline {
+    position: static;
+    margin-top: 64px;
   }
   h1 {
-    font-size: clamp(60px, 7.6vw, 84px);
+    font-size: clamp(48px, 9.3vw, 104px);
   }
   .hero-actions {
     gap: 18px;
   }
   .hero-scene {
-    width: 128%;
-    margin-left: -20%;
-  }
-  .scene-caption {
-    bottom: 2%;
-    right: 10%;
+    display: none;
   }
   .choice,
   .faq {
@@ -1278,17 +1281,12 @@ h1 {
     padding-inline: 14px;
   }
   .hero {
-    min-height: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    padding-bottom: 90px;
+    padding-top: 56px;
   }
   .hero-copy {
-    padding-top: 42px;
+    padding-top: 0;
   }
   h1 {
-    font-size: clamp(60px, 11.4vw, 84px);
     margin-top: 24px;
   }
   .hero-description {
@@ -1299,38 +1297,9 @@ h1 {
     margin-top: 28px;
     gap: 20px;
   }
-  .hero-scene {
-    width: min(100%, 450px);
-    aspect-ratio: 1.7;
-    margin: 18px auto 0;
-    align-self: center;
-  }
-  .hero-mawl {
-    width: 85%;
-    top: -22%;
-    left: 9%;
-  }
-  .scene-halo {
-    inset: -50% -10% -15%;
-  }
-  .scene-floor {
-    left: 15%;
-    right: 15%;
-    bottom: 7%;
-  }
-  .scene-orbit {
-    left: 5%;
-    right: 0;
-    bottom: 10%;
-    height: 26%;
-  }
-  .scene-caption {
-    right: 60px;
-    bottom: 5%;
-    font-size: 12px;
-  }
   .hero-baseline {
-    min-height: 74px;
+    min-height: 92px;
+    margin-top: 48px;
     font-size: 12px;
     gap: 16px;
   }
@@ -1494,8 +1463,8 @@ h1 {
   .status {
     font-size: 12px;
   }
-  .hero-copy {
-    padding-top: 32px;
+  .hero {
+    padding-top: 40px;
   }
   h1 {
     font-size: clamp(48px, 11.6vw, 60px);
@@ -1509,13 +1478,6 @@ h1 {
   }
   .hero-actions .text-link {
     font-size: 12px;
-  }
-  .hero-scene {
-    margin-top: 20px;
-    aspect-ratio: 1.5;
-  }
-  .hero-mawl {
-    top: -11%;
   }
   .hero-baseline > span {
     max-width: 230px;
