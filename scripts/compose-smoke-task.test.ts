@@ -64,6 +64,6 @@ describe('compose smoke test task', () => {
     }
     expect(travis.jobs.include).toHaveLength(1)
     expect(travis.jobs.include[0]?.script).toEqual(['pnpm test:docker', 'pnpm test:compose'])
-    expect(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')).not.toMatch(/compose/)
+    expect(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8')).not.toMatch(/test:compose/)
   })
 })

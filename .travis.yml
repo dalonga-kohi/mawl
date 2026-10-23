@@ -25,6 +25,9 @@ cache:
 
 # The pnpm version comes from "packageManager" in package.json.
 before_install:
+  # The compose smoke test needs the v2 plugin, 2.24 or newer (`!override`); print it so a version
+  # failure is easy to read in the log.
+  - docker compose version
   - corepack enable
   - pnpm config set store-dir "$HOME/.pnpm-store"
 
