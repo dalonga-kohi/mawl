@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
+  <title>Mawl is moving in: installer sidebar art</title>
+  <!--
+    The NSIS welcome and finish pages (164 x 314). Mawl drifts in down the night river in an
+    open moving box and waves hello. Mascot geometry and colors come from apps/web/src/mascot
+    (DESIGN.md §3 mascot palette); the river wave is the brand's transition line (DESIGN.md §1).
+    Rendered by apps/desktop/src/installer-art/render.ts at 4x, then area-averaged to 1x.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b0e08" />
+      <stop offset="0.55" stop-color="#141a0e" />
+      <stop offset="1" stop-color="#11160c" />
+    </linearGradient>
+    <radialGradient id="halo" cx="82" cy="170" r="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8e88a" stop-opacity="0.3" />
+      <stop offset="0.45" stop-color="#cfe86a" stop-opacity="0.16" />
+      <stop offset="1" stop-color="#cfe86a" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="moon" cx="0.4" cy="0.36" r="0.75">
+      <stop offset="0" stop-color="#f4f8d6" />
+      <stop offset="1" stop-color="#d8e88a" />
+    </radialGradient>
+    <radialGradient id="moonGlow" cx="114" cy="64" r="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e4f09a" stop-opacity="0.3" />
+      <stop offset="0.3" stop-color="#cfe86a" stop-opacity="0.1" />
+      <stop offset="1" stop-color="#cfe86a" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#18200f" />
+      <stop offset="0.4" stop-color="#0f140a" />
+      <stop offset="1" stop-color="#070906" />
+    </linearGradient>
+    <radialGradient id="reflect" cx="0.5" cy="0.3" r="0.5" fx="0.5" fy="0.3">
+      <stop offset="0" stop-color="#d8e88a" stop-opacity="0.34" />
+      <stop offset="1" stop-color="#d8e88a" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d8e88a" stop-opacity="0" />
+      <stop offset="0.3" stop-color="#d8e88a" stop-opacity="1" />
+      <stop offset="0.7" stop-color="#d8e88a" stop-opacity="1" />
+      <stop offset="1" stop-color="#d8e88a" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="body" x1="0.25" y1="0" x2="0.65" y2="1">
+      <stop offset="0" stop-color="#e4f09a" />
+      <stop offset="1" stop-color="#bfd45e" />
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.6" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="boxFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6f43" />
+      <stop offset="1" stop-color="#5a4729" />
+    </linearGradient>
+    <linearGradient id="boxShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.18" />
+      <stop offset="0.35" stop-color="#000000" stop-opacity="0" />
+      <stop offset="0.75" stop-color="#000000" stop-opacity="0" />
+      <stop offset="1" stop-color="#000000" stop-opacity="0.3" />
+    </linearGradient>
+    <linearGradient id="flap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9bd84" />
+      <stop offset="1" stop-color="#a88a55" />
+    </linearGradient>
+    <clipPath id="mouth"><path d="M-8 8 Q0 8 8 8 Q8 19 0 19 Q-8 19 -8 8 Z" /></clipPath>
+    <filter id="blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" /></filter>
+    <filter id="blur1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" /></filter>
+  </defs>
+
+  <!-- Sky, the halo Mawl drifts toward, and a few stars. -->
+  <rect width="164" height="314" fill="url(#sky)" />
+  <circle cx="82" cy="170" r="70" fill="url(#halo)" />
+  <circle cx="114" cy="64" r="58" fill="url(#moonGlow)" />
+  <circle cx="114" cy="64" r="13" fill="url(#moon)" />
+  <g fill="#f6d66b">
+    <path transform="translate(30 92) scale(0.95)" d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z" />
+    <path transform="translate(140 124) scale(0.6)" d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z" />
+    <path transform="translate(52 44) scale(0.45)" d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z" />
+  </g>
+  <g fill="#f6d66b" opacity="0.55">
+    <circle cx="48" cy="34" r="0.8" />
+    <circle cx="96" cy="22" r="0.6" />
+    <circle cx="140" cy="38" r="0.9" />
+    <circle cx="18" cy="140" r="0.6" />
+    <circle cx="150" cy="168" r="0.7" />
+    <circle cx="66" cy="70" r="0.5" />
+  </g>
+
+  <!-- The box: back flap and inside first, so Mawl sits in it. -->
+  <path d="M54 186 L110 186 L104 171 L60 171 Z" fill="#7a6139" />
+  <path d="M47 192 L54 186 L110 186 L117 192 Z" fill="#2e2414" />
+
+  <!-- Mawl, waving: the done pose (happy eyes, open smile) with the waiting paw raised. -->
+  <g transform="translate(82 176) rotate(-5) scale(0.64)">
+    <circle cx="-29" cy="-33" r="10" fill="#d2e47a" />
+    <circle cx="29" cy="-33" r="10" fill="#d2e47a" />
+    <circle cx="-29" cy="-34" r="5.5" fill="#a8be4a" />
+    <circle cx="29" cy="-34" r="5.5" fill="#a8be4a" />
+    <ellipse cx="-50" cy="-17" rx="7.5" ry="12.5" fill="url(#body)" transform="rotate(-34 -50 -17)" />
+    <path d="M-48 20 C-48 -20 -28 -44 0 -44 C28 -44 48 -20 48 20 C48 36 36 42 0 42 C-36 42 -48 36 -48 20 Z" fill="url(#body)" />
+    <ellipse cx="-17" cy="-28" rx="16" ry="6.5" fill="url(#shine)" transform="rotate(-22 -17 -28)" />
+    <g fill="#ff9aa8" opacity="0.5">
+      <ellipse cx="-29" cy="10" rx="6.5" ry="3.8" />
+      <ellipse cx="29" cy="10" rx="6.5" ry="3.8" />
+    </g>
+    <path d="M-18 1 L-13 -6 L-8 1 M8 1 L13 -6 L18 1" stroke="#26301a" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    <path d="M-8 8 Q0 8 8 8 Q8 19 0 19 Q-8 19 -8 8 Z" fill="#26301a" stroke="#26301a" stroke-width="2" stroke-linejoin="round" />
+    <g clip-path="url(#mouth)"><ellipse cx="0" cy="20" rx="6" ry="5.5" fill="#ff9aa8" /></g>
+  </g>
+
+  <!-- Box front, side flaps and the torn tape. -->
+  <path d="M47 192 L117 192 L117 228 L47 228 Z" fill="url(#boxFront)" />
+  <path d="M47 192 L117 192 L117 228 L47 228 Z" fill="url(#boxShade)" />
+  <path d="M47 192 L117 192 L117 194.5 L47 194.5 Z" fill="#b39462" />
+  <path d="M47 192 L54 186 L38 175 L30 182 Z" fill="url(#flap)" />
+  <path d="M117 192 L110 186 L126 175 L134 182 Z" fill="url(#flap)" />
+  <path d="M78.5 192 L85.5 192 L85.5 201 L83.5 199.5 L82 201.5 L80.3 199.6 L78.5 201 Z" fill="#f6d66b" />
+
+  <!-- The river. -->
+  <path d="M0 214 C20 212.6 38 215.4 58 214 C78 212.6 96 215.4 116 214 C136 212.6 150 215 164 214 L164 314 L0 314 Z" fill="url(#water)" />
+  <ellipse cx="114" cy="262" rx="22" ry="44" fill="url(#reflect)" filter="url(#blur3)" />
+  <g stroke="#e4f09a" stroke-linecap="round">
+    <path d="M106 223 H122" stroke-width="1.4" stroke-opacity="0.55" />
+    <path d="M108 230 H119" stroke-width="1.2" stroke-opacity="0.42" />
+    <path d="M110 245 H118" stroke-width="1.1" stroke-opacity="0.3" />
+    <path d="M111.5 266 H116.5" stroke-width="1" stroke-opacity="0.2" />
+    <path d="M112.5 292 H115.5" stroke-width="1" stroke-opacity="0.12" />
+  </g>
+  <path d="M49 216 L115 216 L113 226 L51 226 Z" fill="#8a6f43" opacity="0.16" filter="url(#blur1)" />
+  <ellipse cx="82" cy="216.5" rx="46" ry="4" fill="none" stroke="#d8e88a" stroke-opacity="0.45" stroke-width="1" />
+  <ellipse cx="82" cy="218" rx="62" ry="6.5" fill="none" stroke="#d8e88a" stroke-opacity="0.2" stroke-width="0.9" />
+
+  <!-- The brand wave: one clear line, then quieter ripples that widen toward the viewer. -->
+  <g fill="none" stroke="url(#wave)" stroke-linecap="round">
+    <path d="M-4 236 C14 231 30 231 48 236 S82 241 100 236 S134 231 168 236" stroke-width="1.8" stroke-opacity="0.7" />
+    <path d="M-4 256 C18 250 38 250 60 256 S102 262 124 256 S150 251 168 255" stroke-width="1.3" stroke-opacity="0.34" />
+    <path d="M-4 282 C24 275 48 275 74 282 S122 289 148 282 S160 279 168 280" stroke-width="1.1" stroke-opacity="0.18" />
+  </g>
+</svg>

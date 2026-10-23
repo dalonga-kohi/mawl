@@ -32,6 +32,9 @@ importers:
       '@tauri-apps/cli':
         specifier: 2.12.1
         version: 2.12.1
+      playwright-core:
+        specifier: 1.63.0
+        version: 1.63.0
 
   apps/mobile: {}
 
