@@ -72,6 +72,10 @@ export function demoBridge(demo: string): HostBridge {
       await wait(900)
       if (!url.trim()) return { ok: false, error: { kind: 'url', reason: 'empty' } }
       if (!token.trim()) return { ok: false, error: { kind: 'token', reason: 'empty' } }
+      // Like the host: plain http only to this machine.
+      if (/^http:\/\/(?!localhost|127\.|\[::1\])/i.test(url.trim())) {
+        return { ok: false, error: { kind: 'url', reason: 'insecure' } }
+      }
       if (url.trim().startsWith('https://down')) {
         return { ok: false, error: { kind: 'remote', health: 'unreachable' } }
       }
