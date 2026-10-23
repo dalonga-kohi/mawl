@@ -62,8 +62,10 @@ pub fn resolve(
     layout: &Layout<'_>,
     exists: impl Fn(&Path) -> bool,
 ) -> Result<ServerCommand, LaunchError> {
-    let sidecar = layout.exe_dir.join(SIDECAR_EXE);
-    let server_dir = layout.resource_dir.join("server");
+    let exe_dir = strip_verbatim(layout.exe_dir);
+    let resource_dir = strip_verbatim(layout.resource_dir);
+    let sidecar = exe_dir.join(SIDECAR_EXE);
+    let server_dir = resource_dir.join("server");
     let script = server_dir.join("server.mjs");
     if exists(&sidecar) || layout.repo_root.is_none() {
         for path in [&sidecar, &script] {
@@ -71,7 +73,7 @@ pub fn resolve(
                 return Err(LaunchError::Missing(path.clone()));
             }
         }
-        let pg_root = layout.resource_dir.join("pg");
+        let pg_root = resource_dir.join("pg");
         if !exists(&pg_root) {
             return Err(LaunchError::Missing(pg_root));
         }
@@ -103,6 +105,19 @@ pub fn resolve(
         web_dir: None,
         dev: true,
     })
+}
+
+/// Drops the `\\?\` (or `\\?\UNC\`) prefix Tauri puts on Windows paths. Node's realpath of a main
+/// script given as `\\?\C:\...` fails with `EISDIR` on `C:`, so the server never starts.
+fn strip_verbatim(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => path.to_path_buf(),
+    }
 }
 
 fn find_on_path(
@@ -146,6 +161,35 @@ mod tests {
         assert_eq!(cmd.pg_root, Some(PathBuf::from(r"C:\Mawl\pg")));
         assert_eq!(cmd.web_dir, Some(PathBuf::from(r"C:\Mawl\server\web")));
         assert!(!cmd.dev);
+    }
+
+    #[test]
+    fn verbatim_prefixes_are_stripped_so_node_can_resolve_the_script() {
+        // Tauri hands out `\\?\C:\...` on Windows; node's realpath of such a script path fails
+        // with EISDIR on `C:`.
+        let exists = fs(&[
+            r"C:\Mawl\mawl-server.exe",
+            r"C:\Mawl\server\server.mjs",
+            r"C:\Mawl\pg",
+        ]);
+        let layout = Layout {
+            exe_dir: Path::new(r"\\?\C:\Mawl"),
+            resource_dir: Path::new(r"\\?\C:\Mawl"),
+            repo_root: None,
+            path_env: None,
+        };
+        let cmd = resolve(&layout, exists).unwrap();
+        assert_eq!(cmd.program, PathBuf::from(r"C:\Mawl\mawl-server.exe"));
+        assert_eq!(cmd.script, PathBuf::from(r"C:\Mawl\server\server.mjs"));
+        assert_eq!(cmd.pg_root, Some(PathBuf::from(r"C:\Mawl\pg")));
+        assert_eq!(
+            strip_verbatim(Path::new(r"\\?\UNC\host\share\Mawl")),
+            PathBuf::from(r"\\host\share\Mawl")
+        );
+        assert_eq!(
+            strip_verbatim(Path::new(r"C:\plain")),
+            PathBuf::from(r"C:\plain")
+        );
     }
 
     #[test]
