@@ -37,9 +37,7 @@ describe('parseBlockSource edges', () => {
   })
 
   it('accepts a large safe integer version', () => {
-    expect(parseBlockSource('x', 'version: 9007199254740991\n\nB\n').version).toBe(
-      9007199254740991,
-    )
+    expect(parseBlockSource('x', 'version: 9007199254740991\n\nB\n').version).toBe(9007199254740991)
   })
 
   it('handles mixed CRLF and LF, extra blank lines and trailing whitespace', () => {
