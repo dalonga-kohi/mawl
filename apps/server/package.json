@@ -12,7 +12,8 @@
     "build": "node src/build.ts",
     "start": "node dist/server.mjs",
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:compose": "vitest run --config vitest.compose.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",

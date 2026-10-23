@@ -6,7 +6,12 @@ const skipDocker = ['1', 'true'].includes(process.env.MAWL_SKIP_DOCKER_SUITES ??
 export default defineProject({
   test: {
     name: '@mawl/server',
-    exclude: [...configDefaults.exclude, ...(skipDocker ? ['**/*.pg.test.ts'] : [])],
+    exclude: [
+      ...configDefaults.exclude,
+      // Builds the Docker image; runs through `pnpm test:compose` (vitest.compose.config.ts).
+      '**/compose.smoke.test.ts',
+      ...(skipDocker ? ['**/*.pg.test.ts'] : []),
+    ],
     // The PGlite suites migrate in beforeEach; with turbo running every package at once that can
     // pass the 10 s default on a loaded machine.
     hookTimeout: 60_000,

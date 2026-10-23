@@ -142,6 +142,10 @@ The installer is a per-user NSIS setup (no admin). Building it takes two steps: 
 
 `tauri dev` and `cargo test` do not need a stage: only the release build merges the bundle config.
 
+## Checking the compose stack end to end
+
+`pnpm test:compose` builds the server image, boots it with Postgres under its own project name, a random host port and its own image tag (it never touches a stack you run), checks the health, web, token and Claude Code paths over HTTP, then removes everything. A cold build takes about a minute, so it is not part of `pnpm test` or `pnpm test:docker`. Without Docker it skips locally; with `CI` or `MAWL_REQUIRE_DOCKER` set it fails instead. Travis runs it as the second step of its one Docker job; the GitHub Actions gate does not.
+
 ## Troubleshooting
 
 - Port 7420 or 1455 is already in use (compose reports `ports are not available` or `address already in use`): stop the program that holds the port, then run `up -d` again. To find it, run `lsof -i :7420` in bash, or in PowerShell `Get-NetTCPConnection -LocalPort 7420,1455 -State Listen | Select-Object LocalPort, OwningProcess` and then `Get-Process -Id <OwningProcess>`. Do not move the ports in the compose file: the ChatGPT sign-in redirect only works on 1455.

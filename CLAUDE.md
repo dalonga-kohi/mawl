@@ -140,7 +140,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 | PGlite | `@electric-sql/pglite` 0.5.10 + `@electric-sql/pglite-pgvector` 0.0.11 | In-process Postgres so DB suites run locally without Docker; the same suite also runs on Testcontainers |
 | graphile-worker | 0.18.0 (MIT) | Run jobs in `apps/server`. Needs a real `pg` Pool (not PGlite); bundles into `dist/server.mjs` (migrations are embedded). Task `run.execute` |
 | testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
-| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Docker suites only** (user's student plan): one job, `pnpm test:docker` (the `*.pg.test.ts` files and `postgres.smoke.test.ts`) with `MAWL_REQUIRE_DOCKER=1`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it. Travis does not lint, typecheck or run e2e |
+| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Docker suites only** (user's student plan): one job, `pnpm test:docker` (the `*.pg.test.ts` files and `postgres.smoke.test.ts`) then `pnpm test:compose` (the compose image smoke test, kept out of the default `pnpm test`) with `MAWL_REQUIRE_DOCKER=1`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it. Travis does not lint, typecheck or run e2e |
 | GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0; `anthropics/claude-code-action` 1.0.256 | `ci.yml` is the **fast gate**: lint, typecheck, tests and e2e, with `MAWL_SKIP_DOCKER_SUITES=1` so the Docker suites run on Travis only (the `vitest.config.ts` of `apps/server`, `packages/db` and `packages/testkit` exclude those files when it is set; `scripts/docker-suites-skip.test.ts` checks it). `pgvector-windows.yml` builds pgvector with MSVC and runs its `installcheck`. `claude.yml` reviews same-repo PRs (Sonnet) and answers `@claude` from the owner, members and collaborators, using the `CLAUDE_CODE_OAUTH_TOKEN` secret. All pinned by full SHA (tests enforce it). Dependabot is weekly |
 
 ## Monorepo conventions
@@ -196,6 +196,7 @@ pnpm lint | pnpm typecheck | pnpm test           # each runs through turbo incl.
 pnpm turbo lint typecheck test --force           # the full gate, no cache — run before closing a slice
 pnpm --filter @mawl/ui generate                 # regenerate tokens.css
 pnpm --filter @mawl/server dev|build            # tsx watch (needs DATABASE_URL) | esbuild bundle -> dist/server.mjs
+pnpm test:compose                                # compose image smoke test (builds the image, about 1 min); not in `pnpm test`
 pnpm test:e2e                                    # Playwright (Edge locally) vs the e2e server + scripted echo model; not in the gate
 docker compose -f infra/compose/docker-compose.yml up -d --build   # the stack at :7420; needs infra/compose/.env (docs/RUNNING.md)
 ```
