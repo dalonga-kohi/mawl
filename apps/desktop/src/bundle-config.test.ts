@@ -67,9 +67,11 @@ describe('the installer config', () => {
       [`${STAGE_DIR}/pg/`]: 'pg/',
     })
     // host/src/launch.rs: resource_dir\server\server.mjs, resource_dir\pg, server\web\index.html.
-    expect(launchRs).toContain('layout.resource_dir.join("server")')
+    // The host strips the \\?\ prefix first (node cannot start a main script under it).
+    expect(launchRs).toContain('let resource_dir = strip_verbatim(layout.resource_dir);')
+    expect(launchRs).toContain('resource_dir.join("server")')
     expect(launchRs).toContain('server_dir.join("server.mjs")')
-    expect(launchRs).toContain('layout.resource_dir.join("pg")')
+    expect(launchRs).toContain('resource_dir.join("pg")')
     expect(launchRs).toContain('server_dir.join("web")')
   })
 
