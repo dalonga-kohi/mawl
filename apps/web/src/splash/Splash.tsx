@@ -1,10 +1,31 @@
 import { Check, Copy } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotionConfig } from 'motion/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { Mawl } from '../mascot/Mawl.tsx'
+import type { MascotState } from '../mascot/states.ts'
 import { transitions } from '../motion/presets.ts'
 import { Button } from '../ui/Button.tsx'
-import type { HostBridge } from './bridge.ts'
+import { cn } from '../ui/cn.ts'
+import { Input } from '../ui/Input.tsx'
+import type { ConnectResult, HostBridge } from './bridge.ts'
+import {
+  type ConnectError,
+  connectErrorCopy,
+  describeRemote,
+  type FieldMessage,
+  hostOf,
+  isUnencrypted,
+  type RemoteHealth,
+  type Target,
+} from './remote.ts'
 import { describe, INITIAL_STATUS, STEPS, type Status } from './status.ts'
 
 /** How long "Ready" stays on screen so Mawl's hop reads, before the splash fades into the app. */
@@ -15,22 +36,198 @@ const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
 
+/** `main`: the boot status (this PC's server or the remote check); `connect`: the form. */
+export type SplashView = 'main' | 'connect'
+
+type Screen =
+  | { kind: 'main' }
+  | { kind: 'connect'; address: string }
+  | { kind: 'relaunching'; to: 'remote' | 'local' }
+
 /**
  * The desktop splash: what the host's supervisor is doing while the server boots, restarts or
- * stops, and the failed screen with its way out. Rendered by the bundled `splash.html` in the
- * Tauri origin; the app itself loads from the server once it is ready.
+ * stops, the failed screen with its way out, and "Connect to a remote Mawl". Rendered by the
+ * bundled `splash.html` in the Tauri origin; the app itself loads from the server (or the remote
+ * Mawl) once it is ready.
  */
 export function Splash({
   bridge,
   clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard,
+  initialView = 'main',
 }: {
   bridge: HostBridge
   clipboard?: Pick<Clipboard, 'writeText'> | undefined
+  initialView?: SplashView
 }) {
-  const [status, setStatus] = useState<Status>(INITIAL_STATUS)
+  const [target, setTarget] = useState<Target | undefined>()
+  const [screen, setScreen] = useState<Screen>(
+    initialView === 'connect' ? { kind: 'connect', address: '' } : { kind: 'main' },
+  )
+
+  useEffect(() => {
+    let alive = true
+    bridge.target().then(
+      (t) => alive && setTarget(t),
+      () => alive && setTarget({ kind: 'local' }),
+    )
+    // After the first paint, so the window never shows a blank frame.
+    window.requestAnimationFrame(() => void bridge.shown())
+    return () => {
+      alive = false
+    }
+  }, [bridge])
+
+  const relaunchWith = useCallback(
+    async (to: 'remote' | 'local', call: () => Promise<ConnectResult>): Promise<ConnectResult> => {
+      const result = await call()
+      if (result.ok) setScreen({ kind: 'relaunching', to })
+      return result
+    },
+    [],
+  )
+
+  const openConnect = useCallback(
+    () =>
+      setScreen({
+        kind: 'connect',
+        address: target?.kind === 'remote' ? target.origin : '',
+      }),
+    [target],
+  )
+
+  // Nothing to show until the host said which Mawl this window is for (a few milliseconds).
+  if (!target) return <main className="min-h-dvh bg-bg" />
+
+  if (screen.kind === 'relaunching') {
+    return (
+      <Frame>
+        <Message
+          mascot="working"
+          title="Restarting Mawl"
+          detail={
+            screen.to === 'remote'
+              ? 'Connected. Mawl opens again on your remote Mawl.'
+              : 'Mawl opens again on this PC’s server.'
+          }
+        />
+      </Frame>
+    )
+  }
+
+  if (screen.kind === 'connect') {
+    return (
+      <ConnectForm
+        initialAddress={screen.address}
+        current={target.kind === 'remote' ? hostOf(target.origin) : undefined}
+        onConnect={(url, token) => relaunchWith('remote', () => bridge.connectRemote(url, token))}
+        onSwitchToLocal={() => relaunchWith('local', () => bridge.switchToLocal())}
+        onCancel={() => setScreen({ kind: 'main' })}
+      />
+    )
+  }
+
+  return target.kind === 'remote' ? (
+    <RemoteStatus
+      bridge={bridge}
+      origin={target.origin}
+      onChange={openConnect}
+      onSwitchToLocal={() => relaunchWith('local', () => bridge.switchToLocal())}
+    />
+  ) : (
+    <LocalStatus bridge={bridge} clipboard={clipboard} onConnect={openConnect} />
+  )
+}
+
+/** The centred column every splash screen shares; `leaving` fades it out into the app. */
+function Frame({ children, leaving = false }: { children: ReactNode; leaving?: boolean }) {
+  return (
+    <main className="grid min-h-dvh place-items-center overflow-hidden bg-bg px-6 py-10 text-text">
+      <motion.div
+        className="flex w-full max-w-[380px] flex-col items-center text-center"
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={
+          leaving
+            ? { opacity: 0, scale: 1.02, transition: { duration: EXIT_MS / 1000, ease: 'easeIn' } }
+            : { opacity: 1, scale: 1, transition: transitions.gentle }
+        }
+      >
+        {children}
+      </motion.div>
+    </main>
+  )
+}
+
+/** Mawl, then a title and a line that cross-fade when they change. */
+function Message({
+  mascot,
+  title,
+  detail,
+}: {
+  mascot: MascotState
+  title: string
+  detail: string
+}) {
+  return (
+    <>
+      <Mawl size={128} state={mascot} />
+      <div
+        role="status"
+        aria-live="polite"
+        className="mt-6 flex min-h-[4.5rem] flex-col items-center"
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={`${title}|${detail}`}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0, transition: transitions.fade }}
+            exit={{ opacity: 0, transition: transitions.exit }}
+            className="flex flex-col items-center"
+          >
+            <h1 className="font-display text-title text-balance">{title}</h1>
+            <p className="mt-1.5 text-pretty text-text-2">{detail}</p>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </>
+  )
+}
+
+/** Ready: let Mawl hop, fade out, then hand the window to the app. */
+function useEnterWhenReady(ready: boolean, bridge: HostBridge): boolean {
   const [leaving, setLeaving] = useState(false)
   const reduce = useReducedMotionConfig() ?? false
+
+  useEffect(() => {
+    if (!ready) {
+      setLeaving(false)
+      return
+    }
+    const hold = setTimeout(() => setLeaving(true), reduce ? 0 : READY_HOLD_MS)
+    return () => clearTimeout(hold)
+  }, [ready, reduce])
+
+  useEffect(() => {
+    if (!leaving) return
+    const done = setTimeout(() => void bridge.enterApp(), reduce ? 0 : EXIT_MS)
+    return () => clearTimeout(done)
+  }, [leaving, bridge, reduce])
+
+  return leaving
+}
+
+/** This PC's server: the supervisor's status, and the failed screen with its way out. */
+function LocalStatus({
+  bridge,
+  clipboard,
+  onConnect,
+}: {
+  bridge: HostBridge
+  clipboard: Pick<Clipboard, 'writeText'> | undefined
+  onConnect: () => void
+}) {
+  const [status, setStatus] = useState<Status>(INITIAL_STATUS)
   const view = describe(status)
+  const leaving = useEnterWhenReady(status.phase === 'ready', bridge)
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
@@ -54,69 +251,112 @@ export function Splash({
         // No snapshot: the events will tell.
       },
     )
-    // After the first paint, so the window never shows a blank frame.
-    window.requestAnimationFrame(() => void bridge.shown())
     return () => {
       alive = false
       unlisten?.()
     }
   }, [bridge])
 
-  // Ready: let Mawl hop, fade out, then hand the window to the app.
-  useEffect(() => {
-    if (status.phase !== 'ready') {
-      setLeaving(false)
-      return
-    }
-    const hold = setTimeout(() => setLeaving(true), reduce ? 0 : READY_HOLD_MS)
-    return () => clearTimeout(hold)
-  }, [status.phase, reduce])
+  return (
+    <Frame leaving={leaving}>
+      <Message mascot={view.mascot} title={view.title} detail={view.detail} />
+      {view.done === undefined ? null : (
+        <Track done={view.done} active={view.active ?? false} label={view.detail} />
+      )}
+      {view.failed ? (
+        <FailedActions bridge={bridge} clipboard={clipboard} onConnect={onConnect} />
+      ) : null}
+    </Frame>
+  )
+}
 
+type RemotePhase =
+  | { kind: 'checking' }
+  | { kind: 'ready' }
+  | { kind: 'failed'; health: RemoteHealth }
+
+/** A remote Mawl: one check (the remote proves it knows the token), then into the app. */
+function RemoteStatus({
+  bridge,
+  origin,
+  onChange,
+  onSwitchToLocal,
+}: {
+  bridge: HostBridge
+  origin: string
+  onChange: () => void
+  onSwitchToLocal: () => Promise<ConnectResult>
+}) {
+  const host = hostOf(origin)
+  const [phase, setPhase] = useState<RemotePhase>({ kind: 'checking' })
+  const [attempt, setAttempt] = useState(0)
+  const [switching, setSwitching] = useState(false)
+  const [refused, setRefused] = useState<string | undefined>()
+  const leaving = useEnterWhenReady(phase.kind === 'ready', bridge)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` re-runs the check on Try again.
   useEffect(() => {
-    if (!leaving) return
-    const done = setTimeout(() => void bridge.enterApp(), reduce ? 0 : EXIT_MS)
-    return () => clearTimeout(done)
-  }, [leaving, bridge, reduce])
+    let alive = true
+    setPhase({ kind: 'checking' })
+    bridge.checkRemote().then(
+      (health) => {
+        if (!alive) return
+        setPhase(health === 'ready' ? { kind: 'ready' } : { kind: 'failed', health })
+      },
+      () => alive && setPhase({ kind: 'failed', health: 'unreachable' }),
+    )
+    return () => {
+      alive = false
+    }
+  }, [bridge, attempt])
+
+  const switchToLocal = async () => {
+    setSwitching(true)
+    setRefused(undefined)
+    const result = await onSwitchToLocal()
+    if (!result.ok) {
+      setSwitching(false)
+      setRefused(connectErrorCopy(result.error).message)
+    }
+  }
+
+  const message =
+    phase.kind === 'failed'
+      ? {
+          mascot: 'oops' as const,
+          title: 'Can’t reach your remote Mawl',
+          detail: describeRemote(phase.health === 'ready' ? 'unreachable' : phase.health, host),
+        }
+      : phase.kind === 'ready'
+        ? { mascot: 'done' as const, title: 'Ready', detail: `Opening ${host}` }
+        : { mascot: 'thinking' as const, title: 'Connecting', detail: `Checking ${host}` }
 
   return (
-    <main className="grid min-h-dvh place-items-center overflow-hidden bg-bg px-6 py-10 text-text">
-      <motion.div
-        className="flex w-full max-w-[380px] flex-col items-center text-center"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={
-          leaving
-            ? { opacity: 0, scale: 1.02, transition: { duration: EXIT_MS / 1000, ease: 'easeIn' } }
-            : { opacity: 1, scale: 1, transition: transitions.gentle }
-        }
-      >
-        <Mawl size={128} state={view.mascot} />
-
-        <div
-          role="status"
-          aria-live="polite"
-          className="mt-6 flex min-h-[4.5rem] flex-col items-center"
+    <Frame leaving={leaving}>
+      <Message {...message} />
+      {phase.kind === 'failed' ? (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
+          className="mt-8 flex w-full flex-col items-stretch gap-2.5"
         >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${view.title}|${view.detail}`}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0, transition: transitions.fade }}
-              exit={{ opacity: 0, transition: transitions.exit }}
-              className="flex flex-col items-center"
-            >
-              <h1 className="font-display text-title text-balance">{view.title}</h1>
-              <p className="mt-1.5 text-pretty text-text-2">{view.detail}</p>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {view.done === undefined ? null : (
-          <Track done={view.done} active={view.active ?? false} label={view.detail} />
-        )}
-
-        {view.failed ? <FailedActions bridge={bridge} clipboard={clipboard} /> : null}
-      </motion.div>
-    </main>
+          <Button variant="primary" disabled={switching} onClick={() => setAttempt((n) => n + 1)}>
+            Try again
+          </Button>
+          <Button variant="soft" disabled={switching} onClick={onChange}>
+            Change address
+          </Button>
+          <Button variant="ghost" disabled={switching} onClick={() => void switchToLocal()}>
+            Use this PC’s Mawl
+          </Button>
+          {refused ? (
+            <p role="alert" className="text-small text-danger">
+              {refused}
+            </p>
+          ) : null}
+        </motion.div>
+      ) : null}
+    </Frame>
   )
 }
 
@@ -146,9 +386,11 @@ function Track({ done, active, label }: { done: number; active: boolean; label: 
 function FailedActions({
   bridge,
   clipboard,
+  onConnect,
 }: {
   bridge: HostBridge
   clipboard: Pick<Clipboard, 'writeText'> | undefined
+  onConnect: () => void
 }) {
   const [copy, setCopy] = useState<CopyState>('idle')
   const [busy, setBusy] = useState<'retry' | 'quit' | undefined>()
@@ -233,6 +475,9 @@ function FailedActions({
           </motion.span>
         </AnimatePresence>
       </Button>
+      <Button variant="ghost" disabled={busy !== undefined} onClick={onConnect}>
+        Connect to a remote Mawl
+      </Button>
       <Button
         variant="ghost"
         disabled={busy !== undefined}
@@ -253,5 +498,180 @@ function FailedActions({
             : ''}
       </p>
     </motion.div>
+  )
+}
+
+/**
+ * "Connect to a remote Mawl": an address and the owner token. The host checks both, asks the
+ * remote to prove it knows the token, and only then saves them and restarts Mawl on it. The token
+ * stays in this component's state until it goes to the host; it is never shown or stored here.
+ */
+function ConnectForm({
+  initialAddress,
+  current,
+  onConnect,
+  onSwitchToLocal,
+  onCancel,
+}: {
+  initialAddress: string
+  /** The remote Mawl in use now, if any. */
+  current: string | undefined
+  onConnect: (url: string, token: string) => Promise<ConnectResult>
+  onSwitchToLocal: () => Promise<ConnectResult>
+  onCancel: () => void
+}) {
+  const ids = {
+    address: useId(),
+    addressHelp: useId(),
+    token: useId(),
+    tokenHelp: useId(),
+    error: useId(),
+  }
+  const [address, setAddress] = useState(initialAddress)
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState<'connect' | 'local' | undefined>()
+  const [problem, setProblem] = useState<FieldMessage | undefined>()
+  const addressField = useRef<HTMLInputElement>(null)
+  const tokenField = useRef<HTMLInputElement>(null)
+
+  const fail = (error: ConnectError) => {
+    const copy = connectErrorCopy(error)
+    setProblem(copy)
+    if (copy.field === 'url') addressField.current?.focus()
+    if (copy.field === 'token') tokenField.current?.focus()
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (busy) return
+    setBusy('connect')
+    setProblem(undefined)
+    const result = await onConnect(address, token)
+    if (!result.ok) {
+      setBusy(undefined)
+      fail(result.error)
+    }
+  }
+
+  const switchToLocal = async () => {
+    setBusy('local')
+    setProblem(undefined)
+    const result = await onSwitchToLocal()
+    if (!result.ok) {
+      setBusy(undefined)
+      fail(result.error)
+    }
+  }
+
+  const describedBy = (field: 'url' | 'token', help: string) =>
+    problem?.field === field ? `${ids.error} ${help}` : help
+  const errorLine = problem ? (
+    <p id={ids.error} role="alert" className="text-small text-danger">
+      {problem.message}
+    </p>
+  ) : null
+
+  return (
+    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10 text-text">
+      <motion.div
+        className="flex w-full max-w-[400px] flex-col items-center text-center"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
+      >
+        <Mawl size={88} state="waiting" />
+        <h1 className="mt-5 font-display text-title text-balance">Connect to a remote Mawl</h1>
+        <p className="mt-2 text-pretty text-text-2">
+          Open a Mawl that runs on another computer, such as a home server you reach over Tailscale.
+          Nothing is saved until that Mawl accepts the token.
+        </p>
+        {current ? <p className="mt-2 text-small text-text-2">Now showing {current}.</p> : null}
+
+        <form
+          noValidate
+          onSubmit={(e) => void submit(e)}
+          className="mt-6 flex w-full flex-col gap-3 rounded-card bg-surface p-5 text-left shadow-1"
+        >
+          <label htmlFor={ids.address} className="text-small font-semibold text-text-2">
+            Address
+          </label>
+          <Input
+            ref={addressField}
+            id={ids.address}
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            // The first thing to do on this page.
+            autoFocus
+            placeholder="https://mawl.example.ts.net"
+            value={address}
+            disabled={busy !== undefined}
+            onChange={(e) => {
+              setAddress(e.target.value)
+              if (problem?.field === 'url') setProblem(undefined)
+            }}
+            aria-invalid={problem?.field === 'url'}
+            aria-describedby={describedBy('url', ids.addressHelp)}
+          />
+          <p
+            id={ids.addressHelp}
+            className={cn('-mt-1 text-small', isUnencrypted(address) ? 'text-warn' : 'text-text-2')}
+          >
+            {isUnencrypted(address)
+              ? 'This address isn’t encrypted. Use it only on a network you trust, like Tailscale or your home network.'
+              : 'Where that Mawl serves its web app.'}
+          </p>
+          {problem?.field === 'url' ? errorLine : null}
+
+          <label htmlFor={ids.token} className="mt-1 text-small font-semibold text-text-2">
+            Owner token
+          </label>
+          <Input
+            ref={tokenField}
+            id={ids.token}
+            type="password"
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={token}
+            disabled={busy !== undefined}
+            onChange={(e) => {
+              setToken(e.target.value)
+              if (problem?.field === 'token') setProblem(undefined)
+            }}
+            aria-invalid={problem?.field === 'token'}
+            aria-describedby={describedBy('token', ids.tokenHelp)}
+            className="font-mono"
+          />
+          <p id={ids.tokenHelp} className="-mt-1 text-small text-text-2">
+            From that server’s log at its first start, or the owner-token file in its secrets
+            folder.
+          </p>
+          {problem?.field === 'token' ? errorLine : null}
+          {problem?.field === 'form' ? errorLine : null}
+
+          <div className="mt-2 flex flex-col-reverse gap-2.5">
+            <Button type="button" variant="ghost" disabled={busy !== undefined} onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={busy !== undefined}>
+              {busy === 'connect' ? 'Checking…' : 'Connect'}
+            </Button>
+          </div>
+        </form>
+
+        {current ? (
+          <Button
+            variant="soft"
+            className="mt-4 w-full"
+            disabled={busy !== undefined}
+            onClick={() => void switchToLocal()}
+          >
+            Use this PC’s Mawl
+          </Button>
+        ) : null}
+      </motion.div>
+    </main>
   )
 }

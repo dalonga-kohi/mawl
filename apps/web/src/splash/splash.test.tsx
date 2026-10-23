@@ -18,6 +18,10 @@ function fakeBridge(first: Status) {
     quit: vi.fn(async () => {}),
     enterApp: vi.fn(async () => {}),
     shown: vi.fn(async () => {}),
+    target: vi.fn(async () => ({ kind: 'local' }) as const),
+    checkRemote: vi.fn(async () => 'ready' as const),
+    connectRemote: vi.fn(async () => ({ ok: true }) as const),
+    switchToLocal: vi.fn(async () => ({ ok: true }) as const),
   } satisfies HostBridge
   return { bridge, emit: (s: Status) => act(() => emit(s)) }
 }
