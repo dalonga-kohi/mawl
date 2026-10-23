@@ -40,15 +40,23 @@ describe('landing workflow', () => {
     expect(deploy.with?.wranglerVersion).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
+  it('creates the Pages project in a shell step and ignores only the "already exists" error', () => {
+    const ensureProject = steps.find((step) => step.name === 'Ensure project exists')
+    expect(ensureProject).toBeDefined()
+    if (!ensureProject) throw new Error('expected project creation step')
+    expect(ensureProject['working-directory']).toBe(`${runnerTemp}/mawl-pages`)
+    expect(ensureProject.run).toContain(
+      'npx wrangler@4.152.0 pages project create mawl --production-branch=main',
+    )
+    expect(ensureProject.run).toContain("grep -qi 'already exists'")
+  })
+
   it('reads the Node version from .nvmrc and publishes only the static site directory', () => {
     const setupNode = stepUsing('actions/setup-node')
     const deploy = stepUsing('cloudflare/wrangler-action')
     expect(setupNode?.with?.['node-version-file']).toBe('.nvmrc')
     expect(String(deploy?.with?.command).trim()).toBe(
-      [
-        'pages project create mawl --production-branch=main || true',
-        `pages deploy "${workspace}/site" --project-name=mawl --branch=main`,
-      ].join('\n'),
+      `pages deploy "${workspace}/site" --project-name=mawl --branch=main`,
     )
   })
 
