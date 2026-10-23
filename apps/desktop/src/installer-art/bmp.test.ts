@@ -59,7 +59,9 @@ describe('readBmpHeader and decodeBmp24', () => {
       dataOffset: 54,
       fileSize: bmp.byteLength,
     })
-    expect(decodeBmp24(bmp)).toEqual(rgb)
+    // Not toEqual: vitest walks a 154k-element typed array one element at a time, which timed
+    // out (5 s) on a loaded CI runner. A byte comparison is the same check without the walk.
+    expect(Buffer.from(decodeBmp24(bmp)).equals(Buffer.from(rgb))).toBe(true)
   })
 
   it('refuses a file that is not a BMP', () => {
