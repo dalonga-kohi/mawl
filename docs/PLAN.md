@@ -297,6 +297,37 @@ Goal: teammates work on their own, reliably, on a laptop that sleeps. See REDESI
 - [ ] **D5.6 Heartbeat.** A per-profile special routine over the `heartbeat` block. It stays silent unless there is something to do (`NOTHING` or an action).
 - [ ] **D5.7 Schedule tools.** `schedule_create/list/cancel` for the agent (policy: `ask` by default).
 
+## DC — Canvas (see [CANVAS.md](CANVAS.md))
+Goal: a teammate writes JSX, and Mawl renders it live in a sandbox: design mockups, sites and graphics first, motion graphics next. Quality comes from a dedicated skill set, measurable review gates and a critique pass, and every canvas can be browsed and managed in a separate Canvases view.
+
+**Placement (owner decision 2026-10-24):** after D5, so it starts when D2 to D5 are closed and is serial with them (shared contracts, migrations and event union; one writer at a time). **DC0 spikes are the exception:** they change no shared code and may run at any time. **Depends on:** D2.2 tools and artifacts, D2.3 policy, D2.5 run inbox, D2.8 skills, D3 (computer render, DC10), D4 (preferences), D5 (routines).
+
+**MVP cut line: DC1 to DC8** (mockups, sites, graphics). **Stretch:** DC9, DC10. **Later:** DC12, DC13, DC14. Sizes are relative (S, M, L), not days.
+
+- [ ] **DC0.1 Runtime and build spike.** (spike, size M; results in CANVAS §5)
+  - Pick the transformer or bundler (esbuild native, esbuild-wasm, sucrase or oxc + import map, or download on first use) against the criteria in CANVAS §5: runs inside the esbuild-bundled `server.mjs` on Node 24, license, maintenance, cold build under 400 ms for 20 files, installer under 60 MiB.
+  - Prove the sandbox in the Tauri WebView2 and in a browser: opaque origin, the CSP, and `postMessage` only. A test iframe must not read `window.__MAWL_LAUNCH_TOKEN__` or reach `/rpc`.
+  - Decide hash or nonce for inline scripts, and whether any pack needs `unsafe-eval`.
+  - Verify the exact current versions and **licenses** of `react`, `motion`, `gsap` (check its terms), `three`, `d3`, `lucide`, and the OFL font set. Record sizes.
+- [ ] **DC0.2 Render feedback spike.** (spike, size M) Run the review script in the sandbox and on a computer's headless Chromium with the same code; capture console and errors; take screenshots; measure speed. Decide how a non-vision model gets a visual check (helper model, or lint only).
+- [ ] **DC0.3 Motion spike.** (spike, size M; needs D3.1 images) Prove frame-exact seeking of GSAP, Motion and Web Animations, virtualizing `performance.now`, `Date.now` and `requestAnimationFrame`, capture speed per frame with Playwright, and an ffmpeg encode. Decide the image impact (CANVAS §9).
+- [ ] **DC1 Schema + contracts.** (head-coder: migration + contracts + event union, size M) `canvases` and `canvas_versions`, ids, the five events (content-free), the RPC in CANVAS §11, size caps, retention hook. *Tests:* migration up and down on PGlite and Testcontainers, strict-object shapes, no content in any event.
+- [ ] **DC2 Build package `@mawl/canvas`.** (head-coder: new package + security, size L; propose head-reviewer) Validation (paths, caps, import allowlist, forbidden APIs), transform or bundle per DC0.1, packs, fonts, assets, single-file HTML with the CSP, source-mapped diagnostics, deterministic `buildHash`, a build worker with a timeout. *Tests:* a table of hostile inputs, determinism, caps, diagnostics point at the agent's line.
+- [ ] **DC3 Agent tools.** (head-coder: cross-package, size L) `canvas_create/write/edit/read/list/history/restore/add_asset`, policy classes, idempotency keys, events, results that never echo content, read results wrapped as data, templates. Includes the `canvases.build` RPC. Needs D2.2 and D2.3.
+- [ ] **DC4 Sandbox host + canvas panel.** (head-coder: UI, size L; propose head-reviewer) The iframe component, the `canvas-host/1` message protocol with zod validation, the workspace panel (Preview, Code read-only, Versions), viewport switch, console drawer, chat canvas card, loading, empty, error and success states, 390 px, reduced motion. *Tests:* the iframe cannot read the token; a forged message is dropped.
+- [ ] **DC5 Canvases view.** (head-coder: UI, size L) The separate page: gallery with thumbnails, filters, search, sort, star, rename, duplicate, archive, user-only delete, the Allow network switch, the teammate Canvases tab, bulk actions, the detail view with version diff and restore. Sidebar entry.
+- [ ] **DC6 Render feedback + `canvas_review`.** (head-coder: client, run inbox and computer, size L; depends on DC0.2 and D3.5) The three tiers of CANVAS §7.1, the review script and its gates (CANVAS §8.2), `canvases.reportRender`, follow-ups into the run inbox, thumbnails from snapshots, the honest "not rendered" result.
+- [ ] **DC7 Quality skill set + `canvas` prompt block.** (head-coder: prompt text; owner approves the text, as for D2.1; size M) The eight built-in skills of CANVAS §8.1, a `builtin` skill source (read-only, shipped with the app), the conditional prompt block, a MEMORY.md §7 update and snapshot tests. Needs D2.8 and DC6.
+- [ ] **DC8 Export.** (coder or head-coder, size M) Single HTML, PNG, and the Vite project zip with pinned versions (a test checks the pack table, the allowlist and the zip's `package.json` agree), through the host save dialog.
+- [ ] **DC9 Motion runtime.** (head-coder, size L; stretch) The composition contract, the host clock, seek and play and pause, a scrubber, the motion pack, the `canvas-motion` skill, motion templates.
+- [ ] **DC10 Video export.** (head-coder: sandbox, size L; stretch; needs DC0.3 and D3) Frame-stepped capture on a computer, ffmpeg to MP4, GIF and WebM, progress as a job, the result as an artifact; revisit the terminal image size budget.
+- [ ] **DC11 Canvas eval set.** (size M) About 12 fixed briefs; the fake model checks the plumbing in CI; real-model runs are scored by the review gates and a human rubric; skill text versions are compared.
+- [ ] **DC12 Hand editing.** (head-coder: UI, size M; later) A code editor tab, user-authored versions, the agent sees the diff. An element picker that sends "change this" to the teammate.
+- [ ] **DC13 Brand kits.** (size M; later) A shared set of tokens and fonts per teammate or per owner, reused across canvases.
+- [ ] **DC14 Routines and channels.** (size S; later, needs D7) A routine can create or update a canvas; snapshots attach to deliveries.
+
+**Risks the orchestrator watches:** installer size (DC0.1), library licenses (DC0.1), the sandbox boundary (DC2, DC4), output that still looks generic (DC6, DC7, DC11), and motion export speed (DC0.3). If DC0.1 shows that no option fits the installer budget, stop and ask the owner before DC2.
+
 ## D6 — Trace compiler
 Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESIGN §8.
 
@@ -330,7 +361,7 @@ Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESI
 - [ ] **D9.5 72 h soak test** with routines, heartbeat, sleep and wake, and two teammates sharing a computer.
 
 ## Later (Should/Could from SPEC)
-S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S5 voice · S6 E2E relay · S7 cost dashboard · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds.
+Canvas follow-ups beyond DC14 (deploy or share links, which would be `external_post`; importing designs) · S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S5 voice · S6 E2E relay · S7 cost dashboard · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds.
 
 Open note from P1.3b and P1.5: `@mawl/server#test` failed once under the full parallel gate (PGlite suites near `hookTimeout`), and the web suites (shell, command palette, chat hooks) and `@mawl/core` `claude-code/workdir.test.ts` ("different per process", two fresh module imports) time out under heavy machine load; all pass alone (2026-10-21). Find the cause when more PGlite suites are added.
 

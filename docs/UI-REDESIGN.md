@@ -104,6 +104,8 @@ U1 to U7 in [PLAN.md](PLAN.md). Each is a UI slice and goes to `head-coder` (CLA
 
 ## 7. Open items and follow-ups
 
+- **Canvases (planned, after D5, [CANVAS.md](CANVAS.md) §3):** a `Canvases` sidebar entry next to Search · Tools · Scheduled · Approvals, and a canvas panel in the workspace area (Preview · Code · Versions). Its slices (DC4, DC5) follow this record's one-tone, flat-pane rules and the DESIGN.md tokens.
+
 - Pip rename: `packages/mascot`, `apps/web/src/mascot/Beaver.tsx`, docs, `DESIGN.md` §8 and any copy. Done in U2.
 - Personal context from the profile dialog feeds the `user` core memory block (MEMORY.md §2, D4.1). U6 added `user.get` / `user.update` and the single-row `user_profile` table (migration 0006); D4.1 decides how its 2000 characters seed the 1500-character block.
 - The onboarding illustration and app icon prompts in DESIGN §8 are obsolete. Mawl is code-drawn from the reference SVG, so only an app icon is still needed; the user will generate it from a new prompt once Mawl is final.

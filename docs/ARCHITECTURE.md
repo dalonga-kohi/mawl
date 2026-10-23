@@ -52,6 +52,7 @@ mawl/
 │  ├─ core/          agent runtime: run loop, tool registry, policy engine, providers, MCP manager
 │  ├─ memory/        tiers, recall, compaction, consolidator (see MEMORY.md)
 │  ├─ db/            Drizzle schema + migrations (Postgres + pgvector)
+│  ├─ canvas/        *(planned, DC2)* canvas build pipeline: validation, packs, single-file HTML, review script (see CANVAS.md)
 │  ├─ sandbox/       Computer manager: ComputerProvider interface + DockerProvider (exec transport) + screen gateway
 │  ├─ channels/      ChannelAdapter interface + telegram (grammY) + discord (discord.js)
 │  ├─ ui/            design tokens (CSS vars + TS), shared React components (web/desktop)
@@ -287,6 +288,7 @@ The Claude plan provider is limited (REDESIGN §5.6).
 | Skills and tools | `skill_load`, `skill_propose`, `tool_search` |
 | Human | `ask_user`, `request_takeover`, `notify` |
 | Agency | `delegate` (subagent), `schedule_create/list/cancel`, `message_teammate` (S1) |
+| Canvas *(planned, DC3)* | `canvas_create`, `canvas_write`, `canvas_edit`, `canvas_read`, `canvas_list`, `canvas_history`, `canvas_restore`, `canvas_add_asset`, `canvas_review`. Action class `write_local`, `auto`, scoped to the teammate's own canvases; no delete, network, export or publish tool (CANVAS §7, §6.5) |
 | MCP | Any connected server's tools, namespaced `mcp__<server>__<tool>` |
 
 Large tool outputs (over ~4k tokens) are stored as **artifacts**. The model gets a preview plus `artifact_id` and can page through the rest with `read_artifact`.
@@ -398,7 +400,9 @@ artifacts(id, profile_id, run_id, mime, size_bytes, content bytea|path (exactly 
 approvals(id, run_id, tool, tool_call_id, args_enc, args_hash, args_redacted_json, action_class, status, decided_by_device, decided_via_channel, created_at, decided_at)   -- approve replays args_enc byte for byte (R9)
 run_inbox(id, run_id, kind{steer|followup}, payload_json, created_at, consumed_at)     -- planned D2
 computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)   -- planned D3; profiles.computer_id nullable
-skills(id, profile_id, name, description, body_md, files_ref, source{user|proposed|plugin}, status, version, created_at)   -- planned D2
+skills(id, profile_id, name, description, body_md, files_ref, source{user|proposed|plugin|builtin}, status, version, created_at)   -- planned D2; `builtin` (read-only, shipped with the app) arrives with DC7
+canvases(id, profile_id, thread_id, run_id, title, kind{mockup|site|graphic|motion}, current_version_id, starred, thumbnail_artifact_id, network_allowed, created_at, updated_at, archived_at)   -- planned DC1, full shape in CANVAS §4
+canvas_versions(id, canvas_id, no, parent_version_id, files jsonb, assets jsonb, entry, packs jsonb, build_hash, size_bytes, author{agent|user}, run_id, step_idx, note, diagnostics_json, render_report_json, created_at)   -- planned DC1; immutable
 routines(id, profile_id, name, trigger{cron|rrule|interval|once}, tz, nl_source, prompt, missed_policy{catch_up_once|skip|run_all}, receipt_json, delivery_channel, enabled, next_fire_at, last_run_id)   -- planned D5
 traces(id, routine_id, version, script_ref, holes_json, status, created_from_run_id, created_at)   -- planned D6
 mcp_servers(id, profile_id|null, name, transport, config_enc, enabled, tool_policy_json)
@@ -422,6 +426,7 @@ Event types:
 - `takeover.requested` / `takeover.lease`
 - `memory.updated`
 - `routine.fired`
+- `canvas.created` / `canvas.version` / `canvas.updated` / `canvas.deleted` / `canvas.render_report` *(planned, DC1; ids and counts only, never file contents)*
 - `sandbox.status`
 - `notify`
 
@@ -462,6 +467,7 @@ All event types are defined as zod schemas in `packages/contracts`.
   - `master.key` is 32 random bytes, mode 0600 in a 0700 directory. It is created atomically (temp file then hard link, so concurrent first boots end with one key and readers never see a partial file). An existing file is never overwritten or repaired: a wrong-sized file aborts boot, because a new key would orphan every stored secret. On POSIX the directory is forced to 0700 and a key file with group or other permission bits logs a warning (boot continues). On Windows there is no mode check: protection relies on the ACL inherited from the user profile directory, so keep `MAWL_SECRETS_DIR` there.
   - Blob format: `0x01` (version) ‖ 24-byte random nonce ‖ XChaCha20-Poly1305 (IETF AEAD, libsodium) ciphertext+tag. The AAD is not stored; callers pass the owning row as `<table>:<id>` (for example `provider_credentials:<id>`), so a ciphertext copied to another row fails to decrypt. Every decrypt failure (tamper, wrong AAD, wrong key, unknown version, short blob) raises one `SecretDecryptError` with a fixed message and no detail.
 - Tool output and web content are treated as **data**. They are wrapped in `<untrusted>` tags in context, scanned for injection before a memory write, and their instructions are never followed blindly (mirrored in the system prompt).
+- **Canvas sandbox** *(planned, DC2/DC4; CANVAS §6)*: agent-written code is untrusted. It runs only in an `<iframe sandbox="allow-scripts">` without `allow-same-origin` (opaque origin, so no launch token, cookies or `/rpc`), under a CSP with `connect-src 'none'`, talking to the app only through a zod-validated `postMessage` protocol whose source and origin are checked. Network access is a user-only per-canvas switch; no agent tool can set it. Console and review output reaching the model is wrapped as `<untrusted>`.
 - Rate limits and caps per run; global kill switch "Pause all teammates".
 - Supply chain: pinned image digests, lockfile, Renovate.
 
@@ -534,4 +540,4 @@ networks: { core: {} }   # computers get no route to core; the server reaches th
 | 6 | ~~One sandbox per profile~~ **Superseded by R4/R5:** `Computer` is its own entity (terminal or desktop); per teammate by default, sharing is explicit | One silently shared computer (anti-pattern) |
 | 7 | Our own memory layer inspired by Letta/mem0/Graphiti | Embedding mem0/Letta as a service (an extra stack, less control) |
 
-ADRs R1–R14 of the 2026-10 redesign live in [REDESIGN.md §3](REDESIGN.md#3-decisions-adr).
+ADRs R1–R14 of the 2026-10 redesign live in [REDESIGN.md §3](REDESIGN.md#3-decisions-adr). ADRs C1–C14 for the canvas feature live in [CANVAS.md §14](CANVAS.md#14-decisions-adr).

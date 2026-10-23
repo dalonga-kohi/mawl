@@ -235,6 +235,7 @@ Do as much as the unmodified binary allows:
 | D3 Computers | Images, the Computer entity + UI, Docker detection, exec transport, shell/files/browser tools, live view, takeover, credential form |
 | D4 Memory | MEMORY.md, unchanged |
 | D5 Schedules | Routines, NL parsing, missed runs, receipts, heartbeat, schedule tools, notifications |
+| DC Canvas *(added 2026-10-24, after D5; decisions C1–C14 in [CANVAS.md](CANVAS.md))* | Sandboxed live rendering of agent-written JSX: mockups, sites, graphics, then motion; a quality skill set; a Canvases view |
 | D6 Trace compiler | §8 |
 | D7 Telegram & Discord | Long polling, approvals, routines from chat |
 | D8 Remote + mobile | Tailscale serve, device pairing, the Expo app |

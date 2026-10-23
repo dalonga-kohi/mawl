@@ -38,6 +38,7 @@ Mawl is a single self-hosted product with:
 - **Trace:** a compiled script from a successful routine run, replayed without the model except at its "holes".
 - **Takeover:** the user takes an exclusive control lease on the computer.
 - **Approval:** a pending action that needs a human decision under the policy.
+- **Canvas:** a versioned front-end project (JSX, CSS, assets) a teammate writes and Mawl renders in a sandbox. Kinds: mockup, site, graphic, motion. See [CANVAS.md](CANVAS.md).
 - **Channel:** a place you talk to Mawl: the desktop/web app, the mobile app, Telegram, or Discord.
 
 ## 4. Feature list (MoSCoW)
@@ -77,6 +78,13 @@ Mawl is a single self-hosted product with:
 | S8 | **Trace compiler:** a routine run that passed its receipt becomes a script with model "holes", self-healing one broken step at a time |
 | S9 | **Mobile app** (old F13): pair by QR code; chat, approvals, activity, watch/take control, push notifications; over Tailscale |
 
+### Canvas (planned after D5, see [CANVAS.md](CANVAS.md))
+| ID | Feature | Notes |
+|---|---|---|
+| C-F1 | **Canvas** | A teammate writes JSX and Mawl renders it live in a sandbox next to the chat: design mockups, front-end sites and graphics first, then animated motion graphics. Versioned, offline, exportable (HTML, PNG, Vite project zip; video later through a computer) |
+| C-F2 | **Canvases view** | A separate page that lists, searches, filters and manages every canvas across teammates: thumbnails, versions and restore, archive, export, delete |
+| C-F3 | **Quality skill set** | Built-in skills (design direction, mockup, site, dataviz, motion, critique, copy) plus measurable review gates, so output is deliberate and not generic |
+
 ### Could (later)
 Mawl marketplace (plugins, skills) · Slack/WhatsApp/Email channels · WebRTC streaming (neko/Selkies) · remote sandbox providers (E2B, Daytona, SSH) · macOS and Linux desktop builds · multi-user households.
 
@@ -109,6 +117,10 @@ Multi-tenant SaaS hosting · Windows/macOS sandbox images · attaching arbitrary
    - Without Docker: Mawl explains why it's needed, links the installer and detects when Docker is running.
    - With Docker: I pick "new terminal computer", "new desktop computer" or an existing Mawl computer; the image downloads with progress, and the teammate's next run has shell and files (and a visible desktop for the desktop kind).
 10. **Steer mid-run.** *While a teammate works, I type "skip the PDFs".* The message reaches the running loop at its next step, without starting a new run.
+11. **Design a mockup.** *I ask a teammate for a landing page for my project.* (planned, after D5)
+    - It writes a short design brief first, then builds the page, and the canvas opens beside the chat.
+    - It checks its own result (contrast, overflow at phone width, placeholder text) and fixes failures before it says it is done.
+    - I find the canvas later in Canvases, open an older version, and export it as a single HTML file.
 
 ## 6. Non-functional requirements
 

@@ -13,6 +13,7 @@ Mawl is a self-hosted, always-on agent app ("AI teammates you own"). It has:
 - [docs/PLAN.md](docs/PLAN.md): what's next, with status
 - [docs/REDESIGN.md](docs/REDESIGN.md): the 2026-10 desktop-first decision record (wins over older docs where they disagree)
 - [docs/DESIGN.md](docs/DESIGN.md): look and feel
+- [docs/CANVAS.md](docs/CANVAS.md): the planned canvas feature (read before any DC slice or any sandboxed-iframe work)
 
 ## Voice: caveman skill, always on (default mode)
 
