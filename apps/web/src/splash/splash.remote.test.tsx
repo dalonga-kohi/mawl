@@ -153,12 +153,29 @@ describe('the connect form', () => {
     expect((await screen.findByRole('alert')).textContent).toMatch(/couldn’t save/)
   })
 
-  it('warns when the address is not encrypted', async () => {
-    const user = userEvent.setup()
+  it('says up front that the address must be https', async () => {
     const { bridge } = fakeBridge()
     render(<Splash bridge={bridge} initialView="connect" />)
-    await user.type(await screen.findByLabelText('Address'), 'http://192.168.1.20:7420')
-    expect(screen.getByText(/isn’t encrypted/)).toBeTruthy()
+    expect(await screen.findByText(/starts with https:\/\//)).toBeTruthy()
+  })
+
+  it('refuses plain http to another machine next to the address field', async () => {
+    const user = userEvent.setup()
+    const { bridge } = fakeBridge()
+    bridge.connectRemote.mockResolvedValueOnce({
+      ok: false,
+      error: { kind: 'url', reason: 'insecure' },
+    })
+    render(<Splash bridge={bridge} initialView="connect" />)
+    const address = await screen.findByLabelText('Address')
+    await user.type(address, 'http://192.168.1.20:7420')
+    await user.type(screen.getByLabelText('Owner token'), TOKEN)
+    await user.click(screen.getByRole('button', { name: 'Connect' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/https:\/\//)
+    expect(alert.textContent).toMatch(/unencrypted/)
+    expect(address.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(address)
   })
 
   it('goes back to the app on Cancel', async () => {

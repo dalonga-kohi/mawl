@@ -8,7 +8,6 @@ import {
   describeRemote,
   HEALTHS,
   hostOf,
-  isUnencrypted,
   parseConnectError,
   parseHealth,
   parseHostAppearance,
@@ -64,20 +63,6 @@ describe('address and token helpers at the edges', () => {
     expect(hostOf('x'.repeat(100_000))).toHaveLength(100_000)
   })
 
-  it('isUnencrypted is true only for http addresses, however they are typed', () => {
-    expect(isUnencrypted('http://192.168.1.20:7420')).toBe(true)
-    expect(isUnencrypted('  http://host')).toBe(true)
-    expect(isUnencrypted('HTTP://host')).toBe(true)
-    expect(isUnencrypted('https://host')).toBe(false)
-    expect(isUnencrypted('HTTPS://host')).toBe(false)
-    // A bare host means https on the host side.
-    expect(isUnencrypted('mawl.example.com')).toBe(false)
-    expect(isUnencrypted('mawl.example.com:7420')).toBe(false)
-    expect(isUnencrypted('')).toBe(false)
-    expect(isUnencrypted('httpx://host')).toBe(false)
-    expect(isUnencrypted('ftp://http://host')).toBe(false)
-  })
-
   it('every host answer has copy that names the address and never a token', () => {
     for (const health of HEALTHS.filter((h) => h !== 'ready')) {
       const text = describeRemote(health, 'mawl.example.com')
@@ -95,6 +80,7 @@ describe('address and token helpers at the edges', () => {
           'too_long',
           'not_a_url',
           'scheme',
+          'insecure',
           'user_info',
           'no_host',
           'not_an_origin',
@@ -269,9 +255,9 @@ describe('the splash flows under failure', () => {
     await screen.findByRole('alert')
   })
 
-  it('FINDING (expected to fail until fixed): a host call that rejects (instead of answering) leaves the form usable', async () => {
-    // BUG PROBE: the real bridge turns a rejection into { ok: false }, but a rejection that reaches
-    // the form must not leave it disabled and silent forever.
+  it('a host call that rejects (instead of answering) leaves the form usable', async () => {
+    // The real bridge turns a rejection into { ok: false }, but a rejection that reaches the form
+    // must not leave it disabled and silent forever.
     const user = userEvent.setup()
     const bridge = fakeBridge()
     bridge.connectRemote.mockRejectedValueOnce(new Error('ipc closed'))
@@ -288,7 +274,7 @@ describe('the splash flows under failure', () => {
     process.off('unhandledRejection', unhandled)
   })
 
-  it('FINDING (expected to fail until fixed): switching to this PC that rejects leaves the remote screen usable', async () => {
+  it('switching to this PC that rejects leaves the remote screen usable', async () => {
     const user = userEvent.setup()
     const bridge = fakeBridge({ target: REMOTE, checks: ['token_refused'] })
     bridge.switchToLocal.mockRejectedValueOnce(new Error('ipc closed'))
@@ -298,6 +284,18 @@ describe('the splash flows under failure', () => {
       expect(
         (screen.getByRole('button', { name: 'Use this PC’s Mawl' }) as HTMLButtonElement).disabled,
       ).toBe(false),
+    )
+  })
+
+  it('switching to this PC from the form that rejects says so and re-enables the form', async () => {
+    const user = userEvent.setup()
+    const bridge = fakeBridge({ target: REMOTE })
+    bridge.switchToLocal.mockRejectedValueOnce(new Error('ipc closed'))
+    render(<Splash bridge={bridge} initialView="connect" />)
+    await user.click(await screen.findByRole('button', { name: 'Use this PC’s Mawl' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn’t save the connection/)
+    expect((screen.getByRole('button', { name: 'Connect' }) as HTMLButtonElement).disabled).toBe(
+      false,
     )
   })
 

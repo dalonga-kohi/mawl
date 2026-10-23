@@ -21,6 +21,7 @@ const UrlErrorSchema = z.enum([
   'too_long',
   'not_a_url',
   'scheme',
+  'insecure',
   'user_info',
   'no_host',
   'not_an_origin',
@@ -100,7 +101,9 @@ const URL_COPY: Record<z.infer<typeof UrlErrorSchema>, string> = {
   too_long: 'That address is too long.',
   not_a_url: 'That doesn’t look like a web address.',
   no_host: 'That doesn’t look like a web address.',
-  scheme: 'Use an address that starts with https:// or http://.',
+  scheme: 'Use an address that starts with https://.',
+  insecure:
+    'Use an https:// address. Mawl never sends the owner token unencrypted over a network; plain http works only for a Mawl on this PC.',
   user_info: 'Leave the user name and password out of the address.',
   not_an_origin: 'Use just the address, with no path after it, like https://mawl.example.com.',
 }
@@ -130,9 +133,4 @@ export function connectErrorCopy(error: ConnectError): FieldMessage {
     case 'store':
       return { field: 'form', message: 'Mawl couldn’t save the connection on this PC. Try again.' }
   }
-}
-
-/** A plain-http address: the token would cross the network unencrypted. */
-export function isUnencrypted(address: string): boolean {
-  return /^http:\/\//i.test(address.trim())
 }

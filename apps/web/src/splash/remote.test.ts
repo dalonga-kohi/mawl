@@ -3,7 +3,6 @@ import {
   connectErrorCopy,
   describeRemote,
   hostOf,
-  isUnencrypted,
   parseConnectError,
   parseHealth,
   parseHostAppearance,
@@ -92,10 +91,16 @@ describe('the words for it', () => {
     expect(connectErrorCopy({ kind: 'store' }).field).toBe('form')
   })
 
-  it('flags an address that is not encrypted', () => {
-    expect(isUnencrypted('http://192.168.1.20:7420')).toBe(true)
-    expect(isUnencrypted(' HTTP://mawl.lan ')).toBe(true)
-    expect(isUnencrypted('https://mawl.example.com')).toBe(false)
-    expect(isUnencrypted('mawl.example.com')).toBe(false)
+  it('explains a refused plain-http address and how to fix it', () => {
+    expect(parseConnectError({ kind: 'url', reason: 'insecure' })).toEqual({
+      kind: 'url',
+      reason: 'insecure',
+    })
+    const copy = connectErrorCopy({ kind: 'url', reason: 'insecure' })
+    expect(copy.field).toBe('url')
+    expect(copy.message).toMatch(/https:\/\//)
+    expect(copy.message).toMatch(/this PC/)
+    // The scheme line no longer offers http:// as a choice.
+    expect(connectErrorCopy({ kind: 'url', reason: 'scheme' }).message).not.toMatch(/http:\/\//)
   })
 })

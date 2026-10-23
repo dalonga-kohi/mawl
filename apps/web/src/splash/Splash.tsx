@@ -13,7 +13,6 @@ import { Mawl } from '../mascot/Mawl.tsx'
 import type { MascotState } from '../mascot/states.ts'
 import { transitions } from '../motion/presets.ts'
 import { Button } from '../ui/Button.tsx'
-import { cn } from '../ui/cn.ts'
 import { Input } from '../ui/Input.tsx'
 import type { ConnectResult, HostBridge } from './bridge.ts'
 import {
@@ -22,7 +21,6 @@ import {
   describeRemote,
   type FieldMessage,
   hostOf,
-  isUnencrypted,
   type RemoteHealth,
   type Target,
 } from './remote.ts'
@@ -35,6 +33,18 @@ const EXIT_MS = 220
 const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
+
+/** A host call that rejected instead of answering (an IPC failure): worded as a store error. */
+const REJECTED: ConnectResult = { ok: false, error: { kind: 'store' } }
+
+/** Runs a connect or switch call; a rejection becomes {@link REJECTED}, never a stuck screen. */
+async function settle(call: () => Promise<ConnectResult>): Promise<ConnectResult> {
+  try {
+    return await call()
+  } catch {
+    return REJECTED
+  }
+}
 
 /** `main`: the boot status (this PC's server or the remote check); `connect`: the form. */
 export type SplashView = 'main' | 'connect'
@@ -79,7 +89,7 @@ export function Splash({
 
   const relaunchWith = useCallback(
     async (to: 'remote' | 'local', call: () => Promise<ConnectResult>): Promise<ConnectResult> => {
-      const result = await call()
+      const result = await settle(call)
       if (result.ok) setScreen({ kind: 'relaunching', to })
       return result
     },
@@ -313,7 +323,7 @@ function RemoteStatus({
   const switchToLocal = async () => {
     setSwitching(true)
     setRefused(undefined)
-    const result = await onSwitchToLocal()
+    const result = await settle(onSwitchToLocal)
     if (!result.ok) {
       setSwitching(false)
       setRefused(connectErrorCopy(result.error).message)
@@ -534,11 +544,19 @@ function ConnectForm({
   const addressField = useRef<HTMLInputElement>(null)
   const tokenField = useRef<HTMLInputElement>(null)
 
+  /** The field to focus once the form is enabled again (a disabled input cannot take focus). */
+  const [focusAfter, setFocusAfter] = useState<'url' | 'token' | undefined>()
+
+  useEffect(() => {
+    if (!focusAfter || busy) return
+    ;(focusAfter === 'url' ? addressField : tokenField).current?.focus()
+    setFocusAfter(undefined)
+  }, [focusAfter, busy])
+
   const fail = (error: ConnectError) => {
     const copy = connectErrorCopy(error)
     setProblem(copy)
-    if (copy.field === 'url') addressField.current?.focus()
-    if (copy.field === 'token') tokenField.current?.focus()
+    if (copy.field !== 'form') setFocusAfter(copy.field)
   }
 
   const submit = async (event: FormEvent) => {
@@ -546,7 +564,7 @@ function ConnectForm({
     if (busy) return
     setBusy('connect')
     setProblem(undefined)
-    const result = await onConnect(address, token)
+    const result = await settle(() => onConnect(address, token))
     if (!result.ok) {
       setBusy(undefined)
       fail(result.error)
@@ -556,7 +574,7 @@ function ConnectForm({
   const switchToLocal = async () => {
     setBusy('local')
     setProblem(undefined)
-    const result = await onSwitchToLocal()
+    const result = await settle(onSwitchToLocal)
     if (!result.ok) {
       setBusy(undefined)
       fail(result.error)
@@ -614,13 +632,9 @@ function ConnectForm({
             aria-invalid={problem?.field === 'url'}
             aria-describedby={describedBy('url', ids.addressHelp)}
           />
-          <p
-            id={ids.addressHelp}
-            className={cn('-mt-1 text-small', isUnencrypted(address) ? 'text-warn' : 'text-text-2')}
-          >
-            {isUnencrypted(address)
-              ? 'This address isn’t encrypted. Use it only on a network you trust, like Tailscale or your home network.'
-              : 'Where that Mawl serves its web app.'}
+          <p id={ids.addressHelp} className="-mt-1 text-small text-text-2">
+            Where that Mawl serves its web app. It starts with https://, so the token travels
+            encrypted.
           </p>
           {problem?.field === 'url' ? errorLine : null}
 
