@@ -82,7 +82,7 @@ export function describeRemote(health: Exclude<RemoteHealth, 'ready'>, host: str
     case 'unreachable':
       return `Mawl couldn’t reach ${host}. Check that it’s running and that this PC can reach it.`
     case 'not_mawl':
-      return `Something answered at ${host}, but it isn’t Mawl. Check the address.`
+      return `Something answered at ${host}, but it isn’t Mawl. Check the address. Behind a proxy, add this address to that Mawl’s MAWL_ALLOWED_ORIGINS.`
     case 'token_refused':
       return `${host} didn’t accept the owner token. Enter the current one.`
     case 'unhealthy':

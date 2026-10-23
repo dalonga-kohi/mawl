@@ -69,6 +69,8 @@ describe('the words for it', () => {
     const host = 'mawl.example.com'
     expect(describeRemote('unreachable', host)).toMatch(/couldn’t reach mawl\.example\.com/)
     expect(describeRemote('not_mawl', host)).toMatch(/isn’t Mawl/)
+    // A proxy that rewrites Host gets no proof unless the public address is allowed there.
+    expect(describeRemote('not_mawl', host)).toMatch(/MAWL_ALLOWED_ORIGINS/)
     expect(describeRemote('token_refused', host)).toMatch(/didn’t accept the owner token/)
     expect(describeRemote('unhealthy', host)).toMatch(/lost its database/)
   })
