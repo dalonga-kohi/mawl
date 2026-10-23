@@ -159,7 +159,7 @@ The system part is built by the prompt assembler in `packages/core/src/prompts/`
 [4] persona (profile personaMd) + owner notes, as delimited data
 [5] skills index                                                  name + one line per skill, sorted by name
 [6] memory-core: pinned blocks, frozen for the segment            ← cache breakpoint B
-[7] segment preamble: handoff + latest checkpoint                 (added by the run engine, per segment; may take a third breakpoint)
+[7] segment preamble: handoff + latest checkpoint                 (inserted by the run engine before the environment part, per segment; may take a third breakpoint)
 [8] environment: date, weekday, timezone, channel, computer state (the only volatile system block)
 [9] recalled memories (as data), segment summary, conversation turns (older ones compacted by L1/L2), current user input / trigger
 ```
@@ -167,7 +167,8 @@ The system part is built by the prompt assembler in `packages/core/src/prompts/`
 Rules for the assembler:
 - Empty input omits a block. A breakpoint whose block is omitted moves to the last present part before it, and two breakpoints on the same part collapse into one.
 - Persona, owner notes, skills and memory are untrusted data between tags (`<persona>`, `<owner_notes>`, `<skills>`, `<memory_core>`). A closing tag inside the data is broken, so data cannot end its section early. The rules come before them and say they cannot be overridden.
-- The assembler is pure. The caller passes `now` (UTC) and `tz`, and only the calendar date in that timezone reaches the prompt, so the text is stable within a day. The prefix hash (sha256 of the text up to the last breakpoint) must stay equal across steps of a segment; only the environment and later content may change.
+- The assembler is pure. The caller passes `now` (UTC) and `tz`, and only the calendar date in that timezone reaches the prompt, so the text is stable within a day. The prefix hash (sha256 over id, breakpoint flag and text of every part up to the last breakpoint, so moving a breakpoint changes it) must stay equal across steps of a segment; only the environment and later content may change.
+- The assembler returns the system blocks only, with the environment part last. The run engine inserts the segment preamble before the environment part, then appends the rest of [9]; this keeps the prefix order above.
 - Output is an ordered list of parts `{ id, version, text, cacheBreakpoint }`. `toSystemMessages` turns them into AI SDK system messages with `providerOptions.anthropic.cacheControl: { type: 'ephemeral' }` on breakpoint parts. Other providers ignore that key.
 - Changing a block file or the layout means bumping the block's `version`, running `pnpm --filter @mawl/core generate`, and updating the snapshot tests in the same commit.
 
