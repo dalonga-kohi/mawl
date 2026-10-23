@@ -81,7 +81,7 @@ Mawl is a single self-hosted product with:
 ### Canvas (planned after D5, see [CANVAS.md](CANVAS.md))
 | ID | Feature | Notes |
 |---|---|---|
-| C-F1 | **Canvas** | A teammate writes JSX and Mawl renders it live in a sandbox next to the chat: design mockups, front-end sites and graphics first, then animated motion graphics. Versioned, offline, exportable (HTML, PNG, Vite project zip; video later through a computer) |
+| C-F1 | **Canvas** | A teammate writes JSX and Mawl renders it live in a sandbox next to the chat: design mockups, front-end sites and graphics first, then animated motion graphics. Versioned, offline, exportable (HTML, PNG, Vite project zip; motion graphics and video later, through an optional Remotion engine the user installs from Settings) |
 | C-F2 | **Canvases view** | A separate page that lists, searches, filters and manages every canvas across teammates: thumbnails, versions and restore, archive, export, delete |
 | C-F3 | **Quality skill set** | Built-in skills (design direction, mockup, site, dataviz, motion, critique, copy) plus measurable review gates, so output is deliberate and not generic |
 

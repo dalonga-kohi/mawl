@@ -13,7 +13,7 @@ A **canvas** is a small, versioned front-end project that a teammate writes (JSX
 | `mockup` | One screen or a few screens of an app or product, at phone, tablet and desktop widths | yes |
 | `site` | A multi-file, multi-page front-end site (hash routing), exportable as a project | yes |
 | `graphic` | Charts, diagrams, posters, infographics (SVG and HTML) | yes, same runtime |
-| `motion` | Animated compositions with a timeline (scrub, play, export) | no, DC9 |
+| `motion` | Animated compositions with a timeline (scrub, play, export) | no, DC9 to DC11 |
 
 It is not an IDE, not a deploy target and not a backend: no server code, no database, no auth, no publishing in v1. A "real site" means a front-end that runs offline and can be exported as a Vite project.
 
@@ -34,7 +34,7 @@ Why it fits Mawl: it needs no Docker for the MVP, it makes a teammate's work vis
 - A teammate's tool activity shows a **canvas card** (title, kind, version number, thumbnail when one exists, "Open").
 - Opening a canvas shows the **canvas panel** in the workspace area (UI-REDESIGN §5): tabs **Preview · Code · Versions**; a viewport switch (390 / 768 / 1280 / fit); a console drawer that lists the sandbox's errors and the last review results; Copy, Export and "Open in Canvases".
 - States, as for every UI slice: loading (building), empty (no version yet), error (build failed, with the diagnostic and its line), success.
-- The Code tab is **read-only in v1**; the user asks the teammate to change things. Hand editing is DC12.
+- The Code tab is **read-only in v1**; the user asks the teammate to change things. Hand editing is DC13.
 
 ### 3.2 The Canvases view (new top-level page)
 A separate page, `Canvases`, in the sidebar next to Search · Tools · Scheduled · Approvals. It is where every generated canvas lives, across all teammates.
@@ -50,7 +50,7 @@ A separate page, `Canvases`, in the sidebar next to Search · Tools · Scheduled
 - **HTML:** the single self-contained file.
 - **PNG:** a snapshot at a chosen viewport.
 - **Project zip:** `package.json` with the vendored libraries pinned to the same versions, Vite config, `src/`, assets. `npm i && npm run dev` works.
-- **Video (MP4/GIF/WebM):** motion canvases only, rendered on a computer (§9, DC10).
+- **Video (MP4/GIF/WebM):** motion canvases only, rendered by the Remotion engine on a computer or on this PC (§9, DC11).
 - Export writes where the user picks, through the host's save dialog. The agent cannot write outside Mawl's own storage.
 
 ## 4. Data model
@@ -112,7 +112,7 @@ A **pack** is a pinned library the build can inline. A canvas declares the packs
 | Fonts | About 12 curated OFL families, subset to woff2 | Inlined only when used; listed in third-party notices |
 | Tailwind | **Not in v1.** Runtime Tailwind needs a compiler; the design brief's CSS variables plus plain CSS cover the need | Revisit if the quality eval shows it matters |
 
-Pin exact versions, check each license and maintenance state in DC0.1, and add a test that the allowlist, the pack table and the export `package.json` agree. Remotion is **rejected** (C9): its license is not OSI-approved and Mawl's repo is public; the motion contract in §9 is ours, on top of seekable open libraries.
+Pin exact versions, check each license and maintenance state in DC0.1, and add a test that the allowlist, the pack table and the export `package.json` agree. Remotion is **not a pack**: it is not bundled, it is an optional engine the user installs (§9, C9).
 
 ## 6. Sandbox and security
 
@@ -180,7 +180,7 @@ Shipped as Agent Skills (`SKILL.md`, D2.8) with source `builtin`, loaded on dema
 | `canvas-mockup` | App and product screens: real information architecture, all states (empty, loading, error, hover, focus), realistic content, device widths, density |
 | `canvas-site` | Multi-page sites: structure, navigation, hero with a point of view, content hierarchy, responsive behavior, accessibility, export-ready file layout |
 | `canvas-dataviz` | Charts and diagrams: choosing the form, honest scales, labeling, accessible color, no chart junk |
-| `canvas-motion` | Timelines, easing, choreography, the seek contract (arrives with DC9) |
+| `canvas-motion` | Remotion composition authoring, easing, choreography and pacing (arrives with DC10) |
 | `canvas-critique` | The rubric for the review loop: what to look for in screenshots, how to rank issues, when to stop |
 | `canvas-copy` | Specific, human copy instead of placeholders |
 
@@ -203,22 +203,41 @@ The review script returns pass/warn/fail rows. The skill rule is: **do not deliv
 After the gates pass, the teammate looks at screenshots at 390 and 1280 px (the main model if it sees images, else the helper model, else it skips the pass and says so) against the `canvas-critique` rubric, fixes the top issues, and re-reviews. The number of passes is capped (default 2) to bound cost.
 
 ### 8.4 Memory and consistency
-The teammate recalls the owner's stated design preferences (D4) before the brief, and a good brief is reused across a teammate's canvases. A per-teammate **brand kit** (shared tokens and fonts) is a later slice (DC13).
+The teammate recalls the owner's stated design preferences (D4) before the brief, and a good brief is reused across a teammate's canvases. A per-teammate **brand kit** (shared tokens and fonts) is a later slice (DC14).
 
 ### 8.5 Evaluation
-DC11 adds an eval set: about 12 fixed briefs across the kinds. In CI the fake model checks the plumbing (tools, diagnostics, the review loop, caps). By hand, with a real model, each output is scored on the review gates plus a short human rubric, and skill text versions are compared so a prompt edit cannot silently make things worse.
+DC12 adds an eval set: about 12 fixed briefs across the kinds. In CI the fake model checks the plumbing (tools, diagnostics, the review loop, caps). By hand, with a real model, each output is scored on the review gates plus a short human rubric, and skill text versions are compared so a prompt edit cannot silently make things worse.
 
-## 9. Motion canvases (DC9, DC10)
+## 9. Motion canvases and optional engines (DC9 to DC11)
 
-A composition declares `{ width, height, fps, durationInFrames }` and renders as a function of time. The host owns the clock:
+### 9.1 Remotion as a managed, optional engine (C9)
+Motion graphics use **Remotion**: models already write its API (`useCurrentFrame`, `interpolate`, `spring`, `Sequence`, `AbsoluteFill`) well, and its renderer already does frame-exact capture and encoding. Its license is source-available, not open source: free for individuals, for-profit companies with up to 3 employees and non-profits; other companies need a Company License; the terms do not address apps that let others render videos, and they change slightly in Remotion 5.0 (checked 2026-10-24 against its `LICENSE.md`; re-read it when pinning).
 
-- During **preview**, the host drives playback and scrubbing.
-- Everything must be **seekable**: registered GSAP timelines, Motion animations, and the page's Web Animations (`document.getAnimations()` with `currentTime`). Custom loops use the host's `useTime()` instead of `Date.now`, `performance.now` and `requestAnimationFrame`, which the runtime virtualizes during export.
-- The `canvas-motion` skill forbids unseekable patterns (free-running CSS animation in a motion canvas, timers).
+So **Mawl never ships Remotion**. It is an **optional engine** the user installs on request, the same posture as the Claude binary (REDESIGN §10.2, PLAN D2.10):
 
-**Video export (DC10, depends on D3).** The server copies the built HTML to a computer, steps the host clock frame by frame, captures each frame with Playwright, and encodes with `ffmpeg` into MP4, GIF or WebM, with progress as a job and the result stored as an artifact. This needs `ffmpeg` in the terminal image: the 500 MB target in ARCHITECTURE §6 is revisited in DC10 (either a larger terminal image or a separate render image). DOM-heavy and WebGL scenes both work because the capture is a real browser.
+- **Explicit click only.** The agent can only *ask* (`canvas_request_engine('remotion')` returns "not installed; the owner was asked" and posts a card). It never installs anything itself.
+- **Consent step.** The card names Remotion, its pinned version, the download and disk size, who may use it free and who needs a Company License (with the link), and that a first render also downloads a headless Chrome from a third party. Accepting records the version and time in the audit log. The user is the licensee.
+- **Install.** The pinned dependency closure is fetched from the npm registry onto the user's machine into `<data>\engines\remotion\<version>\`. A lockfile shipped with Mawl pins every tarball by integrity hash, and lifecycle scripts are not run (`--ignore-scripts`). This is the Claude-binary pattern applied to a package set; DC0.3 decides the mechanism (npm's `pacote` or `arborist` bundled into the server, since the shipped `node.exe` has no npm).
+- **Manage.** An **Engines** page in Settings shows Remotion's state (not installed, installing with progress, ready, update available, failed), version, disk use, the Chrome state, the license note, **Update**, **Reinstall** and **Uninstall** (deletes the folder). In headless mode the engine lives on a volume and the same page works.
+- **Offline fallback.** Without the engine, `motion` canvases are unavailable and the teammate says why; nothing else in canvases is affected.
 
-**Spikes (DC0.3):** verify that seeking WAAPI and GSAP gives frame-exact output, how `performance.now` and `requestAnimationFrame` are virtualized safely, capture speed per frame, and the license and size of the chosen libraries. A realtime WebM capture of a canvas element was considered as a Docker-free path and **rejected** for v1 (not frame-exact, poor for DOM scenes).
+### 9.2 What Remotion does for canvases
+- **Authoring.** A `motion` canvas is a Remotion project: `src/Root.tsx` registers compositions (`{ width, height, fps, durationInFrames }`), written with Remotion's own API. The `canvas-motion` skill teaches it, plus the quality rules of §8 for motion (hierarchy, easing, pacing, reduced text).
+- **Preview.** The build step (C3) inlines `remotion` and `@remotion/player` **from the user's engine folder** into the sandboxed HTML (nothing from Remotion is in the Mawl repo or installer). The panel shows the Player with play, pause, loop and a frame scrubber. The sandbox and CSP of §6 are unchanged: no network.
+- **Render (DC11).** A server job calls `@remotion/renderer` and stores the MP4, GIF, WebM or PNG sequence as an artifact, with progress. **Two targets:**
+
+| Target | For | Against |
+|---|---|---|
+| **A computer** (D3) | Strong sandbox: untrusted composition code runs in a container with no host access | Needs Docker; the engine and Chrome must be installed in the computer, and its image size budget is revisited |
+| **This PC** | Works without Docker, the best first-run UX | The agent's composition runs in a headless Chrome on the host. It is allowed only if DC0.3 proves the render can be confined: Chrome with a throwaway profile, egress blocked (for example a dead `--proxy-server` with a loopback bypass), no access to user files, and Remotion's local server on loopback only |
+
+The default is the computer when the teammate has one, and **This PC only after the confinement test passes**; the choice is shown in the render dialog, and a host render is `ask` by policy the first time per canvas.
+
+### 9.3 Fallback if Remotion is ever declined
+A small timeline runtime of ours (a composition `{ width, height, fps, durationInFrames }`, a host clock, seekable GSAP, Motion and Web Animations) with a Remotion-style API we implement ourselves without copying its code. This is **not planned work**; it is the documented exit if the engine route stops being viable, and the `canvas-motion` skill is written against an engine-neutral section plus a Remotion section so the switch is contained. A realtime WebM capture of a canvas element was considered and **rejected** (not frame-exact, poor for DOM scenes).
+
+### 9.4 Spikes (DC0.3)
+Install the pinned closure on Windows with Node 24 (disk, time, no scripts); where Remotion's Chrome Headless Shell comes from and its size; whether the renderer works from the shipped `node.exe`; confinement of a host render; whether `remotion` and `@remotion/player` inline into one sandboxed HTML under the CSP; a render inside the computer image; and a re-read of the license text for the version being pinned. Sizes are unknown until measured.
 
 ## 10. Integration with the rest of Mawl
 
@@ -226,7 +245,7 @@ A composition declares `{ width, height, fps, durationInFrames }` and renders as
 |---|---|
 | Run engine (D2) | Canvas tools use the registry, the policy engine and idempotency keys; render feedback arrives through `run_inbox` follow-ups; events are stored, secret-free, content-free |
 | Skills (D2.8) | The built-in skill set needs a `builtin` source value and a rule that builtin skills are read-only for the teammate and updated with the app |
-| Computers (D3) | Headless render and video export run on a computer; imports of files from a computer arrive as artifacts |
+| Computers (D3) | Headless render checks and the safer Remotion render target run on a computer; imports of files from a computer arrive as artifacts |
 | Memory (D4) | Episodes reference canvas ids; design preferences are recalled; canvas content is not memory |
 | Schedules (D5) | A routine may create or update a canvas (a weekly report page); its delivery can attach the snapshot |
 | Channels (D7) | Delivery of PNG snapshots and links back to the app |
@@ -247,16 +266,16 @@ RPC: `canvases.list/get/rename/star/archive/unarchive/delete/duplicate`, `canvas
 | Sandbox escape or token exposure | Low if the design holds | Severe | Opaque origin, CSP, `postMessage` schema, no agent control of network, head-review of DC2 and DC4, a test that the iframe cannot read the token or reach `/rpc` |
 | Output still looks generic | High | The feature's whole value | §8: brief file, gates, critique, eval; accept that a weak model produces weaker work and show the model used |
 | Installer size grows past 60 MiB | Medium | Breaks the install-and-go promise | DC0.1 measures; the download-on-first-use option exists |
-| Library license problems (GSAP terms, Remotion) | Medium | Blocks distribution | Verify in DC0.1; Remotion rejected; pin only what passes |
+| Library license problems (GSAP terms; Remotion terms) | Medium | Blocks distribution | Verify in DC0.1 and DC0.3; Remotion is never bundled, only user-installed after a consent step; re-read its license when pinning and before any public release |
 | Token cost of big file writes | High | Money and latency | `canvas_edit`, no content echo, range reads, cap on file sizes |
 | Blind generation when no client or computer is attached | Medium | Lower quality | §7.1 tiers; the skill forbids visual claims without a render |
-| Motion export is slow or not frame-exact | Medium | DC10 slips | DC0.3 spike first; DC10 sits behind the MVP cut line |
+| Remotion install is heavy or fragile (many packages, Chrome download) | Medium | DC9 to DC11 slip | DC0.3 spike first; these slices sit behind the MVP cut line; the exit in §9.3 |\n| A host render runs untrusted composition code outside a container | Medium | Host exposure | Computer target by default; host target only after the confinement test passes (§9.2) |
 | Scope creep (a whole IDE) | High | Everything slips | The cut line in PLAN; read-only code view in v1; no backend, no deploy |
 | Contracts and migrations collide with other slices | Medium | Merge pain | The phase starts after D5 so it is serial; one writer at a time per file set |
 
 ## 13. Out of scope (v1)
 
-Backend or server code in canvases · databases and auth · deploy and publish (any later one is `external_post`, ask) · Tailwind runtime · hand-editing code in the UI (DC12) · real-time collaboration · importing a Figma file · arbitrary npm packages · network access by default.
+Backend or server code in canvases · databases and auth · deploy and publish (any later one is `external_post`, ask) · Tailwind runtime · hand-editing code in the UI (DC13) · real-time collaboration · importing a Figma file · arbitrary npm packages · network access by default.
 
 ## 14. Decisions (ADR)
 
@@ -270,8 +289,8 @@ Backend or server code in canvases · databases and auth · deploy and publish (
 | C6 | Quality is enforced by a dedicated built-in skill set, a design brief file, measurable review gates and a capped critique pass | A single big prompt; trusting the model's taste |
 | C7 | Built-in skills are read-only, versioned with the app and owner-approved | Teammate-editable built-ins |
 | C8 | No agent tool for delete, network, export-to-disk or publish in v1 | Giving the agent full control |
-| C9 | Our own timeline contract on seekable open libraries; Remotion rejected on license | Adopting Remotion |
-| C10 | Video export through a computer (Playwright + ffmpeg), after D3 | Realtime canvas capture (not frame-exact) |
+| C9 | Motion graphics use Remotion as an **optional engine** the user installs on an explicit click after a consent step, managed in Settings (install, update, uninstall); Mawl never bundles or redistributes it | Bundling it (license unclear for distribution); rejecting it; our own timeline contract (kept only as the documented exit, §9.3) |
+| C10 | Video render through the Remotion renderer, on a computer by default and on this PC only once confinement is proven | Our own Playwright + ffmpeg stepping; realtime canvas capture (not frame-exact) |
 | C11 | A separate Canvases view manages every canvas across teammates | Canvases only inside chat threads |
 | C12 | MVP = mockups, sites and graphics (DC1–DC8); motion and export follow | All kinds at once |
 | C13 | Front-end only: no backend, no deploy in v1 | A full app builder |
