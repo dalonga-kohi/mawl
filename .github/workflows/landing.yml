@@ -24,13 +24,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+
+      # Wrangler installs itself here, outside the pnpm workspace and the published files.
+      - name: Prepare deployment tools
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir mawl-pages
+          cd mawl-pages
+          npm init --yes
 
       # Plain static files: nothing to build, upload site/ as is.
       - name: Deploy
@@ -38,4 +43,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy site --project-name=mawl --branch=main
+          packageManager: npm
+          workingDirectory: ${{ runner.temp }}/mawl-pages
+          wranglerVersion: '4.152.0'
+          command: pages deploy "${{ github.workspace }}/site" --project-name=mawl --branch=main
