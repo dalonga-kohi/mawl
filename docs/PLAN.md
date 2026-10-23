@@ -4,6 +4,12 @@ This is the working roadmap the orchestrator follows. Each **slice** is a vertic
 
 Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (write why)
 
+## L1 — Public landing page
+
+- [x] **L1.1 Cinematic product showcase.** (1c18ea7..90db828) User-selected dark direction: Ink neutrals, pistachio Mawl, locally hosted Bricolage Grotesque and Figtree fonts. A spacious hero leads into an illustrative, interactive preview of the current chat app, provider choice, local hosting, development status, and the GitHub repository. The faithful mascot breathes, blinks, wags its tail and greets a click or keyboard activation; a pause control, reduced-motion styles and offscreen/tab suspension keep motion optional. The Chat/Connections and Light/Dark controls work without connecting real accounts. Keep `site/` buildless for Cloudflare Pages. Promote only implemented capabilities; memory, computers, schedules and remote channels remain roadmap work. No app runtime, sign-up, invented metrics or download promise. Other agent's desktop work is outside this slice.
+  - **Deployment repair:** the previous landing workflow failed with `ERR_PNPM_ADDING_TO_ROOT` while installing Wrangler. The action now uses npm in a separate temporary project, pins Wrangler 4.152.0, and uploads the absolute `site/` path without installing the monorepo.
+  - **Verified:** six static asset/navigation and workflow regression tests, scoped Biome, root TypeScript, JS syntax and diff checks; rendered at 320/390/760/1100/1440 px without horizontal overflow; preview switches, keyboard greeting, pause/resume, offscreen suspension and native FAQ keyboard behavior. No browser errors. Astra approved the final code and screenshots. Reduced motion and no-JS fallback were inspected in source; OS reduced-motion emulation was unavailable. No full gate, Docker suites or app e2e: the app runtime was not changed. Commits remain local; publishing awaits the owner's approval.
+
 > **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. The old phases P2 to P8 are replaced by D1 to D9 below (re-sliced 2026-10-21; every open review note was carried into its new slice). P1.8 is re-scoped into D1.4.
 
 ## D0 — Spikes (de-risk the redesign)
