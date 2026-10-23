@@ -36,3 +36,5 @@ jobs:
     - name: docker suites
       script:
         - pnpm test:docker
+        # Builds the server image (about a minute); kept out of the default gate, so it runs here.
+        - pnpm test:compose

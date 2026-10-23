@@ -17,6 +17,7 @@
     "test": "turbo test",
     "test:workspace": "vitest run --project workspace",
     "test:docker": "vitest run .pg.test.ts postgres.smoke.test.ts",
+    "test:compose": "turbo test:compose",
     "test:e2e": "pnpm --filter @mawl/web e2e"
   },
   "devDependencies": {

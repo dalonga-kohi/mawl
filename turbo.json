@@ -35,6 +35,7 @@
         "vitest.config.ts"
       ]
     },
+    "test:compose": { "cache": false },
     "build": { "outputs": ["dist/**"] },
     "dev": { "persistent": true, "cache": false }
   }

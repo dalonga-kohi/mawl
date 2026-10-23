@@ -58,9 +58,9 @@ describe('Travis CI config', () => {
     expect(dirs.some((d) => d.includes('pnpm-store'))).toBe(true)
   })
 
-  it('runs only the Docker suites, in one job, since GitHub Actions covers the rest', () => {
+  it('runs only the Docker suites and the compose smoke test, in one job, since GitHub Actions covers the rest', () => {
     expect(jobs).toHaveLength(1)
-    expect(lines(jobs[0]?.script)).toEqual(['pnpm test:docker'])
+    expect(lines(jobs[0]?.script)).toEqual(['pnpm test:docker', 'pnpm test:compose'])
     expect(travis).not.toHaveProperty('stages')
     const code = raw.replace(/^\s*#.*$/gm, '')
     expect(code).not.toMatch(/turbo|playwright|lint|typecheck/)

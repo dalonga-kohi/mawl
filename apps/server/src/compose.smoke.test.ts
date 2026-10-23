@@ -20,9 +20,9 @@ const BUILD_TIMEOUT_MS = 600_000
 
 /**
  * The real stack: builds the server image, boots it with Postgres through compose and talks to it
- * over HTTP. Runs in the default gate (a cold image build takes about a minute) under its own
- * project name, a random host port and its own image tag, so it never touches a stack the owner
- * runs. Skips without Docker locally; fails when CI or MAWL_REQUIRE_DOCKER is set.
+ * over HTTP. Not part of the default `pnpm test` (a cold image build takes about a minute): run it
+ * with `pnpm test:compose`. It uses its own project name, a random host port and its own image
+ * tag, so it never touches a stack the owner runs. Skips without Docker locally; fails when CI or MAWL_REQUIRE_DOCKER is set.
  */
 describe('docker compose stack', () => {
   const project = `mawl-smoke-${randomBytes(4).toString('hex')}`
