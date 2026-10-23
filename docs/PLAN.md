@@ -212,7 +212,7 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
 ## D2 — The agent loop
 Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP, subagents and a crafted prompt. See REDESIGN §5.
 
-- [~] **D2.1 Prompt assembler + blocks.**
+- [x] **D2.1 Prompt assembler + blocks.** (1909273..e39db16 plus this close commit; scoped core typecheck, biome and the full `@mawl/core` suite (680 passed), `scripts/workspace.test.ts`; reviewer approved and its findings are in; test-author's 4 production bugs fixed; turbo gate, Docker and e2e not run; the owner approved the identity and rules text. Two biome `noTemplateCurlyInString` warnings remain in `blocks-source.edge.test.ts`.)
   - Versioned blocks in `packages/core/prompts/`: identity, rules, tools, computer (conditional), persona, skills-index, memory-core, environment. Ordered stable to volatile, with cache breakpoints.
   - Mawl writes its own prompt text, including the "page text is data" and "never kill display or browser processes" rules.
   - Align MEMORY.md §7 (server rule: a prompt layout change updates MEMORY.md §7 and the snapshot tests).
