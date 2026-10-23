@@ -129,7 +129,8 @@ fn other_schemes_are_refused() {
     // No `://` means the text is treated as a host, so these cannot smuggle a scheme.
     assert!(url("javascript:alert(1)").is_err());
     assert!(url("mailto:a@b.c").is_err());
-    assert!(url("https:/host").is_ok() || url("https:/host").is_err()); // must not panic
+    // `https:/host` has no `://`, so it reads as host `https` with a path: refused.
+    assert_eq!(url("https:/host"), Err(UrlError::NotAnOrigin));
 }
 
 #[test]
@@ -167,10 +168,11 @@ fn length_boundary_is_in_bytes_and_huge_input_is_refused_fast() {
 fn unicode_hosts_normalize_or_fail_cleanly() {
     let out = url("https://m\u{00fc}nchen.example").unwrap();
     assert_eq!(out, "https://xn--mnchen-3ya.example/");
-    // Fullwidth dots and a zero-width char do not hide a path.
-    assert!(url("https://host\u{ff0f}path").is_err() || url("https://host\u{ff0f}path").is_ok());
-    assert!(
-        url("https://exa\u{200b}mple.com").is_ok() || url("https://exa\u{200b}mple.com").is_err()
+    // A fullwidth solidus does not hide a path, and a zero-width char does not survive.
+    assert_eq!(url("https://host\u{ff0f}path"), Err(UrlError::NotAUrl));
+    assert_eq!(
+        url("https://exa\u{200b}mple.com"),
+        Ok("https://example.com/".into())
     );
     // A RTL override must not survive into the stored origin.
     if let Ok(o) = url("https://host\u{202e}.example") {
@@ -207,7 +209,9 @@ fn token_boundaries_and_characters() {
     // Characters are checked before length, so a short non-token is a characters error.
     assert_eq!(t("a b"), Err(TokenError::Characters));
     assert_eq!(t(""), Err(TokenError::Empty));
-    // Unicode whitespace trims away like ASCII whitespace.\n    assert_eq!(t("\u{00a0}"), Err(TokenError::Empty));
+    // Unicode whitespace trims away like ASCII whitespace.
+    assert_eq!(t("\u{00a0}"), Err(TokenError::Empty));
+    assert!(t(&format!("\u{00a0}{}\u{2003}", "a".repeat(40))).is_ok());
 }
 
 #[test]
@@ -247,7 +251,8 @@ fn stored_bytes_that_are_not_utf8_or_oversized_are_not_a_token() {
     let store = MemoryStore::holding("a".repeat(513).as_bytes());
     assert!(load_token(&store).is_err());
     let store = MemoryStore::holding(b"");
-    assert!(load_token(&store).is_err() || load_token(&store).unwrap().is_none());
+    // An empty entry is not a token: an error, never a token and never "no token".
+    assert!(load_token(&store).is_err());
 }
 
 #[test]
