@@ -32,6 +32,17 @@ describe('the committed installer art', () => {
       expect([...bmp.subarray(0, 54)]).toEqual([...fresh.subarray(0, 54)])
     })
 
+    it(`${art.name}.bmp has real picture content, not a blank or uniform body`, () => {
+      const rgb = decodeBmp24(bmp)
+      let min = 255
+      let max = 0
+      for (const value of rgb) {
+        if (value < min) min = value
+        if (value > max) max = value
+      }
+      expect(max - min).toBeGreaterThan(100)
+    })
+
     it(`${art.name} has its SVG source and a PNG preview`, () => {
       const svg = readFileSync(join(ART_SOURCE_DIR, `${art.name}.svg`), 'utf8')
       expect(svg).toContain(`viewBox="0 0 ${art.width} ${art.height}"`)
@@ -60,7 +71,20 @@ describe('the committed installer art', () => {
 describe('the installer hooks', () => {
   it('defines only MUI settings that the Tauri template leaves free', () => {
     // Tauri !includes the hooks before its own MUI defines; redefining one of those
-    // (MUI_FINISHPAGE_RUN, MUI_ICON, MUI_HEADERIMAGE_BITMAP, ...) fails makensis.
+    // (MUI_FINISHPAGE_RUN, MUI_ICON, MUI_HEADERIMAGE_BITMAP, ...) fails makensis. This list is
+    // checked against itself: the real guard is a `tauri build`, which makensis rejects on a clash.
+    const code = hooks
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith(';'))
+      .join('\n')
+    for (const taken of [
+      'MUI_ICON',
+      'MUI_FINISHPAGE_RUN',
+      'MUI_HEADERIMAGE_BITMAP',
+      'MUI_WELCOMEFINISHPAGE_BITMAP',
+    ]) {
+      expect(code).not.toMatch(new RegExp(`${taken}(?![A-Z_])`))
+    }
     expect([...defines.keys()].sort()).toEqual(
       [
         'MUI_BGCOLOR',
