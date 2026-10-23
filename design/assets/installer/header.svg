@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="57" viewBox="0 0 150 57">
+  <title>Mawl is moving in: installer header art</title>
+  <!--
+    The NSIS inner-page header (150 x 57), drawn on the right of a white header strip
+    (MUI_HEADERIMAGE_RIGHT, MUI_BGCOLOR FFFFFF in apps/desktop/src-tauri/installer/hooks.nsh).
+    A round window into the sidebar's night river: Mawl peeks over the edge of the moving box,
+    and the river wave runs out of the window and fades into the page. The left and top edges
+    stay pure white so the image meets the header without a seam.
+  -->
+  <defs>
+    <clipPath id="porthole"><circle cx="121" cy="28.5" r="24.5" /></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b0e08" />
+      <stop offset="1" stop-color="#151b0e" />
+    </linearGradient>
+    <radialGradient id="halo" cx="121" cy="30" r="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8e88a" stop-opacity="0.45" />
+      <stop offset="1" stop-color="#cfe86a" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="rim" cx="121" cy="28.5" r="29" gradientUnits="userSpaceOnUse">
+      <stop offset="0.8" stop-color="#d8e88a" stop-opacity="0.8" />
+      <stop offset="1" stop-color="#d8e88a" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#18200f" />
+      <stop offset="1" stop-color="#0a0d07" />
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a8be4a" stop-opacity="0" />
+      <stop offset="0.75" stop-color="#a8be4a" stop-opacity="0.9" />
+      <stop offset="1" stop-color="#a8be4a" stop-opacity="0.9" />
+    </linearGradient>
+    <linearGradient id="body" x1="0.25" y1="0" x2="0.65" y2="1">
+      <stop offset="0" stop-color="#e4f09a" />
+      <stop offset="1" stop-color="#bfd45e" />
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.6" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="boxFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6f43" />
+      <stop offset="1" stop-color="#5a4729" />
+    </linearGradient>
+  </defs>
+
+  <rect width="150" height="57" fill="#ffffff" />
+
+  <!-- The river leaving the window: one wave line fading in from the page. -->
+  <path d="M30 40 C42 36.5 52 36.5 64 40 S86 43.5 98 40" fill="none" stroke="url(#wave)" stroke-width="1.6" stroke-linecap="round" />
+
+  <!-- A soft lime glow around the window, so it sits on the white instead of on top of it. -->
+  <circle cx="121" cy="28.5" r="29" fill="url(#rim)" />
+
+  <g clip-path="url(#porthole)">
+    <rect x="90" y="0" width="60" height="57" fill="url(#sky)" />
+    <circle cx="121" cy="30" r="26" fill="url(#halo)" />
+    <path transform="translate(104 15) scale(0.5)" fill="#f6d66b" d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z" />
+    <path transform="translate(139 21) scale(0.32)" fill="#f6d66b" d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z" />
+
+    <!-- Mawl, peeking: ears, eyes and blush over the box edge. -->
+    <g transform="translate(121 36) rotate(-6) scale(0.4)">
+      <circle cx="-29" cy="-33" r="10" fill="#d2e47a" />
+      <circle cx="29" cy="-33" r="10" fill="#d2e47a" />
+      <circle cx="-29" cy="-34" r="5.5" fill="#a8be4a" />
+      <circle cx="29" cy="-34" r="5.5" fill="#a8be4a" />
+      <path d="M-48 20 C-48 -20 -28 -44 0 -44 C28 -44 48 -20 48 20 C48 36 36 42 0 42 C-36 42 -48 36 -48 20 Z" fill="url(#body)" />
+      <ellipse cx="-17" cy="-28" rx="16" ry="6.5" fill="url(#shine)" transform="rotate(-22 -17 -28)" />
+      <g fill="#ff9aa8" opacity="0.55">
+        <ellipse cx="-29" cy="8" rx="6.5" ry="3.8" />
+        <ellipse cx="29" cy="8" rx="6.5" ry="3.8" />
+      </g>
+      <path d="M-13 -9 L-13 0 M13 -9 L13 0" stroke="#26301a" stroke-width="7" stroke-linecap="round" fill="none" />
+    </g>
+
+    <path d="M100 41 L142 41 L142 58 L100 58 Z" fill="url(#boxFront)" />
+    <path d="M100 41 L142 41 L142 42.5 L100 42.5 Z" fill="#b39462" />
+    <path d="M118.8 41 L123.2 41 L123.2 46 L121 44.8 L118.8 46 Z" fill="#f6d66b" />
+    <path d="M90 49 C100 47.6 110 50.4 121 49 S142 47.6 152 49 L152 58 L90 58 Z" fill="url(#water)" />
+    <path d="M96 52 C104 50 112 50 120 52 S136 54 148 52" fill="none" stroke="#d8e88a" stroke-opacity="0.55" stroke-width="1" stroke-linecap="round" />
+  </g>
+</svg>
