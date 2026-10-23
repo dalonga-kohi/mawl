@@ -17,7 +17,7 @@ import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { copyFile, cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import {
   BINARIES_DIR,
@@ -251,7 +251,10 @@ export async function assembleStage(
     // fetch-pg's marker (and any other dot file at the top) is cache bookkeeping, not install.
     await cp(inputs.pgRoot, pg, {
       recursive: true,
-      filter: (source) => source === inputs.pgRoot || !basename(source).startsWith('.'),
+      filter: (source) =>
+        source === inputs.pgRoot ||
+        dirname(source) !== inputs.pgRoot ||
+        !basename(source).startsWith('.'),
     })
     await mkdir(join(pg, 'lib'), { recursive: true })
     await mkdir(join(pg, 'share', 'extension'), { recursive: true })
@@ -330,7 +333,13 @@ export async function checkStage(
     problems.push(`${STAGE_DIR}/${STAGE_RECORD}`)
     return problems
   }
-  const record = JSON.parse(await readFile(recordFile, 'utf8')) as Partial<StageRecord>
+  let record: Partial<StageRecord>
+  try {
+    record = JSON.parse(await readFile(recordFile, 'utf8')) as Partial<StageRecord>
+  } catch {
+    problems.push(`${STAGE_DIR}/${STAGE_RECORD} is unreadable; restage`)
+    return problems
+  }
   for (const file of WEB_ENTRY_FILES) {
     const path = join(webDist, file)
     if (!existsSync(path)) continue
