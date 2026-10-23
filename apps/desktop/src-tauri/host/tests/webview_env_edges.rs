@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use mawl_host::env::{server_env, ServerEnv};
-use mawl_host::webview::{allow_navigation, app_url, launch_token_script};
+use mawl_host::webview::{allow_navigation, app_url, launch_token_script, TokenScope};
 use url::Url;
 
 fn url(s: &str) -> Url {
@@ -110,7 +110,13 @@ fn the_token_script_cannot_be_broken_out_of() {
         "日本語🙂",
         "",
     ] {
-        let script = launch_token_script(token, &app_url(1));
+        for scope in [TokenScope::Origin, TokenScope::LoopbackAnyPort] {
+            let script = launch_token_script(token, &app_url(1), scope);
+            let quoted = serde_json::to_string(token).unwrap();
+            assert!(script.contains(&format!("value: {quoted},")), "{token:?}");
+            assert!(!script.contains("alert(1); \"\n"), "{token:?}");
+        }
+        let script = launch_token_script(token, &app_url(1), TokenScope::LoopbackAnyPort);
         let quoted = serde_json::to_string(token).unwrap();
         assert!(script.contains(&format!("value: {quoted},")), "{token:?}");
         assert!(!script.contains("alert(1); \"\n"), "{token:?}");
@@ -119,12 +125,14 @@ fn the_token_script_cannot_be_broken_out_of() {
 
 #[test]
 fn the_token_script_is_main_frame_only_and_locked() {
-    let script = launch_token_script("t", &app_url(47_420));
-    assert!(script.contains("window.top !== window"));
-    assert!(script.contains("configurable: false"));
-    assert!(script.contains("enumerable: false"));
-    // The guard returns before it defines anything.
-    assert!(script.find("return;").unwrap() < script.find("defineProperty").unwrap());
+    for scope in [TokenScope::Origin, TokenScope::LoopbackAnyPort] {
+        let script = launch_token_script("t", &app_url(47_420), scope);
+        assert!(script.contains("window.top !== window"));
+        assert!(script.contains("configurable: false"));
+        assert!(script.contains("enumerable: false"));
+        // The guard returns before it defines anything.
+        assert!(script.find("return;").unwrap() < script.find("defineProperty").unwrap());
+    }
 }
 
 fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
