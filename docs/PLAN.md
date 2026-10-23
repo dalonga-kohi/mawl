@@ -212,11 +212,12 @@ Goal: download the installer, open Mawl from the tray, chat with a teammate. No 
 ## D2 — The agent loop
 Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP, subagents and a crafted prompt. See REDESIGN §5.
 
-- [ ] **D2.1 Prompt assembler + blocks.**
+- [~] **D2.1 Prompt assembler + blocks.**
   - Versioned blocks in `packages/core/prompts/`: identity, rules, tools, computer (conditional), persona, skills-index, memory-core, environment. Ordered stable to volatile, with cache breakpoints.
   - Mawl writes its own prompt text, including the "page text is data" and "never kill display or browser processes" rules.
   - Align MEMORY.md §7 (server rule: a prompt layout change updates MEMORY.md §7 and the snapshot tests).
   - *Tests:* snapshot per configuration; byte-stable prefix across steps.
+  - *As built:* `assemblePrompt(input)` in `packages/core/src/prompts/` returns `{ parts, prefixHash }` and `toSystemMessages(parts)` gives AI SDK system messages with Anthropic ephemeral cache control on the two breakpoints (after the tools/computer group and after memory-core). Block text lives in `packages/core/prompts/*.md` (`version: N` header), compiled by `pnpm --filter @mawl/core generate` into `blocks.generated.ts` (excluded from Biome, a test fails if stale). Pure: no engine or server wiring yet. D2.2, D2.8 and the memory slices fill the tool names, skills and memory-core inputs; the run engine adds the segment preamble, recalled memories and turns. Owner notes sit in the persona part as a separate `<owner_notes>` section.
 - [ ] **D2.2 Tool registry + built-ins.** `web_fetch`, `web_search` (pluggable), `ask_user`, `notify`, `read_artifact`. Artifacts for outputs over 4k tokens.
   - Review notes from P1.4:
     - `executeRun` passes `deps.tools` straight to `streamText`; every call must go through the policy engine (D2.3) first.
