@@ -1,32 +1,454 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mawl</title>
-  <meta name="description" content="Mawl: AI teammates you own. In progress.">
-  <style>
-    :root { color-scheme: light dark; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      display: grid;
-      place-items: center;
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      background: #fafafa;
-      color: #111;
-    }
-    @media (prefers-color-scheme: dark) {
-      body { background: #111; color: #f2f2f2; }
-    }
-    main { text-align: center; padding: 1rem; }
-    h1 { margin: 0 0 0.5rem; font-size: clamp(2rem, 8vw, 3.5rem); }
-    p { margin: 0; font-size: 1.125rem; opacity: 0.7; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Mawl</h1>
-    <p>In progress.</p>
-  </main>
-</body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#060607">
+    <title>Mawl — AI teammates you own.</title>
+    <meta
+      name="description"
+      content="Your models. Your machine. Your little corner of AI. Meet Mawl, a self-hosted AI teammate app being built in the open."
+    >
+    <meta property="og:title" content="Mawl — AI teammates you own.">
+    <meta
+      property="og:description"
+      content="A quieter place to think with AI. Self-hosted, multi-provider, and being built in the open."
+    >
+    <meta property="og:type" content="website">
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+    <link
+      rel="preload"
+      href="./assets/fonts/bricolage-grotesque-latin-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    >
+    <link
+      rel="preload"
+      href="./assets/fonts/figtree-latin-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    >
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./script.js" defer></script>
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <a class="wordmark" href="#top" aria-label="Mawl home"
+        >Mawl<span aria-hidden="true">.</span></a
+      >
+      <nav aria-label="Main navigation">
+        <a class="nav-link" href="#meet-mawl">Meet Mawl</a>
+        <a class="nav-link" href="#your-choice">Your choice</a>
+        <a class="nav-github" href="https://github.com/dalonga-kohi/mawl"
+          >GitHub
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" /></svg></a
+        >
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero wrap" aria-labelledby="hero-heading">
+        <div class="hero-copy">
+          <p class="status"><span aria-hidden="true"></span> A little different. In development.</p>
+          <h1 id="hero-heading">AI teammates<br>you own.</h1>
+          <p class="hero-description">
+            A self-hosted home for your AI conversations.<br>Choose the model. Make the teammate
+            yours.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/dalonga-kohi/mawl"
+              ><svg class="github-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path
+                  d="M9 19c-4.3 1.3-4.3-2.2-6-2.7m12 5v-3.8c0-1.1.1-1.5-.5-2.2 3.1-.4 6.4-1.5 6.4-7a5.4 5.4 0 0 0-1.5-3.7 5 5 0 0 0-.1-3.6S18.1.6 15.5 2a13.3 13.3 0 0 0-7 0C5.9.6 4.7 1 4.7 1a5 5 0 0 0-.1 3.6A5.4 5.4 0 0 0 3.1 8.3c0 5.5 3.3 6.6 6.4 7-.6.7-.6 1.4-.5 2.2v3.8"
+                />
+              </svg>
+              Explore on GitHub</a
+            >
+            <a class="text-link" href="#meet-mawl"
+              >Get to know Mawl
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 5v14m-5-5 5 5 5-5" />
+              </svg></a
+            >
+          </div>
+        </div>
+        <div class="hero-scene">
+          <div class="scene-halo" aria-hidden="true"></div>
+          <div class="scene-orbit" aria-hidden="true"></div>
+          <button class="mascot-greeting" type="button" aria-label="Say hello to Mawl" disabled>
+            <svg
+              class="hero-mawl"
+              aria-hidden="true"
+              viewBox="-85 -65 170 130"
+              width="680"
+              height="520"
+            >
+              <!-- Shapes and idle motion adapted from the app's Mawl.tsx and mawl.css. -->
+              <defs>
+                <linearGradient
+                  id="hero-body"
+                  x1="-24"
+                  y1="-44"
+                  x2="16"
+                  y2="42"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop class="body-top" />
+                  <stop class="body-bottom" offset="1" />
+                </linearGradient>
+                <linearGradient
+                  id="hero-tail"
+                  x1="36"
+                  y1="-34"
+                  x2="53"
+                  y2="6"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop class="tail-top" />
+                  <stop class="tail-bottom" offset="1" />
+                </linearGradient>
+              </defs>
+              <g class="mawl-hop">
+                <g class="mawl-breathe">
+                  <g class="mawl-tail">
+                    <ellipse
+                      cx="46"
+                      cy="-14"
+                      rx="12"
+                      ry="20"
+                      fill="url(#hero-tail)"
+                      transform="rotate(28 46 -14)"
+                    />
+                  </g>
+                  <g class="mawl-ears">
+                    <g class="ear-outer">
+                      <circle cx="-29" cy="-33" r="10" />
+                      <circle cx="29" cy="-33" r="10" />
+                    </g>
+                    <g class="ear-inner">
+                      <circle cx="-29" cy="-34" r="5.5" />
+                      <circle cx="29" cy="-34" r="5.5" />
+                    </g>
+                  </g>
+                  <path
+                    d="M-48 20C-48-20-28-44 0-44C28-44 48-20 48 20C48 36 36 42 0 42C-36 42-48 36-48 20Z"
+                    fill="url(#hero-body)"
+                  />
+                  <g class="mawl-cheeks">
+                    <ellipse cx="-29" cy="10" rx="6" ry="3.5" />
+                    <ellipse cx="29" cy="10" rx="6" ry="3.5" />
+                  </g>
+                  <g class="mawl-face">
+                    <g class="mawl-idle-eyes"><path d="M-13-7V1M13-7V1" stroke-width="6" /></g>
+                    <path
+                      class="mawl-happy-eyes"
+                      d="M-18 1L-13-6-8 1M8 1 13-6 18 1"
+                      stroke-width="5.5"
+                    />
+                    <path d="M-6 9Q0 14 6 9" stroke-width="2.5" />
+                  </g>
+                </g>
+              </g>
+            </svg>
+          </button>
+          <div class="scene-floor" aria-hidden="true"></div>
+          <p class="scene-caption">Small presence. Big ideas.</p>
+          <button
+            class="motion-toggle"
+            type="button"
+            aria-label="Pause mascot animation"
+            aria-pressed="false"
+            hidden
+          >
+            <svg class="pause-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M9 6v12M15 6v12" />
+            </svg><svg class="play-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m9 5 10 7-10 7Z" />
+            </svg>
+          </button>
+        </div>
+        <div class="hero-baseline">
+          <span>Self-hosted. Model-independent. Unmistakably yours.</span
+          ><a href="#meet-mawl"
+            ><span class="visually-hidden">Scroll to meet Mawl</span
+            ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6" /></svg></a
+          >
+        </div>
+      </section>
+      <section class="showcase section wrap" id="meet-mawl" aria-labelledby="showcase-heading">
+        <div class="section-intro">
+          <h2 id="showcase-heading">A familiar place.<br>Your kind of AI.</h2>
+          <p>
+            Give a teammate a name, a personality, and a model. Then pick up the conversation in a
+            calm space made for your next thought.
+          </p>
+        </div>
+        <div class="preview-toolbar">
+          <p><span class="preview-dot" aria-hidden="true"></span> Illustrative preview</p>
+          <div class="preview-controls" hidden>
+            <fieldset class="segmented" aria-label="Preview screen">
+              <button type="button" aria-pressed="true" data-screen="chat">Chat</button
+              ><button type="button" aria-pressed="false" data-screen="connections">
+                Connections
+              </button>
+            </fieldset>
+            <fieldset class="segmented theme-control" aria-label="Preview appearance">
+              <button type="button" aria-pressed="false" data-theme="light">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+                  />
+                </svg><span>Light</span>
+              </button><button type="button" aria-pressed="true" data-theme="dark">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M20.5 13a8.5 8.5 0 0 1-9.5-9.5A8.5 8.5 0 1 0 20.5 13Z" />
+                </svg><span>Dark</span>
+              </button>
+            </fieldset>
+          </div>
+        </div>
+        <div class="app-preview" data-preview-theme="dark">
+          <aside class="preview-sidebar" aria-label="Example teammates">
+            <span class="preview-wordmark">Mawl</span
+            ><span class="sidebar-label">Your teammates</span>
+            <div class="teammate is-selected">
+              <img src="./assets/mawl-avatar.svg" width="34" height="34" alt="">
+              <span><strong>Nora</strong><small>A little clarity for your ideas</small></span>
+            </div>
+            <div class="teammate">
+              <img
+                class="avatar-peach"
+                src="./assets/mawl-avatar.svg"
+                width="34"
+                height="34"
+                alt=""
+              ><span><strong>Jules</strong><small>A fresh perspective</small></span>
+            </div>
+            <div class="sidebar-note">
+              <span class="local-mark" aria-hidden="true"
+                ><svg aria-hidden="true" viewBox="0 0 24 24">
+                  <rect x="4" y="4" width="16" height="12" rx="3" />
+                  <path d="M9 20h6m-3-4v4" />
+                </svg></span
+              ><span>Your own space.<br><small>Running on your machine.</small></span>
+            </div>
+          </aside>
+          <div class="preview-main">
+            <div class="preview-screen" id="preview-chat">
+              <div class="chat-header">
+                <div class="chat-identity">
+                  <img src="./assets/mawl-avatar.svg" width="38" height="38" alt="">
+                  <span><strong>Nora</strong><small>Your thinking partner</small></span>
+                </div>
+                <span class="model-label">Your chosen model</span>
+              </div>
+              <div class="chat-content">
+                <div class="user-message">
+                  I've got an idea for a tiny bookshop.<br>Help me find a place to start?
+                </div>
+                <div class="assistant-message">
+                  <span class="message-name">Nora</span>
+                  <p>
+                    A tiny bookshop is a lovely starting point. Let's make the idea a little more
+                    tangible.
+                  </p>
+                  <p>
+                    Before the shelves, the space, or the name, there's one question worth sitting
+                    with:
+                  </p>
+                  <p class="reply-emphasis">
+                    What would make someone walk past a big bookshop to come to yours?
+                  </p>
+                  <p>A particular kind of book? A feeling? A community? We can build from there.</p>
+                </div>
+                <div class="message-status">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 12 4 4 8-8" /></svg>
+                  A conversation, on your terms.
+                </div>
+              </div>
+              <div
+                class="preview-composer"
+                role="img"
+                aria-label="Illustrative message composer, not an input"
+              >
+                <span>One thought leads to another…</span
+                ><span class="composer-arrow" aria-hidden="true"
+                  ><svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M12 18V6m-5 5 5-5 5 5" />
+                  </svg></span
+                >
+              </div>
+            </div>
+            <div class="preview-screen connections-screen" id="preview-connections" hidden>
+              <div class="connections-header">
+                <h3>Models and keys</h3>
+                <p>A model connection for every kind of thinking.</p>
+              </div>
+              <div class="connection-example">
+                <span class="connection-symbol" aria-hidden="true"
+                  ><svg aria-hidden="true" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="13" rx="3" />
+                    <path d="M8 21h8m-4-4v4" />
+                  </svg></span
+                >
+                <div>
+                  <h4>Ollama</h4>
+                  <p>A local model, on your own machine.</p>
+                </div>
+                <span class="example-tag">Example</span>
+              </div>
+              <div class="connection-example">
+                <span class="connection-symbol" aria-hidden="true"
+                  ><svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="m8 12 3 3 5-6" />
+                    <rect x="4" y="3" width="16" height="18" rx="5" />
+                  </svg></span
+                >
+                <div>
+                  <h4>Your provider</h4>
+                  <p>Bring an API key for a supported provider.</p>
+                </div>
+                <span class="example-tag">Example</span>
+              </div>
+              <div class="connection-note">
+                <h4>Your model. Your choice.</h4>
+                <p>
+                  Connect Anthropic, OpenAI, OpenRouter, Ollama, or an OpenAI-compatible endpoint.
+                  Then choose a model for each teammate.
+                </p>
+              </div>
+              <p class="settings-preview-note">
+                Illustrative settings. No accounts or keys are connected here.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p class="preview-footnote">
+          A glimpse of the interface, with an example conversation. Mawl is actively being built.
+        </p>
+      </section>
+      <section class="choice section wrap" id="your-choice" aria-labelledby="choice-heading">
+        <div class="choice-intro">
+          <h2 id="choice-heading">Good company.<br>Your rules.</h2>
+          <p>AI should fit the way you think.<br>And leave the choices with you.</p>
+        </div>
+        <div class="choice-details">
+          <article>
+            <h3>A model you choose.</h3>
+            <p>
+              Go with Anthropic, OpenAI, or OpenRouter. Run a local model through Ollama. Or connect
+              an OpenAI-compatible endpoint.
+            </p>
+            <ul class="provider-list" aria-label="Supported model providers">
+              <li>Anthropic</li>
+              <li>OpenAI</li>
+              <li>OpenRouter</li>
+              <li>Ollama</li>
+              <li>OpenAI-compatible</li>
+            </ul>
+          </article>
+          <article>
+            <h3>A teammate you shape.</h3>
+            <p>
+              A name, a personality, a model. Make a focused writing partner, a patient sounding
+              board, or someone to think through the next idea with.
+            </p>
+          </article>
+          <article>
+            <h3>A space you host.</h3>
+            <p>
+              Mawl's server, database, and provider keys live on your machine. Conversations go to
+              the model provider you choose. With a local Ollama model, the model can run locally
+              too.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="open-section section wrap" id="in-the-open" aria-labelledby="open-heading">
+        <div class="open-heading">
+          <p class="status">
+            <span aria-hidden="true"></span>
+            A work in progress, out in the open.
+          </p>
+          <h2 id="open-heading">Little by little.<br>Built with intention.</h2>
+        </div>
+        <div class="open-copy">
+          <p>
+            Mawl is early. Multi-provider chat and teammate personalities are here. A Windows
+            desktop host is in development, with more on the roadmap.
+          </p>
+          <p>
+            For now, you can run the app with Docker Compose. Follow the code, see what's next, or
+            help shape what Mawl becomes.
+          </p>
+          <a class="text-link" href="https://github.com/dalonga-kohi/mawl/blob/main/docs/PLAN.md"
+            >See the roadmap
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" /></svg></a
+          >
+        </div>
+      </section>
+      <section class="faq section wrap" aria-labelledby="faq-heading">
+        <h2 id="faq-heading">A few things<br>you might wonder.</h2>
+        <div class="faq-list">
+          <details>
+            <summary>Can I use Mawl today?<span aria-hidden="true"></span></summary>
+            <p>
+              Yes, if you're comfortable self-hosting an early project. The repository includes
+              Docker Compose setup instructions. The Windows desktop experience is still in
+              development; there isn't a ready desktop installer here yet.
+            </p>
+            <a href="https://github.com/dalonga-kohi/mawl/blob/main/docs/RUNNING.md"
+              >Read the setup guide</a
+            >
+          </details>
+          <details>
+            <summary>
+              Do I need a particular AI subscription?<span aria-hidden="true"></span>
+            </summary>
+            <p>
+              You can use an API key for a supported provider, or a local model through Ollama. Mawl
+              also includes ChatGPT sign-in and a Claude plan connection. Provider access,
+              subscriptions, and usage charges depend on the connection you choose.
+            </p>
+          </details>
+          <details>
+            <summary>Where do my conversations go?<span aria-hidden="true"></span></summary>
+            <p>
+              Mawl stores its data on the machine where you host it. When you use a cloud model,
+              prompts are sent to that provider under its terms. If you choose a local Ollama model,
+              model inference can stay on your machine too.
+            </p>
+          </details>
+        </div>
+      </section>
+      <section class="closing section wrap" aria-labelledby="closing-heading">
+        <img
+          src="./assets/mawl.svg"
+          width="170"
+          height="130"
+          loading="lazy"
+          alt="Mawl, a smiling pistachio mochi with round ears."
+        >
+        <h2 id="closing-heading">Make a little<br>room for Mawl.</h2>
+        <p>Your models. Your machine. Your next idea.</p>
+        <a class="button button-primary" href="https://github.com/dalonga-kohi/mawl"
+          >Meet the project on GitHub
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" /></svg></a
+        ><span class="closing-status">In development. Built in the open.</span>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <a class="wordmark" href="#top" aria-label="Mawl home"
+        >Mawl<span aria-hidden="true">.</span></a
+      >
+      <p>A little presence. Entirely yours.</p>
+      <a href="https://github.com/dalonga-kohi/mawl"
+        >Find us on GitHub
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" /></svg></a
+      >
+    </footer>
+  </body>
 </html>
