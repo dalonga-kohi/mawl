@@ -21,6 +21,11 @@ export interface SearchService {
   clearKey(): Promise<SearchStatus>
   /** The Brave backend with the stored key, or null without a usable key. Read per call. */
   provider(): Promise<SearchProvider | null>
+  /**
+   * Boot's master-key check for this store: 'empty' without a key, 'verified' when it decrypts,
+   * and a SecretDecryptError when it does not (boot then stops, see server.ts).
+   */
+  verifyMasterKey(): Promise<'verified' | 'empty'>
 }
 
 export interface SearchServiceDeps {
@@ -31,7 +36,12 @@ export interface SearchServiceDeps {
   fetch?: (url: string, init: RequestInit) => Promise<Response>
 }
 
-const NONE: SearchStatus = { provider: 'brave', configured: false, updatedAt: null }
+const NONE: SearchStatus = {
+  provider: 'brave',
+  configured: false,
+  unreadable: false,
+  updatedAt: null,
+}
 
 /**
  * The web search key (Brave). Stored encrypted with the server's secret box, like provider keys;
@@ -45,12 +55,26 @@ export function createSearchService({
 }: SearchServiceDeps): SearchService {
   async function status(): Promise<SearchStatus> {
     const [row] = await db
-      .select({ updatedAt: serviceCredentials.updatedAt })
+      .select({ updatedAt: serviceCredentials.updatedAt, secretEnc: serviceCredentials.secretEnc })
       .from(serviceCredentials)
       .where(eq(serviceCredentials.service, SERVICE))
-    return row
-      ? { provider: 'brave', configured: true, updatedAt: row.updatedAt.toISOString() }
-      : NONE
+    if (!row) return NONE
+    return {
+      provider: 'brave',
+      configured: true,
+      unreadable: !opens(row.secretEnc),
+      updatedAt: row.updatedAt.toISOString(),
+    }
+  }
+
+  /** Whether the blob decrypts with this server's key. The plaintext is dropped at once. */
+  function opens(secretEnc: Uint8Array): boolean {
+    try {
+      secretBox.decrypt(secretEnc, AAD)
+      return true
+    } catch {
+      return false
+    }
   }
 
   return {
@@ -89,6 +113,16 @@ export function createSearchService({
         return null
       }
       return braveSearch({ apiKey, fetch })
+    },
+
+    async verifyMasterKey() {
+      const [row] = await db
+        .select({ secretEnc: serviceCredentials.secretEnc })
+        .from(serviceCredentials)
+        .where(eq(serviceCredentials.service, SERVICE))
+      if (!row) return 'empty'
+      secretBox.decrypt(row.secretEnc, AAD)
+      return 'verified'
     },
   }
 }

@@ -26,6 +26,7 @@ const run = {
 const configured: SearchStatus = {
   provider: 'brave',
   configured: true,
+  unreadable: false,
   updatedAt: '2026-01-02T03:04:05.000Z',
 }
 
@@ -34,6 +35,7 @@ const unusedSearch: SearchService = {
   setKey: () => Promise.reject(new Error('search.setKey not stubbed')),
   clearKey: () => Promise.reject(new Error('search.clearKey not stubbed')),
   provider: () => Promise.reject(new Error('search.provider not stubbed')),
+  verifyMasterKey: () => Promise.reject(new Error('search.verifyMasterKey not stubbed')),
 }
 
 function routerWith(runs: Partial<RunService> = {}, search?: Partial<SearchService>) {
@@ -92,7 +94,12 @@ describe('search procedures', () => {
       {
         status: async () => configured,
         setKey,
-        clearKey: async () => ({ provider: 'brave', configured: false, updatedAt: null }),
+        clearKey: async () => ({
+          provider: 'brave',
+          configured: false,
+          unreadable: false,
+          updatedAt: null,
+        }),
       },
     )
     expect(await call(router.search.status, undefined)).toEqual(configured)

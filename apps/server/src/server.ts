@@ -41,6 +41,7 @@ import {
   type SecretBox,
   SecretDecryptError,
 } from './secrets/index.ts'
+import { verifyStoredSecrets } from './secrets/verify-stored.ts'
 import { runTeardown } from './teardown.ts'
 import { createServerTools } from './tools/registry.ts'
 import { createUserService } from './user/service.ts'
@@ -153,10 +154,10 @@ async function checkHostKey(
     if (!(err instanceof SecretDecryptError)) throw err
     throw new MasterKeyError(
       'The master key in Windows Credential Manager (entry Mawl/master-key) does not decrypt ' +
-        'the stored provider keys, so boot stopped instead of discarding them. To recover, put ' +
-        'the old key back into that entry from a backup. Without the old key the stored provider ' +
-        'keys cannot be recovered, and deleting the entry does not help: Mawl then creates ' +
-        'another key, and the old encrypted provider keys still fail this check.',
+        'the stored keys (provider keys and the web search key), so boot stopped instead of ' +
+        'discarding them. To recover, put the old key back into that entry from a backup. ' +
+        'Without the old key the stored keys cannot be recovered, and deleting the entry does ' +
+        'not help: Mawl then creates another key, and the old encrypted keys still fail this check.',
     )
   }
 }
@@ -326,10 +327,16 @@ export async function startServer(
     })
     // Set before anything else can fail, so the catch below can close it.
     providers = providerService
+    const searchService = createSearchService({ db: handle.db, secretBox, logger })
     if (hostKey) {
       await checkHostKey(
         secretBox,
-        overrides.verifyMasterKey ?? (() => providerService.verifyMasterKey()),
+        overrides.verifyMasterKey ??
+          (() =>
+            verifyStoredSecrets([
+              () => providerService.verifyMasterKey(),
+              () => searchService.verifyMasterKey(),
+            ])),
       )
       if (retiredKeyFile) {
         await retireKeyFile(retiredKeyFile, overrides.unlinkKeyFile ?? unlink, logger)
@@ -343,7 +350,6 @@ export async function startServer(
       })
       await live.start()
     }
-    const searchService = createSearchService({ db: handle.db, secretBox, logger })
     if (overrides.worker !== false) {
       worker = await startRunWorker({
         pool: handle.pool,

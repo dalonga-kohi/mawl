@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
-import { createSecretBox } from '../secrets/index.ts'
+import { createSecretBox, SecretDecryptError } from '../secrets/index.ts'
 import { createSearchService } from './service.ts'
 
 const { serviceCredentials } = schema
@@ -37,7 +37,12 @@ describe('search key service (PGlite)', () => {
 
   it('reports not configured until a key is set', async () => {
     const { svc } = await service()
-    expect(await svc.status()).toEqual({ provider: 'brave', configured: false, updatedAt: null })
+    expect(await svc.status()).toEqual({
+      provider: 'brave',
+      configured: false,
+      unreadable: false,
+      updatedAt: null,
+    })
     expect(await svc.provider()).toBeNull()
   })
 
@@ -71,7 +76,12 @@ describe('search key service (PGlite)', () => {
   it('clears the key', async () => {
     const { svc } = await service()
     await svc.setKey({ provider: 'brave', apiKey: KEY })
-    expect(await svc.clearKey()).toEqual({ provider: 'brave', configured: false, updatedAt: null })
+    expect(await svc.clearKey()).toEqual({
+      provider: 'brave',
+      configured: false,
+      unreadable: false,
+      updatedAt: null,
+    })
     expect(await svc.provider()).toBeNull()
     // Clearing twice is fine.
     expect((await svc.clearKey()).configured).toBe(false)
@@ -86,6 +96,31 @@ describe('search key service (PGlite)', () => {
     await provider?.search('q', { count: 1, signal: new AbortController().signal })
     const init = (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
     expect(new Headers(init.headers).get('x-subscription-token')).toBe(KEY)
+  })
+
+  it('verifyMasterKey: empty without a key, verified with its own key, a decrypt error with another', async () => {
+    const { svc } = await service()
+    expect(await svc.verifyMasterKey()).toBe('empty')
+    await svc.setKey({ provider: 'brave', apiKey: KEY })
+    expect(await svc.verifyMasterKey()).toBe('verified')
+    const other = createSearchService({
+      db,
+      secretBox: await createSecretBox(new Uint8Array(randomBytes(32))),
+      logger,
+    })
+    await expect(other.verifyMasterKey()).rejects.toBeInstanceOf(SecretDecryptError)
+  })
+
+  it('reports a stored key that no longer decrypts as unreadable in the status', async () => {
+    const { svc } = await service()
+    await svc.setKey({ provider: 'brave', apiKey: KEY })
+    const other = createSearchService({
+      db,
+      secretBox: await createSecretBox(new Uint8Array(randomBytes(32))),
+      logger,
+    })
+    expect(await other.status()).toMatchObject({ configured: true, unreadable: true })
+    expect(await svc.status()).toMatchObject({ configured: true, unreadable: false })
   })
 
   it('treats a key that no longer decrypts as not configured and logs it without detail', async () => {
