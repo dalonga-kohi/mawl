@@ -5,7 +5,7 @@
     "includes": [
       "**",
       "!design/mockup",
-      "!sites/assets/vendor",
+      "!site/assets/vendor",
       "!.claude/skills",
       "!.claude/worktrees",
       "!docs",

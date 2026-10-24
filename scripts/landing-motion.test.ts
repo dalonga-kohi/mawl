@@ -56,7 +56,7 @@ async function fixture(initiallyPaused = false, fontsLoading = false) {
   let paused = initiallyPaused
   // Dynamic URL import exercises the buildless JS module without adding it to the TS compilation.
   const { createScrollExperience } = (await import(
-    new URL('../sites/scroll-experience.js', import.meta.url).href
+    new URL('../site/scroll-experience.js', import.meta.url).href
   )) as {
     createScrollExperience(options: {
       motion: typeof motion

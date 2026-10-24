@@ -23,7 +23,7 @@ test-results/
 playwright-report/
 
 # Local landing-page visual QA artifacts
-sites/review/
+site/review/
 
 # Claude local
 .claude/settings.local.json

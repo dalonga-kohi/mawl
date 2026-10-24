@@ -38,7 +38,11 @@ describe('the desktop splash', () => {
     expect(track.getAttribute('aria-valuetext')).toBe('Starting the database')
 
     emit({ phase: 'starting', stage: 'server' })
-    expect(await screen.findByRole('heading', { name: 'Almost there' })).toBeTruthy()
+    // The old title leaves through a Motion exit animation first. It is the first one in this file,
+    // and on a loaded CI runner it overran the default 5 s (main failed once at 5.4 s).
+    expect(
+      await screen.findByRole('heading', { name: 'Almost there' }, { timeout: 15_000 }),
+    ).toBeTruthy()
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('1')
     expect(screen.queryByRole('button')).toBeNull()
   })
