@@ -31,6 +31,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -258,6 +259,92 @@ export const artifacts = pgTable(
     check('artifacts_size_bytes_check', sql`${t.sizeBytes} >= 0`),
     check('artifacts_token_count_check', sql`${t.tokenCount} >= 0`),
     index('artifacts_run_idx').on(t.runId),
+  ],
+)
+
+/**
+ * One row per tool call that has a result, keyed by (run, model step idx, tool call id): the
+ * idempotency record. A resumed run reuses a recorded result instead of running the tool again, and
+ * a reply to `ask_user` lands here as the call's result. `output_json` is exactly what the model
+ * saw (already wrapped as untrusted data); `preview` is the short raw text of the event.
+ */
+export const toolResults = pgTable(
+  'tool_results',
+  {
+    runId: text('run_id')
+      .$type<RunId>()
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    stepIdx: integer('step_idx').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    isError: boolean('is_error').notNull(),
+    output: jsonbValue('output_json').notNull(),
+    preview: text('preview').notNull(),
+    artifactId: text('artifact_id')
+      .$type<ArtifactId>()
+      .references(() => artifacts.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ name: 'tool_results_pk', columns: [t.runId, t.stepIdx, t.toolCallId] }),
+    check('tool_results_step_idx_check', sql`${t.stepIdx} >= 0`),
+  ],
+)
+
+/** What a parked run waits for. `question` today (ask_user); `approval` is reserved for D2.4. */
+export const RUN_WAIT_KINDS = ['question', 'approval'] as const
+
+/**
+ * A run parked on someone outside the loop, tied to the tool call that asked. Open while
+ * `resolved_at` is null; resolving it records the call's result in `tool_results` in the same
+ * transaction and resumes the run.
+ */
+export const runWaits = pgTable(
+  'run_waits',
+  {
+    runId: text('run_id')
+      .$type<RunId>()
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    stepIdx: integer('step_idx').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    kind: text('kind').$type<(typeof RUN_WAIT_KINDS)[number]>().notNull(),
+    payload: jsonbValue('payload_json').notNull(),
+    answer: jsonbValue('answer_json'),
+    createdAt: createdAt(),
+    resolvedAt: ts('resolved_at'),
+  },
+  (t) => [
+    primaryKey({ name: 'run_waits_pk', columns: [t.runId, t.stepIdx, t.toolCallId] }),
+    check(
+      'run_waits_kind_check',
+      sql`${t.kind} in (${sql.raw(RUN_WAIT_KINDS.map((k) => `'${k}'`).join(', '))})`,
+    ),
+    check('run_waits_step_idx_check', sql`${t.stepIdx} >= 0`),
+  ],
+)
+
+/** Services whose key Mawl keeps besides model providers. */
+export const SERVICE_KINDS = ['brave_search'] as const
+
+/**
+ * Keys of non-model services (the web search backend). `secretEnc` holds ciphertext only (AAD
+ * `service_credentials:<service>`); never add a plaintext column, never select it for an API read.
+ */
+export const serviceCredentials = pgTable(
+  'service_credentials',
+  {
+    service: text('service').$type<(typeof SERVICE_KINDS)[number]>().primaryKey(),
+    secretEnc: bytea('secret_enc').notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'service_credentials_service_check',
+      sql`${t.service} in (${sql.raw(SERVICE_KINDS.map((k) => `'${k}'`).join(', '))})`,
+    ),
   ],
 )
 
