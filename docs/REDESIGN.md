@@ -283,8 +283,8 @@ In order, one writer at a time where slices share contracts or migrations:
 7. D2.7 `delegate`, D2.14 teammate requests.
 8. D2.11 teammates UI.
 9. D4.1 core memory blocks (with the project scope).
-10. D5.2 routine engine, D5.3 natural-language schedules, D5.5 routines UI.
+10. D5.2 routine engine, D5.3 natural-language schedules, D5.5 routines UI, D1.7d the updater (testers need the next versions).
 
-Stretch: D2.6 fallback models, D2.12 activity feed, D5.4 receipts, D2.10 the Claude plan bridge (in the owner's own build only, see below). Not in Beta 1: Docker computers (D3.1, D3.3 to D3.9), memory beyond D4.1, Canvas (the first candidate for Beta 2, because it fits the wedge user), the trace compiler, channels and mobile.
+Beta 1 ships as version **0.5 Matcha**; the versions 0.1 Shiro to 1.0 Daifuku and their slices are in PLAN "Versions". The next items, in 0.6 Yuzu: D2.6 fallback models, D2.12 activity feed, D5.4 receipts, D2.10 the Claude plan bridge (in the owner's own build only, see below). Not in Beta 1: Docker computers (D3.1, D3.3 to D3.9), memory beyond D4.1, Canvas (the first candidate for Beta 2, because it fits the wedge user), the trace compiler, channels and mobile.
 
 **Gate before anyone else installs the beta.** Anthropic's Agent SDK docs say that, unless approved, third-party developers may not offer Claude account (claude.ai) login or plan limits in their products. So a build shared with testers must not offer the Claude plan provider; it stays in the owner's own build. Re-read the current terms, and SIWC eligibility for a shared build, before the first tester gets an installer (P1.3b).

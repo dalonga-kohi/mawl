@@ -18,26 +18,30 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 
 > **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. The old phases P2 to P8 are replaced by D1 to D9 below (re-sliced 2026-10-21; every open review note was carried into its new slice). P1.8 is re-scoped into D1.4.
 
-> **Addendum 2026-10-24 ([REDESIGN §12](REDESIGN.md)).** Owner decisions: Mawl stays a personal portfolio project (no cloud services; seams only); the Beta 1 wedge user is a solo creator or freelancer running a one-person studio; Beta 1 targets late December 2026 to January 2027; working directly on this PC comes before Docker computers. New decisions R15 to R21: Nodes (This PC first), folder grants, easy MCP (registry, stdio on the host), Projects as shared context, teammate requests, workflows and webhooks, and remote access through the owner's own relay. New slices are marked *(added 2026-10-24)*.
+> **Addendum 2026-10-24 ([REDESIGN §12](REDESIGN.md)).** Owner decisions: Mawl stays a personal portfolio project (no cloud services; seams only); the Beta 1 wedge user is a solo creator or freelancer running a one-person studio; Beta 1 targets late December 2026 to January 2027; working directly on this PC comes before Docker computers. New decisions R15 to R21: Nodes (This PC first), folder grants, easy MCP (registry, stdio on the host), Projects as shared context, teammate requests, workflows and webhooks, and remote access through the owner's own relay. New slices are marked *(added 2026-10-24)*. The order to work in is the Versions table below.
 
-## B1 — Beta 1 cut (target late December 2026 to January 2027)
+## Versions (mochi names, owner convention 2026-10-24)
 
-The order to work in (REDESIGN §12.3). The slices themselves live in their phases below.
+Each version is named after a mochi and ships the slices listed, in that order; the slices themselves live in their phases below. A version is done when all its slices are `[x]`. The app version in `tauri.conf.json` (now `0.0.0`) becomes `0.1.0` when 0.1 ships, and a GitHub Release is titled "Mawl 0.1 Shiro". Rough early versions are 0.1 to 0.3; features are built into the dough from 0.4 to 0.6; the app is filled from 0.7 to 0.9.
 
-1. D1.7c, D1.8
-2. D2.2, D2.3, D2.4, D2.5
-3. D3.2, D3.H1, D3.H2, D3.H3
-4. D2.9a, D2.9b
-5. D2.8
-6. DP1, DP2, DP3, DP4
-7. D2.7, D2.14
-8. D2.11
-9. D4.1
-10. D5.2, D5.3, D5.5
+**We are on 0.1 Shiro (in progress).**
 
-- *Stretch:* D2.6, D2.12, D5.4, D2.10 (owner's build only).
-- *Not in Beta 1:* Docker computers (D3.1, D3.3 to D3.9), memory beyond D4.1, Canvas (first candidate for Beta 2), D6, D7, D8.
-- *Gate before any tester installs it:* a shared build does not offer the Claude plan provider, and SIWC eligibility is re-checked (REDESIGN §12.3).
+| Version | Theme | What it adds | Slices |
+|---|---|---|---|
+| **0.1 Shiro** (in progress) | Plain white mochi, just the core | Install from one Windows installer, Mawl in the tray, embedded Postgres, local auth, providers (ChatGPT sign-in, API keys, Ollama, Claude plan for the owner), first-run onboarding, chat with a teammate | Done: D0, P0, P1, U1–U7, D1.1–D1.7b (D1.5b2c and D1.5b2d move to 0.6), D1.7e, D2.1. Open: **D1.7c, D1.8** |
+| **0.2 Kinako** | Dusted, the simplest finish | Teammates can act: the tool registry and built-ins (web fetch and search, ask, notify), the policy engine, approvals, steering mid-run | D2.2, D2.3, D2.4, D2.5 |
+| **0.3 Goma** | Sesame, a bit more depth | Work on this PC with no Docker (folder grants, files, shell with approval), MCP from the registry with one-click install, skills | D3.2, D3.H1, D3.H2, D3.H3, D2.9a, D2.9b, D2.8 |
+| **0.4 Hojicha** | Roasted tea, warm and mellow | Projects (brief, voice, references, linked folders), teammates that ask each other for help, the teammates UI | DP1, DP2, DP3, DP4, D2.7, D2.14, D2.11 |
+| **0.5 Matcha** = **Beta 1** (late December 2026 to January 2027) | The classic flavor | Always on: core memory blocks, schedules in plain language, the routines UI, and the updater so testers get the next versions | D4.1, D5.2, D5.3, D5.5, D1.7d |
+| **0.6 Yuzu** | Bright citrus, "this is getting sharp" | Reliable and visible: fallback models, the activity feed, receipts, background-run controls, heartbeat, schedule tools, approval notifications from the server, the reconnecting banner, the loop eval set, the Claude plan bridge (owner's build only) | D2.6, D2.12, D5.4, D5.1, D5.6, D5.7, D1.5b2c, D1.5b2d, D2.13, D2.10 |
+| **0.7 Anko** = **Beta 2** | The first one with something inside | Canvas: mockups, sites and graphics beside the chat, the Canvases view, export; the project brand kit | DC0.1, DC0.2, DC1–DC8, DP5 |
+| **0.8 Sakura** | Refined, with a bean filling | Docker computers you can watch and take over, and the full memory system (recall, facts, compaction, the Memory UI, project memory) | D3.1, D3.3–D3.9, D4.2–D4.8, DP6 |
+| **0.9 Ichigo** | Nearly the finished product | Anywhere: Telegram and Discord, the personal relay, the phone app with its own tools (reminders, calendar), webhooks and workflows | D7.1–D7.3, D8.1, D8.2, D8.2b, D8.3–D8.7, D5.8, D5.9 |
+| **1.0 Daifuku** | Everything is inside | Learns and ships: the trace compiler, teach by demonstration, canvas evals, the mascot, the a11y audit, local plugin import, docs, release and the 72 h soak test | D6.1–D6.6, DC12, D9.1–D9.5 |
+| **1.x** (Mitarashi, Warabi, Zenzai, Kuzumochi, …) | Sweeter, more elaborate | Motion canvases and video (Remotion), hand editing, canvases from routines, Mawl as an MCP server, group chats, Sentinel, voice, cost dashboard, model routing, other PCs as nodes, macOS and Linux | DC0.3, DC9–DC11, DC13, DC15, D2.15, and the Later list |
+
+- *Gate before any tester installs Beta 1:* a shared build does not offer the Claude plan provider, and SIWC eligibility is re-checked (REDESIGN §12.3).
+- If a version runs long, its last slices move to the next version; the order inside a version stays.
 
 ## D0 — Spikes (de-risk the redesign)
 
