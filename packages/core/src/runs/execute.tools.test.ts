@@ -223,6 +223,38 @@ describe('executeRun: tool idempotency on resume', () => {
   })
 })
 
+describe('executeRun: duplicate tool call ids', () => {
+  it('runs a call id that repeats within one step once and answers it once', async () => {
+    const run = vi.fn(() => 'done')
+    const h = setup([{ text: 'after' }], { tools: testTools({ act: run }) })
+    const r = h.store.runs.get(h.runId)
+    if (r) r.status = 'running'
+    // A provider that repeats an id: the persisted step holds two calls with the same id.
+    h.store.stepRows.set(h.runId, [
+      {
+        idx: 0,
+        kind: 'model',
+        usage: { inputTokens: 1, outputTokens: 1 },
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool-call', toolCallId: 'dup', toolName: 'act', input: { n: 1 } },
+              { type: 'tool-call', toolCallId: 'dup', toolName: 'act', input: { n: 2 } },
+            ],
+          },
+        ],
+      },
+    ])
+    expect(await executeRun(h.deps)).toEqual({ outcome: 'succeeded' })
+    expect(run).toHaveBeenCalledTimes(1)
+    const msg = (await h.store.steps(h.runId))[1]?.messages[0] as {
+      content: { toolCallId: string }[]
+    }
+    expect(msg.content.map((p) => p.toolCallId)).toEqual(['dup'])
+  })
+})
+
 describe('executeRun: ask_user parks the run', () => {
   const ask = defineTool({
     name: 'ask_user',
@@ -277,7 +309,7 @@ describe('executeRun: ask_user parks the run', () => {
     expect(h.store.statuses(h.runId)).toEqual(['running', 'waiting_user', 'running', 'succeeded'])
   })
 
-  it('runs the other calls of the step before parking, and only once', async () => {
+  it('leaves the calls after the question unrun until the answer arrives, then runs them once', async () => {
     const run = vi.fn(() => 'looked up')
     const lookupTool = defineTool({
       name: 'lookup',
@@ -298,14 +330,18 @@ describe('executeRun: ask_user parks the run', () => {
       { tools: tools([lookupTool]) },
     )
     expect(await executeRun(h.deps)).toEqual({ outcome: 'waiting' })
-    expect(run).toHaveBeenCalledTimes(1)
+    // A side effect after the question must wait for the answer (it may change the plan).
+    expect(run).not.toHaveBeenCalled()
+    expect(await h.store.toolResult(h.runId, { stepIdx: 0, toolCallId: 'call_2' })).toBeNull()
     await h.store.reply(h.runId, textRecord('ask_user', 'yes'))
     const resumed = fakeModel([{ text: 'fine' }])
-    await executeRun({ ...h.deps, resolveModel: async () => ({ model: resumed }) })
+    expect(await executeRun({ ...h.deps, resolveModel: async () => ({ model: resumed }) })).toEqual(
+      { outcome: 'succeeded' },
+    )
     expect(run).toHaveBeenCalledTimes(1)
   })
 
-  it('answers a second question in the same step with a typed error', async () => {
+  it('asks a second question of the same step only after the first is answered', async () => {
     const h = setup(
       [
         {
@@ -319,8 +355,14 @@ describe('executeRun: ask_user parks the run', () => {
     )
     expect(await executeRun(h.deps)).toEqual({ outcome: 'waiting' })
     expect(h.store.waits.get(h.runId)?.toolCallId).toBe('call_1')
-    const second = await h.store.toolResult(h.runId, { stepIdx: 0, toolCallId: 'call_2' })
-    expect(second?.isError).toBe(true)
+    expect(await h.store.toolResult(h.runId, { stepIdx: 0, toolCallId: 'call_2' })).toBeNull()
+    await h.store.reply(h.runId, textRecord('ask_user', 'one'))
+    const resumed = fakeModel([{ text: 'unused' }])
+    expect(await executeRun({ ...h.deps, resolveModel: async () => ({ model: resumed }) })).toEqual(
+      { outcome: 'waiting' },
+    )
+    expect(h.store.waits.get(h.runId)?.toolCallId).toBe('call_2')
+    expect(resumed.calls).toHaveLength(0)
   })
 
   it('stops without parking when cancel won the race', async () => {

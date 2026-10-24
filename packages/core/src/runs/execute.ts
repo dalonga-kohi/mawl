@@ -168,10 +168,16 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
             toolName: call.toolName,
             input: call.input,
           },
-          { ledger: store, signal: callSignal, allowPark: parked === undefined },
+          // The loop stops at the first park, so every call reached may park.
+          { ledger: store, signal: callSignal, allowPark: true },
         )
-        if (result.kind === 'park') parked = { call, wait: result.wait }
-        else parts.push(result.part)
+        if (result.kind === 'park') {
+          // The calls after the question stay unrun and unrecorded: the answer may change the
+          // plan, and they run (once) when the resumed run reaches them.
+          parked = { call, wait: result.wait }
+          break
+        }
+        parts.push(result.part)
       }
     } catch (err) {
       // A store error while nothing aborted is infrastructure: rethrow so the job retries.
@@ -333,13 +339,21 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   return ok ? { outcome: 'succeeded' } : { outcome: 'superseded' }
 }
 
-/** Client-side tool calls of a model step, in order (provider-executed ones need no answer). */
+/**
+ * Client-side tool calls of a model step, in order (provider-executed ones need no answer). A call
+ * id that repeats within the step is kept once: results are keyed by id, and a tool message may
+ * answer an id only once.
+ */
 function toolCallsOf(step: PersistedStep): ToolCallPart[] {
+  const seen = new Set<string>()
   return step.messages.flatMap((m) =>
     m.role === 'assistant' && typeof m.content !== 'string'
-      ? m.content.filter(
-          (p): p is ToolCallPart => p.type === 'tool-call' && p.providerExecuted !== true,
-        )
+      ? m.content.filter((p): p is ToolCallPart => {
+          if (p.type !== 'tool-call' || p.providerExecuted === true) return false
+          if (seen.has(p.toolCallId)) return false
+          seen.add(p.toolCallId)
+          return true
+        })
       : [],
   )
 }
