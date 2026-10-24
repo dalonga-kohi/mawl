@@ -127,8 +127,11 @@ const GROUP_THREE: readonly PromptPartId[] = [
 ]
 const PART_SEPARATOR = '\n\n'
 
-/** Section tags this module emits around untrusted data. */
-const SECTION_TAGS = ['persona', 'owner_notes', 'skills', 'memory_core'] as const
+/**
+ * Section tags Mawl emits around untrusted data: the prompt sections here, plus `tool_result`
+ * (every tool result, see `tools/registry.ts`). Data inside any section can forge none of them.
+ */
+const SECTION_TAGS = ['persona', 'owner_notes', 'skills', 'memory_core', 'tool_result'] as const
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
