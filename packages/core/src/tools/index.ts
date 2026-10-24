@@ -1,3 +1,4 @@
+export * from './builtin/index.ts'
 export { defaultRedact, defineTool, type ToolDefinition } from './define.ts'
 export { allowAllGate } from './gate.ts'
 export {
