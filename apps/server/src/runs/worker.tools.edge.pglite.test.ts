@@ -86,7 +86,9 @@ describe('built-in tools: hostile data through the real store (PGlite)', () => {
     expect(await statusOf(runId)).toBe('succeeded')
   })
 
-  it('two ask_user calls in one step park on the first and answer the second with a typed error', async () => {
+  // Behavior changed in fix round 1 (reviewer B2): calls after a park stay unrun, so the second
+  // question is asked after the first is answered instead of getting a typed error.
+  it('two ask_user calls in one step park on the first, then on the second after the first reply', async () => {
     const runId = await seedQueued()
     const t = task(
       fakeModel([
@@ -104,8 +106,28 @@ describe('built-in tools: hostile data through the real store (PGlite)', () => {
     expect(waits).toHaveLength(1)
     expect(JSON.stringify(waits[0]?.payload)).toContain('first?')
     const store = createRunStore(db)
-    const second = await store.toolResult(runId, { stepIdx: 0, toolCallId: 'call_2' })
-    expect(second?.isError).toBe(true)
+    expect(await store.toolResult(runId, { stepIdx: 0, toolCallId: 'call_2' })).toBeNull()
+    const service = createRunService({
+      db,
+      registry: new RunRegistry(),
+      logger,
+      enqueue: async () => {},
+    })
+    await service.reply(runId, 'one')
+    const unused = fakeModel([{ text: 'unused' }])
+    await task(unused).run(runId)
+    expect(await statusOf(runId)).toBe('waiting_user')
+    expect(unused.calls).toHaveLength(0)
+    const open = await db.select().from(runWaits).where(eq(runWaits.runId, runId))
+    expect(open.map((w) => [w.toolCallId, w.resolvedAt === null])).toEqual(
+      expect.arrayContaining([
+        ['call_1', false],
+        ['call_2', true],
+      ]),
+    )
+    await service.reply(runId, 'two')
+    await task(fakeModel([{ text: 'both answered' }])).run(runId)
+    expect(await statusOf(runId)).toBe('succeeded')
   })
 
   it('a notify before the ask_user in the same step does not fire again after the reply', async () => {
