@@ -84,6 +84,7 @@ describe('enums', () => {
       'credential',
       'external_post',
       'shell_exec',
+      'owner_contact',
     ])
   })
 })

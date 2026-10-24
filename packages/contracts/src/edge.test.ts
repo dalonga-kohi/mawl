@@ -24,6 +24,7 @@ import {
   RUN_TRANSITIONS,
   type RunId,
   RunStatus,
+  SearchKeyInput,
   Settings,
   SettingsUpdate,
   type ThreadId,
@@ -173,8 +174,13 @@ describe('secret leakage', () => {
     ])
     // The one response that deliberately returns a freshly minted session token.
     const ALLOWED_PATHS = new Set(['contract.devices.pair:out.session.token'])
-    // The only schemas allowed to carry a secret: the write-only inputs (save, and test unsaved).
-    const WRITE_ONLY = new Set<unknown>([ProviderCredentialInput, ProviderTestInlineInput])
+    // The only schemas allowed to carry a secret: the write-only inputs (save, test unsaved, and
+    // the web search key).
+    const WRITE_ONLY = new Set<unknown>([
+      ProviderCredentialInput,
+      ProviderTestInlineInput,
+      SearchKeyInput,
+    ])
 
     const offenders: string[] = []
     const seen = new Set<unknown>()

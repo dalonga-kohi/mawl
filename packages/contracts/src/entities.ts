@@ -481,6 +481,29 @@ export type Settings = z.infer<typeof Settings>
 export const SettingsUpdate = Settings.partial()
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>
 
+// --- Web search ----------------------------------------------------------------
+
+export const SearchProviderKind = z.enum(['brave'])
+export type SearchProviderKind = z.infer<typeof SearchProviderKind>
+
+/**
+ * Whether the web search backend has a key. Strict: the key is write-only and never leaves the
+ * server, so a status that tried to carry it fails the output schema.
+ */
+export const SearchStatus = z.strictObject({
+  provider: SearchProviderKind,
+  configured: z.boolean(),
+  updatedAt: Timestamp.nullable(),
+})
+export type SearchStatus = z.infer<typeof SearchStatus>
+
+/** Write-only: the key is encrypted on arrival and never returned. */
+export const SearchKeyInput = z.strictObject({
+  provider: SearchProviderKind,
+  apiKey: z.string().trim().min(1).max(512),
+})
+export type SearchKeyInput = z.infer<typeof SearchKeyInput>
+
 // --- The owner's profile -----------------------------------------------------
 
 export const USER_NAME_MAX = 80
