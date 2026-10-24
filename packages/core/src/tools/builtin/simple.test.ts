@@ -23,7 +23,7 @@ function bind(tools: Tool[], artifacts = new MemoryArtifacts()) {
   return { ledger, artifacts, call }
 }
 
-const valueOf = (r: Awaited<ReturnType<ReturnType<typeof bind>['call']>>) => {
+const resultText = (r: Awaited<ReturnType<ReturnType<typeof bind>['call']>>) => {
   if (r.kind !== 'result') throw new Error('expected a result')
   const o = r.part.output
   return o.type === 'text' || o.type === 'error-text' ? o.value : ''
@@ -33,7 +33,7 @@ describe('notify', () => {
   it('emits a notify event with the title and body, once, and tells the model it was sent', async () => {
     const h = bind([notifyTool()])
     const r = await h.call('notify', { title: 'Report ready', body: 'The weekly report is done.' })
-    expect(valueOf(r)).toContain('Notification sent')
+    expect(resultText(r)).toContain('Notification sent')
     expect(h.ledger.events.filter((e) => e.type === 'notify')).toEqual([
       {
         type: 'notify',
@@ -50,11 +50,11 @@ describe('notify', () => {
   it('caps the title and body lengths', async () => {
     const h = bind([notifyTool()])
     const long = await h.call('notify', { title: 'x'.repeat(NOTIFY_TITLE_MAX + 1), body: '' })
-    expect(valueOf(long)).toContain('invalid_input')
+    expect(resultText(long)).toContain('invalid_input')
     const body = await h.call('notify', { title: 't', body: 'y'.repeat(NOTIFY_BODY_MAX + 1) })
-    expect(valueOf(body)).toContain('invalid_input')
+    expect(resultText(body)).toContain('invalid_input')
     const blank = await h.call('notify', { title: '   ', body: 'b' })
-    expect(valueOf(blank)).toContain('invalid_input')
+    expect(resultText(blank)).toContain('invalid_input')
     expect(h.ledger.events.filter((e) => e.type === 'notify')).toHaveLength(0)
   })
 })
@@ -86,9 +86,9 @@ describe('ask_user', () => {
 
   it('rejects an empty question and too many options', async () => {
     const h = bind([askUserTool()])
-    expect(valueOf(await h.call(ASK_USER_TOOL, { question: ' ' }))).toContain('invalid_input')
+    expect(resultText(await h.call(ASK_USER_TOOL, { question: ' ' }))).toContain('invalid_input')
     const options = Array.from({ length: 7 }, (_, i) => `o${i}`)
-    expect(valueOf(await h.call(ASK_USER_TOOL, { question: 'q', options }))).toContain(
+    expect(resultText(await h.call(ASK_USER_TOOL, { question: 'q', options }))).toContain(
       'invalid_input',
     )
   })
@@ -120,10 +120,10 @@ describe('read_artifact', () => {
   it('pages through an artifact by offset and limit, saying where the next page starts', async () => {
     const { artifacts, id } = await stored('abcdefghij')
     const h = bind([readArtifactTool(artifacts)], artifacts)
-    const first = valueOf(await h.call('read_artifact', { artifactId: id, offset: 0, limit: 4 }))
+    const first = resultText(await h.call('read_artifact', { artifactId: id, offset: 0, limit: 4 }))
     expect(first).toContain('<tool_result>\nabcd\n</tool_result>')
     expect(first).toContain('offset 4')
-    const last = valueOf(await h.call('read_artifact', { artifactId: id, offset: 8, limit: 4 }))
+    const last = resultText(await h.call('read_artifact', { artifactId: id, offset: 8, limit: 4 }))
     expect(last).toContain('ij')
     expect(last).toContain('end')
   })
@@ -131,8 +131,8 @@ describe('read_artifact', () => {
   it("never reads another profile's artifact, and says not found as for a missing one", async () => {
     const { artifacts, id } = await stored('secret plans', newId('profile'))
     const h = bind([readArtifactTool(artifacts)], artifacts)
-    const foreign = valueOf(await h.call('read_artifact', { artifactId: id }))
-    const missing = valueOf(await h.call('read_artifact', { artifactId: newId('artifact') }))
+    const foreign = resultText(await h.call('read_artifact', { artifactId: id }))
+    const missing = resultText(await h.call('read_artifact', { artifactId: newId('artifact') }))
     expect(foreign).toContain('artifact_not_found')
     expect(foreign).not.toContain('secret')
     expect(foreign.replace(id, 'X')).toBe(missing.replace(/art_\w+/, 'X'))
@@ -143,11 +143,11 @@ describe('read_artifact', () => {
     const { artifacts, id } = await stored(big)
     const h = bind([readArtifactTool(artifacts)], artifacts)
     expect(
-      valueOf(
+      resultText(
         await h.call('read_artifact', { artifactId: id, limit: READ_ARTIFACT_MAX_CHARS + 1 }),
       ),
     ).toContain('invalid_input')
-    const page = valueOf(
+    const page = resultText(
       await h.call('read_artifact', { artifactId: id, limit: READ_ARTIFACT_MAX_CHARS }),
     )
     expect(estimateTokens(page)).toBeLessThan(ARTIFACT_THRESHOLD_TOKENS)
@@ -158,7 +158,7 @@ describe('read_artifact', () => {
   it('answers an offset past the end with an empty page', async () => {
     const { artifacts, id } = await stored('abc')
     const h = bind([readArtifactTool(artifacts)], artifacts)
-    const r = valueOf(await h.call('read_artifact', { artifactId: id, offset: 10 }))
+    const r = resultText(await h.call('read_artifact', { artifactId: id, offset: 10 }))
     expect(r).toContain('past the end')
   })
 })
