@@ -7,6 +7,7 @@ export type {
   Clock,
   ExecuteRunDeps,
   NewStep,
+  NewToolStep,
   PersistedStep,
   ProfileRecord,
   ResolvedModel,
@@ -15,6 +16,7 @@ export type {
   RunOutcome,
   RunRecord,
   RunStore,
+  RunWait,
   TextDelta,
   TransitionPatch,
 } from './types.ts'

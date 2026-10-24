@@ -9,13 +9,14 @@ import {
   type StepKind,
   type Usage,
 } from '@mawl/contracts'
+import type { ToolCallKey, ToolEmit, ToolResultOutput, ToolResultRecord } from '@mawl/core'
 import { schema } from '@mawl/db'
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { z } from 'zod'
 import { EVENTS_CHANNEL } from '../events/source.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 
-const { events, runSteps, jsonValue } = schema
+const { events, runSteps, runs, toolResults, jsonValue } = schema
 
 /** A database or an open transaction: node-postgres in production, PGlite in tests. */
 export type Queryable = Pick<ProvidersDb, 'insert' | 'select' | 'update' | 'execute'>
@@ -60,6 +61,80 @@ export async function recordEvent<T extends EventType>(
 ): Promise<number> {
   const payload = EVENT_PAYLOADS[e.type].parse(e.payload) as Json
   return insertEvent(db, { profileId: e.profileId, runId: e.runId, type: e.type, payload })
+}
+
+/** A `tool_results` row as the run engine's ledger sees it. */
+export function toToolRecord(row: typeof toolResults.$inferSelect): ToolResultRecord {
+  return {
+    toolName: row.toolName,
+    // reason: output_json is only ever written by insertToolResult from a ToolResultRecord.
+    output: row.output as unknown as ToolResultOutput,
+    isError: row.isError,
+    preview: row.preview,
+    artifactId: row.artifactId,
+  }
+}
+
+/**
+ * The only way the server writes `tool_results`. Inside the caller's transaction: insert the result
+ * for (run, step idx, tool call id) unless one exists, and only when it was inserted, its
+ * `run.tool_result` event and the tool's emitted events. Returns the stored record, so a second
+ * writer gets the first one's result and emits nothing.
+ */
+export async function insertToolResult(
+  tx: Queryable,
+  runId: RunId,
+  key: ToolCallKey,
+  record: ToolResultRecord,
+  emit: readonly ToolEmit[],
+): Promise<ToolResultRecord> {
+  const inserted = await tx
+    .insert(toolResults)
+    .values({
+      runId,
+      stepIdx: key.stepIdx,
+      toolCallId: key.toolCallId,
+      toolName: record.toolName,
+      isError: record.isError,
+      output: JSON.parse(JSON.stringify(record.output)) as Json,
+      preview: record.preview,
+      artifactId: record.artifactId,
+    })
+    .onConflictDoNothing({
+      target: [toolResults.runId, toolResults.stepIdx, toolResults.toolCallId],
+    })
+    .returning({ runId: toolResults.runId })
+  if (inserted.length === 0) {
+    const [existing] = await tx
+      .select()
+      .from(toolResults)
+      .where(
+        and(
+          eq(toolResults.runId, runId),
+          eq(toolResults.stepIdx, key.stepIdx),
+          eq(toolResults.toolCallId, key.toolCallId),
+        ),
+      )
+    if (!existing) throw new Error('tool result vanished after a conflict')
+    return toToolRecord(existing)
+  }
+  const [run] = await tx.select({ profileId: runs.profileId }).from(runs).where(eq(runs.id, runId))
+  if (!run) throw new Error('run not found')
+  await recordEvent(tx, {
+    profileId: run.profileId,
+    runId,
+    type: 'run.tool_result',
+    payload: {
+      toolCallId: key.toolCallId,
+      preview: record.preview,
+      isError: record.isError,
+      ...(record.artifactId ? { artifactId: record.artifactId } : {}),
+    },
+  })
+  for (const e of emit) {
+    await recordEvent(tx, { profileId: run.profileId, runId, type: e.type, payload: e.payload })
+  }
+  return record
 }
 
 export interface StepInput {

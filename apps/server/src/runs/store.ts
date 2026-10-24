@@ -10,19 +10,29 @@ import type {
   AppendResult,
   ModelMessage,
   NewStep,
+  NewToolStep,
   PersistedStep,
   RunContext,
   RunRecord,
   RunStore,
+  RunWait,
+  ToolCallKey,
+  ToolResultRecord,
   TransitionPatch,
 } from '@mawl/core'
 import { schema } from '@mawl/db'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ProvidersDb } from '../providers/types.ts'
-import { insertRunStep, recordEvent } from './repo.ts'
+import {
+  insertRunStep,
+  insertToolResult,
+  type Queryable,
+  recordEvent,
+  toToolRecord,
+} from './repo.ts'
 
-const { runs, profiles, messages, threads, runSteps } = schema
+const { runs, profiles, messages, threads, runSteps, runWaits, toolResults, jsonValue } = schema
 
 /** Most recent messages sent to the model. A stopgap until context assembly (P3.5). */
 export const HISTORY_LIMIT = 200
@@ -37,8 +47,19 @@ function asJson(value: unknown): Json {
   return JSON.parse(JSON.stringify(value)) as Json
 }
 
-/** Thrown inside a transaction to roll it back when the second row of a step collides. */
-class DuplicateStep extends Error {}
+/**
+ * Locks the run row and returns it only while it is unning: a cancel or pause that commits first
+ * is seen here, and one that arrives later waits until this write is done.
+ */
+async function lockRunning(tx: Queryable, runId: RunId) {
+  const [run] = await tx
+    .select({ profileId: runs.profileId, status: runs.status })
+    .from(runs)
+    .where(eq(runs.id, runId))
+    .for('update')
+  if (!run) throw new Error('run not found')
+  return run.status === 'running' ? run : null
+}
 
 const toRecord = (row: typeof runs.$inferSelect): RunRecord => ({
   id: row.id,
@@ -139,60 +160,116 @@ export function createRunStore(db: ProvidersDb): RunStore {
     },
 
     async appendStep(runId, step: NewStep, runUsage: Usage): Promise<AppendResult> {
-      try {
-        return await db.transaction(async (tx) => {
-          // Lock the run row: a cancel or pause that commits first is seen here, and one that
-          // arrives later waits until this step is written.
-          const [run] = await tx
-            .select({ profileId: runs.profileId, status: runs.status })
-            .from(runs)
-            .where(eq(runs.id, runId))
-            .for('update')
-          if (!run) throw new Error('run not found')
-          if (run.status !== 'running') return 'not_running' as const
-
-          const modelId = await insertRunStep(tx, {
-            runId,
-            idx: step.idx,
-            kind: 'model',
-            input: asJson({ messages: step.assistantMessages }),
-            usage: step.usage,
-          })
-          // Another execution wrote this step first: nothing of ours exists yet.
-          if (modelId === null) return 'duplicate' as const
-          await recordEvent(tx, {
-            profileId: run.profileId,
-            runId,
-            type: 'run.step',
-            payload: { stepId: modelId, idx: step.idx, kind: 'model', usage: step.usage },
-          })
-
-          if (step.toolMessages) {
-            const toolId = await insertRunStep(tx, {
-              runId,
-              idx: step.idx + 1,
-              kind: 'tool',
-              input: asJson({ messages: step.toolMessages }),
-              usage: null,
-            })
-            if (toolId === null) throw new DuplicateStep()
-            await recordEvent(tx, {
-              profileId: run.profileId,
-              runId,
-              type: 'run.step',
-              payload: { stepId: toolId, idx: step.idx + 1, kind: 'tool' },
-            })
-          }
-          await tx
-            .update(runs)
-            .set({ usage: runUsage, activeMs: sql`${runs.activeMs} + ${step.activeMsDelta}` })
-            .where(eq(runs.id, runId))
-          return 'written' as const
+      return db.transaction(async (tx) => {
+        const run = await lockRunning(tx, runId)
+        if (!run) return 'not_running' as const
+        const modelId = await insertRunStep(tx, {
+          runId,
+          idx: step.idx,
+          kind: 'model',
+          input: asJson({ messages: step.assistantMessages }),
+          usage: step.usage,
         })
-      } catch (err) {
-        if (err instanceof DuplicateStep) return 'duplicate'
-        throw err
-      }
+        // Another execution wrote this step first: nothing of ours exists yet.
+        if (modelId === null) return 'duplicate' as const
+        await recordEvent(tx, {
+          profileId: run.profileId,
+          runId,
+          type: 'run.step',
+          payload: { stepId: modelId, idx: step.idx, kind: 'model', usage: step.usage },
+        })
+        await tx
+          .update(runs)
+          .set({ usage: runUsage, activeMs: sql`${runs.activeMs} + ${step.activeMsDelta}` })
+          .where(eq(runs.id, runId))
+        return 'written' as const
+      })
+    },
+
+    async appendToolStep(runId, step: NewToolStep): Promise<AppendResult> {
+      return db.transaction(async (tx) => {
+        const run = await lockRunning(tx, runId)
+        if (!run) return 'not_running' as const
+        const toolId = await insertRunStep(tx, {
+          runId,
+          idx: step.idx,
+          kind: 'tool',
+          input: asJson({ messages: step.toolMessages }),
+          usage: null,
+        })
+        if (toolId === null) return 'duplicate' as const
+        await recordEvent(tx, {
+          profileId: run.profileId,
+          runId,
+          type: 'run.step',
+          payload: { stepId: toolId, idx: step.idx, kind: 'tool' },
+        })
+        await tx
+          .update(runs)
+          .set({ activeMs: sql`${runs.activeMs} + ${step.activeMsDelta}` })
+          .where(eq(runs.id, runId))
+        return 'written' as const
+      })
+    },
+
+    async park(runId, wait: RunWait, activeMsDelta): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(runs)
+          .set({
+            status: 'waiting_user',
+            ...(activeMsDelta ? { activeMs: sql`${runs.activeMs} + ${activeMsDelta}` } : {}),
+          })
+          .where(and(eq(runs.id, runId), eq(runs.status, 'running')))
+          .returning({ profileId: runs.profileId })
+        if (!row) return false
+        await tx.insert(runWaits).values({
+          runId,
+          stepIdx: wait.stepIdx,
+          toolCallId: wait.toolCallId,
+          kind: wait.kind,
+          payload: jsonValue(wait.payload),
+        })
+        await recordEvent(tx, {
+          profileId: row.profileId,
+          runId,
+          type: 'run.status',
+          payload: { status: 'waiting_user', prevStatus: 'running' },
+        })
+        return true
+      })
+    },
+
+    async toolResult(runId, key: ToolCallKey): Promise<ToolResultRecord | null> {
+      const [row] = await db
+        .select()
+        .from(toolResults)
+        .where(
+          and(
+            eq(toolResults.runId, runId),
+            eq(toolResults.stepIdx, key.stepIdx),
+            eq(toolResults.toolCallId, key.toolCallId),
+          ),
+        )
+      return row ? toToolRecord(row) : null
+    },
+
+    async recordToolCall(runId, call): Promise<void> {
+      const [run] = await db
+        .select({ profileId: runs.profileId })
+        .from(runs)
+        .where(eq(runs.id, runId))
+      if (!run) throw new Error('run not found')
+      await recordEvent(db, {
+        profileId: run.profileId,
+        runId,
+        type: 'run.tool_call',
+        payload: { ...call },
+      })
+    },
+
+    async recordToolResult(runId, key, record, emit): Promise<ToolResultRecord> {
+      return db.transaction((tx) => insertToolResult(tx, runId, key, record, emit))
     },
 
     async succeed(runId, result): Promise<boolean> {

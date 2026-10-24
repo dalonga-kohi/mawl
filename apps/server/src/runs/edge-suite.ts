@@ -340,7 +340,6 @@ export function describeRunEdges(name: string, make: () => Promise<MadeServiceDb
           {
             idx: 0,
             assistantMessages: [{ role: 'assistant', content: 'late' }],
-            toolMessages: null,
             usage,
             activeMsDelta: 0,
           },

@@ -1,14 +1,15 @@
 import { newId, type RunId } from '@mawl/contracts'
-import type { ModelMessage } from '@mawl/core'
+import type { ModelMessage, ToolResultRecord } from '@mawl/core'
 import { schema } from '@mawl/db'
 import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { MadeServiceDb } from '../providers/service-suite.ts'
+import { createArtifactStore } from './artifacts.ts'
 import { insertEvent, insertRunStep } from './repo.ts'
 import { createRunStore } from './store.ts'
 import { seedMessage, seedProfile, seedRun, seedThread } from './test-util.ts'
 
-const { runs, runSteps, events, messages, threads } = schema
+const { runs, runSteps, events, messages, threads, runWaits } = schema
 
 /** One database per suite: every test seeds its own profile, so tests never collide. */
 export function describeRunStore(name: string, make: () => Promise<MadeServiceDb>): void {
@@ -150,7 +151,7 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
       })
     })
 
-    describe('appendStep and steps', () => {
+    describe('appendStep, appendToolStep and steps', () => {
       const assistant: ModelMessage = { role: 'assistant', content: [{ type: 'text', text: 'hi' }] }
       const toolMsg: ModelMessage = {
         role: 'tool',
@@ -163,38 +164,42 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
           },
         ],
       }
+      const usage = { inputTokens: 7, outputTokens: 3 }
+      const modelStep = (idx: number, activeMsDelta = 0) => ({
+        idx,
+        assistantMessages: [assistant],
+        usage,
+        activeMsDelta,
+      })
 
-      it('writes the model row, the tool row and one run.step event each, atomically', async () => {
+      it('writes the model row with its run.step event, usage and active time', async () => {
         const { runId, store } = await seed('running')
-        const usage = { inputTokens: 7, outputTokens: 3 }
-        const ok = await store.appendStep(
-          runId,
-          {
-            idx: 0,
-            assistantMessages: [assistant],
-            toolMessages: [toolMsg],
-            usage,
-            activeMsDelta: 40,
-          },
-          usage,
-        )
-        expect(ok).toBe('written')
-
+        expect(await store.appendStep(runId, modelStep(0, 40), usage)).toBe('written')
         const rows = await store.steps(runId)
-        expect(rows.map((r) => [r.idx, r.kind])).toEqual([
-          [0, 'model'],
-          [1, 'tool'],
-        ])
-        expect(rows[0]).toMatchObject({ messages: [assistant], usage })
-        expect(rows[1]).toMatchObject({ messages: [toolMsg], usage: null })
+        expect(rows).toEqual([{ idx: 0, kind: 'model', messages: [assistant], usage }])
         const stepEvents = (await eventsOf(runId)).filter((e) => e.type === 'run.step')
-        expect(stepEvents.map((e) => (e.payload as { idx: number; kind: string }).idx)).toEqual([
-          0, 1,
-        ])
-        expect(stepEvents[0]?.payload).toMatchObject({ kind: 'model', usage })
+        expect(stepEvents.map((e) => e.payload)).toMatchObject([{ idx: 0, kind: 'model', usage }])
         const [run] = await db.select().from(runs).where(eq(runs.id, runId))
         expect(run?.usage).toEqual(usage)
         expect(run?.activeMs).toBe(40)
+      })
+
+      it('writes the tool row with its run.step event and active time', async () => {
+        const { runId, store } = await seed('running')
+        await store.appendStep(runId, modelStep(0), usage)
+        expect(
+          await store.appendToolStep(runId, { idx: 1, toolMessages: [toolMsg], activeMsDelta: 9 }),
+        ).toBe('written')
+        const rows = await store.steps(runId)
+        expect(rows.map((r) => [r.idx, r.kind, r.usage])).toEqual([
+          [0, 'model', usage],
+          [1, 'tool', null],
+        ])
+        expect(rows[1]?.messages).toEqual([toolMsg])
+        const stepEvents = (await eventsOf(runId)).filter((e) => e.type === 'run.step')
+        expect(stepEvents.at(-1)?.payload).toMatchObject({ idx: 1, kind: 'tool' })
+        const [run] = await db.select().from(runs).where(eq(runs.id, runId))
+        expect(run?.activeMs).toBe(9)
       })
 
       it('adds active time on transition and success', async () => {
@@ -212,25 +217,13 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         expect(run?.activeMs).toBe(12)
       })
 
-      it('returns false and writes nothing when the model row idx exists', async () => {
+      it('answers duplicate and writes nothing when the model row idx exists', async () => {
         const { runId, store } = await seed('running')
-        const usage = { inputTokens: 1, outputTokens: 1 }
-        await store.appendStep(
-          runId,
-          { idx: 0, assistantMessages: [assistant], toolMessages: null, usage, activeMsDelta: 0 },
-          usage,
-        )
-        const again = await store.appendStep(
-          runId,
-          {
-            idx: 0,
-            assistantMessages: [assistant],
-            toolMessages: [toolMsg],
-            usage,
-            activeMsDelta: 5,
-          },
-          { inputTokens: 99, outputTokens: 99 },
-        )
+        await store.appendStep(runId, modelStep(0), usage)
+        const again = await store.appendStep(runId, modelStep(0, 5), {
+          inputTokens: 99,
+          outputTokens: 99,
+        })
         expect(again).toBe('duplicate')
         expect(await store.steps(runId)).toHaveLength(1)
         expect((await eventsOf(runId)).filter((e) => e.type === 'run.step')).toHaveLength(1)
@@ -238,30 +231,146 @@ export function describeRunStore(name: string, make: () => Promise<MadeServiceDb
         expect(run?.usage).toEqual(usage)
       })
 
-      it('rolls the model row back when only the tool row collides', async () => {
+      it('answers duplicate for a tool row idx that exists', async () => {
         const { runId, store } = await seed('running')
-        await insertRunStep(db, {
-          runId,
-          idx: 1,
-          kind: 'tool',
-          input: { messages: [] },
-          usage: null,
+        await store.appendStep(runId, modelStep(0), usage)
+        await store.appendToolStep(runId, { idx: 1, toolMessages: [toolMsg], activeMsDelta: 0 })
+        expect(
+          await store.appendToolStep(runId, { idx: 1, toolMessages: [toolMsg], activeMsDelta: 3 }),
+        ).toBe('duplicate')
+        expect((await eventsOf(runId)).filter((e) => e.type === 'run.step')).toHaveLength(2)
+      })
+
+      it('writes no tool row once the run left running', async () => {
+        const { runId, store } = await seed('running')
+        await store.appendStep(runId, modelStep(0), usage)
+        await store.transition(runId, 'running', 'cancelled')
+        expect(
+          await store.appendToolStep(runId, { idx: 1, toolMessages: [toolMsg], activeMsDelta: 0 }),
+        ).toBe('not_running')
+        expect(await store.steps(runId)).toHaveLength(1)
+      })
+    })
+
+    describe('tool ledger', () => {
+      const record = (value: string, extra: Partial<ToolResultRecord> = {}): ToolResultRecord => ({
+        toolName: 'notify',
+        output: { type: 'text', value },
+        isError: false,
+        preview: value,
+        artifactId: null,
+        ...extra,
+      })
+      const key = { stepIdx: 0, toolCallId: 'call_1' }
+
+      it('records a tool call event with the redacted args and action class', async () => {
+        const { runId, profileId, store } = await seed('running')
+        await store.recordToolCall(runId, {
+          toolCallId: 'call_1',
+          tool: 'web_fetch',
+          argsRedacted: { url: 'https://example.com/' },
+          actionClass: 'read',
         })
-        const usage = { inputTokens: 1, outputTokens: 1 }
-        const ok = await store.appendStep(
-          runId,
-          {
-            idx: 0,
-            assistantMessages: [assistant],
-            toolMessages: [toolMsg],
-            usage,
-            activeMsDelta: 0,
+        const [e] = (await eventsOf(runId)).filter((x) => x.type === 'run.tool_call')
+        expect(e).toMatchObject({
+          profileId,
+          payload: {
+            toolCallId: 'call_1',
+            tool: 'web_fetch',
+            argsRedacted: { url: 'https://example.com/' },
+            actionClass: 'read',
           },
-          usage,
+        })
+      })
+
+      it('stores a result once with its event and emitted events; the first writer wins', async () => {
+        const { runId, profileId, store } = await seed('running')
+        expect(await store.toolResult(runId, key)).toBeNull()
+        const emit = [
+          {
+            type: 'notify' as const,
+            payload: { title: 'Done', body: 'b', level: 'info' as const },
+          },
+        ]
+        expect(await store.recordToolResult(runId, key, record('first'), emit)).toEqual(
+          record('first'),
         )
-        expect(ok).toBe('duplicate')
-        expect((await store.steps(runId)).map((r) => r.idx)).toEqual([1])
-        expect((await eventsOf(runId)).filter((e) => e.type === 'run.step')).toHaveLength(0)
+        expect(await store.recordToolResult(runId, key, record('second'), emit)).toEqual(
+          record('first'),
+        )
+        expect(await store.toolResult(runId, key)).toEqual(record('first'))
+        const evs = await eventsOf(runId)
+        expect(evs.filter((e) => e.type === 'run.tool_result').map((e) => e.payload)).toEqual([
+          { toolCallId: 'call_1', preview: 'first', isError: false },
+        ])
+        const notes = evs.filter((e) => e.type === 'notify')
+        expect(notes).toHaveLength(1)
+        expect(notes[0]).toMatchObject({
+          profileId,
+          payload: { title: 'Done', body: 'b', level: 'info' },
+        })
+      })
+
+      it('keys results by step idx and tool call id', async () => {
+        const { runId, store } = await seed('running')
+        await store.recordToolResult(runId, key, record('a'), [])
+        await store.recordToolResult(runId, { stepIdx: 2, toolCallId: 'call_1' }, record('b'), [])
+        expect((await store.toolResult(runId, { stepIdx: 2, toolCallId: 'call_1' }))?.preview).toBe(
+          'b',
+        )
+      })
+
+      it('carries the artifact id into the record and the event', async () => {
+        const { runId, profileId, store } = await seed('running')
+        const artifacts = createArtifactStore(db)
+        const artifactId = await artifacts.create({
+          profileId,
+          runId,
+          mime: 'text/plain',
+          content: 'big',
+          preview: 'b',
+          tokenCount: 1,
+        })
+        await store.recordToolResult(runId, key, record('p', { artifactId }), [])
+        expect((await store.toolResult(runId, key))?.artifactId).toBe(artifactId)
+        const [e] = (await eventsOf(runId)).filter((x) => x.type === 'run.tool_result')
+        expect(e?.payload).toMatchObject({ artifactId })
+      })
+    })
+
+    describe('park', () => {
+      const wait = {
+        kind: 'question' as const,
+        payload: { question: 'Blue or green?' },
+        stepIdx: 0,
+        toolCallId: 'call_1',
+      }
+
+      it('records the wait and moves running to waiting_user with an event, together', async () => {
+        const { runId, store } = await seed('running')
+        expect(await store.park(runId, wait, 25)).toBe(true)
+        const [run] = await db.select().from(runs).where(eq(runs.id, runId))
+        expect(run).toMatchObject({ status: 'waiting_user', activeMs: 25 })
+        const [row] = await db.select().from(runWaits).where(eq(runWaits.runId, runId))
+        expect(row).toMatchObject({
+          stepIdx: 0,
+          toolCallId: 'call_1',
+          kind: 'question',
+          payload: { question: 'Blue or green?' },
+          answer: null,
+          resolvedAt: null,
+        })
+        expect((await eventsOf(runId)).at(-1)?.payload).toEqual({
+          status: 'waiting_user',
+          prevStatus: 'running',
+        })
+      })
+
+      it('writes nothing when the run is no longer running', async () => {
+        const { runId, store } = await seed('running')
+        await store.transition(runId, 'running', 'paused')
+        expect(await store.park(runId, wait, 0)).toBe(false)
+        expect(await db.select().from(runWaits).where(eq(runWaits.runId, runId))).toHaveLength(0)
       })
     })
 
