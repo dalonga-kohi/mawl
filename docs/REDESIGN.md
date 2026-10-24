@@ -64,7 +64,7 @@ flowchart LR
   - waits for `/healthz`, then points the webview at it
   - restarts the server with backoff (max 5 in 5 min, then an error screen with a "copy diagnostics" button)
 - **Watchdog.** The server exits when its parent dies (stdin EOF), so there are no orphaned servers or Postgres.
-- **Data.** `%LOCALAPPDATA%\app.mawl.desktop\{pg-data,secrets,claude,logs,artifacts}` (Tauri's `app_local_data_dir`, separate from the install dir, §10.2). The master key moves into Windows Credential Manager via Tauri (a file in `secrets/` stays the headless fallback).
+- **Data.** `%LOCALAPPDATA%\app.mawl.desktop\{pg-data,secrets,claude,logs,artifacts}` (Tauri's `app_local_data_dir`, separate from the install dir, §10.2). The master key moves into Windows Credential Manager via Tauri (a file in `secrets/` stays the headless fallback). Boot checks that the key opens every stored secret (provider keys and, since D2.2, the web search key) and stops otherwise; recovery is restoring the old key from a backup (ARCHITECTURE §11).
 - **Embedded Postgres.** Start on boot with a random port bound to 127.0.0.1, a generated superuser password, `initdb` on first run, and clean shutdown on quit. Upgrades between PG majors are a later problem (pin 17). Binaries, lifecycle and the pgvector build as proven in D0.1 (§10.1).
 - **Installer.** Tauri bundler, NSIS per-user install (no admin). Auto-update via the Tauri updater against GitHub Releases. Code signing is optional for a portfolio project (SmartScreen warns without it).
 - **First run.** Splash → provider (Continue with ChatGPT first, then an API key, Ollama detection, Claude plan) → name your teammate → done. Docker is offered later, from the teammate's computer card.

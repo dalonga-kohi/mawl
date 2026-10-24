@@ -253,7 +253,9 @@ Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP,
     - `executeRun` passes `deps.tools` straight to `streamText`; every call must go through the policy engine (D2.3) first.
     - A crash between a tool's side effect and the step write re-runs the tool on resume, so tools need idempotency keys (`run_id`, `step_idx`, `toolCallId`).
     - Wrap tool results as untrusted data.
+  - *Follow-up (D2.2 review):* orphan artifacts. An artifact is written before its tool result is recorded, so a crash in between leaves an artifact no result points to (a re-run writes another). Add a cleanup that removes artifacts of a run that no `tool_results` row references once the run is terminal.
 - [ ] **D2.3 Policy engine.** Action classes, levels, rule precedence, and the non-lowerable classes. *Tests:* a table-driven rule-matrix test. (Propose head-reviewer.)
+  - *From D2.2 review:* `web_fetch` must not be plain `auto`: a model-chosen url query can exfiltrate data (context, secrets the model saw) and the `run.tool_call` event redacts the query, so the owner cannot see what left. Decide a level or a host rule for it. The address guard cannot stop fetches to the host's own public IP or to router UIs reached through hairpin NAT; account for that in the rules.
   - *Added 2026-10-24 (R16):* rules match on the node kind too. The `this_pc` defaults go in the matrix from the start: reads in a grant `auto`, writes in a grant `ask` (lowerable per grant), `shell_exec` `ask` (lowerable only by an exact command-prefix rule), `delete` never below `ask`. A `teammate` trigger never carries the owner's approval (R19).
 - [ ] **D2.4 Approvals.** (head-coder: run engine + policy)
   - `waiting_approval` releases the worker. The parked call is stored encrypted with its arguments hash, and approve replays it byte for byte (R9). A denial is returned to the model.
