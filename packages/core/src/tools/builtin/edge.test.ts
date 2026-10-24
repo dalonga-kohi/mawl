@@ -1,5 +1,7 @@
 import { newId } from '@mawl/contracts'
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { defineTool } from '../define.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryArtifacts, MemoryLedger } from '../test-util.ts'
 import type { Tool } from '../types.ts'
@@ -523,5 +525,58 @@ describe('notify edge: caps', () => {
     await reg.invoke(call, ctx)
     await reg.invoke(call, ctx)
     expect(h.ledger.events.filter((e) => e.type === 'notify')).toHaveLength(1)
+  })
+})
+
+describe('pinned limits (literal numbers, so a changed constant is noticed)', () => {
+  it('notify: title 120 and body 1000 characters are the caps', async () => {
+    const h = bind([notifyTool()])
+    expect(
+      text(await h.call('notify', { title: 't'.repeat(120), body: 'b'.repeat(1000) })),
+    ).toContain('Notification sent')
+    expect(text(await h.call('notify', { title: 't'.repeat(121), body: '' }))).toContain(
+      'invalid_input',
+    )
+    expect(text(await h.call('notify', { title: 't', body: 'b'.repeat(1001) }))).toContain(
+      'invalid_input',
+    )
+  })
+
+  it('read_artifact: a page is at most 12000 characters', async () => {
+    const artifacts = new MemoryArtifacts()
+    const h = bind([readArtifactTool(artifacts)], artifacts)
+    const id = await artifacts.create({
+      profileId,
+      runId,
+      mime: 'text/plain',
+      content: 'q'.repeat(20_000),
+      preview: '',
+      tokenCount: 1,
+    })
+    expect(text(await h.call('read_artifact', { artifactId: id, limit: 12_000 }))).toContain(
+      'Characters 0 to 12000 of 20000',
+    )
+    expect(text(await h.call('read_artifact', { artifactId: id, limit: 12_001 }))).toContain(
+      'invalid_input',
+    )
+  })
+
+  it('an output of 16000 characters is inline, 16001 is an artifact with a 2000 character preview', async () => {
+    const mk = (n: number) =>
+      bind([
+        defineTool({
+          name: 'big',
+          description: 'd',
+          inputSchema: z.strictObject({}),
+          actionClass: 'read',
+          run: async () => ({ kind: 'ok', text: 'p'.repeat(n) }),
+        }),
+      ])
+    const inline = mk(16_000)
+    await inline.call('big', {})
+    expect(inline.artifacts.rows.size).toBe(0)
+    const big = mk(16_001)
+    await big.call('big', {})
+    expect([...big.artifacts.rows.values()][0]?.preview).toHaveLength(2000)
   })
 })
