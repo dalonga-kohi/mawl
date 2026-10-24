@@ -12,6 +12,7 @@ import type { ProfileService } from './profiles/service.ts'
 import type { ProviderService } from './providers/service.ts'
 import { createRouter } from './router.ts'
 import type { RunService } from './runs/service.ts'
+import type { SearchService } from './search/service.ts'
 import type { UserService } from './user/service.ts'
 import { webStatic } from './web-static.ts'
 
@@ -22,6 +23,7 @@ export interface AppDeps {
   runs: RunService
   profiles?: ProfileService
   user?: UserService
+  search?: SearchService
   /** Resolves when the database answers; rejects otherwise. */
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
@@ -77,6 +79,7 @@ export function createApp({
   runs,
   profiles,
   user,
+  search,
   checkDb,
   healthTimeoutMs,
   hosts,
@@ -130,6 +133,7 @@ export function createApp({
       runs,
       ...(profiles ? { profiles } : {}),
       ...(user ? { user } : {}),
+      ...(search ? { search } : {}),
     }),
     {
       // Procedure path and error code only. Inputs and outputs may hold credentials.

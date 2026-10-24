@@ -30,6 +30,7 @@ import { RunRegistry } from './runs/registry.ts'
 import { createModelResolver } from './runs/resolve-model.ts'
 import { createRunService } from './runs/service.ts'
 import { type RunWorker, startRunWorker } from './runs/worker.ts'
+import { createSearchService } from './search/service.ts'
 import {
   createSecretBox,
   type HostMasterKey,
@@ -41,6 +42,7 @@ import {
   SecretDecryptError,
 } from './secrets/index.ts'
 import { runTeardown } from './teardown.ts'
+import { createServerTools } from './tools/registry.ts'
 import { createUserService } from './user/service.ts'
 import { readVersion } from './version.ts'
 import { resolveWebDir } from './web-static.ts'
@@ -341,6 +343,7 @@ export async function startServer(
       })
       await live.start()
     }
+    const searchService = createSearchService({ db: handle.db, secretBox, logger })
     if (overrides.worker !== false) {
       worker = await startRunWorker({
         pool: handle.pool,
@@ -348,6 +351,7 @@ export async function startServer(
         logger,
         registry,
         resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
+        tools: createServerTools({ db: handle.db, search: searchService }),
         ...(live ? { deltas: live.deltas } : {}),
       })
       logger.info('run worker started')
@@ -373,6 +377,7 @@ export async function startServer(
       runs,
       profiles: profileService,
       user: userService,
+      search: searchService,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
@@ -387,6 +392,7 @@ export async function startServer(
           runs,
           profiles: profileService,
           user: userService,
+          search: searchService,
           events: createEventsService({ bus: live.bus }),
         }),
         logger,
