@@ -86,8 +86,7 @@ packages/
   ...          client, mascot, channels, native UI, and test utilities
 infra/         Docker Compose, desktop packaging, and computer infrastructure
 design/        brand assets and visual references
-site/          existing static landing-page deployment
-sites/         current landing-page redesign and local preview
+site/           landing page (static, deployed to Cloudflare Pages) and local preview
 docs/          product, architecture, design, and implementation guides
 ```
 
@@ -103,7 +102,7 @@ Prefer checks scoped to the package or files you changed. For example:
 
 ```bash
 corepack pnpm --filter @mawl/web typecheck
-corepack pnpm exec biome check sites
+corepack pnpm exec biome check site
 ```
 
 The workspace commands remain available when you need a broader check:
@@ -114,7 +113,7 @@ corepack pnpm typecheck
 corepack pnpm test
 ```
 
-For the current landing-page design, run `node sites/preview.mjs` and open [localhost:4173](http://localhost:4173). It uses local fonts and assets and needs no build step. See [the landing-page notes](sites/README.md) for the visual direction, interactions, SEO setup, and verification history.
+For the current landing-page design, run `node site/preview.mjs` and open [localhost:4173](http://localhost:4173). It uses local fonts and assets and needs no build step.
 
 [CLAUDE.md](CLAUDE.md) covers repository conventions, scoped testing, and the development workflow. [The plan](docs/PLAN.md) is the source of truth for implementation status.
 
