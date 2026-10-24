@@ -162,6 +162,12 @@ export function createRouter({ version, providers, runs, events, profiles, user 
       resume: os.runs.resume.handler(({ input, errors }) =>
         runs.resume(input.id).catch(runErrors(errors)),
       ),
+      reply: stub(os.runs.reply),
+    },
+    search: {
+      status: stub(os.search.status),
+      setKey: stub(os.search.setKey),
+      clearKey: stub(os.search.clearKey),
     },
     approvals: {
       list: stub(os.approvals.list),
