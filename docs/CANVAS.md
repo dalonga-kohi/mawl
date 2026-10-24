@@ -58,7 +58,7 @@ A separate page, `Canvases`, in the sidebar next to Search · Tools · Scheduled
 Added to ARCHITECTURE §9 (a migration in DC1):
 
 ```
-canvases(id, profile_id, thread_id|null, run_id|null, title, kind{mockup|site|graphic|motion},
+canvases(id, profile_id, project_id|null, thread_id|null, run_id|null, title, kind{mockup|site|graphic|motion},
          current_version_id, starred, thumbnail_artifact_id|null, network_allowed bool default false,
          created_at, updated_at, archived_at)
 canvas_versions(id, canvas_id, no int, parent_version_id|null,
@@ -203,7 +203,7 @@ The review script returns pass/warn/fail rows. The skill rule is: **do not deliv
 After the gates pass, the teammate looks at screenshots at 390 and 1280 px (the main model if it sees images, else the helper model, else it skips the pass and says so) against the `canvas-critique` rubric, fixes the top issues, and re-reviews. The number of passes is capped (default 2) to bound cost.
 
 ### 8.4 Memory and consistency
-The teammate recalls the owner's stated design preferences (D4) before the brief, and a good brief is reused across a teammate's canvases. A per-teammate **brand kit** (shared tokens and fonts) is a later slice (DC14).
+The teammate recalls the owner's stated design preferences (D4) before the brief, and a good brief is reused across a teammate's canvases. A **brand kit** (colors, fonts, logo, voice) belongs to the project, not the teammate (PLAN DP5, REDESIGN R18; it replaced DC14), and the canvas skills read it when the canvas is in a project.
 
 ### 8.5 Evaluation
 DC12 adds an eval set: about 12 fixed briefs across the kinds. In CI the fake model checks the plumbing (tools, diagnostics, the review loop, caps). By hand, with a real model, each output is scored on the review gates plus a short human rubric, and skill text versions are compared so a prompt edit cannot silently make things worse.
@@ -243,6 +243,7 @@ Install the pinned closure on Windows with Node 24 (disk, time, no scripts); whe
 
 | Area | Integration |
 |---|---|
+| Projects (DP) | A canvas may belong to a project (`project_id`); the project's brief, voice and brand kit feed the design brief; the project page lists its canvases |
 | Run engine (D2) | Canvas tools use the registry, the policy engine and idempotency keys; render feedback arrives through `run_inbox` follow-ups; events are stored, secret-free, content-free |
 | Skills (D2.8) | The built-in skill set needs a `builtin` source value and a rule that builtin skills are read-only for the teammate and updated with the app |
 | Computers (D3) | Headless render checks and the safer Remotion render target run on a computer; imports of files from a computer arrive as artifacts |
@@ -269,7 +270,8 @@ RPC: `canvases.list/get/rename/star/archive/unarchive/delete/duplicate`, `canvas
 | Library license problems (GSAP terms; Remotion terms) | Medium | Blocks distribution | Verify in DC0.1 and DC0.3; Remotion is never bundled, only user-installed after a consent step; re-read its license when pinning and before any public release |
 | Token cost of big file writes | High | Money and latency | `canvas_edit`, no content echo, range reads, cap on file sizes |
 | Blind generation when no client or computer is attached | Medium | Lower quality | §7.1 tiers; the skill forbids visual claims without a render |
-| Remotion install is heavy or fragile (many packages, Chrome download) | Medium | DC9 to DC11 slip | DC0.3 spike first; these slices sit behind the MVP cut line; the exit in §9.3 |\n| A host render runs untrusted composition code outside a container | Medium | Host exposure | Computer target by default; host target only after the confinement test passes (§9.2) |
+| Remotion install is heavy or fragile (many packages, Chrome download) | Medium | DC9 to DC11 slip | DC0.3 spike first; these slices sit behind the MVP cut line; the exit in §9.3 |
+| A host render runs untrusted composition code outside a container | Medium | Host exposure | Computer target by default; host target only after the confinement test passes (§9.2) |
 | Scope creep (a whole IDE) | High | Everything slips | The cut line in PLAN; read-only code view in v1; no backend, no deploy |
 | Contracts and migrations collide with other slices | Medium | Merge pain | The phase starts after D5 so it is serial; one writer at a time per file set |
 

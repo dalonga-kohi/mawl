@@ -18,6 +18,27 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 
 > **Redesign 2026-10 ([REDESIGN.md](REDESIGN.md)).** Mawl becomes desktop-first: the Tauri app hosts the server and an embedded Postgres, and Docker is only needed for computers. P0 and P1 stay as the record of what was built. The old phases P2 to P8 are replaced by D1 to D9 below (re-sliced 2026-10-21; every open review note was carried into its new slice). P1.8 is re-scoped into D1.4.
 
+> **Addendum 2026-10-24 ([REDESIGN §12](REDESIGN.md)).** Owner decisions: Mawl stays a personal portfolio project (no cloud services; seams only); the Beta 1 wedge user is a solo creator or freelancer running a one-person studio; Beta 1 targets late December 2026 to January 2027; working directly on this PC comes before Docker computers. New decisions R15 to R21: Nodes (This PC first), folder grants, easy MCP (registry, stdio on the host), Projects as shared context, teammate requests, workflows and webhooks, and remote access through the owner's own relay. New slices are marked *(added 2026-10-24)*.
+
+## B1 — Beta 1 cut (target late December 2026 to January 2027)
+
+The order to work in (REDESIGN §12.3). The slices themselves live in their phases below.
+
+1. D1.7c, D1.8
+2. D2.2, D2.3, D2.4, D2.5
+3. D3.2, D3.H1, D3.H2, D3.H3
+4. D2.9a, D2.9b
+5. D2.8
+6. DP1, DP2, DP3, DP4
+7. D2.7, D2.14
+8. D2.11
+9. D4.1
+10. D5.2, D5.3, D5.5
+
+- *Stretch:* D2.6, D2.12, D5.4, D2.10 (owner's build only).
+- *Not in Beta 1:* Docker computers (D3.1, D3.3 to D3.9), memory beyond D4.1, Canvas (first candidate for Beta 2), D6, D7, D8.
+- *Gate before any tester installs it:* a shared build does not offer the Claude plan provider, and SIWC eligibility is re-checked (REDESIGN §12.3).
+
 ## D0 — Spikes (de-risk the redesign)
 
 - [x] **D0.1 Embedded Postgres + pgvector on Windows.** (spike; works, results and decisions in REDESIGN §10.1; recipe `infra/desktop/pgvector/build-vector-mingw.ps1`) Prove that the server can start a bundled Postgres 17 on Windows as a child process (random loopback port, `initdb` on first run, clean stop) and load a `vector` extension built for those exact binaries. Run the existing `@mawl/db` migrations and one HNSW vector query against it. Write the result, versions and the build recipe into REDESIGN §10. If it fails, record why and the fallback (PGlite + own queue).
@@ -228,6 +249,7 @@ Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP,
     - A crash between a tool's side effect and the step write re-runs the tool on resume, so tools need idempotency keys (`run_id`, `step_idx`, `toolCallId`).
     - Wrap tool results as untrusted data.
 - [ ] **D2.3 Policy engine.** Action classes, levels, rule precedence, and the non-lowerable classes. *Tests:* a table-driven rule-matrix test. (Propose head-reviewer.)
+  - *Added 2026-10-24 (R16):* rules match on the node kind too. The `this_pc` defaults go in the matrix from the start: reads in a grant `auto`, writes in a grant `ask` (lowerable per grant), `shell_exec` `ask` (lowerable only by an exact command-prefix rule), `delete` never below `ask`. A `teammate` trigger never carries the owner's approval (R19).
 - [ ] **D2.4 Approvals.** (head-coder: run engine + policy)
   - `waiting_approval` releases the worker. The parked call is stored encrypted with its arguments hash, and approve replays it byte for byte (R9). A denial is returned to the model.
   - Approvals inbox UI, an inline approval card in chat, resolution events.
@@ -241,10 +263,9 @@ Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP,
 - [ ] **D2.8 Skills.** (old S4 core)
   - `skills` table, the `SKILL.md` format, the index block, `skill_load`, `skill_propose` into an approval queue.
   - Skills UI (list, editor, proposals). UI → head-coder.
-- [ ] **D2.9 MCP manager + tool search.** (old P2.5)
-  - HTTP/SSE servers with OAuth (`@ai-sdk/mcp`), a per-profile enable list, per-tool policy, a Connections UI, and a curated catalog JSON.
-  - Above 30 tools, MCP tools are deferred behind `tool_search`.
-  - Stdio servers come with computers (D3.5).
+- [ ] **D2.9 MCP manager + tool search.** (old P2.5) Split 2026-10-24 (R17); verify every MCP spec detail (OAuth, client registration, registry API, `.mcpb`) against the current spec at slice start.
+  - [ ] **D2.9a Remote MCP.** HTTP servers with OAuth (`@ai-sdk/mcp`), a per-profile enable list, per-tool policy (MCP annotations as hints only), the Connections UI, and `tool_search` deferring MCP tools above 30.
+  - [ ] **D2.9b Registry catalog and one-click install.** *(added 2026-10-24)* Browse and search the official MCP Registry from the Connections page instead of a curated JSON; install a remote entry in one flow; stdio entries and `.mcpb` bundles install on this PC through D3.H2 (and inside a Docker computer through D3.5 later). Registry data is untrusted: show the publisher, package and version, and pin the version on install.
 - [ ] **D2.10 Claude plan bridge.** (head-coder: providers + run engine; REDESIGN §5.6)
   - Mawl tools via `createSdkMcpServer`, every handler through policy and step recording.
   - Steering through streaming input (verify), approvals waiting inside the handler with a timeout that becomes a denial, and a "limited" label in the UI.
@@ -252,12 +273,24 @@ Goal: one loop, every provider: tools, policy, approvals, steering, skills, MCP,
 - [ ] **D2.11 Teammates UI.** (old P2.1; head-coder: UI) Persona editor, color and avatar, main, helper and fallback models, clone and archive, a computer slot (filled by D3).
 - [ ] **D2.12 Activity feed + audit log UI.** (old P2.6) Filterable by profile, type and time.
 - [ ] **D2.13 Loop eval set.** About 20 fixed tasks (fake model in CI, real model by hand), scoring tool choice, approvals respected, steering honoured and prompt-injection resistance.
+- [ ] **D2.14 Teammate requests.** *(added 2026-10-24, R19; head-coder: run engine, policy)* `ask_teammate(teammate, task)` starts a run on the other teammate (trigger `teammate`) in a linked thread; the result returns as a `run_inbox` follow-up, wrapped as untrusted data. Chain depth 3, cycles refused, the child's budget capped by the requester's remaining budget, the child's approvals go to the owner. A request card in both threads with cancel. Needs D2.5 and D2.7. *Tests:* cycle and depth refusal, approval never inherited, cancel from either side, budget carve-out.
+- [ ] **D2.15 Mawl as an MCP server.** *(added 2026-10-24, R17; after Beta 1)* Expose teammates to other MCP clients (Claude Desktop, editors) as tools such as `ask_teammate` and `list_projects`, authorized by an owner-issued token, every call through policy. (Propose head-reviewer: a new inbound surface.)
 
-## D3 — Computers
-Goal: give a teammate a terminal or desktop computer with one click, when Docker Desktop is installed. See REDESIGN §6.
+## D3 — Nodes: This PC first, then Docker computers
+Goal: a teammate works on the owner's own files on this PC with no Docker, inside folders the owner granted; with Docker Desktop installed, it can also get its own terminal or desktop computer with one click. See REDESIGN §6 and §12 (R15, R16, R17).
 
+**Order (re-scoped 2026-10-24):** D3.2 (the Node entity), then D3.H1 to D3.H3 (This PC, in Beta 1), then the Docker slices D3.1 and D3.3 to D3.9. The Docker slices keep their ids, because CANVAS and DC slices refer to them.
+
+- [ ] **D3.2 Node entity.** *(was "Computer entity"; R15; head-coder: migration + contracts)* A `nodes` table with kinds `this_pc | docker_terminal | docker_desktop` (later `remote_pc`, `phone`, `cloud`), a nullable `profiles.workbench_node_id`, a capability-grant table for later capability nodes, contracts and RPC (`nodes.list/create/attach/detach/reset/archive`), `node.status` events. One `this_pc` node exists per server and cannot be deleted. Tools declare the node kinds they run on.
+- [ ] **D3.H1 This PC tools and folder grants.** *(added 2026-10-24, R16; head-coder: sandbox boundary and policy; propose head-reviewer)*
+  - `folder_grants` (owner-created, per project or per teammate; read or read-write). Canonical path resolution before every check (junctions, symlinks, 8.3 short names, `\\?\` and UNC forms, case), and a fixed deny list: Mawl's data and install dirs, `.ssh`, browser profiles, `.aws`, `.config/gh` and similar.
+  - File tools on `this_pc`: `list_files`, `read_file`, `write_file`, `edit_file`, `search_files`, each checked against the grants. Results are untrusted data.
+  - `shell` on `this_pc`: PowerShell 7 if present, else Windows PowerShell, as the owner's user, in a kill-on-close job object, a scrubbed env (no `MAWL_*`, no provider keys), cwd inside a grant; background jobs post follow-ups to the run inbox; cancel kills the job tree. The approval card shows the exact command and working directory.
+  - Policy defaults from D2.3. Idempotency keys on every write.
+  - *Tests:* a traversal and alias table (junction out of a grant, 8.3 name of a denied dir, `\\?\` prefix, trailing dots and spaces), the env scrub, the job tree killed on cancel, a write outside every grant refused.
+- [ ] **D3.H2 Stdio MCP on this PC.** *(added 2026-10-24, R17; head-coder: process supervision and secrets)* Install a stdio MCP server (a registry entry, a pasted `npx`/`uvx` command, or a `.mcpb` bundle) after the owner approves the exact command, package and pinned version. Each runs in its own job object with a scrubbed env plus its own encrypted env, cwd `<data>\mcp\<id>`, restarted with backoff, stopped with the server. The UI says it runs with the owner's rights. *Tests:* the approval binds the exact command, a changed version needs a new approval, env secrets never reach logs.
+- [ ] **D3.H3 Workbench and grants UI.** *(added 2026-10-24; head-coder: UI)* In teammate settings: the workbench (none, This PC, or a Docker computer later). Folder grants: add with the system folder picker, read or read-write, revoke, see which teammates and projects use each one. The approval card for host shell commands. Loading, empty, error and success states; 390 px.
 - [ ] **D3.1 Computer images.** `infra/computer/`: `mawl-computer-terminal` (under 500 MB) and `mawl-computer-desktop` (builds on terminal, under 1.6 GB), with the `computer-agent` helper (JSON-RPC over stdio). Published to GHCR by digest; image smoke test in CI.
-- [ ] **D3.2 Computer entity.** (head-coder: migration + contracts) `computers` table, nullable `profiles.computer_id`, contracts and RPC (`computers.list/create/attach/detach/reset/archive`), `computer.status` events.
 - [ ] **D3.3 DockerProvider + engine detection.** `dockerode` over the Windows named pipe (headless: socket proxy). Engine `not_installed | not_running | ready`, image pull with progress, `ensure`, `suspend`, `reset`, idle auto-suspend, home volumes.
 - [ ] **D3.4 Exec transport.** (head-coder: sandbox boundary) `attachStdio` for helper RPC, stdio MCP and the VNC tunnel. No published ports, no container IPs, no host mounts. *Tests:* a computer cannot reach Postgres, the engine or the API.
 - [ ] **D3.5 Computer tools.** `shell` (with background jobs that post follow-ups to the run inbox), file tools, browser via Playwright MCP (headless or headed), `computer_screenshot`, `computer_act` (desktop kind), plus stdio MCP servers inside the computer.
@@ -266,12 +299,23 @@ Goal: give a teammate a terminal or desktop computer with one click, when Docker
 - [ ] **D3.8 Takeover + input lease.** `waiting_takeover`, `request_takeover`, a per-computer input lease (agents per batch; the user outranks), notifications, the resume note to the agent.
 - [ ] **D3.9 Credential form.** Secure type-into-computer, with a redacted audit. (Propose head-reviewer.)
 
+## DP — Projects *(added 2026-10-24, REDESIGN R18)*
+Goal: a project is the shared context a group of teammates works in: the brief, guidelines and voice, brand, reference files, linked folders, threads, canvases and routines. A teammate that is not a member sees none of it.
+
+- [ ] **DP1 Project entity.** (head-coder: migration + contracts) `projects` (name, slug, brief, guidelines, created and archived), `project_members` (project, profile), nullable `threads.project_id`, project-scoped `folder_grants` (D3.H1), RPC `projects.list/get/create/update/archive` and `projects.members.*`, `project.updated` events. A thread belongs to at most one project. *Tests:* migration up and down on PGlite and Testcontainers, a non-member cannot read the project through any RPC.
+- [ ] **DP2 Project prompt block.** (head-coder: prompt layout; the owner approves the text, as for D2.1) A `project` block after the persona: brief, guidelines and voice, capped (decide the cap in the slice), quoted as untrusted owner data, frozen per segment. Update MEMORY §7 and the snapshot tests in the same commits.
+- [ ] **DP3 Reference library.** (head-coder: uploads and untrusted content) Uploads (drag and drop, the file picker) stored as artifacts with a `project_id`; text extracted from PDF, DOCX, Markdown and plain text; images kept for vision models. Tools `project_files_list`, `project_files_read`, `project_files_search` (FTS now, hybrid recall after D4.3), every result wrapped as untrusted data. Caps per file and per project. Linked folders from D3.H1 appear beside the uploads.
+- [ ] **DP4 Projects UI.** (head-coder: UI) A Projects section in the sidebar; the project page (overview with brief and guidelines, teammates, files, threads; canvases and routines when those exist); create and archive flows; starting a chat inside a project. Loading, empty, error and success states; 390 px.
+- [ ] **DP5 Brand kit.** (was DC14; after Beta 1) Colors, fonts, logo and voice per project, editable in the project page, read by the canvas skills and the copy skills.
+- [ ] **DP6 Project memory.** (after D4.4) Project-scoped core blocks and facts shared by the members; the Memory UI filters by project.
+
 ## D4 — Memory system (see MEMORY.md)
 
 - [ ] **D4.1 Memory schema + core blocks.**
   - Blocks with caps and versions, `memory_block_edit` tool, frozen-per-segment rendering.
   - *Tests:* cap rejection; byte-stable prefix across edits.
   - Decide the user block cap: profile context allows 2000 chars, the block caps at 1500 (see MEMORY.md).
+  - *Added 2026-10-24 (R18):* `memory_blocks` gets a nullable `project_id` from the first migration, so project blocks (DP6) need no later table change. Decide whether the per-profile `projects` block stays once projects exist.
 - [ ] **D4.2 Episodic log + `session_search`.** Episodes with FTS and artifact references.
 - [ ] **D4.3 Embedder + hybrid recall.**
   - Pluggable embedder, HNSW, RRF + rescoring + MMR, automatic injection.
@@ -295,11 +339,14 @@ Goal: teammates work on their own, reliably, on a laptop that sleeps. See REDESI
 - [ ] **D5.2 Routine engine.** (head-coder: jobs)
   - Triggers: cron, RRULE, interval and one-shot, with a timezone and `next_fire_at`, on Graphile cron or our own scheduler loop (decide in the slice).
   - Missed-run policy (`catch_up_once` default, `skip`, `run_all` capped at 10) on boot, on resume-from-sleep (power event plus a clock-jump check) and on a quit/relaunch.
+  - *Added 2026-10-24 (R20):* a routine has a nullable `project_id` and may name a skill with typed inputs as its body (a **workflow**). Triggers are a list, so D5.8 can add webhooks without a new table. No node-graph editor.
 - [ ] **D5.3 Natural-language schedules.** The helper model parses to a trigger and always shows it back for confirmation.
 - [ ] **D5.4 Receipts.** A check script on the computer, a helper-model rubric, or "a delivered message exists". A failed receipt marks the run "needs attention".
 - [ ] **D5.5 Routines UI + delivery.** (head-coder: UI) List, editor, run history, the delivery channel, Windows notifications.
 - [ ] **D5.6 Heartbeat.** A per-profile special routine over the `heartbeat` block. It stays silent unless there is something to do (`NOTHING` or an action).
 - [ ] **D5.7 Schedule tools.** `schedule_create/list/cancel` for the agent (policy: `ask` by default).
+- [ ] **D5.8 Webhook triggers.** *(added 2026-10-24, R20; head-coder: a new inbound surface; propose head-reviewer)* `POST /hooks/<id>` bound to one routine with a fixed prompt; a per-hook HMAC secret (shown once), a timestamp window against replays, a body cap and a rate limit; the payload reaches the model only as untrusted data. Local only in desktop mode (loopback); headless mode on a LAN can expose it; internet webhooks arrive through the relay (D8.7). An outbound `webhook_post` tool, action class `external_post`.
+- [ ] **D5.9 Workflow view.** *(added 2026-10-24, R20; head-coder: UI)* A routine whose body is a skill shows as a readable step list with its inputs, triggers and receipt, inside its project. "Make this a workflow" from a successful chat run drafts the skill and the routine for the owner to confirm.
 
 ## DC — Canvas (see [CANVAS.md](CANVAS.md))
 Goal: a teammate writes JSX, and Mawl renders it live in a sandbox: design mockups, sites and graphics first, motion graphics next. Quality comes from a dedicated skill set, measurable review gates and a critique pass, and every canvas can be browsed and managed in a separate Canvases view.
@@ -315,7 +362,7 @@ Goal: a teammate writes JSX, and Mawl renders it live in a sandbox: design mocku
   - Verify the exact current versions and **licenses** of `react`, `motion`, `gsap` (check its terms), `three`, `d3`, `lucide`, and the OFL font set. Record sizes.
 - [ ] **DC0.2 Render feedback spike.** (spike, size M) Run the review script in the sandbox and on a computer's headless Chromium with the same code; capture console and errors; take screenshots; measure speed. Decide how a non-vision model gets a visual check (helper model, or lint only).
 - [ ] **DC0.3 Remotion engine spike.** (spike, size L; CANVAS §9.4) Install a pinned Remotion dependency closure from npm on Windows with Node 24 (npm `pacote` or `arborist`, hashes from a shipped lockfile, no lifecycle scripts) and measure disk and time. Find where its headless Chrome comes from and its size. Check the renderer runs from the shipped `node.exe`. Test whether a host render can be confined (throwaway profile, blocked egress, no user files, loopback-only server); render inside the computer image (needs D3.1). Check that `remotion` and `@remotion/player` inline into one sandboxed HTML under the CSP. Re-read Remotion's license for the version being pinned.
-- [ ] **DC1 Schema + contracts.** (head-coder: migration + contracts + event union, size M) `canvases` and `canvas_versions`, ids, the five events (content-free), the RPC in CANVAS §11, size caps, retention hook. *Tests:* migration up and down on PGlite and Testcontainers, strict-object shapes, no content in any event.
+- [ ] **DC1 Schema + contracts.** (head-coder: migration + contracts + event union, size M) `canvases` (with a nullable `project_id`, R18) and `canvas_versions`, ids, the five events (content-free), the RPC in CANVAS §11, size caps, retention hook. *Tests:* migration up and down on PGlite and Testcontainers, strict-object shapes, no content in any event.
 - [ ] **DC2 Build package `@mawl/canvas`.** (head-coder: new package + security, size L; propose head-reviewer) Validation (paths, caps, import allowlist, forbidden APIs), transform or bundle per DC0.1, packs, fonts, assets, single-file HTML with the CSP, source-mapped diagnostics, deterministic `buildHash`, a build worker with a timeout. *Tests:* a table of hostile inputs, determinism, caps, diagnostics point at the agent's line.
 - [ ] **DC3 Agent tools.** (head-coder: cross-package, size L) `canvas_create/write/edit/read/list/history/restore/add_asset`, policy classes, idempotency keys, events, results that never echo content, read results wrapped as data, templates. Includes the `canvases.build` RPC. Needs D2.2 and D2.3.
 - [ ] **DC4 Sandbox host + canvas panel.** (head-coder: UI, size L; propose head-reviewer) The iframe component, the `canvas-host/1` message protocol with zod validation, the workspace panel (Preview, Code read-only, Versions), viewport switch, console drawer, chat canvas card, loading, empty, error and success states, 390 px, reduced motion. *Tests:* the iframe cannot read the token; a forged message is dropped.
@@ -328,7 +375,7 @@ Goal: a teammate writes JSX, and Mawl renders it live in a sandbox: design mocku
 - [ ] **DC11 Video render.** (head-coder: sandbox, size L; stretch; needs DC10 and DC0.3) A job over `@remotion/renderer` to MP4, GIF, WebM or a PNG sequence, with progress and the result as an artifact. Targets: a computer (default when the teammate has one; revisit the image size budget) and this PC, only if the DC0.3 confinement test passed and the first host render per canvas is `ask`.
 - [ ] **DC12 Canvas eval set.** (size M) About 12 fixed briefs; the fake model checks the plumbing in CI; real-model runs are scored by the review gates and a human rubric; skill text versions are compared.
 - [ ] **DC13 Hand editing.** (head-coder: UI, size M; later) A code editor tab, user-authored versions, the agent sees the diff. An element picker that sends "change this" to the teammate.
-- [ ] **DC14 Brand kits.** (size M; later) A shared set of tokens and fonts per teammate or per owner, reused across canvases.
+- **DC14 Brand kits.** Moved to DP5 (2026-10-24, R18): the brand kit belongs to the project, not the teammate.
 - [ ] **DC15 Routines and channels.** (size S; later, needs D7) A routine can create or update a canvas; snapshots attach to deliveries.
 **Risks the orchestrator watches:** installer size (DC0.1), library licenses (DC0.1), the sandbox boundary (DC2, DC4), output that still looks generic (DC6, DC7, DC12), and the Remotion install and its license terms (DC0.3, DC9). If DC0.1 shows that no option fits the installer budget, stop and ask the owner before DC2.
 
@@ -340,6 +387,7 @@ Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESI
 - [ ] **D6.3 Trace runner.** Run the script on the computer, the receipt still checks; cost and time shown against the model run.
 - [ ] **D6.4 Self-heal.** One failing step → the model proposes a replacement for that step only → continue → save a new version with a diff and an audit entry. After N failed heals, fall back to a full model run and notify.
 - [ ] **D6.5 Trace UI.** (head-coder: UI) Script view, versions and diffs, holes, "re-learn".
+- [ ] **D6.6 Teach by demonstration.** *(added 2026-10-24; old S3)* The owner does a task in a browser Mawl controls (a computer's browser, or a Playwright browser on this PC) while Mawl records it; the recording becomes a draft trace with variable inputs, checkpoints and holes, and a draft workflow (D5.9) for the owner to confirm. Fields marked as passwords are never recorded. No system-wide recording on the host.
 
 ## D7 — Telegram & Discord
 
@@ -350,10 +398,16 @@ Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESI
 ## D8 — Remote access + mobile
 
 - [ ] **D8.1 Device auth + pairing.** Ed25519 device keys, a one-time pairing code, a QR payload, and device list/revoke in Settings. It builds on the D1.4 token: every `/rpc` procedure except `health.get` and `devices.pair` requires a session. (Propose head-reviewer.)
-- [ ] **D8.2 Tailscale.** Detect Tailscale, guide `tailscale serve` for the local server, and add its URL to the pairing QR. An own E2E relay is a stretch (S6).
+- [ ] **D8.2 Personal E2E relay.** *(re-scoped 2026-10-24, R21; head-coder: security; propose head-reviewer)* A relay the owner deploys to their own Cloudflare account (Workers + Durable Objects) with a guided setup; the server and the phone only dial out; the relay forwards end-to-end encrypted frames keyed to paired devices and never sees plaintext. Its address goes into the pairing QR.
+- [ ] **D8.2b Tailscale.** (the self-hoster option) Detect Tailscale, guide `tailscale serve` for the local server, and add its URL to the pairing QR.
 - [ ] **D8.3 Expo app shell.** expo-router tabs, tokens through `ui-native`, theme and accent synced with the server settings, and Reanimated presets.
 - [ ] **D8.4 Mobile chat + activity + approvals.** Push notifications through Expo (opt-out).
 - [ ] **D8.5 Mobile computer view.** noVNC in a WebView, touch → mouse, keyboard bar, takeover.
+- [ ] **D8.6 Phone as a capability node.** *(added 2026-10-24, R15, R21; head-coder: Expo + policy)* The paired phone offers tools to the teammates the owner allows: create reminders, read and create calendar events, local notifications, location on request, and "send to Mawl" from the share sheet. Each permission is the OS prompt plus a Mawl grant; calls reach the phone through the relay and wait (with a timeout) while it is offline. Viewing the phone's own screen is not planned (REDESIGN §12.2).
+- [ ] **D8.7 Webhooks through the relay.** *(added 2026-10-24, R20, R21)* The relay accepts `POST` for a registered hook and forwards it to the server over the outbound connection; the server still verifies the HMAC and applies D5.8.
+
+## D10 — Mawl Cloud *(parked 2026-10-24, REDESIGN R21)*
+Not built while Mawl is a personal project. If the owner ever turns it into a business: a hosted relay for others, an AI API gateway (one more provider kind), and cloud nodes (one more node kind). That decision also removes the Claude plan provider and needs OpenAI's SIWC interest form (P1.3b). Until then the only work is keeping the provider and node seams clean.
 
 ## D9 — Polish & ship
 
@@ -365,7 +419,7 @@ Goal: a repeated routine runs as a fast, cheap, deterministic script. See REDESI
 - [ ] **D9.5 72 h soak test** with routines, heartbeat, sleep and wake, and two teammates sharing a computer.
 
 ## Later (Should/Could from SPEC)
-Canvas follow-ups beyond DC15 (deploy or share links, which would be `external_post`; importing designs) · S1 teammate delegation · S2 Sentinel · S3 teach-by-demo · S5 voice · S6 E2E relay · S7 cost dashboard · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds.
+Canvas follow-ups beyond DC15 (deploy or share links, which would be `external_post`; importing designs; MCP Apps rendered through the DC4 sandbox) · S1 group chats (teammate requests are D2.14) · S2 Sentinel · S5 voice · S7 cost dashboard · model routing beyond fallbacks · `remote_pc` nodes (another PC running Mawl) · Windows Sandbox or AppContainer for the host shell · Mawl marketplace · WebRTC streaming · remote sandbox providers · macOS and Linux builds. (S3 teach-by-demo is D6.6; S6 relay is D8.2.)
 
 Open note from P1.3b and P1.5: `@mawl/server#test` failed once under the full parallel gate (PGlite suites near `hookTimeout`), and the web suites (shell, command palette, chat hooks) and `@mawl/core` `claude-code/workdir.test.ts` ("different per process", two fresh module imports) time out under heavy machine load; all pass alone (2026-10-21). Find the cause when more PGlite suites are added.
 

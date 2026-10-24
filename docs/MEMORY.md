@@ -31,6 +31,7 @@ This design borrows from:
 | `heartbeat` | 1000 | The checklist the heartbeat reviews | User + agent |
 
 - The owner's profile (`user.get`: name and personal context, set in the Your profile dialog) is the owner-written source of the `user` block. It is untrusted owner text: quoted as data, never followed as instructions. Its context can hold 2000 characters against the block's 1500, so D4.1 decides how it is seeded (a separate owner-written block, or condensed).
+- **Project scope** *(planned, REDESIGN R18; D4.1 and DP6)*. `memory_blocks` and `facts` get a nullable `project_id`. A project's blocks and facts are shared by its member teammates and are recalled only in that project's threads; a non-member never sees them. D4.1 adds the column from its first migration and decides whether the per-profile `projects` block above stays once projects exist.
 - Blocks are rendered as `<memory_block label="user" chars="812/1500">…</memory_block>`.
 - **Frozen per segment.** Edits are written to the DB immediately but only show up in the prompt at the next segment boundary or compaction. That keeps the prompt prefix byte-stable, so caching works. The agent sees its own edit acknowledged in the tool result.
 - **Hard caps.** A write that would go over the cap is rejected with the current fill level, so the agent has to condense. This keeps blocks dense.
@@ -163,6 +164,8 @@ The system part is built by the prompt assembler in `packages/core/src/prompts/`
 [8] environment: date, weekday, timezone, channel, computer state (the only volatile system block)
 [9] recalled memories (as data), segment summary, conversation turns (older ones compacted by L1/L2), current user input / trigger
 ```
+
+*Planned (DP2, REDESIGN R18):* a `project` block (brief, guidelines and voice, as owner data) goes between [4] persona and [5] skills index for threads inside a project. DP2 updates this layout and the snapshot tests.
 
 Rules for the assembler:
 - Empty input omits a block. A breakpoint whose block is omitted moves to the last present part before it, and two breakpoints on the same part collapse into one.

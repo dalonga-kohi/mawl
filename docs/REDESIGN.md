@@ -123,7 +123,7 @@ Do as much as the unmodified binary allows:
 
 ## 6. Computers
 
-- **Entity.** `computers { id, name, kind: terminal|desktop, image_ref, status, home_volume, created_at }`. `profiles.computer_id` is nullable. Teammate settings offer: no computer, use an existing Mawl computer, or create a new one (terminal or desktop).
+- **Entity** *(superseded 2026-10-24 by R15: the table is `nodes`, these are its `docker_terminal` and `docker_desktop` kinds, and the profile column is `workbench_node_id`)*. `computers { id, name, kind: terminal|desktop, image_ref, status, home_volume, created_at }`. `profiles.computer_id` is nullable. Teammate settings offer: no computer, use an existing Mawl computer, or create a new one (terminal or desktop).
 - **Terminal image.** Debian slim, bash, git, curl, python3, node, ripgrep, jq, headless Chromium + Playwright MCP, and the `computer-agent` helper. Target under 500 MB.
 - **Desktop image.** Terminal + Xvfb, XFCE (minimal), Chromium headed, xdotool, x11vnc. Target under 1.6 GB.
 - **Transport (R6).** The helper speaks JSON-RPC over `docker exec -i` stdio. Stdio MCP servers run with `docker exec -i`. VNC is tunnelled by an exec running a tiny TCP-to-stdio bridge inside the container to `localhost:5900`.
@@ -232,11 +232,59 @@ Do as much as the unmodified binary allows:
 | D0 Spikes | §10.1 and §10.2 proven, with results written here |
 | D1 Desktop host | Installer → tray app → embedded PG → local auth → first-run → chat works with no Docker |
 | D2 Agent loop | Prompt blocks, tool registry + built-ins, policy, approvals (R9), queues, `finishTurn`, fallback, subagents, skills, MCP + tool search, Claude plan bridge, eval set |
-| D3 Computers | Images, the Computer entity + UI, Docker detection, exec transport, shell/files/browser tools, live view, takeover, credential form |
-| D4 Memory | MEMORY.md, unchanged |
+| D3 Nodes *(re-scoped 2026-10-24, §12)* | The Node entity; **This PC first** (folder grants, host shell and files, stdio MCP on the host); then Docker computers: images, Docker detection, exec transport, shell/files/browser tools, live view, takeover, credential form |
+| DP Projects *(added 2026-10-24, §12)* | The project entity, members, the project prompt block, the reference library, linked folders, the Projects UI, brand kits |
+| D4 Memory | MEMORY.md, plus a project scope for blocks and facts (R18) |
 | D5 Schedules | Routines, NL parsing, missed runs, receipts, heartbeat, schedule tools, notifications |
 | DC Canvas *(added 2026-10-24, after D5; decisions C1–C14 in [CANVAS.md](CANVAS.md))* | Sandboxed live rendering of agent-written JSX: mockups, sites, graphics, then motion; a quality skill set; a Canvases view |
 | D6 Trace compiler | §8 |
 | D7 Telegram & Discord | Long polling, approvals, routines from chat |
-| D8 Remote + mobile | Tailscale serve, device pairing, the Expo app |
+| D8 Remote + mobile | Device pairing, the owner's own E2E relay (Tailscale stays the self-hoster option), the Expo app, the phone as a capability node (R21) |
 | D9 Polish & ship | Onboarding polish, mascot, a11y, local plugin import, docs site, release; marketplace after |
+| D10 Mawl Cloud *(parked 2026-10-24)* | Not built while Mawl is a personal project. Seams only: a gateway would be a provider kind, cloud computers a node kind (R21) |
+
+## 12. Addendum 2026-10-24: projects, nodes and teammates that work together
+
+Owner decisions (2026-10-24):
+- **Mawl stays a personal portfolio project.** No cloud services are built (no AI API gateway, no cloud computers). The architecture keeps seams so they stay possible (R21). The P1.3b constraints stand: the Claude plan only through the unmodified Claude Code binary, and SIWC under its open-source, locally run terms.
+- **Wedge user for the first beta:** a solo creator or freelancer who runs a one-person studio: brand and copy work, research, client deliverables, recurring reports. Operations automation for small businesses comes later.
+- **First beta: late December 2026 to January 2027.** The cut is §12.3.
+- **Working directly on this PC comes before Docker computers** (R15, R16).
+
+### 12.1 Decisions
+
+| # | Decision | Alternatives considered | Supersedes |
+|---|---|---|---|
+| R15 | **Nodes.** The planned `Computer` entity becomes `Node`: a place where a teammate's tools run. Kinds: `this_pc` (the host, no Docker), `docker_terminal`, `docker_desktop`; later `remote_pc` (another PC running Mawl), `phone` (a paired device) and `cloud`. A teammate has at most one **workbench** node (shell, files, browser) and may be granted **capability** nodes (a phone's reminders and calendar). Tools declare which node kinds they run on. `this_pc` is built first | Docker as the only computer (most users never install it); a separate host-tools system beside computers (two tool surfaces, two policies) | R4 (entity name and kinds), the D3 order |
+| R16 | **This PC through folder grants.** File tools on `this_pc` see only folders the owner granted (to a project or a teammate). Every path is resolved to its canonical form (junctions, symlinks, 8.3 names, `\\?\` and UNC forms) before the check. Mawl's data dir, the install dir and well-known secret stores (`.ssh`, browser profiles, `.aws`, `.config/gh`, and similar) are always denied. **A shell is not confined by grants:** it runs as the owner's user, in a kill-on-close job object with a scrubbed env, so `shell_exec` on `this_pc` defaults to `ask`, and the card shows the exact command and working directory. Policy rules gain a node-kind match. Defaults on `this_pc`: reads in a grant `auto`; writes in a grant `ask`, which the owner may lower per grant; `shell_exec` `ask`, lowerable only by an exact command-prefix rule; `delete` never below `ask` | Full host access behind prompts only; Windows Sandbox or AppContainer now (Pro-only, or a large build; kept as later hardening for the shell) | §11 of ARCHITECTURE gains a host trust boundary |
+| R17 | **MCP made easy.** The catalog comes from the official MCP Registry, not a hand-kept JSON. Remote servers use HTTP with OAuth as the current spec defines it. **Stdio servers run on `this_pc`** as well as inside Docker computers, because most popular servers are `npx`/`uvx` stdio servers. Adding one is an owner action that approves the exact command, package and pinned version; it runs in a job object with a scrubbed env plus its own encrypted env, its cwd under `<data>\mcp\<id>`, and the UI says plainly that it runs with the owner's rights. One-click `.mcpb` bundles. Later: Mawl as an MCP server (other MCP clients can call teammates) and MCP Apps rendered through the canvas sandbox (DC4). Verify every spec detail at slice start | Stdio only inside Docker computers (no useful MCP without Docker); a curated JSON catalog | R6 for stdio MCP (R6 still holds inside Docker computers) |
+| R18 | **Projects are the shared context.** A project holds a brief, guidelines (including voice and tone), a brand kit, a reference library (uploads), linked folders on this PC (folder grants, R16), member teammates, threads, canvases and routines. A thread belongs to at most one project. A teammate that is not a member cannot read a project's files or memory. The prompt gains a `project` block after the persona (owner-written, capped, quoted as data). Memory gains a project scope: project blocks and facts carry a `project_id`, shared by the members | Context per teammate only (today's `projects` core block; it duplicates context across teammates and drifts); tags instead of an entity | DC14 (brand kits move from the teammate to the project) |
+| R19 | **Teammate requests.** `ask_teammate(teammate, task)` starts a run on the other teammate (trigger `teammate`) in a linked thread. The result comes back to the requester as a `run_inbox` follow-up, so the requester continues or is woken later. Rules: the result is untrusted data; the child's approvals go to the owner, never to the requester; a chain is capped (depth 3, no cycles); the child's budget is capped by the requester's remaining budget; the owner sees a request card in both threads and can cancel. `delegate` (§5.3) stays the same-teammate subagent inside one turn | Group chats first (S1; noisy and hard to control); a shared blackboard; the A2A protocol inside Mawl (built for outside agents; a later option for them) | S1 delegation timing (group chats stay S1) |
+| R20 | **Workflows and webhooks.** A workflow is a routine whose body is a skill with typed inputs, plus its triggers (schedule, webhook, later events) and a receipt, scoped to a project. It is written in plain language and shown as a readable step list; D6 compiles it. **No node-graph editor.** A webhook is bound to one routine with a fixed prompt, verified with a per-hook HMAC secret, rate-limited, and its payload reaches the model only as untrusted data. The desktop server binds loopback only (D1.3), so webhooks from the internet need the relay (R21); local ones work earlier. An outbound webhook is an `external_post` tool | A visual flow builder (years behind n8n and the like); webhooks that start free-form runs from the payload | — |
+| R21 | **Remote access and cloud seams.** The phone and inbound webhooks reach a desktop Mawl through an end-to-end encrypted relay the owner deploys to their own Cloudflare account (Workers + Durable Objects; the site already deploys there). The server and the phone only dial out, and the relay sees ciphertext only (webhook payloads are the exception: third parties send them in the clear, so the server verifies them). Tailscale stays the option for self-hosters. The phone is a capability node (reminders, calendar, notifications, location, share sheet). A hosted Mawl Cloud (a relay for others, an AI API gateway, cloud nodes) is parked: it needs a business decision, which would also remove the Claude plan provider and need OpenAI's SIWC interest form | Tailscale as the main path (not seamless for the wedge user); building a hosted cloud now | R14 (relay before Tailscale for the phone) |
+
+### 12.2 Where the other ideas go
+
+- **Teach by demonstration (S3)** joins D6. A demo recorded in a browser Mawl controls (a computer's browser, or a Playwright browser on this PC) becomes a trace with variable inputs, checkpoints and holes. System-wide recording on the host is not planned: it would capture passwords and other secrets.
+- **The phone's own screen.** iOS gives no app the screen of other apps outside a broadcast the user starts each time, and Android asks for consent every session. "See the screen" from the phone means the desktop or a computer's screen (D8.5).
+- **Model routing** beyond fallback models (D2.6) comes later. A Mawl API gateway would be one more provider kind.
+- **Transparency** (a live timeline, costs, approvals, pause and stop) is D2.4, D2.12, D5.1 and S7.
+
+### 12.3 Beta 1 cut (target late December 2026 to January 2027)
+
+In order, one writer at a time where slices share contracts or migrations:
+
+1. D1.7c Windows release CI, D1.8 first-run onboarding.
+2. D2.2 tool registry, D2.3 policy engine (with the node-kind match), D2.4 approvals, D2.5 run inbox.
+3. D3.2 Node entity, D3.H1 This PC tools and folder grants, D3.H2 stdio MCP on this PC, D3.H3 the workbench and grants UI.
+4. D2.9a remote MCP with OAuth and tool search, D2.9b the registry catalog and one-click install.
+5. D2.8 skills.
+6. DP1 to DP4: the project entity, the project prompt block, the reference library, the Projects UI.
+7. D2.7 `delegate`, D2.14 teammate requests.
+8. D2.11 teammates UI.
+9. D4.1 core memory blocks (with the project scope).
+10. D5.2 routine engine, D5.3 natural-language schedules, D5.5 routines UI.
+
+Stretch: D2.6 fallback models, D2.12 activity feed, D5.4 receipts, D2.10 the Claude plan bridge (in the owner's own build only, see below). Not in Beta 1: Docker computers (D3.1, D3.3 to D3.9), memory beyond D4.1, Canvas (the first candidate for Beta 2, because it fits the wedge user), the trace compiler, channels and mobile.
+
+**Gate before anyone else installs the beta.** Anthropic's Agent SDK docs say that, unless approved, third-party developers may not offer Claude account (claude.ai) login or plan limits in their products. So a build shared with testers must not offer the Claude plan provider; it stays in the owner's own build. Re-read the current terms, and SIWC eligibility for a shared build, before the first tester gets an installer (P1.3b).
