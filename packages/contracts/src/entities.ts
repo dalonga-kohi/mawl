@@ -493,14 +493,24 @@ export type SearchProviderKind = z.infer<typeof SearchProviderKind>
 export const SearchStatus = z.strictObject({
   provider: SearchProviderKind,
   configured: z.boolean(),
+  /** A key is stored but no longer decrypts (the master key changed): the owner sets it again. */
+  unreadable: z.boolean(),
   updatedAt: Timestamp.nullable(),
 })
 export type SearchStatus = z.infer<typeof SearchStatus>
 
-/** Write-only: the key is encrypted on arrival and never returned. */
+/**
+ * Write-only: the key is encrypted on arrival and never returned. Printable ASCII without spaces
+ * only, since it travels in an HTTP header (no CR/LF injection).
+ */
 export const SearchKeyInput = z.strictObject({
-  provider: SearchProviderKind,
-  apiKey: z.string().trim().min(1).max(512),
+  provider: z.literal('brave'),
+  apiKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(512)
+    .regex(/^[\x21-\x7e]+$/, 'expected printable ASCII without spaces'),
 })
 export type SearchKeyInput = z.infer<typeof SearchKeyInput>
 

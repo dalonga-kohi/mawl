@@ -281,9 +281,24 @@ describe('contract validation', () => {
       ).toBeDefined()
     })
 
+    it('setKey refuses a key with control characters, spaces or non-ASCII (header injection)', async () => {
+      const schema = contract.search.setKey['~orpc'].inputSchema
+      for (const apiKey of ['abc\r\ndef', 'ab c', 'abc\u0000', 'clé', 'a\tb']) {
+        expect((await validate(schema, { provider: 'brave', apiKey })).issues, apiKey).toBeDefined()
+      }
+      expect(
+        (await validate(schema, { provider: 'brave', apiKey: 'BSA_a-b.c~!' })).issues,
+      ).toBeUndefined()
+    })
+
     it('the status never carries a key: unknown fields fail the output schema', async () => {
       const out = contract.search.status['~orpc'].outputSchema
-      const ok = { provider: 'brave', configured: true, updatedAt: '2026-01-02T03:04:05.000Z' }
+      const ok = {
+        provider: 'brave',
+        configured: true,
+        unreadable: false,
+        updatedAt: '2026-01-02T03:04:05.000Z',
+      }
       expect((await validate(out, ok)).issues).toBeUndefined()
       expect((await validate(out, { ...ok, apiKey: 'k' })).issues).toBeDefined()
       for (const p of [contract.search.setKey, contract.search.clearKey]) {
