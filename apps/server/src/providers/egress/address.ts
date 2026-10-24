@@ -62,26 +62,42 @@ const PRIVATE_V6 = list(
   'ipv6',
 )
 
+/** The eight 16-bit groups of a valid IPv6 literal (dotted tail and `::` expanded). */
+function groupsOf(ip: string): number[] {
+  // The URL parser prints IPv6 in one canonical form, with a dotted tail as two hex groups.
+  const canonical = new URL(`http://[${ip}]`).hostname.slice(1, -1)
+  const [head = '', tail] = canonical.split('::')
+  const parse = (part: string) =>
+    part === '' ? [] : part.split(':').map((g) => Number.parseInt(g, 16))
+  const left = parse(head)
+  if (tail === undefined) return left
+  const right = parse(tail)
+  return [...left, ...new Array<number>(8 - left.length - right.length).fill(0), ...right]
+}
+
 /**
- * The IPv4 address embedded in an IPv4-mapped (::ffff:a.b.c.d), NAT64 (64:ff9b::a.b.c.d) or
- * IPv4-compatible (::a.b.c.d, deprecated) one. `::` and `::1` are not compatible addresses.
+ * The IPv4 address in the low 32 bits of an IPv4-mapped (::ffff:0:0/96), IPv4-translated
+ * (::ffff:0:0:0/96), NAT64 (64:ff9b::/96) or IPv4-compatible (::/96, deprecated) address, matched
+ * by prefix on the numeric groups so every spelling (`64:ff9b::7f`, dotted or hex) is caught.
+ * `::` and `::1` are not compatible addresses.
  */
 function embeddedV4(ip: string): string | undefined {
-  // The URL parser prints IPv6 in one canonical form, dotted tails as two hex groups.
-  const canonical = new URL(`http://[${ip}]`).hostname.slice(1, -1)
-  // Mapped and NAT64: a zero high group still prints (`::ffff:0:1`), so there are two groups.
-  // Compatible: a zero high group collapses into `::` (`::2` is 0.0.0.2).
-  const match =
-    /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical) ??
-    (canonical === '::1' ? null : /^::(?:([0-9a-f]{1,4}):)?([0-9a-f]{1,4})$/.exec(canonical))
-  if (!match) return undefined
-  const high = Number.parseInt(match[1] ?? '0', 16)
-  const low = Number.parseInt(match[2] as string, 16)
+  const g = groupsOf(ip)
+  const zero = (from: number, to: number) => g.slice(from, to).every((x) => x === 0)
+  const mapped = zero(0, 5) && g[5] === 0xffff
+  const translated = zero(0, 4) && g[4] === 0xffff && g[5] === 0
+  const nat64 = g[0] === 0x64 && g[1] === 0xff9b && zero(2, 6)
+  const compatible = zero(0, 6) && !(g[6] === 0 && (g[7] === 0 || g[7] === 1))
+  if (!(mapped || translated || nat64 || compatible)) return undefined
+  const high = g[6] ?? 0
+  const low = g[7] ?? 0
   return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.')
 }
 
 /** Classifies an IP literal (no brackets). Anything that is not one is `blocked`. */
 export function classifyAddress(ip: string): AddressClass {
+  // A zone id (`fe80::1%2`) picks an interface; never allowed for an outbound request.
+  if (ip.includes('%')) return 'blocked'
   if (isIPv4(ip)) {
     if (BLOCKED_V4.check(ip, 'ipv4')) return 'blocked'
     return PRIVATE_V4.check(ip, 'ipv4') ? 'private' : 'public'
