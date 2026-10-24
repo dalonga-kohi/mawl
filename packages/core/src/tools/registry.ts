@@ -1,6 +1,7 @@
 import { tool as sdkTool, type ToolSet } from 'ai'
 import { delimitData } from '../prompts/assemble.ts'
 import { allowAllGate } from './gate.ts'
+import { cut, storable, storableJson } from './text.ts'
 import {
   ARTIFACT_PREVIEW_CHARS,
   ARTIFACT_THRESHOLD_TOKENS,
@@ -30,14 +31,15 @@ export interface ToolRegistryOptions {
   artifacts?: ArtifactStore
 }
 
-const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s)
+const clip = cut
 
 /** The model-facing record of a typed error. Exported so the host builds identical ones. */
 export function errorRecord(
   toolName: string,
   code: ToolErrorCode,
-  message: string,
+  rawMessage: string,
 ): ToolResultRecord {
+  const message = storable(rawMessage)
   return {
     toolName,
     output: {
@@ -51,7 +53,10 @@ export function errorRecord(
 }
 
 /** The model-facing record of a plain text result (wrapped as data, Mawl's note outside). */
-export function textRecord(toolName: string, text: string, note?: string): ToolResultRecord {
+export function textRecord(toolName: string, rawText: string, rawNote?: string): ToolResultRecord {
+  // Untrusted text must be storable (no NUL, no lone surrogate) before it reaches jsonb.
+  const text = storable(rawText)
+  const note = rawNote === undefined ? undefined : storable(rawNote)
   const wrapped = delimitData(TOOL_RESULT_TAG, text)
   return {
     toolName,
@@ -179,7 +184,12 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
           }
 
           if (outcome.kind === 'park') {
-            if (allowPark) return { kind: 'park', wait: outcome.wait }
+            if (allowPark) {
+              return {
+                kind: 'park',
+                wait: { ...outcome.wait, payload: storableJson(outcome.wait.payload) },
+              }
+            }
             outcome = {
               kind: 'error',
               code: 'one_question_at_a_time',
@@ -190,12 +200,13 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             return save(errorRecord(t.name, outcome.code, outcome.message))
           }
 
-          const { text } = outcome
+          // Stored as artifact content and offsets count in it, so sanitise once, up front.
+          const text = storable(outcome.text)
           const tokens = estimateTokens(text)
           if (tokens <= ARTIFACT_THRESHOLD_TOKENS) {
             return save(textRecord(t.name, text, outcome.note), outcome.emit ?? [])
           }
-          const preview = text.slice(0, ARTIFACT_PREVIEW_CHARS)
+          const preview = cut(text, ARTIFACT_PREVIEW_CHARS)
           if (t.artifacts && artifacts) {
             const artifactId = await artifacts.create({
               profileId,

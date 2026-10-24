@@ -104,11 +104,84 @@ async function readCapped(
   return { bytes, truncated }
 }
 
-function toMarkdown(html: string): string {
-  const service = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
-  service.remove(['script', 'style', 'noscript', 'template', 'iframe'])
-  return service.turndown(html)
+/** Deeper nesting or more elements than this skip turndown (its DOM walk is recursive and slow). */
+const MAX_HTML_DEPTH = 100
+const MAX_HTML_ELEMENTS = 20_000
+const VOID_ELEMENTS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'source',
+  'track',
+  'wbr',
+])
+const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?(\/?)>/g
+
+/** One linear pass over the tags: true when the page is too deep or too big for turndown. */
+function tooComplex(html: string): boolean {
+  let depth = 0
+  let elements = 0
+  for (const m of html.matchAll(TAG)) {
+    const name = (m[2] ?? '').toLowerCase()
+    if (m[1] === '/') {
+      depth = Math.max(0, depth - 1)
+      continue
+    }
+    if (m[3] === '/' || VOID_ELEMENTS.has(name)) continue
+    depth++
+    elements++
+    if (depth > MAX_HTML_DEPTH || elements > MAX_HTML_ELEMENTS) return true
+  }
+  return false
 }
+
+const PLAIN_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&nbsp;': ' ',
+}
+
+/** Plain text of a page, without scripts, styles and markup. Linear regexes only. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|noscript|template|iframe)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (e) => PLAIN_ENTITIES[e] ?? e)
+    .replace(/[ \t\f\v\r]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim()
+}
+
+/**
+ * HTML to markdown with turndown, unless the page is too deeply nested or too big to convert in
+ * bounded time (a hostile page inside the byte cap could otherwise freeze the server: the timeout
+ * cannot interrupt synchronous work). Then, or if conversion throws (stack overflow), the plain
+ * text is returned instead, with a note.
+ */
+function toMarkdown(html: string): { content: string; plain: boolean } {
+  if (tooComplex(html)) return { content: stripHtml(html), plain: true }
+  try {
+    const service = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
+    service.remove(['script', 'style', 'noscript', 'template', 'iframe'])
+    return { content: service.turndown(html), plain: false }
+  } catch {
+    return { content: stripHtml(html), plain: true }
+  }
+}
+
+const PLAIN_NOTE =
+  'The page was too deeply nested or too large to convert to markdown; this is its plain text.'
 
 function redactUrl(raw: string): string {
   try {
@@ -193,15 +266,21 @@ export function webFetchTool(deps: WebFetchDeps): Tool {
           }
           const { bytes, truncated } = await readCapped(res.body, maxBytes)
           const body = decode(bytes, media.charset)
-          const content = HTML_TYPES.has(media.type) ? toMarkdown(body) : body
+          const converted = HTML_TYPES.has(media.type)
+            ? toMarkdown(body)
+            : { content: body, plain: false }
+          const notes = [
+            ...(converted.plain ? [PLAIN_NOTE] : []),
+            ...(truncated
+              ? [
+                  `The response was larger than ${maxBytes} bytes; only the first ${maxBytes} bytes were read.`,
+                ]
+              : []),
+          ]
           return {
             kind: 'ok',
-            text: `Source: ${url.href}\n\n${content}`,
-            ...(truncated
-              ? {
-                  note: `The response was larger than ${maxBytes} bytes; only the first ${maxBytes} bytes were read.`,
-                }
-              : {}),
+            text: `Source: ${url.href}\n\n${converted.content}`,
+            ...(notes.length > 0 ? { note: notes.join(' ') } : {}),
           }
         }
       } catch (err) {

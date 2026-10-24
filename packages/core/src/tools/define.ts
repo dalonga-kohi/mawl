@@ -1,5 +1,6 @@
 import type { ActionClass, Json } from '@mawl/contracts'
 import type { z } from 'zod'
+import { cut, storableJson } from './text.ts'
 import type { Tool, ToolContext, ToolOutcome } from './types.ts'
 
 /** Strings longer than this are cut in the redacted arguments of the `run.tool_call` event. */
@@ -19,7 +20,7 @@ export interface ToolDefinition<S extends z.ZodType> {
 
 function clip(value: Json): Json {
   if (typeof value === 'string') {
-    return value.length > REDACT_STRING_CHARS ? `${value.slice(0, REDACT_STRING_CHARS)}…` : value
+    return value.length > REDACT_STRING_CHARS ? `${cut(value, REDACT_STRING_CHARS)}…` : value
   }
   if (Array.isArray(value)) return value.map(clip)
   if (value !== null && typeof value === 'object') {
@@ -56,7 +57,8 @@ export function defineTool<S extends z.ZodType>(def: ToolDefinition<S>): Tool {
       const input = parsed.data
       return {
         ok: true,
-        argsRedacted: def.redact ? def.redact(input) : defaultRedact(input),
+        // The event payload is jsonb: model-supplied strings must be storable.
+        argsRedacted: storableJson(def.redact ? def.redact(input) : defaultRedact(input)),
         run: (ctx) => def.run(input, ctx),
       }
     },

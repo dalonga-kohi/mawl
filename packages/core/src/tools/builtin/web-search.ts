@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
+import { cut } from '../text.ts'
 import type { Tool, ToolOutcome } from '../types.ts'
 
 export interface SearchResult {
@@ -58,7 +59,7 @@ function plain(text: string, max: number): string {
     .replace(/&(?:amp|lt|gt|quot|nbsp|#39|#x27);/g, (e) => ENTITIES[e] ?? e)
     .replace(/\s+/g, ' ')
     .trim()
-  return out.length > max ? `${out.slice(0, max)}…` : out
+  return out.length > max ? `${cut(out, max)}…` : out
 }
 
 /**
