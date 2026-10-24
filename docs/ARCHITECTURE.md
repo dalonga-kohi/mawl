@@ -286,7 +286,7 @@ The Claude plan provider is limited (REDESIGN §5.6).
 | Web | `web_search` (provider-native or SearXNG/Brave key), `web_fetch` (to markdown) |
 | Memory | `memory_block_edit`, `remember`, `recall`, `session_search` |
 | Skills and tools | `skill_load`, `skill_propose`, `tool_search` |
-| Human | `ask_user`, `request_takeover`, `notify` |
+| Human | `ask_user`, `request_takeover`, `notify`, `request_connection` (D2.9c: a "Connect" card for a missing service; the run continues after sign-in) |
 | This PC *(planned, D3.H1)* | `list_files`, `read_file`, `write_file`, `edit_file`, `search_files` inside folder grants; `shell` (PowerShell, background jobs) |
 | Projects *(planned, DP3)* | `project_files_list`, `project_files_read`, `project_files_search` |
 | Agency | `delegate` (subagent), `ask_teammate` (D2.14, R19), `schedule_create/list/cancel`, `webhook_post` (D5.8) |

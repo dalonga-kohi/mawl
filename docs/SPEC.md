@@ -58,7 +58,7 @@ Mawl is a single self-hosted product with:
 | F1 | **Chat with a teammate** | Streaming responses; tool-activity cards (collapsible, human-readable, e.g. "Archived 26 newsletters"); attachments; markdown/code |
 | F2 | **Multi-provider models** | Anthropic, OpenAI, OpenRouter, Ollama, plus any OpenAI-compatible endpoint. Each profile has a main model and a cheap "helper" model |
 | F3 | **Profiles** | Create, clone, archive. Persona (`SOUL`), avatar color, model, tools, policy. Full isolation |
-| F4 | **MCP connections** | Search the official MCP Registry and connect in one flow. Remote servers over HTTP with OAuth; stdio servers and `.mcpb` bundles on This PC (after the owner approves the exact command and version) or inside a computer. Per-profile enablement and per-tool policy. Many tools are deferred behind a tool search |
+| F4 | **MCP connections** ("Connections" in the UI) | Using MCP servers is as easy as an app store: a featured shelf for everyday services (mail first, then calendar, files, notes, chat, tasks, design) with safe default policies, several accounts per service, and connect on demand when a teammate asks for a service mid-chat. Search the official MCP Registry and connect in one flow. Remote servers over HTTP with OAuth; stdio servers and `.mcpb` bundles on This PC (after the owner approves the exact command and version) or inside a computer. Per-profile enablement and per-tool policy. Many tools are deferred behind a tool search |
 | F5 | **Built-in tools** | Shell, files, browser (Playwright MCP), desktop control (screenshot/act), web search/fetch, memory tools, `skill_load`, `tool_search`, `delegate` (subagent), `request_takeover`, `ask_user`, `notify`, schedule tools |
 | F6 | **Background runs** | Runs keep going after the window closes. Queue, pause, resume, cancel. Message a teammate mid-run (steering). Activity feed |
 | F7 | **Routines** | Cron, intervals, one-shot reminders, or natural language ("every weekday at 7, sweep my inbox"), always confirmed. Missed-run policy after sleep or shutdown. Receipts. Run history. Delivery channel per routine |
@@ -90,8 +90,6 @@ Mawl is a single self-hosted product with:
 | S8 | **Trace compiler:** a routine run that passed its receipt becomes a script with model "holes", self-healing one broken step at a time |
 | S9 | **Mobile app** (old F13): pair by QR code; chat, approvals, activity, watch/take control, push notifications; through the relay. The phone also offers tools: reminders, calendar, notifications, location, the share sheet |
 | S10 | **Workflows and webhooks** *(added 2026-10-24)*: a routine built from a skill with inputs, shown as steps; signed webhooks that start one routine with its payload as data |
-| S11 | **Mawl as an MCP server** *(added 2026-10-24)*: other MCP clients can ask teammates for work |
-
 ### Canvas (planned after D5, see [CANVAS.md](CANVAS.md))
 | ID | Feature | Notes |
 |---|---|---|
