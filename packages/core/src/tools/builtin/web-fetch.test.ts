@@ -99,6 +99,17 @@ describe('web_fetch: content', () => {
     )
   })
 
+  it('cuts a long content type in the error to 80 characters', async () => {
+    const type = `application/${'x'.repeat(300)}`
+    const fetch = vi.fn<FetchFn>(
+      async () => new Response(new Uint8Array([1]), { headers: { 'content-type': type } }),
+    )
+    const out = text(await bind(fetch).call({ url: 'https://example.com/' }))
+    expect(out).toContain('unsupported_content_type')
+    expect(out).toContain(type.slice(0, 80))
+    expect(out).not.toContain(type.slice(0, 81))
+  })
+
   it('reports an HTTP error status without the body', async () => {
     const fetch = vi.fn<FetchFn>(
       async () =>

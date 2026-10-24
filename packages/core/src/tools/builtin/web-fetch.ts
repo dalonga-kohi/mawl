@@ -1,6 +1,7 @@
 import TurndownService from 'turndown'
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
+import { cut } from '../text.ts'
 import type { Tool, ToolOutcome } from '../types.ts'
 
 /**
@@ -261,7 +262,7 @@ export function webFetchTool(deps: WebFetchDeps): Tool {
             await res.body?.cancel().catch(() => {})
             return fail(
               'unsupported_content_type',
-              `Content type ${media?.type || 'unknown'} is not supported (HTML, text and JSON only).`,
+              `Content type ${cut(media?.type || 'unknown', 80)} is not supported (HTML, text and JSON only).`,
             )
           }
           const { bytes, truncated } = await readCapped(res.body, maxBytes)
