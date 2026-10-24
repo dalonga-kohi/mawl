@@ -17,6 +17,8 @@ import {
   PublicKey,
   Run,
   RunBudget,
+  SearchKeyInput,
+  SearchStatus,
   Settings,
   SettingsUpdate,
   Thread,
@@ -134,6 +136,20 @@ export const contract = {
     cancel: runTransition.input(Id(RunId)).output(Run),
     pause: runTransition.input(Id(RunId)).output(Run),
     resume: runTransition.input(Id(RunId)).output(Run),
+    /**
+     * Answers the question a run parked on (`ask_user`): the run must be `waiting_user`. The answer
+     * becomes the tool result and the run continues. A run in any other state, or a second reply,
+     * is CONFLICT.
+     */
+    reply: runTransition
+      .input(z.strictObject({ id: RunId, answer: z.string().trim().min(1).max(4000) }))
+      .output(Run),
+  },
+  /** The web search backend's key (Brave). The key is write-only; status never returns it. */
+  search: {
+    status: base.output(SearchStatus),
+    setKey: base.input(SearchKeyInput).output(SearchStatus),
+    clearKey: base.output(SearchStatus),
   },
   approvals: {
     list: base

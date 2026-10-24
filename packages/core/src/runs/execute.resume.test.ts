@@ -1,16 +1,10 @@
-import { tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
 import { executeRun } from './execute.ts'
-import { setup } from './test-util.ts'
+import { setup, testTools } from './test-util.ts'
 import { ABORT_SHUTDOWN } from './types.ts'
 
 const hour = 60 * 60_000
-const noop = tool({
-  description: 'does nothing',
-  inputSchema: z.object({}),
-  execute: async () => 'ok',
-})
+const noop = () => 'ok'
 const call = { toolCalls: [{ name: 'noop', input: {} }] }
 
 describe('executeRun: the wall-clock budget counts active time only', () => {
@@ -41,16 +35,12 @@ describe('executeRun: the wall-clock budget counts active time only', () => {
   })
 
   it('adds the time each step took to the run and fails once the active total is spent', async () => {
-    const slow = tool({
-      description: 'takes two seconds',
-      inputSchema: z.object({}),
-      execute: async () => {
-        h.clock.advance(2_000)
-        return 'ok'
-      },
-    })
+    const slow = () => {
+      h.clock.advance(2_000)
+      return 'ok'
+    }
     const h = setup([{ toolCalls: [{ name: 'slow', input: {} }] }, { text: 'never' }], {
-      tools: { slow },
+      tools: testTools({ slow }),
     })
     const run = h.store.runs.get(h.runId)
     if (run) {
@@ -74,23 +64,20 @@ describe('executeRun: the wall-clock budget counts active time only', () => {
 })
 
 describe('executeRun: a step is only written while the run is running', () => {
-  it('stops quietly, with no step event, when cancel lands during the step', async () => {
-    const cancelling = tool({
-      description: 'cancels the run as a side effect',
-      inputSchema: z.object({}),
-      execute: async () => {
-        const run = h.store.runs.get(h.runId)
-        if (run) run.status = 'cancelled'
-        return 'ok'
-      },
-    })
+  it('stops quietly, without the tool row, when cancel lands while the tools run', async () => {
+    const cancelling = () => {
+      const run = h.store.runs.get(h.runId)
+      if (run) run.status = 'cancelled'
+      return 'ok'
+    }
     const h = setup([{ toolCalls: [{ name: 'cancelling', input: {} }] }, { text: 'never' }], {
-      tools: { cancelling },
+      tools: testTools({ cancelling }),
     })
     const out = await executeRun(h.deps)
     expect(out).toEqual({ outcome: 'superseded' })
-    expect(await h.store.steps(h.runId)).toHaveLength(0)
-    expect(h.store.events.filter((e) => e.type === 'run.step')).toHaveLength(0)
+    // The model row is written before its tools run; the tool row is never written.
+    expect((await h.store.steps(h.runId)).map((s) => s.kind)).toEqual(['model'])
+    expect(h.store.events.filter((e) => e.type === 'run.step')).toHaveLength(1)
     expect(h.model.calls).toHaveLength(1)
   })
 
@@ -119,7 +106,7 @@ describe('executeRun: shutdown', () => {
   it('leaves the run running with the steps it already persisted and no reply', async () => {
     const abort = new AbortController()
     const h = setup([{ ...call, text: 'one' }, { text: 'a long second answer' }], {
-      tools: { noop },
+      tools: testTools({ noop }),
       signal: abort.signal,
     })
     h.deps.onDelta = ({ stepIdx }) => {

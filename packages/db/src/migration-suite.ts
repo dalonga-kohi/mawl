@@ -22,8 +22,11 @@ import {
   runSteps,
   runs,
   runTrigger,
+  runWaits,
+  serviceCredentials,
   stepKind,
   threads,
+  toolResults,
   userProfile,
 } from './schema.ts'
 
@@ -42,6 +45,9 @@ const schemaTables = {
   artifacts,
   events,
   userProfile,
+  toolResults,
+  runWaits,
+  serviceCredentials,
 }
 
 export type TestDb = PgDatabase<PgQueryResultHKT, typeof schemaNs>
@@ -126,8 +132,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           m.db,
           sql`select count(*)::int as n from information_schema.tables where table_schema = 'public'`,
         )
-        // 10 tables (the drizzle journal lives in schema "drizzle").
-        expect(row?.n).toBe(10)
+        // 13 tables (the drizzle journal lives in schema "drizzle").
+        expect(row?.n).toBe(13)
       } finally {
         await m.close()
       }
@@ -761,6 +767,100 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
         expect(row?.updatedAt).toBeInstanceOf(Date)
         await expectPgError(m.db.insert(userProfile).values({}), UNIQUE)
         await expectPgError(m.db.insert(userProfile).values({ id: 2 }), CHECK)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('records one tool result per (run, step, tool call), cascading with the run', async () => {
+      const m = await fresh()
+      try {
+        const { id: runId, profileId } = await seedRun(m.db)
+        const artId = newId('artifact')
+        await m.db.insert(artifacts).values({
+          id: artId,
+          profileId,
+          runId,
+          mime: 'text/plain',
+          sizeBytes: 1,
+          preview: 'x',
+          tokenCount: 1,
+          content: new Uint8Array([120]),
+        })
+        const row = (toolCallId: string, stepIdx = 0) => ({
+          runId,
+          stepIdx,
+          toolCallId,
+          toolName: 'web_fetch',
+          isError: false,
+          output: { type: 'text', value: '<tool_result>\nx\n</tool_result>' },
+          preview: 'x',
+          artifactId: artId,
+        })
+        await m.db.insert(toolResults).values(row('call_1'))
+        await m.db.insert(toolResults).values(row('call_2'))
+        await m.db.insert(toolResults).values(row('call_1', 2))
+        await expectPgError(m.db.insert(toolResults).values(row('call_1')), UNIQUE)
+        await expectPgError(m.db.insert(toolResults).values(row('call_9', -1)), CHECK)
+        const [stored] = await m.db
+          .select()
+          .from(toolResults)
+          .where(and(eq(toolResults.runId, runId), eq(toolResults.toolCallId, 'call_2')))
+        expect(stored?.output).toEqual(row('call_2').output)
+
+        await m.db.delete(artifacts).where(eq(artifacts.id, artId))
+        const after = await m.db.select().from(toolResults)
+        expect(after.every((r) => r.artifactId === null)).toBe(true)
+        await m.db.delete(runs).where(eq(runs.id, runId))
+        expect(await m.db.select().from(toolResults)).toHaveLength(0)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('keeps a run wait per tool call with a closed set of kinds', async () => {
+      const m = await fresh()
+      try {
+        const { id: runId } = await seedRun(m.db)
+        const row = (toolCallId: string, kind: string) =>
+          ({
+            runId,
+            stepIdx: 0,
+            toolCallId,
+            kind,
+            payload: { question: 'Blue or green?' },
+          }) as typeof runWaits.$inferInsert
+        await m.db.insert(runWaits).values(row('call_1', 'question'))
+        await m.db.insert(runWaits).values(row('call_2', 'approval'))
+        await expectPgError(m.db.insert(runWaits).values(row('call_1', 'question')), UNIQUE)
+        await expectPgError(m.db.insert(runWaits).values(row('call_3', 'poll')), CHECK)
+        const [open] = await m.db.select().from(runWaits).where(eq(runWaits.toolCallId, 'call_1'))
+        expect(open).toMatchObject({ answer: null, resolvedAt: null })
+        await m.db.delete(runs).where(eq(runs.id, runId))
+        expect(await m.db.select().from(runWaits)).toHaveLength(0)
+      } finally {
+        await m.close()
+      }
+    })
+
+    it('stores one encrypted key per known service', async () => {
+      const m = await fresh()
+      try {
+        const blob = Uint8Array.from({ length: 64 }, (_, i) => 255 - i)
+        await m.db.insert(serviceCredentials).values({ service: 'brave_search', secretEnc: blob })
+        await expectPgError(
+          m.db.insert(serviceCredentials).values({ service: 'brave_search', secretEnc: blob }),
+          UNIQUE,
+        )
+        await expectPgError(
+          m.db.insert(serviceCredentials).values({
+            service: 'bing' as unknown as 'brave_search',
+            secretEnc: blob,
+          }),
+          CHECK,
+        )
+        const [row] = await m.db.select().from(serviceCredentials)
+        expect(Array.from(row?.secretEnc ?? [])).toEqual(Array.from(blob))
       } finally {
         await m.close()
       }

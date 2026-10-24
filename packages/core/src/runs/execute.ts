@@ -1,6 +1,14 @@
 import type { RunErrorCode, Usage } from '@mawl/contracts'
-import { type ModelMessage, stepCountIs, streamText } from 'ai'
+import {
+  type ModelMessage,
+  stepCountIs,
+  streamText,
+  type ToolCallPart,
+  type ToolResultPart,
+} from 'ai'
 import { ProviderFailureError } from '../providers/failure.ts'
+import { createToolRegistry } from '../tools/registry.ts'
+import type { WaitRequest } from '../tools/types.ts'
 import { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'
 import {
   ABORT_SHUTDOWN,
@@ -124,12 +132,95 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
 
   const history = await store.history(run)
   const steps: PersistedStep[] = [...persisted]
-  const tools = resolved.supportsTools === false || !hasTools(deps.tools) ? undefined : deps.tools
+  const bind = { runId, profileId: profile.id }
+  const offered =
+    resolved.supportsTools === false || deps.tools === undefined
+      ? undefined
+      : deps.tools.forRun(bind)
+  const sdkTools = offered && offered.names.length > 0 ? offered.toolSet : undefined
+  // Calls the model made without tools on offer (or after they went away on resume) still get an
+  // answer: the empty registry gives each one a typed unknown_tool result.
+  const runner = offered ?? createToolRegistry({ tools: [] }).forRun(bind)
+
+  /**
+   * Runs the tool calls of a persisted model step through the registry, in call order. Results
+   * that are already recorded (a resumed run) are reused, so no call runs twice. Returns the
+   * written tool row, or the outcome that ends this execution.
+   */
+  async function runTools(
+    modelStep: PersistedStep,
+    calls: readonly ToolCallPart[],
+  ): Promise<PersistedStep | RunOutcome> {
+    const remainingMs = budget.maxWallClockMs - activeNow()
+    if (remainingMs <= 0) return fail('budget_wall_clock', usage)
+    const wall = new AbortController()
+    const timer = setTimeout(() => wall.abort(new Error('wall clock')), remainingMs)
+    const callSignal = AbortSignal.any([signal, wall.signal])
+    const parts: ToolResultPart[] = []
+    let parked: { call: ToolCallPart; wait: WaitRequest } | undefined
+    try {
+      for (const call of calls) {
+        if (callSignal.aborted) break
+        const result = await runner.invoke(
+          {
+            stepIdx: modelStep.idx,
+            toolCallId: call.toolCallId,
+            toolName: call.toolName,
+            input: call.input,
+          },
+          // The loop stops at the first park, so every call reached may park.
+          { ledger: store, signal: callSignal, allowPark: true },
+        )
+        if (result.kind === 'park') {
+          // The calls after the question stay unrun and unrecorded: the answer may change the
+          // plan, and they run (once) when the resumed run reaches them.
+          parked = { call, wait: result.wait }
+          break
+        }
+        parts.push(result.part)
+      }
+    } catch (err) {
+      // A store error while nothing aborted is infrastructure: rethrow so the job retries.
+      if (!callSignal.aborted) throw err
+    } finally {
+      clearTimeout(timer)
+    }
+    if (wall.signal.aborted) return fail('budget_wall_clock', usage)
+    if (signal.aborted) return interruptedOrSuperseded()
+
+    if (parked) {
+      const ok = await store.park(
+        runId,
+        { ...parked.wait, stepIdx: modelStep.idx, toolCallId: parked.call.toolCallId },
+        takeDelta(),
+      )
+      return ok ? { outcome: 'waiting' } : { outcome: 'superseded' }
+    }
+
+    const toolMessage: ModelMessage = { role: 'tool', content: parts }
+    const idx = modelStep.idx + 1
+    const written = await store.appendToolStep(runId, {
+      idx,
+      toolMessages: [toolMessage],
+      activeMsDelta: takeDelta(),
+    })
+    if (written === 'duplicate') return { outcome: 'interrupted' }
+    if (written === 'not_running') return { outcome: 'superseded' }
+    return { idx, kind: 'tool', messages: [toolMessage], usage: null }
+  }
 
   for (;;) {
-    // The last persisted step is a model step without tool calls: only the finish was missed.
     const last = steps.at(-1)
-    if (last?.kind === 'model') break
+    if (last?.kind === 'model') {
+      // A model step without tool calls is the final answer (on resume: only the finish was missed).
+      const calls = toolCallsOf(last)
+      if (calls.length === 0) break
+      // Its tool calls have no tool row yet: run them (on resume, only the unrecorded ones run).
+      const next = await runTools(last, calls)
+      if ('outcome' in next) return next
+      steps.push(next)
+      continue
+    }
 
     if (signal.aborted) return interruptedOrSuperseded()
     const status = await store.status(runId)
@@ -153,7 +244,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       model: resolved.model,
       instructions: profile.personaMd,
       messages: [...history, ...steps.flatMap((s) => s.messages)],
-      ...(tools ? { tools } : {}),
+      ...(sdkTools ? { tools: sdkTools } : {}),
       stopWhen: stepCountIs(1),
       maxRetries: MAX_RETRIES,
       abortSignal: AbortSignal.any([signal, wall.signal]),
@@ -216,15 +307,16 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
       deps.onStepEnd?.({ runId, profileId: profile.id, stepIdx: idx })
     }
 
+    // Only the assistant message is kept. Tools carry no `execute`, so the SDK runs none; any tool
+    // message it made (its own error for an invalid call) is dropped, and every call is answered
+    // by the registry instead, wrapped as data.
     const assistantMessages = responseMessages.filter((m) => m.role === 'assistant')
-    const toolMessages = responseMessages.filter((m) => m.role === 'tool')
     usage = addUsage(usage, stepUsage)
     const written = await store.appendStep(
       runId,
       {
         idx,
         assistantMessages: [...assistantMessages],
-        toolMessages: toolMessages.length > 0 ? [...toolMessages] : null,
         usage: stepUsage,
         activeMsDelta: takeDelta(),
       },
@@ -236,11 +328,6 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
     if (written === 'not_running') return { outcome: 'superseded' }
 
     steps.push({ idx, kind: 'model', messages: [...assistantMessages], usage: stepUsage })
-    if (toolMessages.length > 0) {
-      steps.push({ idx: idx + 1, kind: 'tool', messages: [...toolMessages], usage: null })
-    }
-    // Final unless the model asked for tools and they produced results.
-    if (!(finishReason === 'tool-calls' && toolMessages.length > 0)) break
   }
 
   const ok = await store.succeed(runId, {
@@ -252,8 +339,23 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   return ok ? { outcome: 'succeeded' } : { outcome: 'superseded' }
 }
 
-function hasTools(tools: ExecuteRunDeps['tools']): boolean {
-  return tools !== undefined && Object.keys(tools).length > 0
+/**
+ * Client-side tool calls of a model step, in order (provider-executed ones need no answer). A call
+ * id that repeats within the step is kept once: results are keyed by id, and a tool message may
+ * answer an id only once.
+ */
+function toolCallsOf(step: PersistedStep): ToolCallPart[] {
+  const seen = new Set<string>()
+  return step.messages.flatMap((m) =>
+    m.role === 'assistant' && typeof m.content !== 'string'
+      ? m.content.filter((p): p is ToolCallPart => {
+          if (p.type !== 'tool-call' || p.providerExecuted === true) return false
+          if (seen.has(p.toolCallId)) return false
+          seen.add(p.toolCallId)
+          return true
+        })
+      : [],
+  )
 }
 
 function errName(err: unknown): string {

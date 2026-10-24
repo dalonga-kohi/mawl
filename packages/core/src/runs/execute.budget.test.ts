@@ -1,14 +1,8 @@
-import { tool } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
 import { executeRun } from './execute.ts'
-import { setup } from './test-util.ts'
+import { setup, testTools } from './test-util.ts'
 
-const noop = tool({
-  description: 'does nothing',
-  inputSchema: z.object({}),
-  execute: async () => 'ok',
-})
+const noop = () => 'ok'
 const call = { toolCalls: [{ name: 'noop', input: {} }] }
 
 afterEach(() => {
@@ -18,7 +12,7 @@ afterEach(() => {
 describe('executeRun: budgets', () => {
   it('fails budget_steps after the step cap, with the capped steps persisted', async () => {
     const { store, runId, deps, model } = setup([call, call, { text: 'never' }], {
-      tools: { noop },
+      tools: testTools({ noop }),
     })
     const run = store.runs.get(runId)
     if (run) run.budget = { maxSteps: 2 }
@@ -37,14 +31,14 @@ describe('executeRun: budgets', () => {
 
   it('uses the engine default when the run sets none, and the run value when it does', async () => {
     const a = setup([call, call, { text: 'x' }], {
-      tools: { noop },
+      tools: testTools({ noop }),
       defaults: { maxSteps: 1, maxTokens: 1_000_000, maxWallClockMs: 60_000 },
     })
     expect(await executeRun(a.deps)).toEqual({ outcome: 'failed', error: 'budget_steps' })
     expect(a.model.calls).toHaveLength(1)
 
     const b = setup([call, call, { text: 'x' }], {
-      tools: { noop },
+      tools: testTools({ noop }),
       defaults: { maxSteps: 1, maxTokens: 1_000_000, maxWallClockMs: 60_000 },
     })
     const run = b.store.runs.get(b.runId)
@@ -64,7 +58,7 @@ describe('executeRun: budgets', () => {
   it('persists the step that crossed the token cap, then fails budget_tokens', async () => {
     const { store, runId, deps, model } = setup(
       [{ ...call, usage: { inputTokens: 90, outputTokens: 20 } }, { text: 'never' }],
-      { tools: { noop } },
+      { tools: testTools({ noop }) },
     )
     const run = store.runs.get(runId)
     if (run) run.budget = { maxTokens: 100 }
@@ -100,16 +94,12 @@ describe('executeRun: budgets', () => {
   })
 
   it('checks the wall clock between steps', async () => {
-    const slow = tool({
-      description: 'takes a while',
-      inputSchema: z.object({}),
-      execute: async () => {
-        h.clock.advance(20 * 60_000)
-        return 'ok'
-      },
-    })
+    const slow = () => {
+      h.clock.advance(20 * 60_000)
+      return 'ok'
+    }
     const h = setup([{ toolCalls: [{ name: 'slow', input: {} }] }, { text: 'never' }], {
-      tools: { slow },
+      tools: testTools({ slow }),
     })
     const out = await executeRun(h.deps)
     expect(out).toEqual({ outcome: 'failed', error: 'budget_wall_clock' })

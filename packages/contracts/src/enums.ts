@@ -32,6 +32,8 @@ export const ActionClass = z.enum([
   'credential',
   'external_post',
   'shell_exec',
+  // Talks only to the owner inside Mawl (ask_user, notify): nothing leaves the install.
+  'owner_contact',
 ])
 export type ActionClass = z.infer<typeof ActionClass>
 

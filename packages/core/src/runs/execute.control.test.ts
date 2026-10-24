@@ -1,16 +1,10 @@
 import { fakeModel } from '@mawl/testkit'
-import { tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
 import { executeRun } from './execute.ts'
-import { setup } from './test-util.ts'
+import { setup, testTools } from './test-util.ts'
 import { ABORT_SHUTDOWN } from './types.ts'
 
-const noop = tool({
-  description: 'does nothing',
-  inputSchema: z.object({}),
-  execute: async () => 'ok',
-})
+const noop = () => 'ok'
 const call = (text?: string) => ({
   ...(text ? { text } : {}),
   toolCalls: [{ name: 'noop', input: {} }],
@@ -55,17 +49,13 @@ describe('executeRun: cancel, pause, shutdown', () => {
 
   it('stops between steps when another actor paused the run', async () => {
     const h = setup([call(), { text: 'never' }], {
-      tools: {
-        noop: tool({
-          description: 'pauses the run as a side effect',
-          inputSchema: z.object({}),
-          execute: async () => {
-            const run = h.store.runs.get(h.runId)
-            if (run) run.status = 'paused'
-            return 'ok'
-          },
-        }),
-      },
+      tools: testTools({
+        noop: () => {
+          const run = h.store.runs.get(h.runId)
+          if (run) run.status = 'paused'
+          return 'ok'
+        },
+      }),
     })
     const out = await executeRun(h.deps)
     expect(out).toEqual({ outcome: 'superseded' })
@@ -120,7 +110,7 @@ describe('executeRun: cancel, pause, shutdown', () => {
 
 describe('executeRun: crash and resume', () => {
   it('resumes from the last persisted step and calls only the missing step', async () => {
-    const h = setup([call('one'), call('two'), { text: 'three' }], { tools: { noop } })
+    const h = setup([call('one'), call('two'), { text: 'three' }], { tools: testTools({ noop }) })
 
     // Crash while saving step 3: the store dies after two steps are safely written.
     const append = h.store.appendStep.bind(h.store)
@@ -139,7 +129,7 @@ describe('executeRun: crash and resume', () => {
     const out = await executeRun({
       ...h.deps,
       resolveModel: async () => ({ model: resumed }),
-      tools: { noop },
+      tools: testTools({ noop }),
     })
 
     expect(out).toEqual({ outcome: 'succeeded' })

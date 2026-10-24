@@ -108,3 +108,23 @@ describe('classifyAddress', () => {
     },
   )
 })
+
+describe('classifyAddress: embedded IPv4 read numerically', () => {
+  it.each([
+    ['64:ff9b::7f', 'blocked'], // NAT64 of 0.0.0.127 written short: inside 0.0.0.0/8
+    ['64:ff9b::a9fe:a9fe', 'blocked'], // NAT64 of 169.254.169.254
+    ['64:ff9b::7f00:1', 'private'], // NAT64 of 127.0.0.1
+    ['::ffff:0:7f00:1', 'private'], // IPv4-translated (::ffff:0:0/96) 127.0.0.1
+    ['::ffff:0:a9fe:a9fe', 'blocked'], // IPv4-translated metadata
+    ['::ffff:7f00:1', 'private'], // IPv4-mapped 127.0.0.1
+    ['64:ff9b::808:808', 'public'], // NAT64 of 8.8.8.8
+  ] as const)('classifies %s as %s', (ip, expected) => {
+    expect(classifyAddress(ip)).toBe(expected)
+  })
+
+  it('blocks any address with a zone id', () => {
+    expect(classifyAddress('fe80::1%2')).toBe('blocked')
+    expect(classifyAddress('::1%eth0')).toBe('blocked')
+    expect(classifyAddress('2606:4700::1111%1')).toBe('blocked')
+  })
+})

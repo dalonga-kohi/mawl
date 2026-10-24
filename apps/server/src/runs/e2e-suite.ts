@@ -389,24 +389,28 @@ export function describeRunEngineE2e(adminUrl: () => string): void {
               ],
             },
           ],
-          toolMessages: [
-            {
-              role: 'tool',
-              content: [
-                {
-                  type: 'tool-result',
-                  toolCallId: 'c1',
-                  toolName: 'lookup',
-                  output: { type: 'json', value: { answer: 1 } },
-                },
-              ],
-            },
-          ],
           usage,
           activeMsDelta: 0,
         },
         usage,
       )
+      await store.appendToolStep(runId, {
+        idx: 1,
+        toolMessages: [
+          {
+            role: 'tool',
+            content: [
+              {
+                type: 'tool-result',
+                toolCallId: 'c1',
+                toolName: 'lookup',
+                output: { type: 'json', value: { answer: 1 } },
+              },
+            ],
+          },
+        ],
+        activeMsDelta: 0,
+      })
       await handle.close()
 
       const { model, resolved } = fake([{ text: 'The answer is 1' }])

@@ -1,4 +1,5 @@
 import { newId, Run, type RunId } from '@mawl/contracts'
+import { answerRecord } from '@mawl/core'
 import { schema } from '@mawl/db'
 import { asc, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -7,9 +8,10 @@ import type { MadeServiceDb } from '../providers/service-suite.ts'
 import { EntityNotFoundError, RunConflictError } from './errors.ts'
 import { RunRegistry } from './registry.ts'
 import { createRunService } from './service.ts'
+import { createRunStore } from './store.ts'
 import { seedMessage, seedProfile, seedRun, seedThread } from './test-util.ts'
 
-const { events, messages, profiles, threads } = schema
+const { events, messages, profiles, threads, runWaits } = schema
 
 /** One database per suite: every test seeds its own profile, so tests never collide. */
 export function describeRunService(name: string, make: () => Promise<MadeServiceDb>): void {
@@ -252,6 +254,95 @@ export function describeRunService(name: string, make: () => Promise<MadeService
         const id = await seedRun(db, profileId, { status: 'running' })
         await expect(service().resume(id)).rejects.toBeInstanceOf(RunConflictError)
         expect(enqueued).toEqual([])
+      })
+    })
+
+    describe('reply', () => {
+      /** A run parked on an ask_user call, as the engine leaves it. */
+      async function parked() {
+        const profileId = await seedProfile(db)
+        const id = await seedRun(db, profileId, { status: 'running' })
+        const store = createRunStore(db)
+        await store.park(
+          id,
+          {
+            kind: 'question',
+            payload: { question: 'Blue or green?' },
+            stepIdx: 0,
+            toolCallId: 'call_7',
+          },
+          0,
+        )
+        return { id, store }
+      }
+
+      it('records the answer as the tool result, resumes the run and enqueues it', async () => {
+        const { id, store } = await parked()
+        const run = await service().reply(id, 'Green')
+
+        expect(run.status).toBe('running')
+        expect(enqueued).toEqual([id])
+        const result = await store.toolResult(id, { stepIdx: 0, toolCallId: 'call_7' })
+        expect(result).toEqual(answerRecord('Green'))
+        const [wait] = await db.select().from(runWaits).where(eq(runWaits.runId, id))
+        expect(wait?.answer).toEqual({ answer: 'Green' })
+        expect(wait?.resolvedAt).not.toBeNull()
+        const evs = await eventsOf(id)
+        expect(evs.map((e) => e.type).slice(-2)).toEqual(['run.tool_result', 'run.status'])
+        expect(evs.at(-1)?.payload).toEqual({ status: 'running', prevStatus: 'waiting_user' })
+      })
+
+      it('answers CONFLICT to a second reply and keeps the first answer', async () => {
+        const { id, store } = await parked()
+        await service().reply(id, 'Green')
+        await expect(service().reply(id, 'Blue')).rejects.toMatchObject({
+          name: 'RunConflictError',
+          from: 'running',
+          to: 'running',
+        })
+        expect(enqueued).toEqual([id])
+        expect((await store.toolResult(id, { stepIdx: 0, toolCallId: 'call_7' }))?.preview).toBe(
+          'Green',
+        )
+      })
+
+      it('lets exactly one of two concurrent replies win', async () => {
+        const { id } = await parked()
+        const results = await Promise.allSettled([
+          service().reply(id, 'one'),
+          service().reply(id, 'two'),
+        ])
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+        const rejected = results.find((r) => r.status === 'rejected')
+        expect(rejected?.status === 'rejected' && rejected.reason).toBeInstanceOf(RunConflictError)
+        expect(enqueued).toEqual([id])
+      })
+
+      it.each(['queued', 'running', 'paused', 'succeeded'] as const)(
+        'answers CONFLICT for a %s run and enqueues nothing',
+        async (status) => {
+          const profileId = await seedProfile(db)
+          const id = await seedRun(db, profileId, { status })
+          await expect(service().reply(id, 'x')).rejects.toMatchObject({
+            from: status,
+            to: 'running',
+          })
+          expect(enqueued).toEqual([])
+        },
+      )
+
+      it('answers CONFLICT after the waiting run was cancelled', async () => {
+        const { id } = await parked()
+        await service().cancel(id)
+        await expect(service().reply(id, 'late')).rejects.toMatchObject({
+          from: 'cancelled',
+          to: 'running',
+        })
+        expect(enqueued).toEqual([])
+      })
+
+      it('answers NOT_FOUND for an unknown run', async () => {
+        await expect(service().reply(newId('run'), 'x')).rejects.toBeInstanceOf(EntityNotFoundError)
       })
     })
 

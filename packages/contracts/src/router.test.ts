@@ -29,6 +29,10 @@ describe('contract shape', () => {
         'runs.cancel',
         'runs.pause',
         'runs.resume',
+        'runs.reply',
+        'search.status',
+        'search.setKey',
+        'search.clearKey',
         'approvals.list',
         'approvals.decide',
         'providers.catalog',
@@ -51,7 +55,12 @@ describe('contract shape', () => {
   })
 
   it('declares typed NOT_FOUND and CONFLICT errors on run transitions', () => {
-    for (const p of [contract.runs.cancel, contract.runs.pause, contract.runs.resume]) {
+    for (const p of [
+      contract.runs.cancel,
+      contract.runs.pause,
+      contract.runs.resume,
+      contract.runs.reply,
+    ]) {
       const errors = p['~orpc'].errorMap
       expect(Object.keys(errors)).toEqual(expect.arrayContaining(['NOT_FOUND', 'CONFLICT']))
     }
@@ -229,6 +238,74 @@ describe('contract validation', () => {
       expect(ok).not.toHaveProperty('issues')
       const extra = await out?.['~standard'].validate({ name: 'S', personalContext: '', x: 1 })
       expect(extra).toHaveProperty('issues')
+    })
+  })
+
+  describe('runs.reply input rules', () => {
+    const RUN = 'run_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    const check = async (value: unknown) =>
+      (await contract.runs.reply['~orpc'].inputSchema?.['~standard'].validate(value)) as {
+        value?: unknown
+        issues?: unknown[]
+      }
+
+    it('trims the answer and rejects a blank one', async () => {
+      expect(await check({ id: RUN, answer: '  yes  ' })).toMatchObject({
+        value: { id: RUN, answer: 'yes' },
+      })
+      expect((await check({ id: RUN, answer: '   ' })).issues).toBeDefined()
+    })
+
+    it('caps the answer at 4000 characters and rejects unknown keys', async () => {
+      expect((await check({ id: RUN, answer: 'x'.repeat(4000) })).issues).toBeUndefined()
+      expect((await check({ id: RUN, answer: 'x'.repeat(4001) })).issues).toBeDefined()
+      expect((await check({ id: RUN, answer: 'ok', extra: 1 })).issues).toBeDefined()
+    })
+  })
+
+  describe('search key procedures', () => {
+    const validate = async (schema: unknown, value: unknown) =>
+      (await (schema as { '~standard': { validate(v: unknown): unknown } } | undefined)?.[
+        '~standard'
+      ].validate(value)) as { value?: unknown; issues?: unknown[] }
+
+    it('setKey takes a provider and a trimmed key and nothing else', async () => {
+      const schema = contract.search.setKey['~orpc'].inputSchema
+      expect(await validate(schema, { provider: 'brave', apiKey: ' k1 ' })).toMatchObject({
+        value: { provider: 'brave', apiKey: 'k1' },
+      })
+      expect((await validate(schema, { provider: 'brave', apiKey: '  ' })).issues).toBeDefined()
+      expect((await validate(schema, { provider: 'bing', apiKey: 'k' })).issues).toBeDefined()
+      expect(
+        (await validate(schema, { provider: 'brave', apiKey: 'k', label: 'x' })).issues,
+      ).toBeDefined()
+    })
+
+    it('setKey refuses a key with control characters, spaces or non-ASCII (header injection)', async () => {
+      const schema = contract.search.setKey['~orpc'].inputSchema
+      for (const apiKey of ['abc\r\ndef', 'ab c', 'abc\u0000', 'clé', 'a\tb']) {
+        expect((await validate(schema, { provider: 'brave', apiKey })).issues, apiKey).toBeDefined()
+      }
+      expect(
+        (await validate(schema, { provider: 'brave', apiKey: 'BSA_a-b.c~!' })).issues,
+      ).toBeUndefined()
+    })
+
+    it('the status never carries a key: unknown fields fail the output schema', async () => {
+      const out = contract.search.status['~orpc'].outputSchema
+      const ok = {
+        provider: 'brave',
+        configured: true,
+        unreadable: false,
+        updatedAt: '2026-01-02T03:04:05.000Z',
+      }
+      expect((await validate(out, ok)).issues).toBeUndefined()
+      expect((await validate(out, { ...ok, apiKey: 'k' })).issues).toBeDefined()
+      for (const p of [contract.search.setKey, contract.search.clearKey]) {
+        expect(
+          (await validate(p['~orpc'].outputSchema, { ...ok, apiKey: 'k' })).issues,
+        ).toBeDefined()
+      }
     })
   })
 

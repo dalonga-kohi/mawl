@@ -1,14 +1,8 @@
-import { tool } from 'ai'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
 import { executeRun } from './execute.ts'
-import { setup } from './test-util.ts'
+import { setup, testTools } from './test-util.ts'
 
-const noop = tool({
-  description: 'does nothing',
-  inputSchema: z.object({}),
-  execute: async () => 'ok',
-})
+const noop = () => 'ok'
 const toolStep = (inputTokens: number, outputTokens: number) => ({
   toolCalls: [{ name: 'noop', input: {} }],
   usage: { inputTokens, outputTokens },
@@ -16,7 +10,7 @@ const toolStep = (inputTokens: number, outputTokens: number) => ({
 
 describe('executeRun: budget boundaries', () => {
   it('fails budget_tokens when usage equals the cap exactly', async () => {
-    const h = setup([toolStep(60, 40), { text: 'never' }], { tools: { noop } })
+    const h = setup([toolStep(60, 40), { text: 'never' }], { tools: testTools({ noop }) })
     const run = h.store.runs.get(h.runId)
     if (run) run.budget = { maxTokens: 100 }
     expect(await executeRun(h.deps)).toEqual({ outcome: 'failed', error: 'budget_tokens' })
@@ -24,7 +18,7 @@ describe('executeRun: budget boundaries', () => {
   })
 
   it('keeps going when usage is one token under the cap', async () => {
-    const h = setup([toolStep(60, 39), { text: 'fine' }], { tools: { noop } })
+    const h = setup([toolStep(60, 39), { text: 'fine' }], { tools: testTools({ noop }) })
     const run = h.store.runs.get(h.runId)
     if (run) run.budget = { maxTokens: 100 }
     expect(await executeRun(h.deps)).toEqual({ outcome: 'succeeded' })
@@ -60,7 +54,7 @@ describe('executeRun: budget boundaries', () => {
     if (p) p.budget = { maxSteps: 1 }
     expect(await executeRun(plain.deps)).toEqual({ outcome: 'succeeded' })
 
-    const loop = setup([toolStep(1, 1), { text: 'never' }], { tools: { noop } })
+    const loop = setup([toolStep(1, 1), { text: 'never' }], { tools: testTools({ noop }) })
     const l = loop.store.runs.get(loop.runId)
     if (l) l.budget = { maxSteps: 1 }
     expect(await executeRun(loop.deps)).toEqual({ outcome: 'failed', error: 'budget_steps' })
@@ -68,7 +62,7 @@ describe('executeRun: budget boundaries', () => {
 
   it('a run budget smaller than the engine defaults wins on every axis', async () => {
     const h = setup([toolStep(5, 5), toolStep(5, 5), { text: 'never' }], {
-      tools: { noop },
+      tools: testTools({ noop }),
       defaults: { maxSteps: 20, maxTokens: 200_000, maxWallClockMs: 900_000 },
     })
     const run = h.store.runs.get(h.runId)

@@ -73,6 +73,7 @@ export const unusedRuns: RunService = {
   cancel: () => Promise.reject(new Error('runs.cancel not stubbed')),
   pause: () => Promise.reject(new Error('runs.pause not stubbed')),
   resume: () => Promise.reject(new Error('runs.resume not stubbed')),
+  reply: () => Promise.reject(new Error('runs.reply not stubbed')),
   listThreads: () => Promise.reject(new Error('runs.listThreads not stubbed')),
   threadMessages: () => Promise.reject(new Error('runs.threadMessages not stubbed')),
 }

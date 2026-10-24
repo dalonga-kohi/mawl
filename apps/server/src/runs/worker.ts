@@ -6,6 +6,7 @@ import {
   type ProfileRecord,
   type ResolvedModel,
   type RunRecord,
+  type ToolRegistry,
 } from '@mawl/core'
 import { type DbHandle, schema } from '@mawl/db'
 import { inArray } from 'drizzle-orm'
@@ -40,6 +41,8 @@ export interface RunTaskDeps {
   requeue(runId: RunId, retry: number): Promise<void>
   /** Receives the model's text tokens. Flushed when each step ends and when the job ends, however it ends. */
   deltas?: DeltaSink
+  /** The tools runs get. The engine offers them only to a model that `supportsTools`. */
+  tools?: ToolRegistry
 }
 
 /** The `run.execute` job handler. Throws only on infrastructure errors, so Graphile retries those. */
@@ -83,6 +86,7 @@ export function createRunTask(deps: RunTaskDeps) {
         clock,
         signal: controller.signal,
         resolveModel: deps.resolveModel,
+        ...(deps.tools ? { tools: deps.tools } : {}),
         ...(sink
           ? { onDelta: (delta) => sink.add(delta), onStepEnd: ({ runId: id }) => sink.flush(id) }
           : {}),
@@ -108,6 +112,7 @@ export interface RunWorkerDeps {
   /** Delay before a requeued job runs again. Tests shorten it. */
   requeueDelayMs?: number
   deltas?: DeltaSink
+  tools?: ToolRegistry
 }
 
 export interface RunWorker {
@@ -156,6 +161,7 @@ export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
         resolveModel: deps.resolveModel,
         ...(deps.clock ? { clock: deps.clock } : {}),
         ...(deps.deltas ? { deltas: deps.deltas } : {}),
+        ...(deps.tools ? { tools: deps.tools } : {}),
         requeue: (runId, retry) =>
           addJob(
             { runId, retry },

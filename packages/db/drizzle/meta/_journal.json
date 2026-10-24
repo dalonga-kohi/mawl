@@ -50,6 +50,13 @@
       "when": 1792625877449,
       "tag": "0006_user_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792869919701,
+      "tag": "0007_tool_results_waits_service_keys",
+      "breakpoints": true
     }
   ]
 }
