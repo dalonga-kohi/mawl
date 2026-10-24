@@ -21,6 +21,7 @@ import {
 } from './providers/service.ts'
 import { EntityNotFoundError, RunConflictError } from './runs/errors.ts'
 import type { RunService } from './runs/service.ts'
+import type { SearchService } from './search/service.ts'
 import type { UserService } from './user/service.ts'
 
 export interface RouterDeps {
@@ -33,6 +34,8 @@ export interface RouterDeps {
   user?: UserService
   /** Without it events.subscribe stays a 501 stub (unit tests that never stream). */
   events?: EventsService
+  /** Without it the search key procedures stay 501 stubs. */
+  search?: SearchService
 }
 
 /**
@@ -113,7 +116,15 @@ const profileErrors =
  * contract, so adding a procedure to `@mawl/contracts` fails the build until it is stubbed
  * or implemented. Replace a stub by a real handler when its slice lands.
  */
-export function createRouter({ version, providers, runs, events, profiles, user }: RouterDeps) {
+export function createRouter({
+  version,
+  providers,
+  runs,
+  events,
+  profiles,
+  user,
+  search,
+}: RouterDeps) {
   const os = implement(contract).$context<RouterContext>()
   return os.router({
     health: { get: os.health.get.handler(() => ({ ok: true as const, version })) },
@@ -162,13 +173,21 @@ export function createRouter({ version, providers, runs, events, profiles, user 
       resume: os.runs.resume.handler(({ input, errors }) =>
         runs.resume(input.id).catch(runErrors(errors)),
       ),
-      reply: stub(os.runs.reply),
+      reply: os.runs.reply.handler(({ input, errors }) =>
+        runs.reply(input.id, input.answer).catch(runErrors(errors)),
+      ),
     },
-    search: {
-      status: stub(os.search.status),
-      setKey: stub(os.search.setKey),
-      clearKey: stub(os.search.clearKey),
-    },
+    search: search
+      ? {
+          status: os.search.status.handler(() => search.status()),
+          setKey: os.search.setKey.handler(({ input }) => search.setKey(input)),
+          clearKey: os.search.clearKey.handler(() => search.clearKey()),
+        }
+      : {
+          status: stub(os.search.status),
+          setKey: stub(os.search.setKey),
+          clearKey: stub(os.search.clearKey),
+        },
     approvals: {
       list: stub(os.approvals.list),
       decide: stub(os.approvals.decide),

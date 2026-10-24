@@ -11,17 +11,17 @@ import {
   type Thread,
   type ThreadId,
 } from '@mawl/contracts'
-import type { RunStore } from '@mawl/core'
+import { answerRecord, type RunStore } from '@mawl/core'
 import { schema } from '@mawl/db'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'
 import { EntityNotFoundError, RunConflictError } from './errors.ts'
 import type { RunRegistry } from './registry.ts'
-import { recordEvent } from './repo.ts'
+import { insertToolResult, recordEvent } from './repo.ts'
 import { createRunStore } from './store.ts'
 
-const { runs, threads, messages, profiles } = schema
+const { runs, threads, messages, profiles, runWaits } = schema
 
 const DEFAULT_MESSAGE_LIMIT = 50
 const TITLE_CHARS = 60
@@ -49,6 +49,12 @@ export interface RunService {
   cancel(id: RunId): Promise<Run>
   pause(id: RunId): Promise<Run>
   resume(id: RunId): Promise<Run>
+  /**
+   * Answers the question a `waiting_user` run parked on: records it as the `ask_user` call's
+   * result, moves the run back to `running` and enqueues a job. CONFLICT for any other state,
+   * including a second reply.
+   */
+  reply(id: RunId, answer: string): Promise<Run>
   listThreads(profileId: ProfileId): Promise<Thread[]>
   threadMessages(input: {
     threadId: ThreadId
@@ -215,6 +221,40 @@ export function createRunService({ db, registry, enqueue, logger }: RunServiceDe
       if (!(await store.transition(id, 'paused', 'queued'))) {
         throw new RunConflictError(await statusOrThrow(id), 'queued')
       }
+      await enqueueQuietly(id)
+      return load(id)
+    },
+
+    async reply(id, answer) {
+      await db.transaction(async (tx) => {
+        // Lock the run row: two replies (or a reply and a cancel) serialize here, so exactly one
+        // reply can see `waiting_user`.
+        const [run] = await tx
+          .select({ profileId: runs.profileId, status: runs.status })
+          .from(runs)
+          .where(eq(runs.id, id))
+          .for('update')
+        if (!run) throw new EntityNotFoundError('run', id)
+        if (run.status !== 'waiting_user') throw new RunConflictError(run.status, 'running')
+        const [wait] = await tx
+          .update(runWaits)
+          .set({ answer: { answer }, resolvedAt: sql`now()` })
+          .where(
+            and(eq(runWaits.runId, id), eq(runWaits.kind, 'question'), isNull(runWaits.resolvedAt)),
+          )
+          .returning({ stepIdx: runWaits.stepIdx, toolCallId: runWaits.toolCallId })
+        // Waiting without an open question (not something the engine leaves behind): refuse.
+        if (!wait) throw new RunConflictError(run.status, 'running')
+        await insertToolResult(tx, id, wait, answerRecord(answer), [])
+        await tx.update(runs).set({ status: 'running' }).where(eq(runs.id, id))
+        await recordEvent(tx, {
+          profileId: run.profileId,
+          runId: id,
+          type: 'run.status',
+          payload: { status: 'running', prevStatus: 'waiting_user' },
+        })
+      })
+      // A new job continues the run from its persisted model step; the answer is its tool result.
       await enqueueQuietly(id)
       return load(id)
     },
