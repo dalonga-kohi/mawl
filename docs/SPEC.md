@@ -2,7 +2,7 @@
 
 > **Mawl** (French: *to do, to make*). AI teammates you own. They work on your machine and keep working while you sleep.
 
-Status: v0.2 draft · Last updated: 2026-10-21 (desktop-first redesign, see [REDESIGN.md](REDESIGN.md))
+Status: v0.3 draft · Last updated: 2026-10-24 (projects, This PC and teammate requests, see [REDESIGN.md](REDESIGN.md) §12; desktop-first redesign 2026-10-21)
 
 ## 1. Problem
 
@@ -12,16 +12,19 @@ Mawl is a single self-hosted product with:
 - **Your keys, your model, your machine.** Any provider: Anthropic, OpenAI, OpenRouter, or a local model through Ollama.
 - **Install and go.** One Windows installer, then a 3-step onboarding. No terminal, no Docker needed to start chatting.
 - **Always on.** Mawl lives in the tray and starts at login. Closing the window doesn't stop your teammates, and schedules catch up after the laptop sleeps.
+- **Works on your PC.** A teammate can work on your own files, in the folders you grant it, with no Docker. Shell commands and file changes wait for your approval by default.
 - **A computer you can watch.** Give a teammate a sandboxed Linux computer: a light terminal one, or a desktop one with a real browser. You can watch it live and take control. This is the one feature that needs Docker Desktop.
-- **A great agent loop.** Tools, skills, MCP and plugins on one loop that works the same with every provider, with a carefully built system prompt.
+- **Projects your teammates share.** A project holds your brief, guidelines and voice, brand, reference files and folders. Every teammate you add to it works with that context, and teammates can ask each other for help.
+- **A great agent loop.** Tools, skills, MCP and plugins on one loop that works the same with every provider, with a carefully built system prompt. Connecting an MCP server is a search and a click.
 - **Memory that lasts for weeks.** Long-running agents don't drown in context, and you can see and edit everything they remember.
-- **Control from anywhere (later).** Telegram and Discord first, then the phone app over Tailscale.
+- **Control from anywhere (later).** Telegram and Discord first, then the phone app through your own encrypted relay (or Tailscale).
 
 ## 2. Personas
 
 | Persona | Needs |
 |---|---|
-| **The everyday power user** (primary): installs apps, doesn't use a terminal | Install and go; agents that do real work (research, inbox, monitoring); "set it and forget it" routines; approvals as notifications; a clear audit trail |
+| **The solo studio** (primary, the Beta 1 wedge; owner decision 2026-10-24): a creator or freelancer who runs a one-person studio | Projects that keep each client's brief, brand and references in one place; teammates that research, write copy and prepare drafts with that context; work on the files already on their PC; recurring deliverables (weekly reports, social posts) as workflows; approvals before anything leaves the machine |
+| **The everyday power user**: installs apps, doesn't use a terminal | Install and go; agents that do real work (research, inbox, monitoring); "set it and forget it" routines; approvals as notifications; a clear audit trail |
 | **The maker**: developer who self-hosts | Any model, everything visible, computers for code chores, headless mode on a home server, custom skills and plugins |
 | **Tinkerer**: runs local models | Ollama support, custom MCP servers, editable skills and memory |
 
@@ -31,7 +34,13 @@ Mawl is a single self-hosted product with:
 - **Run:** one execution of the agent loop, triggered by a message, a routine, the heartbeat, or another teammate.
 - **Routine:** a scheduled or triggered task, defined by cron or natural language.
 - **Heartbeat:** a cheap periodic wake-up that checks a `HEARTBEAT` checklist and either acts or stays quiet.
-- **Computer:** a Mawl sandbox container (Docker). Kind *terminal* (shell, files, headless browser) or *desktop* (adds a visible desktop and browser). A teammate has none, its own, or one shared with other teammates.
+- **Node:** a place where a teammate's tools run: *This PC* (the owner's own computer, no Docker), a Docker *computer*, and later another PC, the paired phone, or a cloud machine. A teammate has at most one *workbench* node (shell, files, browser) and may be granted *capability* nodes (the phone's reminders and calendar).
+- **Computer:** a Mawl sandbox container (Docker), one kind of node. Kind *terminal* (shell, files, headless browser) or *desktop* (adds a visible desktop and browser). A teammate has none, its own, or one shared with other teammates.
+- **Folder grant:** a folder on This PC the owner lets a project or a teammate read (or read and write). File tools see nothing outside the grants.
+- **Project:** shared context for a group of teammates: brief, guidelines and voice, brand kit, reference files, linked folders, threads, canvases and routines. Teammates outside the project see none of it.
+- **Teammate request:** one teammate asking another to do a task (`ask_teammate`). The result comes back to the requester as data; approvals still go to the owner.
+- **Workflow:** a routine whose body is a skill with inputs, plus its triggers and receipt, shown as a readable list of steps.
+- **Webhook:** an address that starts one routine when another service calls it, with a signed request.
 - **Skill:** a `SKILL.md` folder of instructions (and optional scripts) a teammate loads when a task needs it.
 - **Plugin:** a bundle of skills, MCP servers, prompt blocks and routine templates.
 - **Receipt:** a routine's definition of done, checked after each run.
@@ -49,7 +58,7 @@ Mawl is a single self-hosted product with:
 | F1 | **Chat with a teammate** | Streaming responses; tool-activity cards (collapsible, human-readable, e.g. "Archived 26 newsletters"); attachments; markdown/code |
 | F2 | **Multi-provider models** | Anthropic, OpenAI, OpenRouter, Ollama, plus any OpenAI-compatible endpoint. Each profile has a main model and a cheap "helper" model |
 | F3 | **Profiles** | Create, clone, archive. Persona (`SOUL`), avatar color, model, tools, policy. Full isolation |
-| F4 | **MCP connections** | Add stdio (runs inside the teammate's computer) or HTTP/SSE servers, with OAuth for remote MCP. Per-profile enablement and per-tool policy. Many tools are deferred behind a tool search. Includes a curated catalog |
+| F4 | **MCP connections** ("Connections" in the UI) | Using MCP servers is as easy as an app store: a featured shelf for everyday services (mail first, then calendar, files, notes, chat, tasks, design) with safe default policies, several accounts per service, and connect on demand when a teammate asks for a service mid-chat. Search the official MCP Registry and connect in one flow. Remote servers over HTTP with OAuth; stdio servers and `.mcpb` bundles on This PC (after the owner approves the exact command and version) or inside a computer. Per-profile enablement and per-tool policy. Many tools are deferred behind a tool search |
 | F5 | **Built-in tools** | Shell, files, browser (Playwright MCP), desktop control (screenshot/act), web search/fetch, memory tools, `skill_load`, `tool_search`, `delegate` (subagent), `request_takeover`, `ask_user`, `notify`, schedule tools |
 | F6 | **Background runs** | Runs keep going after the window closes. Queue, pause, resume, cancel. Message a teammate mid-run (steering). Activity feed |
 | F7 | **Routines** | Cron, intervals, one-shot reminders, or natural language ("every weekday at 7, sweep my inbox"), always confirmed. Missed-run policy after sleep or shutdown. Receipts. Run history. Delivery channel per routine |
@@ -64,20 +73,23 @@ Mawl is a single self-hosted product with:
 | F17 | **Activity & audit log** | Every tool call, approval, takeover and memory write is recorded and searchable |
 | F18 | **Desktop host** | The app runs the server and its database itself: tray icon, starts at login, close-to-tray, Windows notifications. Headless mode (Docker or a plain process) serves the same web app |
 | F19 | **Skills** | Agent Skills (`SKILL.md`) per teammate, loaded on demand, editable in the UI. Proposed skills wait in an approval queue |
+| F20 | **This PC** *(added 2026-10-24)* | A teammate works on the owner's files in granted folders, with no Docker. Shell commands are `ask` by default, and the card shows the exact command; Mawl's own data and well-known secret folders are never reachable |
+| F21 | **Projects** *(added 2026-10-24)* | Brief, guidelines and voice, reference library (uploads), linked folders, member teammates, threads; canvases, routines and a brand kit join later. The project's context reaches every member's prompt |
+| F22 | **Teammate requests** *(added 2026-10-24)* | A teammate asks another to research, write or prepare something; the result returns to the requester. Depth and budget caps; visible request cards; approvals stay with the owner |
 
 ### Should (v1.x)
 | ID | Feature |
 |---|---|
-| S1 | Teammate-to-teammate delegation and group chats (2–6 teammates) |
+| S1 | Group chats (2–6 teammates). Teammate requests are F22 |
 | S2 | Sentinel: an independent guard model that reviews outbound actions before they run |
-| S3 | Teach by demonstration: record yourself doing a task in the sandbox browser and turn it into a draft routine or skill |
+| S3 | Teach by demonstration: do a task in a browser Mawl controls and turn the recording into a draft workflow (PLAN D6.6) |
 | S4 | Local plugin import (folder or zip): skills, MCP configs, prompt blocks, routine templates |
 | S5 | Voice: speak to a teammate (STT/TTS with your own keys) |
-| S6 | Remote access: Tailscale serve first, an own end-to-end encrypted relay later |
+| S6 | Remote access: an end-to-end encrypted relay the owner deploys to their own Cloudflare account; Tailscale for self-hosters |
 | S7 | Cost and token dashboard per profile, with budgets and caps |
 | S8 | **Trace compiler:** a routine run that passed its receipt becomes a script with model "holes", self-healing one broken step at a time |
-| S9 | **Mobile app** (old F13): pair by QR code; chat, approvals, activity, watch/take control, push notifications; over Tailscale |
-
+| S9 | **Mobile app** (old F13): pair by QR code; chat, approvals, activity, watch/take control, push notifications; through the relay. The phone also offers tools: reminders, calendar, notifications, location, the share sheet |
+| S10 | **Workflows and webhooks** *(added 2026-10-24)*: a routine built from a skill with inputs, shown as steps; signed webhooks that start one routine with its payload as data |
 ### Canvas (planned after D5, see [CANVAS.md](CANVAS.md))
 | ID | Feature | Notes |
 |---|---|---|
@@ -86,7 +98,7 @@ Mawl is a single self-hosted product with:
 | C-F3 | **Quality skill set** | Built-in skills (design direction, mockup, site, dataviz, motion, critique, copy) plus measurable review gates, so output is deliberate and not generic |
 
 ### Could (later)
-Mawl marketplace (plugins, skills) · Slack/WhatsApp/Email channels · WebRTC streaming (neko/Selkies) · remote sandbox providers (E2B, Daytona, SSH) · macOS and Linux desktop builds · multi-user households.
+Mawl Cloud (a hosted relay, an AI API gateway, cloud computers; parked while Mawl is a personal project, REDESIGN R21) · Mawl marketplace (plugins, skills) · Slack/WhatsApp/Email channels · WebRTC streaming (neko/Selkies) · remote sandbox providers (E2B, Daytona, SSH) · macOS and Linux desktop builds · multi-user households.
 
 ### Won't (v1)
 Multi-tenant SaaS hosting · Windows/macOS sandbox images · attaching arbitrary (non-Mawl) Docker containers · training or fine-tuning models.
@@ -121,6 +133,15 @@ Multi-tenant SaaS hosting · Windows/macOS sandbox images · attaching arbitrary
     - It writes a short design brief first, then builds the page, and the canvas opens beside the chat.
     - It checks its own result (contrast, overflow at phone width, placeholder text) and fixes failures before it says it is done.
     - I find the canvas later in Canvases, open an older version, and export it as a single HTML file.
+12. **Work on my files.** *I grant a teammate my `Clients\Acme` folder and ask it to turn last month's notes into a report.* (planned, Beta 1)
+    - It lists and reads files only inside that folder; a path outside it is refused.
+    - Writing the report asks first, and a shell command shows me the exact command before it runs.
+13. **Start a project.** *I create a project "Acme rebrand", paste the brief and voice guidelines, drop in five reference PDFs and add two teammates.* (planned, Beta 1)
+    - Both teammates use the brief and voice without my repeating it, and can search the references.
+    - A teammate that is not a member can't see the project's files.
+14. **Teammates help each other.** *My writer teammate needs facts, so it asks my researcher teammate.* (planned, Beta 1)
+    - A request card appears in both threads, and I can cancel it.
+    - The research comes back to the writer, and anything that needs approval still asks me.
 
 ## 6. Non-functional requirements
 
@@ -133,6 +154,8 @@ Multi-tenant SaaS hosting · Windows/macOS sandbox images · attaching arbitrary
   - Secrets are encrypted at rest (libsodium, with the key in Windows Credential Manager on desktop, or a secrets volume in headless mode).
   - The local server requires a per-launch token even on loopback, so other local programs and web pages can't drive it.
   - Computers have no access to the Docker engine, the database or the host, and publish no ports.
+  - On This PC, file tools reach only granted folders (canonical paths, a fixed deny list including Mawl's own data). A shell is not confined by folder grants, so host shell commands are `ask` by default.
+  - Webhooks are signed per hook, rate-limited, and their payloads are data, never instructions.
   - Screen and terminal access go through a token-gated gateway.
   - Prompt-injection scanning on memory writes and tool output.
   - Never put secrets in URLs.

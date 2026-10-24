@@ -286,8 +286,10 @@ The Claude plan provider is limited (REDESIGN §5.6).
 | Web | `web_search` (provider-native or SearXNG/Brave key), `web_fetch` (to markdown) |
 | Memory | `memory_block_edit`, `remember`, `recall`, `session_search` |
 | Skills and tools | `skill_load`, `skill_propose`, `tool_search` |
-| Human | `ask_user`, `request_takeover`, `notify` |
-| Agency | `delegate` (subagent), `schedule_create/list/cancel`, `message_teammate` (S1) |
+| Human | `ask_user`, `request_takeover`, `notify`, `request_connection` (D2.9c: a "Connect" card for a missing service; the run continues after sign-in) |
+| This PC *(planned, D3.H1)* | `list_files`, `read_file`, `write_file`, `edit_file`, `search_files` inside folder grants; `shell` (PowerShell, background jobs) |
+| Projects *(planned, DP3)* | `project_files_list`, `project_files_read`, `project_files_search` |
+| Agency | `delegate` (subagent), `ask_teammate` (D2.14, R19), `schedule_create/list/cancel`, `webhook_post` (D5.8) |
 | Canvas *(planned, DC3)* | `canvas_create`, `canvas_write`, `canvas_edit`, `canvas_read`, `canvas_list`, `canvas_history`, `canvas_restore`, `canvas_add_asset`, `canvas_review`. Action class `write_local`, `auto`, scoped to the teammate's own canvases; no delete, network, export or publish tool (CANVAS §7, §6.5) |
 | MCP | Any connected server's tools, namespaced `mcp__<server>__<tool>` |
 
@@ -303,9 +305,12 @@ type ActionClass = 'read' | 'write_local' | 'send_message' | 'purchase' | 'delet
 
 - Tools declare an action class. MCP tools default to `ask` until the user classifies them; read-only hints from MCP annotations lower this to `auto`.
 - The user's rules come first, then profile defaults, then global defaults. `credential` and payments are always `handoff`, and the user cannot lower them.
+- *Planned (D2.3, REDESIGN R16, R19):* rules also match the node kind. `this_pc` defaults: reads in a grant `auto`, writes in a grant `ask` (lowerable per grant), `shell_exec` `ask` (lowerable only by an exact command-prefix rule), `delete` never below `ask`. A run started by a teammate request never carries the owner's approval.
 - **Sentinel (S2).** An optional second model reviews `send_message`/`external_post`/`purchase` calls against the user's intent and can escalate them to `ask`.
 
 ## 6. Computers and screen gateway (`packages/sandbox`, `infra/computer`) *(planned, D3)*
+
+> **Re-scoped 2026-10-24 (REDESIGN R15 to R17).** `Computer` becomes one kind of **Node**. The `this_pc` node (the host itself, no Docker) is built first: file tools limited to owner folder grants with canonical path checks and a fixed deny list, a host shell in a kill-on-close job object with a scrubbed env (`shell_exec` `ask` by default, because a shell is not confined by grants), and stdio MCP servers on the host after the owner approves the exact command and version. The Docker design below is unchanged and follows it. Entity: `nodes(id, name, kind{this_pc|docker_terminal|docker_desktop|…}, image_ref|null, status, home_volume|null, created_at, archived_at)` with `profiles.workbench_node_id` nullable.
 
 ```ts
 interface ComputerProvider {
@@ -319,7 +324,7 @@ interface ComputerProvider {
 }
 ```
 
-- **Entity.** `computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)`. `profiles.computer_id` is nullable. A teammate can have no computer, its own, or one shared with others. Only Mawl computers are supported, never arbitrary containers.
+- **Entity** *(superseded by the `nodes` entity in the note above)*. `computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)`. `profiles.computer_id` is nullable. A teammate can have no computer, its own, or one shared with others. Only Mawl computers are supported, never arbitrary containers.
 - **Image `mawl-computer-terminal`** (GHCR, pulled by digest). Debian slim with:
   - bash, git, curl, python3, node, ripgrep, jq
   - headless Chromium + `@playwright/mcp`
@@ -399,7 +404,11 @@ run_steps(id, run_id, idx, kind{model|tool}, input_json, output_ref, usage_json,
 artifacts(id, profile_id, run_id, mime, size_bytes, content bytea|path (exactly one), preview, token_count, created_at)
 approvals(id, run_id, tool, tool_call_id, args_enc, args_hash, args_redacted_json, action_class, status, decided_by_device, decided_via_channel, created_at, decided_at)   -- approve replays args_enc byte for byte (R9)
 run_inbox(id, run_id, kind{steer|followup}, payload_json, created_at, consumed_at)     -- planned D2
-computers(id, name, kind{terminal|desktop}, image_ref, status, home_volume, created_at, archived_at)   -- planned D3; profiles.computer_id nullable
+nodes(id, name, kind{this_pc|docker_terminal|docker_desktop|remote_pc|phone|cloud}, image_ref|null, status, home_volume|null, created_at, archived_at)   -- planned D3.2 (was `computers`, REDESIGN R15); profiles.workbench_node_id nullable; one undeletable this_pc row
+folder_grants(id, node_id, path_canonical, access{read|read_write}, project_id|null, profile_id|null, created_at, revoked_at)   -- planned D3.H1 (R16); exactly one of project_id, profile_id
+projects(id, name, slug, brief_md, guidelines_md, created_at, archived_at)   -- planned DP1 (R18); threads, artifacts, canvases, routines and memory gain a nullable project_id
+project_members(project_id, profile_id, created_at)                           -- planned DP1
+webhooks(id, routine_id, secret_enc, enabled, last_called_at, created_at)     -- planned D5.8 (R20)
 skills(id, profile_id, name, description, body_md, files_ref, source{user|proposed|plugin|builtin}, status, version, created_at)   -- planned D2; `builtin` (read-only, shipped with the app) arrives with DC7
 canvases(id, profile_id, thread_id, run_id, title, kind{mockup|site|graphic|motion}, current_version_id, starred, thumbnail_artifact_id, network_allowed, created_at, updated_at, archived_at)   -- planned DC1, full shape in CANVAS §4
 canvas_versions(id, canvas_id, no, parent_version_id, files jsonb, assets jsonb, entry, packs jsonb, build_hash, size_bytes, author{agent|user}, run_id, step_idx, note, diagnostics_json, render_report_json, created_at)   -- planned DC1; immutable
@@ -460,6 +469,8 @@ All event types are defined as zod schemas in `packages/contracts`.
   - `/rpc` request bodies are capped at 1 MiB (`PAYLOAD_TOO_LARGE`, 413), declared or streamed, checked only after the token.
   - remote clients ↔ server: device auth (later)
   - server ↔ computer: exec streams only; the computer is untrusted
+  - agent ↔ this PC *(planned, D3.H1, REDESIGN R16)*: file tools only inside owner folder grants (canonical paths, deny list including Mawl's data and install dirs and well-known secret stores); the host shell and stdio MCP servers run with the owner's rights in job objects with a scrubbed env, so they are `ask` by default or approved per exact command
+  - internet ↔ webhooks *(planned, D5.8 and D8.7)*: per-hook HMAC, a replay window, body caps and rate limits; the payload is untrusted data bound to one routine's fixed prompt
   - server ↔ providers/MCP: TLS
 - A computer can never reach Postgres (it listens on the host's loopback, which containers can't use), the Docker engine (no socket or pipe is mounted), or the server's API. It has no host bind mounts, only its named home volume.
 - Secrets are encrypted at rest with a master key generated on first boot: Windows Credential Manager on desktop (D1.6, sent by the host on stdin; see *Desktop host*), the `mawl-secrets` volume in headless mode. Secrets are never logged and never sent to the model.
