@@ -9,24 +9,60 @@ import {
 } from '@mawl/contracts'
 import { fakeModel, fixedClock } from '@mawl/testkit'
 import type { ModelMessage } from 'ai'
+import { z } from 'zod'
+import { defineTool } from '../tools/define.ts'
+import { createToolRegistry, type ToolRegistryOptions } from '../tools/registry.ts'
+import type {
+  ToolCallKey,
+  ToolEmit,
+  ToolLedger,
+  ToolRegistry,
+  ToolResultRecord,
+} from '../tools/types.ts'
 import type {
   AppendResult,
   ExecuteRunDeps,
   NewStep,
+  NewToolStep,
   PersistedStep,
   ProfileRecord,
   RunContext,
   RunRecord,
   RunStore,
+  RunWait,
   TextDelta,
   TransitionPatch,
 } from './types.ts'
 
 export interface RecordedEvent {
-  type: 'run.status' | 'run.step'
+  type: 'run.status' | 'run.step' | 'run.tool_call' | 'run.tool_result' | 'notify'
   runId: RunId
   payload: Record<string, unknown>
 }
+
+/**
+ * A registry of plain test tools: each takes any object and returns its function's text. A function
+ * that throws becomes a typed `failed` result, as with real tools.
+ */
+export function testTools(
+  fns: Record<string, (input: Record<string, unknown>) => string | Promise<string>>,
+  options: Omit<ToolRegistryOptions, 'tools'> = {},
+): ToolRegistry {
+  return createToolRegistry({
+    ...options,
+    tools: Object.entries(fns).map(([name, fn]) =>
+      defineTool({
+        name,
+        description: `test tool ${name}`,
+        inputSchema: z.record(z.string(), z.unknown()),
+        actionClass: 'read',
+        run: async (input) => ({ kind: 'ok', text: await fn(input) }),
+      }),
+    ),
+  })
+}
+
+const toolKey = (runId: RunId, k: ToolCallKey) => `${runId}|${k.stepIdx}|${k.toolCallId}`
 
 export interface MemoryMessage {
   role: 'user' | 'assistant'
@@ -41,6 +77,8 @@ export class MemoryRunStore implements RunStore {
   readonly stepRows = new Map<RunId, PersistedStep[]>()
   readonly events: RecordedEvent[] = []
   readonly thread: MemoryMessage[] = []
+  readonly toolResults = new Map<string, ToolResultRecord>()
+  readonly waits = new Map<RunId, RunWait & { answer: string | null }>()
 
   addRun(
     over: Partial<RunRecord> & { modelMain?: string; persona?: string; prompt?: string } = {},
@@ -121,14 +159,9 @@ export class MemoryRunStore implements RunStore {
   async appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<AppendResult> {
     if (this.runs.get(runId)?.status !== 'running') return 'not_running'
     const rows = this.stepRows.get(runId) ?? []
-    const idxs = [step.idx, ...(step.toolMessages ? [step.idx + 1] : [])]
-    if (rows.some((r) => idxs.includes(r.idx))) return 'duplicate'
+    if (rows.some((r) => r.idx === step.idx)) return 'duplicate'
     rows.push({ idx: step.idx, kind: 'model', messages: step.assistantMessages, usage: step.usage })
     this.events.push({ type: 'run.step', runId, payload: { idx: step.idx, kind: 'model' } })
-    if (step.toolMessages) {
-      rows.push({ idx: step.idx + 1, kind: 'tool', messages: step.toolMessages, usage: null })
-      this.events.push({ type: 'run.step', runId, payload: { idx: step.idx + 1, kind: 'tool' } })
-    }
     this.stepRows.set(runId, rows)
     const run = this.runs.get(runId)
     if (run) {
@@ -149,6 +182,61 @@ export class MemoryRunStore implements RunStore {
     })
     if (ok) this.thread.push({ role: 'assistant', text: result.text, runId })
     return ok
+  }
+
+  async appendToolStep(runId: RunId, step: NewToolStep): Promise<AppendResult> {
+    if (this.runs.get(runId)?.status !== 'running') return 'not_running'
+    const rows = this.stepRows.get(runId) ?? []
+    if (rows.some((r) => r.idx === step.idx)) return 'duplicate'
+    rows.push({ idx: step.idx, kind: 'tool', messages: step.toolMessages, usage: null })
+    this.stepRows.set(runId, rows)
+    this.events.push({ type: 'run.step', runId, payload: { idx: step.idx, kind: 'tool' } })
+    const run = this.runs.get(runId)
+    if (run) run.activeMs += step.activeMsDelta
+    return 'written'
+  }
+
+  async park(runId: RunId, wait: RunWait, activeMsDelta: number): Promise<boolean> {
+    const ok = await this.transition(runId, 'running', 'waiting_user', { activeMsDelta })
+    if (ok) this.waits.set(runId, { ...wait, answer: null })
+    return ok
+  }
+
+  async toolResult(runId: RunId, key: ToolCallKey): Promise<ToolResultRecord | null> {
+    return this.toolResults.get(toolKey(runId, key)) ?? null
+  }
+
+  async recordToolCall(runId: RunId, call: Parameters<ToolLedger['recordToolCall']>[1]) {
+    this.events.push({ type: 'run.tool_call', runId, payload: { ...call } })
+  }
+
+  async recordToolResult(
+    runId: RunId,
+    key: ToolCallKey,
+    record: ToolResultRecord,
+    emit: readonly ToolEmit[],
+  ): Promise<ToolResultRecord> {
+    const k = toolKey(runId, key)
+    const existing = this.toolResults.get(k)
+    if (existing) return existing
+    this.toolResults.set(k, record)
+    this.events.push({
+      type: 'run.tool_result',
+      runId,
+      payload: { toolCallId: key.toolCallId, preview: record.preview, isError: record.isError },
+    })
+    for (const e of emit) this.events.push({ type: e.type, runId, payload: { ...e.payload } })
+    return record
+  }
+
+  /** What the server's reply does: record the answer as the tool result and resume the run. */
+  async reply(runId: RunId, record: ToolResultRecord): Promise<boolean> {
+    const wait = this.waits.get(runId)
+    if (!wait || wait.answer !== null) return false
+    if (!(await this.transition(runId, 'waiting_user', 'running'))) return false
+    wait.answer = record.preview
+    await this.recordToolResult(runId, wait, record, [])
+    return true
   }
 }
 

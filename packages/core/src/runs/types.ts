@@ -8,7 +8,8 @@ import type {
   ThreadId,
   Usage,
 } from '@mawl/contracts'
-import type { LanguageModel, ModelMessage, ToolSet } from 'ai'
+import type { LanguageModel, ModelMessage } from 'ai'
+import type { ToolLedger, ToolRegistry, WaitRequest } from '../tools/types.ts'
 
 /** The run row, as the engine needs it. */
 export interface RunRecord {
@@ -39,17 +40,32 @@ export interface PersistedStep {
 }
 
 /**
- * What one model step produced. A step that ran tools also carries the tool messages: both rows
- * (model at `idx`, tool at `idx + 1`) are written in one transaction.
+ * What one model step produced. The model row is written before any of its tool calls runs, so a
+ * crash during the tools resumes with the exact calls the model made; the tool row (`idx + 1`)
+ * follows through `appendToolStep` once every call has a result.
  */
 export interface NewStep {
   /** Index of the model row. The tool row, if any, takes `idx + 1`. */
   idx: number
   assistantMessages: ModelMessage[]
-  toolMessages: ModelMessage[] | null
   usage: Usage
   /** Active time since the previous checkpoint, added to the run's `activeMs` in the same transaction. */
   activeMsDelta: number
+}
+
+/** The tool row of a model step, written once every tool call of that step has a result. */
+export interface NewToolStep {
+  /** The model row's idx + 1. */
+  idx: number
+  toolMessages: ModelMessage[]
+  activeMsDelta: number
+}
+
+/** What a parked run waits for, tied to the tool call that asked (resumed by recording its result). */
+export interface RunWait extends WaitRequest {
+  /** Index of the model step whose tool call parked the run. */
+  stepIdx: number
+  toolCallId: string
 }
 
 export interface TransitionPatch {
@@ -70,9 +86,11 @@ export interface RunContext {
  * Persistence port of the run engine. The Drizzle implementation lives in the server; core
  * tests use an in-memory double. Every state change is a compare-and-set that also records a
  * `run.status` event in the same atomic unit, and `false` means someone else changed the run
- * first (cancel, pause), so the engine must stop without overwriting.
+ * first (cancel, pause), so the engine must stop without overwriting. It is also the tool ledger:
+ * tool results are recorded per (run, step idx, tool call id), so a resumed run never runs a
+ * recorded call again.
  */
-export interface RunStore {
+export interface RunStore extends ToolLedger {
   load(runId: RunId): Promise<RunContext | null>
   /** Current status only (cheap re-read before each step). Null when the run is gone. */
   status(runId: RunId): Promise<RunStatus | null>
@@ -93,6 +111,13 @@ export interface RunStore {
    * execution of the same run got there first) or `not_running` (cancel or pause won).
    */
   appendStep(runId: RunId, step: NewStep, runUsage: Usage): Promise<AppendResult>
+  /** Writes a tool row and its `run.step` event, with the same rules as `appendStep`. */
+  appendToolStep(runId: RunId, step: NewToolStep): Promise<AppendResult>
+  /**
+   * Parks the run: records the wait and moves `running` to `waiting_user` (with its `run.status`
+   * event) atomically. False when the CAS was lost (cancel or pause won); nothing is written then.
+   */
+  park(runId: RunId, wait: RunWait, activeMsDelta: number): Promise<boolean>
   /**
    * Inserts the assistant message and moves running to succeeded in one transaction.
    * False when the CAS was lost (nothing is written).
@@ -142,7 +167,11 @@ export interface ExecuteRunDeps {
   store: RunStore
   /** Builds the model for the profile's `modelMain`. Throws `ModelNotConfiguredError` or a `ProviderFailureError`. */
   resolveModel(run: RunRecord, profile: ProfileRecord): Promise<ResolvedModel>
-  tools?: ToolSet
+  /**
+   * The tools offered to the model (only when it `supportsTools`). The engine runs every call
+   * itself through the registry's `invoke`, after the model step is persisted.
+   */
+  tools?: ToolRegistry
   clock: Clock
   /**
    * Aborted by the host: reason `ABORT_SHUTDOWN` leaves the run `running` so a later job resumes it;
@@ -166,9 +195,11 @@ export interface ExecuteRunDeps {
  * - `succeeded` / `failed`: the engine ended the run.
  * - `superseded`: cancel or pause won; the engine stopped without writing.
  * - `interrupted`: shutdown, or a duplicate execution hit an existing step; the run is untouched.
+ * - `waiting`: the run parked (`waiting_user`); the job ends and a reply enqueues a new one.
  */
 export type RunOutcome =
   | { outcome: 'skipped' }
+  | { outcome: 'waiting' }
   | { outcome: 'succeeded' }
   | { outcome: 'failed'; error: RunErrorCode }
   | { outcome: 'superseded' }
