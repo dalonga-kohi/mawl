@@ -1,0 +1,8 @@
+/review/*
+  X-Robots-Tag: noindex, nofollow
+/assets/social-card.html
+  X-Robots-Tag: noindex, nofollow
+/README.md
+  X-Robots-Tag: noindex, nofollow
+/assets/*.prompt.txt
+  X-Robots-Tag: noindex, nofollow
