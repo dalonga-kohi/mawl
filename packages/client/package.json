@@ -12,10 +12,10 @@
   },
   "dependencies": {
     "@mawl/contracts": "workspace:*",
-    "@orpc/client": "1.15.7",
-    "@orpc/contract": "1.15.7",
-    "@orpc/tanstack-query": "1.15.7",
-    "@tanstack/query-core": "5.104.4"
+    "@orpc/client": "1.16.0",
+    "@orpc/contract": "1.16.0",
+    "@orpc/tanstack-query": "1.16.0",
+    "@tanstack/query-core": "5.104.5"
   },
   "devDependencies": {
     "@mawl/testkit": "workspace:*"
