@@ -22,6 +22,9 @@ apps/mobile/android/
 test-results/
 playwright-report/
 
+# Local landing-page visual QA artifacts
+sites/review/
+
 # Claude local
 .claude/settings.local.json
 .claude/worktrees/
