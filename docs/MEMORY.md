@@ -121,7 +121,7 @@ Budget is measured against the model's context window `W` (provider capability).
 
 | Step | Trigger | Action |
 |---|---|---|
-| **L0 Artifacts** | Any tool output over 4k tokens | Store the full output, keep a preview plus `artifact_id` in context (`read_artifact` pages through it) |
+| **L0 Artifacts** | Any tool output over 4k tokens (estimated as characters / 4) | Store the full output, keep a preview plus `artifact_id` in context (`read_artifact` pages through it, scoped to the profile). As built in D2.2 (ARCHITECTURE §5, *Tool registry and built-ins*) |
 | **L1 Clear tool results** | Context over 50% of W | Replace tool *results* older than the last 6 with `[cleared · tool=web_fetch · artifact=a_91 · "summary line"]`. Clear in batches of at least 10k tokens to protect the cache. Uses Anthropic `clear_tool_uses` natively when available. Small, high-value tools (e.g. `recall`) are excluded |
 | **L2 Checkpoint summary** | Context over 65% of W | **Pre-flush:** prompt the agent: "Context will be summarized. Save anything important to memory blocks/facts now." Then the helper model writes a structured `checkpoint` episode covering goal, decisions + why, current state, files/ids/urls touched, open questions, next steps. Older turns are replaced by the checkpoint; the last ~8 turns stay as written. Uses native compaction when the provider supports it |
 | **L3 Segment rollover** | Context over 80% of W, **or** a task boundary, **or** a segment older than 6 h, **or** a routine run starting | The agent must write the `handoff` block. A new **segment** starts with a fresh window: system + core blocks (now re-frozen with the latest edits) + handoff + latest checkpoint + last 4 turns. `segment_no++` |
