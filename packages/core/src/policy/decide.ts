@@ -256,7 +256,23 @@ function pick(
   return best
 }
 
-function fromRule(rule: PolicyRuleLike, input: PolicyInput, source: PolicySource): PolicyDecision {
+function fromRule(
+  rule: PolicyRuleLike,
+  input: PolicyInput,
+  source: PolicySource,
+  base: PolicyDecision,
+): PolicyDecision {
+  // The web_fetch host check is lowered only by a rule that names web_fetch or matches its url: a
+  // broad rule (`read` to `auto`) must not switch off the first-host ask by accident.
+  if (
+    input.tool === 'web_fetch' &&
+    input.mcpServer === undefined &&
+    RANK[rule.level] < RANK[base.level] &&
+    rule.match.tool !== 'web_fetch' &&
+    rule.match.argPattern === undefined
+  ) {
+    return base
+  }
   // A shell command is lowered below ask only by a rule that names its exact command prefix (R16).
   if (
     input.actionClass === 'shell_exec' &&
@@ -299,10 +315,11 @@ export function decide(input: PolicyInput, config: PolicyConfig): PolicyDecision
   const subject = subjectOf(input.args)
   const userRule = pick(config.userRules, input, subject)
   const profileRule = userRule ? undefined : pick(config.profileRules, input, subject)
-  if (userRule) d = fromRule(userRule, input, 'user_rule')
-  else if (base.source === 'user_rule') d = base
-  else if (profileRule) d = fromRule(profileRule, input, 'profile')
-  else d = { level: base.level, source: base.source, reason: base.reason }
+  const plain: PolicyDecision = { level: base.level, source: base.source, reason: base.reason }
+  if (userRule) d = fromRule(userRule, input, 'user_rule', plain)
+  else if (base.source === 'user_rule') d = plain
+  else if (profileRule) d = fromRule(profileRule, input, 'profile', plain)
+  else d = plain
 
   const teammate = input.trigger === 'teammate'
   if (
