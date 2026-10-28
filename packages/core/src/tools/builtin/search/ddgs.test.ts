@@ -55,16 +55,47 @@ describe('parseDdgsHtml', () => {
     expect(parseDdgsHtml(EMPTY)).toEqual({ kind: 'results', results: [] })
   })
 
-  it('reports the bot challenge page as blocked, never as zero results', () => {
-    expect(parseDdgsHtml(CHALLENGE)).toEqual({ kind: 'blocked' })
+  it('reports the bot challenge page as a challenge, never as zero results', () => {
+    expect(parseDdgsHtml(CHALLENGE)).toEqual({ kind: 'challenge' })
+  })
+
+  it('knows the challenge by its wording and its form even without the anomaly class names', () => {
+    const bare = CHALLENGE.replaceAll(/anomaly-modal__\w+|challenge-form/g, 'x')
+    expect(bare).not.toMatch(/anomaly-modal|challenge-form/)
+    expect(parseDdgsHtml(bare)).toEqual({ kind: 'challenge' })
+    // Different case and line breaks in the wording still match.
+    const shouty = bare.replace(
+      'Unfortunately, bots use DuckDuckGo too.',
+      'UNFORTUNATELY, BOTS USE\n DUCKDUCKGO TOO.',
+    )
+    expect(parseDdgsHtml(shouty)).toEqual({ kind: 'challenge' })
+  })
+
+  it('does not take the wording alone, without a challenge form, for the challenge', () => {
+    const html = '<html><body><p>Unfortunately, bots use DuckDuckGo too.</p></body></html>'
+    expect(parseDdgsHtml(html)).toEqual({ kind: 'unrecognized' })
+  })
+
+  it('parses a results page that quotes the challenge wording in a snippet as results', () => {
+    const html = RESULTS.replace(
+      'Full-stack <b>frameworks</b>, but data-layer agnostic Flask &amp; Pyramid.',
+      'Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human.',
+    )
+    const parsed = parseDdgsHtml(html)
+    expect(parsed.kind).toBe('results')
+    expect(parsed.kind === 'results' && parsed.results[2]?.snippet).toContain('bots use DuckDuckGo')
+  })
+
+  it('reports the no-results page as zero results, not as a challenge, despite its search form', () => {
+    expect(parseDdgsHtml(EMPTY)).toEqual({ kind: 'results', results: [] })
   })
 
   it.each([
     ['an empty body', ''],
     ['an unrelated page', '<html><body><p>Hello</p></body></html>'],
     ['a page with only ads', RESULTS.replaceAll('web-result', 'result--ad')],
-  ])('reports %s as blocked (unrecognized), not as zero results', (_l, html) => {
-    expect(parseDdgsHtml(html)).toEqual({ kind: 'blocked' })
+  ])('reports %s as unrecognized, not as zero results', (_l, html) => {
+    expect(parseDdgsHtml(html)).toEqual({ kind: 'unrecognized' })
   })
 
   it('does not mistake a query that names the challenge markup for the challenge page', () => {
@@ -123,6 +154,65 @@ describe('ddgsSearch', () => {
     const err = await ddgsSearch({ fetch: async () => res })
       .search('x', { count: 5, signal: signal() })
       .catch((e: unknown) => e)
-    expect(reason(err)).toBe(_l === 'a 429' ? 'rate_limited' : 'unavailable')
+    expect(reason(err)).toBe('unavailable')
+  })
+
+  describe('cool-down after a block', () => {
+    const MIN = 60_000
+
+    function clocked(responses: (() => Response)[]) {
+      let t = 1_000_000
+      const fetch = vi.fn<SearchFetch>(async () => {
+        const next = responses.shift()
+        if (!next) throw new Error('unexpected request')
+        return next()
+      })
+      const ddgs = ddgsSearch({ fetch, now: () => t, coolDownMs: 5 * MIN })
+      const run = () =>
+        ddgs.search('q', { count: 5, signal: signal() }).catch((e: unknown) => e as Error)
+      const advance = (ms: number) => {
+        t += ms
+      }
+      return { fetch, run, advance }
+    }
+
+    it.each([
+      ['the challenge page', () => page(CHALLENGE)],
+      ['a 202', () => page('', 202)],
+      ['a 403', () => page('', 403)],
+      ['a 429', () => page('', 429)],
+    ])('after %s, sends nothing for five minutes, then tries once again', async (_l, block) => {
+      const c = clocked([block, () => page(RESULTS)])
+      expect(reason(await c.run())).toBe('unavailable')
+      c.advance(5 * MIN - 1)
+      expect(reason(await c.run())).toBe('unavailable')
+      expect(c.fetch).toHaveBeenCalledTimes(1)
+      c.advance(1)
+      const answer = await c.run()
+      expect(c.fetch).toHaveBeenCalledTimes(2)
+      expect((answer as unknown as { backend: string }).backend).toBe('ddgs')
+    })
+
+    it.each([
+      ['a 500', () => page('', 500)],
+      ['an unrecognized page', () => page('<html></html>')],
+      [
+        'a network error',
+        () => {
+          throw new TypeError('fetch failed')
+        },
+      ],
+    ])('does not cool down after %s (not a block)', async (_l, failure) => {
+      const c = clocked([failure, () => page(RESULTS)])
+      expect(reason(await c.run())).toBe('unavailable')
+      await c.run()
+      expect(c.fetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('never retries within one search: one request per call', async () => {
+      const c = clocked([() => page(CHALLENGE)])
+      await c.run()
+      expect(c.fetch).toHaveBeenCalledTimes(1)
+    })
   })
 })

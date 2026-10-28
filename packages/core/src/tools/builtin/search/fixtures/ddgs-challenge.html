@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!--
-  Synthetic: the shape of DuckDuckGo's bot challenge ("anomaly") page, which it serves to the html
-  endpoint (typically with status 202) instead of results. It has no result links and no
-  no-results marker; the parser must report it as blocked, never as zero results.
+  DuckDuckGo's bot challenge ("anomaly") page, which it serves to the html endpoint (often with a
+  non-200 status such as 202) instead of results. The wording is as the owner saw it on 2026-10-28;
+  the surrounding markup is a trimmed reconstruction. It has a challenge form with a submit button,
+  no result links and no no-results marker; the parser must report it as a challenge, never as
+  zero results.
 -->
 <html lang="en-US">
 <head>
