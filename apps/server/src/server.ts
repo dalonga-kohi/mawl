@@ -357,7 +357,7 @@ export async function startServer(
         logger,
         registry,
         resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
-        tools: createServerTools({ db: handle.db, search: searchService }),
+        tools: createServerTools({ db: handle.db, search: searchService, logger }),
         ...(live ? { deltas: live.deltas } : {}),
       })
       logger.info('run worker started')
