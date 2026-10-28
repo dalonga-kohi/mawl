@@ -1,6 +1,15 @@
 import { z } from 'zod'
 import { Approval, Origin, Timestamp, Usage } from './entities'
-import { ActionClass, ApprovalStatus, RunErrorCode, RunStatus, StepKind } from './enums'
+import {
+  ActionClass,
+  ApprovalStatus,
+  PolicyLevel,
+  PolicyMode,
+  PolicySource,
+  RunErrorCode,
+  RunStatus,
+  StepKind,
+} from './enums'
 import {
   ApprovalId,
   ArtifactId,
@@ -31,6 +40,12 @@ export const EVENT_PAYLOADS = {
     /** Arguments with secrets and personal data already redacted (same naming as Approval). */
     argsRedacted: Json,
     actionClass: ActionClass,
+    /** The policy level decided for this call (D2.3). Absent on events written before it. */
+    level: PolicyLevel.optional(),
+    /** Which policy tier decided the level. */
+    source: PolicySource.optional(),
+    /** Present (`autopilot`) when the profile ran in Autopilot mode. */
+    mode: PolicyMode.optional(),
   }),
   'run.tool_result': z.object({
     toolCallId: z.string().min(1),

@@ -149,3 +149,12 @@ export const policyRule = {
   match: { actionClass: 'shell_exec' },
   level: 'ask',
 }
+
+export const profilePolicy = {
+  mode: 'autopilot',
+  rules: [
+    { match: { tool: 'shell', nodeKind: 'this_pc', argPattern: 'git status' }, level: 'auto' },
+    { match: { actionClass: 'send_message' }, level: 'ask' },
+  ],
+  allowedHosts: ['docs.example.com'],
+}
