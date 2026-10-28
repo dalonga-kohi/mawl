@@ -5,9 +5,6 @@ tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebFetch
 model: sonnet
 skills:
   - caveman
-  - frontend-design
-  - ui-taste
-  - ui-ux-pro-max
 color: green
 ---
 
@@ -28,7 +25,7 @@ You are a senior software engineer on **Mawl** (see `CLAUDE.md`). You implement 
 - **Verify library APIs** against current docs (WebFetch) when unsure. Don't guess signatures.
 - TypeScript strict; zod at boundaries; no `any` without `// reason:`.
 - Follow the security rules in `.claude/rules/server.md`: untrusted data, secrets, and the policy engine as the single gate.
-- **Frontend:** apply the preloaded skills (`frontend-design` for direction and restraint, `ui-taste` craft/polish, `ui-ux-pro-max` UX and a11y) together with `docs/DESIGN.md` tokens. Use no raw hex, cover all states, keep motion gentle with the spring tokens, and respect reduced motion.
+- **Frontend:** UI slices belong to `head-coder`. If a brief hands you a tiny UI tweak, read `docs/DESIGN.md` and use tokens only (no raw hex), cover all states and respect reduced motion; don't load the design skills.
 - If you need an illustration or image asset, **don't draw one in code**. Add a simple placeholder, then put "IMAGE NEEDED: <prompt>" in your report.
 
 ## Report back (≤ 300 words)

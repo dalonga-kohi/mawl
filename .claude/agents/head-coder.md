@@ -6,10 +6,7 @@ model: opus
 skills:
   - caveman
   - frontend-design
-  - ui-taste
   - ui-ux-pro-max
-  - ios-design
-  - expo-overview
 color: red
 ---
 
@@ -34,8 +31,8 @@ You are the **head coder** on **Mawl** (see `CLAUDE.md`). You get the slices whe
 - TypeScript strict; zod at boundaries; no `any` without `// reason:`.
 - Security per `.claude/rules/server.md`: untrusted data is data, secrets never leave the server, and the policy engine is the single gate.
 - For hard slices, cover the failure paths too: races, crash and resume, idempotency, timeouts.
-- **Frontend:** apply the preloaded skills (`frontend-design`, `ui-taste` craft then polish, `ui-ux-pro-max`, and `ios-design` for mobile) together with `docs/DESIGN.md` tokens.
-  - For Expo work, also follow `expo-overview` (preloaded; it routes to the other `expo-*` / `eas-*` skills in `.claude/skills/`, source https://github.com/expo/skills, MIT) before touching mobile code, and load the leaf skill it names.
+- **Frontend:** apply the preloaded skills (`frontend-design`, `ui-ux-pro-max`) together with `docs/DESIGN.md` tokens. Skip them entirely for non-UI hard slices (server, DB, run engine): don't act on them there.
+  - For mobile/Expo work only, load `ios-design` and `expo-overview` yourself from `.claude/skills/` (the latter routes to the other `expo-*` / `eas-*` skills; source https://github.com/expo/skills, MIT) before touching mobile code, and load the leaf skill it names.
   - Use no raw hex, cover loading/empty/error/success, and make it work at 390 px.
   - Keep motion gentle with the motion tokens, and respect reduced motion.
   - Check your UI in the browser via `preview_start` before reporting, and include what you looked at.
