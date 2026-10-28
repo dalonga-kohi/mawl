@@ -483,19 +483,30 @@ export type SettingsUpdate = z.infer<typeof SettingsUpdate>
 
 // --- Web search ----------------------------------------------------------------
 
-export const SearchProviderKind = z.enum(['brave'])
+/** The web search backends that take a key, in the order they are tried. */
+export const SearchProviderKind = z.enum(['tavily', 'brave'])
 export type SearchProviderKind = z.infer<typeof SearchProviderKind>
 
 /**
- * Whether the web search backend has a key. Strict: the key is write-only and never leaves the
- * server, so a status that tried to carry it fails the output schema.
+ * Whether one keyed backend has a key. Strict: the key is write-only and never leaves the server,
+ * so a status that tried to carry it (or any part of it) fails the output schema.
  */
-export const SearchStatus = z.strictObject({
+export const SearchBackendStatus = z.strictObject({
   provider: SearchProviderKind,
   configured: z.boolean(),
   /** A key is stored but no longer decrypts (the master key changed): the owner sets it again. */
   unreadable: z.boolean(),
   updatedAt: Timestamp.nullable(),
+})
+export type SearchBackendStatus = z.infer<typeof SearchBackendStatus>
+
+/**
+ * Web search setup: each keyed backend in the order they are tried, then the keyless fallback
+ * (DuckDuckGo, best effort) that is always last, so search works with nothing configured.
+ */
+export const SearchStatus = z.strictObject({
+  backends: z.array(SearchBackendStatus),
+  fallback: z.literal('ddgs'),
 })
 export type SearchStatus = z.infer<typeof SearchStatus>
 
@@ -504,7 +515,7 @@ export type SearchStatus = z.infer<typeof SearchStatus>
  * only, since it travels in an HTTP header (no CR/LF injection).
  */
 export const SearchKeyInput = z.strictObject({
-  provider: z.literal('brave'),
+  provider: SearchProviderKind,
   apiKey: z
     .string()
     .trim()
@@ -513,6 +524,10 @@ export const SearchKeyInput = z.strictObject({
     .regex(/^[\x21-\x7e]+$/, 'expected printable ASCII without spaces'),
 })
 export type SearchKeyInput = z.infer<typeof SearchKeyInput>
+
+/** Which backend's key to remove. */
+export const SearchKeyClear = z.strictObject({ provider: SearchProviderKind })
+export type SearchKeyClear = z.infer<typeof SearchKeyClear>
 
 // --- The owner's profile -----------------------------------------------------
 

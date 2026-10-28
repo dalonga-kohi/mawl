@@ -274,17 +274,17 @@ describe('web_search edge: Brave responses and the key', () => {
     new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
 
   it.each([
-    [401, 'rejected'],
-    [403, 'rejected'],
-    [429, 'quota'],
-    [500, 'not available'],
-    [502, 'not available'],
-    [503, 'not available'],
-    [404, 'not available'],
+    [401, 'brave (invalid_key)'],
+    [403, 'brave (invalid_key)'],
+    [429, 'brave (rate_limited)'],
+    [500, 'brave (unavailable)'],
+    [502, 'brave (unavailable)'],
+    [503, 'brave (unavailable)'],
+    [404, 'brave (unavailable)'],
   ])('answers HTTP %i as a typed failure without the key or body', async (status, word) => {
     const h = braveTool(async () => new Response(`echo ${KEY}`, { status }))
     const v = text(await h.call('web_search', { query: 'q' }))
-    expect(v).toContain('search_failed')
+    expect(v).toContain('search_unavailable')
     expect(v).toContain(word)
     expect(v).not.toContain(KEY)
   })
@@ -298,7 +298,7 @@ describe('web_search edge: Brave responses and the key', () => {
   ])('treats %s as unavailable, not a thrown error', async (_l, res) => {
     const h = braveTool(async () => res)
     const v = text(await h.call('web_search', { query: 'q' }))
-    expect(v).toContain('search_failed')
+    expect(v).toContain('search_unavailable')
     expect(v).not.toContain(KEY)
   })
 
@@ -317,7 +317,7 @@ describe('web_search edge: Brave responses and the key', () => {
     const [url, init] = f.mock.calls[0] ?? []
     expect(url).not.toContain(KEY)
     expect(new URL(url as string).searchParams.get('q')).toBe('a & b=c#d é')
-    expect(JSON.stringify(init?.headers)).toContain(KEY)
+    expect(new Headers(init?.headers).get('x-subscription-token')).toBe(KEY)
     expect(init?.redirect).toBe('error')
   })
 
@@ -369,14 +369,20 @@ describe('web_search edge: Brave responses and the key', () => {
   })
 
   it('asks the provider per call, so clearing the key applies at once', async () => {
-    let provider: SearchProvider | null = {
+    let provider: SearchProvider = {
       name: 'x',
-      search: async () => [{ title: 't', url: 'https://x.com', snippet: '' }],
+      search: async () => ({
+        backend: 'x',
+        results: [{ title: 't', url: 'https://x.com', snippet: '' }],
+      }),
     }
     const h = bind([webSearchTool({ provider: async () => provider })])
     expect(text(await h.call('web_search', { query: 'q' }))).toContain('https://x.com')
-    provider = null
-    expect(text(await h.call('web_search', { query: 'q' }))).toContain('search_not_configured')
+    provider = {
+      name: 'ddgs',
+      search: async () => ({ backend: 'ddgs', results: [] }),
+    }
+    expect(text(await h.call('web_search', { query: 'q' }))).toContain('Source: ddgs')
   })
 })
 

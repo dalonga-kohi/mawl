@@ -1,116 +1,75 @@
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
-import { cut } from '../text.ts'
 import type { Tool, ToolOutcome } from '../types.ts'
+import { SEARCH_BACKEND_TIMEOUT_MS, SEARCH_BACKENDS_MAX } from './search/chain.ts'
+import {
+  SearchFailedError,
+  type SearchFailure,
+  type SearchProvider,
+  SearchUnavailableError,
+} from './search/types.ts'
 
-export interface SearchResult {
-  title: string
-  url: string
-  snippet: string
-}
-
-/** Why a search backend failed. Closed: backend text can echo the key, so none is kept. */
-export class SearchFailedError extends Error {
-  constructor(readonly reason: 'invalid_key' | 'rate_limited' | 'unavailable') {
-    super(`search failed: ${reason}`)
-    this.name = 'SearchFailedError'
-  }
-}
-
-/** A pluggable web search backend. Brave is the first; others implement the same port. */
-export interface SearchProvider {
-  readonly name: string
-  search(query: string, options: { count: number; signal: AbortSignal }): Promise<SearchResult[]>
-}
-
-/** Brave Search web endpoint (api-dashboard.search.brave.com docs, checked 2026-10-24). */
-export const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search'
-
-const BraveResponse = z.looseObject({
-  web: z
-    .looseObject({
-      results: z
-        .array(
-          z.looseObject({
-            title: z.string(),
-            url: z.string(),
-            description: z.string().optional(),
-          }),
-        )
-        .optional(),
-    })
-    .optional(),
-})
-
-const ENTITIES: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&#x27;': "'",
-  '&nbsp;': ' ',
-}
-
-/** Brave marks matches with <strong>; keep plain text only. */
-function plain(text: string, max: number): string {
-  const out = text
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(?:amp|lt|gt|quot|nbsp|#39|#x27);/g, (e) => ENTITIES[e] ?? e)
-    .replace(/\s+/g, ' ')
-    .trim()
-  return out.length > max ? `${cut(out, max)}…` : out
-}
-
-/**
- * Brave Search backend. The key goes in the `X-Subscription-Token` header only (never the url),
- * redirects are refused so it can never be sent elsewhere, and no response text is kept on error.
- */
-export function braveSearch({
-  apiKey,
-  fetch,
-}: {
-  apiKey: string
-  fetch: (url: string, init: RequestInit) => Promise<Response>
-}): SearchProvider {
-  return {
-    name: 'brave',
-    async search(query, { count, signal }) {
-      const url = new URL(BRAVE_SEARCH_URL)
-      url.searchParams.set('q', query)
-      url.searchParams.set('count', String(count))
-      const res = await fetch(url.href, {
-        method: 'GET',
-        redirect: 'error',
-        signal,
-        headers: { accept: 'application/json', 'x-subscription-token': apiKey },
-      })
-      if (res.status === 401 || res.status === 403) throw new SearchFailedError('invalid_key')
-      if (res.status === 429) throw new SearchFailedError('rate_limited')
-      if (!res.ok) throw new SearchFailedError('unavailable')
-      const parsed = BraveResponse.safeParse(await res.json().catch(() => null))
-      if (!parsed.success) throw new SearchFailedError('unavailable')
-      return (parsed.data.web?.results ?? []).slice(0, count).map((r) => ({
-        title: plain(r.title, 200),
-        url: r.url,
-        snippet: plain(r.description ?? '', 500),
-      }))
-    },
-  }
-}
+export { BRAVE_SEARCH_URL, braveSearch } from './search/brave.ts'
+export { chainedSearch, SEARCH_BACKEND_TIMEOUT_MS, SEARCH_BACKENDS_MAX } from './search/chain.ts'
+export { DDGS_SEARCH_URL, ddgsSearch, parseDdgsHtml } from './search/ddgs.ts'
+export { SEARCH_USER_AGENT } from './search/http.ts'
+export { TAVILY_SEARCH_URL, tavilySearch } from './search/tavily.ts'
+export {
+  type SearchAnswer,
+  SearchFailedError,
+  type SearchFailure,
+  type SearchFailureReason,
+  type SearchFetch,
+  type SearchProvider,
+  type SearchResult,
+  SearchUnavailableError,
+} from './search/types.ts'
 
 export interface WebSearchDeps {
-  /** The configured backend, read per call so a new or cleared key applies at once. Null: no key. */
-  provider(): Promise<SearchProvider | null>
-  /** Default 10 s. */
+  /**
+   * The backend chain (keyed backends first, the keyless DDGS last), read per call so a new or
+   * cleared key applies at once.
+   */
+  provider(): Promise<SearchProvider>
+  /** The whole search, every backend included. Default `WEB_SEARCH_TIMEOUT_MS` (20 s). */
   timeoutMs?: number
 }
 
-const DEFAULT_TIMEOUT_MS = 10_000
+/**
+ * Default total for one web_search: every backend of the longest chain gets its full per-backend
+ * timeout, plus a margin for reading and parsing the answer.
+ */
+export const WEB_SEARCH_TIMEOUT_MS = SEARCH_BACKENDS_MAX * SEARCH_BACKEND_TIMEOUT_MS + 2_000
 
-const failed = (message: string): ToolOutcome => ({ kind: 'error', code: 'search_failed', message })
+const DEFAULT_TIMEOUT_MS = WEB_SEARCH_TIMEOUT_MS
 
-/** `web_search`: a few results (title, url, snippet) from the configured backend. */
+const KEYED = new Set(['tavily', 'brave'])
+
+/**
+ * Mawl's own text for "no backend answered": backend names and closed reasons only, never
+ * response text or keys.
+ */
+function unavailable(failures: readonly SearchFailure[]): ToolOutcome {
+  const parts = [
+    `No search backend answered: ${failures.map((f) => `${f.backend} (${f.reason})`).join(', ')}.`,
+  ]
+  if (failures.some((f) => f.reason === 'invalid_key')) {
+    parts.push('A search key was rejected; the owner needs to check it in Settings.')
+  }
+  if (failures.some((f) => f.backend === 'ddgs')) {
+    parts.push(
+      'DuckDuckGo, the keyless fallback, did not answer; usually it asked for a human check ' +
+        'because of automated searches.',
+    )
+    if (!failures.some((f) => KEYED.has(f.backend))) {
+      parts.push('Adding a free Tavily or Brave Search key in Settings fixes this.')
+    }
+  }
+  parts.push('Tell the owner, then use what you know or web_fetch on a known url.')
+  return { kind: 'error', code: 'search_unavailable', message: parts.join(' ') }
+}
+
+/** `web_search`: a few results (title, url, snippet) from the first backend that answers. */
 export function webSearchTool(deps: WebSearchDeps): Tool {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS
   return defineTool({
@@ -125,39 +84,31 @@ export function webSearchTool(deps: WebSearchDeps): Tool {
     actionClass: 'read',
     run: async ({ query, count }, ctx) => {
       const provider = await deps.provider()
-      if (!provider) {
-        return {
-          kind: 'error',
-          code: 'search_not_configured',
-          message:
-            'Web search is not set up. The owner can add a Brave Search API key in Settings; ' +
-            'until then, tell them and use what you know or web_fetch on a known url.',
-        }
-      }
       const timer = new AbortController()
       const handle = setTimeout(() => timer.abort(new Error('timeout')), timeoutMs)
       try {
-        const results = await provider.search(query, {
+        const { backend, results } = await provider.search(query, {
           count,
           signal: AbortSignal.any([ctx.signal, timer.signal]),
         })
-        if (results.length === 0) return { kind: 'ok', text: `No results for "${query}".` }
-        const lines = results.map(
-          (r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`,
-        )
-        return { kind: 'ok', text: lines.join('\n') }
+        const source = `Source: ${backend}`
+        if (results.length === 0) {
+          return { kind: 'ok', text: `${source}\nNo results for "${query}".` }
+        }
+        const lines = results
+          .slice(0, count)
+          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`)
+        return { kind: 'ok', text: `${source}\n${lines.join('\n')}` }
       } catch (err) {
         if (ctx.signal.aborted) throw err
         if (timer.signal.aborted) {
           return { kind: 'error', code: 'timeout', message: `No answer within ${timeoutMs} ms.` }
         }
+        if (err instanceof SearchUnavailableError) return unavailable(err.failures)
         if (err instanceof SearchFailedError) {
-          if (err.reason === 'invalid_key') {
-            return failed('The search key was rejected; the owner needs to check it in Settings.')
-          }
-          if (err.reason === 'rate_limited') return failed('The search quota is used up for now.')
+          return unavailable([{ backend: provider.name, reason: err.reason }])
         }
-        return failed('The search service is not available right now.')
+        return { kind: 'error', code: 'failed', message: 'The search failed unexpectedly.' }
       } finally {
         clearTimeout(handle)
       }

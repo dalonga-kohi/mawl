@@ -269,16 +269,35 @@ describe('contract validation', () => {
         '~standard'
       ].validate(value)) as { value?: unknown; issues?: unknown[] }
 
-    it('setKey takes a provider and a trimmed key and nothing else', async () => {
+    it('setKey takes a keyed backend and a trimmed key and nothing else', async () => {
       const schema = contract.search.setKey['~orpc'].inputSchema
       expect(await validate(schema, { provider: 'brave', apiKey: ' k1 ' })).toMatchObject({
         value: { provider: 'brave', apiKey: 'k1' },
       })
+      expect(await validate(schema, { provider: 'tavily', apiKey: 'tvly-1' })).toMatchObject({
+        value: { provider: 'tavily', apiKey: 'tvly-1' },
+      })
       expect((await validate(schema, { provider: 'brave', apiKey: '  ' })).issues).toBeDefined()
       expect((await validate(schema, { provider: 'bing', apiKey: 'k' })).issues).toBeDefined()
+      // DDGS has no key.
+      expect((await validate(schema, { provider: 'ddgs', apiKey: 'k' })).issues).toBeDefined()
+      expect((await validate(schema, { apiKey: 'k' })).issues).toBeDefined()
       expect(
         (await validate(schema, { provider: 'brave', apiKey: 'k', label: 'x' })).issues,
       ).toBeDefined()
+      expect(
+        (await validate(schema, { provider: 'tavily', apiKey: 'x'.repeat(513) })).issues,
+      ).toBeDefined()
+    })
+
+    it('clearKey takes a keyed backend and nothing else', async () => {
+      const schema = contract.search.clearKey['~orpc'].inputSchema
+      expect(await validate(schema, { provider: 'tavily' })).toMatchObject({
+        value: { provider: 'tavily' },
+      })
+      expect((await validate(schema, { provider: 'ddgs' })).issues).toBeDefined()
+      expect((await validate(schema, {})).issues).toBeDefined()
+      expect((await validate(schema, { provider: 'brave', apiKey: 'k' })).issues).toBeDefined()
     })
 
     it('setKey refuses a key with control characters, spaces or non-ASCII (header injection)', async () => {
@@ -293,18 +312,26 @@ describe('contract validation', () => {
 
     it('the status never carries a key: unknown fields fail the output schema', async () => {
       const out = contract.search.status['~orpc'].outputSchema
-      const ok = {
+      const brave = {
         provider: 'brave',
         configured: true,
         unreadable: false,
         updatedAt: '2026-01-02T03:04:05.000Z',
       }
+      const tavily = { provider: 'tavily', configured: false, unreadable: false, updatedAt: null }
+      const ok = { backends: [tavily, brave], fallback: 'ddgs' }
       expect((await validate(out, ok)).issues).toBeUndefined()
-      expect((await validate(out, { ...ok, apiKey: 'k' })).issues).toBeDefined()
-      for (const p of [contract.search.setKey, contract.search.clearKey]) {
-        expect(
-          (await validate(p['~orpc'].outputSchema, { ...ok, apiKey: 'k' })).issues,
-        ).toBeDefined()
+      const leaks = [
+        { ...ok, apiKey: 'k' },
+        { ...ok, backends: [tavily, { ...brave, apiKey: 'k' }] },
+        { ...ok, backends: [tavily, { ...brave, keyHint: 'k…' }] },
+        { ...ok, fallback: 'bing' },
+      ]
+      for (const p of [contract.search.status, contract.search.setKey, contract.search.clearKey]) {
+        expect((await validate(p['~orpc'].outputSchema, ok)).issues).toBeUndefined()
+        for (const leak of leaks) {
+          expect((await validate(p['~orpc'].outputSchema, leak)).issues).toBeDefined()
+        }
       }
     })
   })

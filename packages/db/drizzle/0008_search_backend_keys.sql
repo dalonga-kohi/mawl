@@ -1,0 +1,2 @@
+ALTER TABLE "service_credentials" DROP CONSTRAINT "service_credentials_service_check";--> statement-breakpoint
+ALTER TABLE "service_credentials" ADD CONSTRAINT "service_credentials_service_check" CHECK ("service_credentials"."service" in ('tavily_search', 'brave_search'));

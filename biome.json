@@ -12,6 +12,7 @@
       "!packages/ui/src/tokens.css",
       "!packages/core/src/prompts/blocks.generated.ts",
       "!packages/db/drizzle/meta",
+      "!packages/core/src/tools/builtin/search/fixtures",
       "!**/node_modules",
       "!**/.turbo",
       "!**/dist"

@@ -46,7 +46,16 @@ describe('built-in tools: hostile data through the real store (PGlite)', () => {
       logger,
       resolveModel: async () => ({ model }),
       requeue: async () => {},
-      tools: createServerTools({ db, search: { provider: async () => null }, webFetch }),
+      tools: createServerTools({
+        db,
+        search: {
+          provider: async () => ({
+            name: 'unused',
+            search: () => Promise.reject(new Error('search is not used here')),
+          }),
+        },
+        webFetch,
+      }),
     })
     return {
       run: (runId: RunId) => run({ runId }, { abortSignal: new AbortController().signal }),

@@ -57,6 +57,13 @@
       "when": 1792869919701,
       "tag": "0007_tool_results_waits_service_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793224067731,
+      "tag": "0008_search_backend_keys",
+      "breakpoints": true
     }
   ]
 }

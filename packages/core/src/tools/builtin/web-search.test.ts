@@ -5,10 +5,17 @@ import { MemoryLedger } from '../test-util.ts'
 import {
   BRAVE_SEARCH_URL,
   braveSearch,
+  chainedSearch,
+  SEARCH_BACKEND_TIMEOUT_MS,
+  SEARCH_BACKENDS_MAX,
   SearchFailedError,
   type SearchProvider,
+  tavilySearch,
+  WEB_SEARCH_TIMEOUT_MS,
   webSearchTool,
 } from './web-search.ts'
+
+const r1 = { title: 'One', url: 'https://one.example/', snippet: '' }
 
 const runId = newId('run')
 const profileId = newId('profile')
@@ -16,7 +23,7 @@ const KEY = 'BSA-test-key-123'
 
 type FetchFn = (url: string, init: RequestInit) => Promise<Response>
 
-function bind(provider: SearchProvider | null, timeoutMs?: number) {
+function bind(provider: SearchProvider, timeoutMs?: number) {
   const ledger = new MemoryLedger()
   const run = createToolRegistry({
     tools: [webSearchTool({ provider: async () => provider, ...(timeoutMs ? { timeoutMs } : {}) })],
@@ -75,14 +82,17 @@ describe('braveSearch', () => {
     expect(init?.redirect).toBe('error')
     // The key travels in the header only, never in the url.
     expect(url).not.toContain(KEY)
-    expect(results).toEqual([
-      {
-        title: 'Python Web Frameworks',
-        url: 'https://example.com/python',
-        snippet: 'Main snippet & more',
-      },
-      { title: 'Second', url: 'https://example.org/2', snippet: 'Two' },
-    ])
+    expect(results).toEqual({
+      backend: 'brave',
+      results: [
+        {
+          title: 'Python Web Frameworks',
+          url: 'https://example.com/python',
+          snippet: 'Main snippet & more',
+        },
+        { title: 'Second', url: 'https://example.org/2', snippet: 'Two' },
+      ],
+    })
   })
 
   it('answers no web results as an empty list', async () => {
@@ -92,7 +102,17 @@ describe('braveSearch', () => {
         count: 5,
         signal: new AbortController().signal,
       }),
-    ).toEqual([])
+    ).toEqual({ backend: 'brave', results: [] })
+  })
+
+  it('maps a network error to unavailable', async () => {
+    const fetch = vi.fn<FetchFn>(async () => {
+      throw new TypeError('fetch failed')
+    })
+    const err = await braveSearch({ apiKey: KEY, fetch })
+      .search('x', { count: 5, signal: new AbortController().signal })
+      .catch((e: unknown) => e)
+    expect((err as SearchFailedError).reason).toBe('unavailable')
   })
 
   it.each([
@@ -118,32 +138,36 @@ describe('braveSearch', () => {
   })
 })
 
+describe('web_search timeouts', () => {
+  it('leaves every backend of the full chain its own timeout inside the tool total', () => {
+    expect(SEARCH_BACKENDS_MAX).toBe(3) // tavily, brave, ddgs
+    expect(SEARCH_BACKENDS_MAX * SEARCH_BACKEND_TIMEOUT_MS).toBeLessThan(WEB_SEARCH_TIMEOUT_MS)
+  })
+})
+
 describe('web_search tool', () => {
   const brave = (fetch: FetchFn) => braveSearch({ apiKey: KEY, fetch })
 
   it('lists the results as data', async () => {
     const out = text(await bind(brave(async () => json(braveBody))).call({ query: 'python web' }))
     expect(out.startsWith('<tool_result>\n')).toBe(true)
-    expect(out).toContain('1. Python Web Frameworks')
+    expect(out).toContain('Source: brave\n1. Python Web Frameworks')
     expect(out).toContain('https://example.com/python')
     expect(out).toContain('2. Second')
   })
 
-  it('answers a typed "not configured" result when there is no key, without throwing', async () => {
-    const r = await bind(null).call({ query: 'anything' })
+  it('says so when nothing was found, and which backend said it', async () => {
+    const out = text(await bind(brave(async () => json({}))).call({ query: 'zzz' }))
+    expect(out).toContain('Source: brave\nNo results')
+  })
+
+  it('reports a rejected key as search_unavailable and never shows the key', async () => {
+    const r = await bind(brave(async () => json({ msg: KEY }, 401))).call({ query: 'x' })
     expect(r.kind === 'result' && r.record.isError).toBe(true)
-    expect(text(r)).toContain('search_not_configured')
-  })
-
-  it('says so when nothing was found', async () => {
-    expect(text(await bind(brave(async () => json({}))).call({ query: 'zzz' }))).toContain(
-      'No results',
-    )
-  })
-
-  it('reports a rejected key as a search failure and never shows the key', async () => {
-    const out = text(await bind(brave(async () => json({ msg: KEY }, 401))).call({ query: 'x' }))
-    expect(out).toContain('search_failed')
+    const out = text(r)
+    expect(out).toContain('search_unavailable')
+    expect(out).toContain('brave (invalid_key)')
+    expect(out).toContain('check it in Settings')
     expect(out).not.toContain(KEY)
   })
 
@@ -155,8 +179,84 @@ describe('web_search tool', () => {
         }),
       ).call({ query: 'x' }),
     )
-    expect(out).toContain('search_failed')
+    expect(out).toContain('search_unavailable')
     expect(out).not.toContain('ECONNREFUSED')
+  })
+
+  it('names the backend that answered a chain', async () => {
+    const chain = chainedSearch([
+      brave(async () => json({}, 429)),
+      { name: 'ddgs', search: async () => ({ backend: 'ddgs', results: [r1] }) },
+    ])
+    const out = text(await bind(chain).call({ query: 'q' }))
+    expect(out).toContain('Source: ddgs\n1. One')
+  })
+
+  it('lists every backend and its reason when none answers, with no response text', async () => {
+    const chain = chainedSearch([
+      tavilySearch({ apiKey: 'tvly-k', fetch: async () => json({ e: 'tvly-k' }, 401) }),
+      brave(async () => json({ e: KEY }, 429)),
+      { name: 'ddgs', search: () => Promise.reject(new SearchFailedError('unavailable')) },
+    ])
+    const out = text(await bind(chain).call({ query: 'q' }))
+    expect(out).toContain('search_unavailable')
+    expect(out).toContain('tavily (invalid_key), brave (rate_limited), ddgs (unavailable)')
+    expect(out).not.toContain(KEY)
+    expect(out).not.toContain('tvly-k')
+  })
+
+  it('tells the owner DuckDuckGo asked for a human check and that a free key fixes it', async () => {
+    const chain = chainedSearch([
+      { name: 'ddgs', search: () => Promise.reject(new SearchFailedError('unavailable')) },
+    ])
+    const out = text(await bind(chain).call({ query: 'q' }))
+    expect(out).toContain('ddgs (unavailable)')
+    expect(out).toContain('human check')
+    expect(out).toContain('free Tavily or Brave Search key')
+  })
+
+  it('an unexpected error is a generic failure without its text', async () => {
+    const out = text(
+      await bind({
+        name: 'x',
+        search: () => Promise.reject(new RangeError(`bug ${KEY}`)),
+      }).call({ query: 'q' }),
+    )
+    expect(out).toContain('failed')
+    expect(out).not.toContain(KEY)
+  })
+
+  it('a cancelled run throws instead of falling through or answering', async () => {
+    const c = new AbortController()
+    const ledger = new MemoryLedger()
+    const next = vi.fn(async () => ({ backend: 'ddgs', results: [] }))
+    const run = createToolRegistry({
+      tools: [
+        webSearchTool({
+          provider: async () =>
+            chainedSearch([
+              {
+                name: 'tavily',
+                search: (_q, o) =>
+                  new Promise((_r, reject) => {
+                    o.signal.addEventListener('abort', () => reject(o.signal.reason), {
+                      once: true,
+                    })
+                    c.abort(new Error('cancelled'))
+                  }),
+              },
+              { name: 'ddgs', search: next },
+            ]),
+        }),
+      ],
+    }).forRun({ runId, profileId })
+    await expect(
+      run.invoke(
+        { stepIdx: 0, toolCallId: 'c1', toolName: 'web_search', input: { query: 'q' } },
+        { ledger, signal: c.signal, allowPark: true },
+      ),
+    ).rejects.toThrow('cancelled')
+    expect(next).not.toHaveBeenCalled()
   })
 
   it('times out a search that does not answer', async () => {

@@ -17,6 +17,7 @@ import {
   PublicKey,
   Run,
   RunBudget,
+  SearchKeyClear,
   SearchKeyInput,
   SearchStatus,
   Settings,
@@ -145,11 +146,14 @@ export const contract = {
       .input(z.strictObject({ id: RunId, answer: z.string().trim().min(1).max(4000) }))
       .output(Run),
   },
-  /** The web search backend's key (Brave). The key is write-only; status never returns it. */
+  /**
+   * Keys of the keyed web search backends (Tavily, Brave), one each. Keys are write-only; status
+   * never returns one. DuckDuckGo is the keyless fallback and needs no setup.
+   */
   search: {
     status: base.output(SearchStatus),
     setKey: base.input(SearchKeyInput).output(SearchStatus),
-    clearKey: base.output(SearchStatus),
+    clearKey: base.input(SearchKeyClear).output(SearchStatus),
   },
   approvals: {
     list: base
