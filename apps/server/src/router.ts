@@ -181,7 +181,7 @@ export function createRouter({
       ? {
           status: os.search.status.handler(() => search.status()),
           setKey: os.search.setKey.handler(({ input }) => search.setKey(input)),
-          clearKey: os.search.clearKey.handler(() => search.clearKey()),
+          clearKey: os.search.clearKey.handler(({ input }) => search.clearKey(input)),
         }
       : {
           status: stub(os.search.status),

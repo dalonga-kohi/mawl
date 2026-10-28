@@ -314,8 +314,8 @@ describe('startServer with the master key from the desktop host', () => {
     expect(err).toBeInstanceOf(MasterKeyError)
     const message = String((err as Error).message)
     expect(message).toMatch(/does not decrypt/)
-    // The web search key is a stored secret too (D2.2), so the message names it.
-    expect(message).toMatch(/web search key/)
+    // The web search keys (Tavily, Brave) are stored secrets too (D2.2b), so the message names them.
+    expect(message).toMatch(/web search keys/)
     // Names the recovery that works, and is honest that deleting the entry does not.
     expect(message).toMatch(/Mawl\/master-key/)
     expect(message).toMatch(/from a backup/)

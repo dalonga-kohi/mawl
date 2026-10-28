@@ -24,10 +24,24 @@ const run = {
 } satisfies Run
 
 const configured: SearchStatus = {
-  provider: 'brave',
-  configured: true,
-  unreadable: false,
-  updatedAt: '2026-01-02T03:04:05.000Z',
+  backends: [
+    { provider: 'tavily', configured: false, unreadable: false, updatedAt: null },
+    {
+      provider: 'brave',
+      configured: true,
+      unreadable: false,
+      updatedAt: '2026-01-02T03:04:05.000Z',
+    },
+  ],
+  fallback: 'ddgs',
+}
+
+const cleared: SearchStatus = {
+  backends: [
+    { provider: 'tavily', configured: false, unreadable: false, updatedAt: null },
+    { provider: 'brave', configured: false, unreadable: false, updatedAt: null },
+  ],
+  fallback: 'ddgs',
 }
 
 const unusedSearch: SearchService = {
@@ -89,30 +103,37 @@ describe('runs.reply', () => {
 describe('search procedures', () => {
   it('status, setKey and clearKey go to the service', async () => {
     const setKey = vi.fn(async () => configured)
-    const router = routerWith(
-      {},
-      {
-        status: async () => configured,
-        setKey,
-        clearKey: async () => ({
-          provider: 'brave',
-          configured: false,
-          unreadable: false,
-          updatedAt: null,
-        }),
-      },
-    )
+    const clearKey = vi.fn(async () => cleared)
+    const router = routerWith({}, { status: async () => configured, setKey, clearKey })
     expect(await call(router.search.status, undefined)).toEqual(configured)
-    expect(await call(router.search.setKey, { provider: 'brave', apiKey: ' k ' })).toEqual(
+    expect(await call(router.search.setKey, { provider: 'tavily', apiKey: ' k ' })).toEqual(
       configured,
     )
-    expect(setKey).toHaveBeenCalledWith({ provider: 'brave', apiKey: 'k' })
-    expect((await call(router.search.clearKey, undefined)).configured).toBe(false)
+    expect(setKey).toHaveBeenCalledWith({ provider: 'tavily', apiKey: 'k' })
+    expect(await call(router.search.clearKey, { provider: 'brave' })).toEqual(cleared)
+    expect(clearKey).toHaveBeenCalledWith({ provider: 'brave' })
   })
 
-  it('refuses to answer a status that carries anything more (strict output)', async () => {
-    const leaky = { ...configured, apiKey: 'BSA-x' } as unknown as SearchStatus
-    const router = routerWith({}, { status: async () => leaky })
+  it('rejects a clearKey without a keyed backend before the service runs', async () => {
+    const clearKey = vi.fn(async () => cleared)
+    const router = routerWith({}, { clearKey })
+    await expect(call(router.search.clearKey, { provider: 'ddgs' } as never)).rejects.toMatchObject(
+      { code: 'BAD_REQUEST' },
+    )
+    expect(clearKey).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['at the top', { ...configured, apiKey: 'BSA-x' }],
+    [
+      'in a backend',
+      {
+        ...configured,
+        backends: [configured.backends[0], { ...configured.backends[1], apiKey: 'BSA-x' }],
+      },
+    ],
+  ])('refuses to answer a status that carries a key %s (strict output)', async (_l, leaky) => {
+    const router = routerWith({}, { status: async () => leaky as unknown as SearchStatus })
     await expect(call(router.search.status, undefined)).rejects.toThrow()
   })
 

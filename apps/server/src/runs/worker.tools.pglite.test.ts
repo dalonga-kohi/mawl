@@ -35,7 +35,12 @@ describe('run.execute with the built-in tools (PGlite)', () => {
     return runId
   }
 
-  const noSearch = { provider: async () => null }
+  const noSearch = {
+    provider: async () => ({
+      name: 'unused',
+      search: () => Promise.reject(new Error('search is not used here')),
+    }),
+  }
 
   function task(model: ReturnType<typeof fakeModel>, over: { supportsTools?: boolean } = {}) {
     const registry = new RunRegistry()
