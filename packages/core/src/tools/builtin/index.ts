@@ -17,6 +17,7 @@ export {
   ddgsSearch,
   parseDdgsHtml,
   SEARCH_BACKEND_TIMEOUT_MS,
+  SEARCH_BACKENDS_MAX,
   SEARCH_USER_AGENT,
   type SearchAnswer,
   SearchFailedError,
@@ -28,6 +29,7 @@ export {
   SearchUnavailableError,
   TAVILY_SEARCH_URL,
   tavilySearch,
+  WEB_SEARCH_TIMEOUT_MS,
   type WebSearchDeps,
   webSearchTool,
 } from './web-search.ts'

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
 import type { Tool, ToolOutcome } from '../types.ts'
+import { SEARCH_BACKEND_TIMEOUT_MS, SEARCH_BACKENDS_MAX } from './search/chain.ts'
 import {
   SearchFailedError,
   type SearchFailure,
@@ -9,7 +10,7 @@ import {
 } from './search/types.ts'
 
 export { BRAVE_SEARCH_URL, braveSearch } from './search/brave.ts'
-export { chainedSearch, SEARCH_BACKEND_TIMEOUT_MS } from './search/chain.ts'
+export { chainedSearch, SEARCH_BACKEND_TIMEOUT_MS, SEARCH_BACKENDS_MAX } from './search/chain.ts'
 export { DDGS_SEARCH_URL, ddgsSearch, parseDdgsHtml } from './search/ddgs.ts'
 export { SEARCH_USER_AGENT } from './search/http.ts'
 export { TAVILY_SEARCH_URL, tavilySearch } from './search/tavily.ts'
@@ -30,11 +31,17 @@ export interface WebSearchDeps {
    * cleared key applies at once.
    */
   provider(): Promise<SearchProvider>
-  /** The whole search, every backend included. Default 20 s. */
+  /** The whole search, every backend included. Default `WEB_SEARCH_TIMEOUT_MS` (20 s). */
   timeoutMs?: number
 }
 
-const DEFAULT_TIMEOUT_MS = 20_000
+/**
+ * Default total for one web_search: every backend of the longest chain gets its full per-backend
+ * timeout, plus a margin for reading and parsing the answer.
+ */
+export const WEB_SEARCH_TIMEOUT_MS = SEARCH_BACKENDS_MAX * SEARCH_BACKEND_TIMEOUT_MS + 2_000
+
+const DEFAULT_TIMEOUT_MS = WEB_SEARCH_TIMEOUT_MS
 
 const KEYED = new Set(['tavily', 'brave'])
 

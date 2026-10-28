@@ -8,6 +8,9 @@ import {
 /** How long one backend of a chain gets before the next one is tried. */
 export const SEARCH_BACKEND_TIMEOUT_MS = 6_000
 
+/** The longest chain the host builds: Tavily, Brave, DDGS. */
+export const SEARCH_BACKENDS_MAX = 3
+
 /**
  * Tries the backends in order (Tavily, Brave, DDGS) and returns the first answer, which names the
  * backend that gave it. A backend that fails with a `SearchFailedError` or does not answer within

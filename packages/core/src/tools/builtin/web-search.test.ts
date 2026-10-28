@@ -6,9 +6,12 @@ import {
   BRAVE_SEARCH_URL,
   braveSearch,
   chainedSearch,
+  SEARCH_BACKEND_TIMEOUT_MS,
+  SEARCH_BACKENDS_MAX,
   SearchFailedError,
   type SearchProvider,
   tavilySearch,
+  WEB_SEARCH_TIMEOUT_MS,
   webSearchTool,
 } from './web-search.ts'
 
@@ -132,6 +135,13 @@ describe('braveSearch', () => {
       .search('x', { count: 5, signal: new AbortController().signal })
       .catch((e: unknown) => e)
     expect((err as SearchFailedError).reason).toBe('unavailable')
+  })
+})
+
+describe('web_search timeouts', () => {
+  it('leaves every backend of the full chain its own timeout inside the tool total', () => {
+    expect(SEARCH_BACKENDS_MAX).toBe(3) // tavily, brave, ddgs
+    expect(SEARCH_BACKENDS_MAX * SEARCH_BACKEND_TIMEOUT_MS).toBeLessThan(WEB_SEARCH_TIMEOUT_MS)
   })
 })
 
