@@ -160,14 +160,13 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             ...(audit ? { level: audit.level, source: audit.source } : {}),
             ...(audit?.mode ? { mode: audit.mode } : {}),
           })
-          // `park` is a denial until approvals land (D2.4 parks the run here instead).
-          if (decision.decision === 'deny' || decision.decision === 'park') {
+          // Only an explicit allow runs the tool: `deny`, `park` (a denial until approvals land;
+          // D2.4 parks the run here instead) and any unknown variant are refused.
+          if (decision.decision !== 'allow') {
+            const reason =
+              typeof decision.reason === 'string' ? decision.reason : 'no usable decision'
             return save(
-              errorRecord(
-                t.name,
-                'denied',
-                `Policy denied this call: ${clip(decision.reason, 300)}`,
-              ),
+              errorRecord(t.name, 'denied', `Policy denied this call: ${clip(reason, 300)}`),
             )
           }
 

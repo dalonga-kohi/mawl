@@ -7,7 +7,7 @@ import { allowAllGate } from './gate.ts'
 import { createToolRegistry } from './registry.ts'
 import { MemoryArtifacts, MemoryLedger } from './test-util.ts'
 import { ARTIFACT_THRESHOLD_TOKENS, estimateTokens } from './tokens.ts'
-import type { ToolGate, ToolOutcome } from './types.ts'
+import type { ToolGate, ToolGateDecision, ToolOutcome } from './types.ts'
 
 const runId = newId('run')
 const profileId = newId('profile')
@@ -183,6 +183,45 @@ describe('tool registry: the single choke point', () => {
     await h.invoke('echo', { q: 'x' })
     expect(h.ledger.events[0]?.payload).toMatchObject({ level: 'block', source: 'floor' })
     expect(h.ledger.events[0]?.payload).not.toHaveProperty('mode')
+  })
+
+  it('never runs a tool on a decision it does not know, and answers denied', async () => {
+    const run = vi.fn(async () => ({ kind: 'ok' as const, text: 'ran' }))
+    const h = harness({
+      // reason: a gate from a future version (or a bug) returning an unknown variant.
+      gate: { check: async () => ({ decision: 'maybe' }) as unknown as ToolGateDecision },
+      tools: [echoTool(run)],
+    })
+    const r = await h.invoke('echo', { q: 'x' })
+    expect(run).not.toHaveBeenCalled()
+    expect(r.kind === 'result' && r.record.isError).toBe(true)
+    expect(textOf(r)).toContain('denied')
+  })
+
+  it('gives the gate the same parsed value that run gets, when the schema transforms it', async () => {
+    const seen: { gate?: unknown; run?: unknown } = {}
+    const trimming = defineTool({
+      name: 'trim',
+      description: 'trim',
+      inputSchema: z.strictObject({ command: z.string().transform((s) => s.trim().toLowerCase()) }),
+      actionClass: 'shell_exec',
+      run: async ({ command }) => {
+        seen.run = command
+        return { kind: 'ok', text: command }
+      },
+    })
+    const h = harness({
+      gate: {
+        check: async (req) => {
+          seen.gate = (req.args as { command?: unknown }).command
+          return { decision: 'allow' }
+        },
+      },
+      tools: [trimming],
+    })
+    await h.invoke('trim', { command: '  GIT Status  ' })
+    expect(seen.gate).toBe('git status')
+    expect(seen.run).toBe('git status')
   })
 
   it('treats a park decision as a denial until approvals exist (D2.4 seam)', async () => {
