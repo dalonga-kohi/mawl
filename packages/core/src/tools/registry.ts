@@ -25,7 +25,10 @@ export const TOOL_RESULT_TAG = 'tool_result'
 
 export interface ToolRegistryOptions {
   tools: readonly Tool[]
-  /** Default: allow everything (D2.3 replaces it with the policy engine). */
+  /**
+   * Default: allow everything, for tests only. Every production registry passes the policy engine
+   * (`policyGate`); the server does so in `createServerTools`.
+   */
   gate?: ToolGate
   /** Where large outputs go. Without it they are truncated. */
   artifacts?: ArtifactStore
@@ -145,15 +148,20 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             profileId,
             tool: t.name,
             actionClass: t.actionClass,
+            args: prepared.args,
             argsRedacted: prepared.argsRedacted,
           })
+          const audit = decision.audit
           await ledger.recordToolCall(runId, {
             toolCallId: call.toolCallId,
             tool: t.name,
             argsRedacted: prepared.argsRedacted,
             actionClass: t.actionClass,
+            ...(audit ? { level: audit.level, source: audit.source } : {}),
+            ...(audit?.mode ? { mode: audit.mode } : {}),
           })
-          if (decision.decision === 'deny') {
+          // `park` is a denial until approvals land (D2.4 parks the run here instead).
+          if (decision.decision === 'deny' || decision.decision === 'park') {
             return save(
               errorRecord(
                 t.name,
