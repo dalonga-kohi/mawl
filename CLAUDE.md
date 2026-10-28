@@ -26,6 +26,15 @@ Every agent (orchestrator and all subagents in `.claude/agents/`) uses the **`ca
 - Code, commands, paths, versions and error strings stay verbatim.
 - The user can say "stop caveman" or "normal mode" to switch it off.
 
+## Token budget and other models
+
+Full rules in [docs/WORKFLOW.md](docs/WORKFLOW.md). Short version:
+- `docs/PLAN.md` is now an index plus versions and the slice template; each phase lives in `docs/plan/<phase>.md` (d1, d2, ...). Pick slices and mark status in the phase file, then update the index counts.
+- Never read `docs/ARCHITECTURE.md` or a whole big phase file (`docs/plan/d1.md` is 39 KB); grep for the slice id or heading and read that range. The "Read before any work" list above means: know it exists, read the parts the slice needs.
+- **Big research (more than one file or doc page of facts) goes to Gemini, not an agent.** Write `docs/research/<topic>.prompt.md`, ask the user to run it and save the answer as `docs/research/<topic>.md`, then read only that.
+- **Light `coder`-class slices may go to Codex** (user-run, own branch and worktree) via `docs/handoffs/<id>.md`; `reviewer` still reviews them. Hard slices and UI stay with Claude.
+- **The user takes** image assets, manual checks, product decisions and junior-level code on separate packages. Mark each pending slice `claude`, `codex` or `user` and keep lanes on different packages.
+
 ## Roles
 
 **You (the main session, Sonnet): orchestrator and planner.**
@@ -86,17 +95,7 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 
 ### Pull request rules
 
-- Title: Conventional Commit style, short, e.g. `feat(server): desktop mode with launch token and embedded Postgres`.
-- Description is written like a person on the team would write it: professional, plain, specific. No filler, no hype, no bullet dumps of file names. Sections:
-  - **What and why**: the problem and the slice id (PLAN.md), in a short paragraph.
-  - **How**: the approach and the decisions that were not obvious, including what was rejected.
-  - **Scope**: what is deliberately not in this PR and which slice picks it up.
-  - **Testing**: exactly what was run (scoped checks, not the full gate unless it was), what was not run, and why.
-  - **Risk and review notes**: security-relevant areas, migrations, anything the reviewer should look at first.
-- Keep the PR to one slice. Docs and PLAN updates go in the same PR.
-- End the description with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
-- Open the PR only after the user says yes to the push; never merge without the user's say-so and green CI.
-- After opening, bind it with the ccd_pr tools and read CI; do not poll.
+Full rules in [docs/PR-RULES.md](docs/PR-RULES.md); read it when opening a PR. Short version: Conventional Commit title, one slice per PR, push only after the user says yes, never merge without green CI and the user's say-so, bind the PR with the ccd_pr tools and do not poll CI.
 
 **Deciding things.** Make conventional technical calls yourself, write them into the brief and docs, and tell the user in one line. Examples: picking the current stable major, rejecting betas, or cancel-from-any-state. Ask the user only for real product choices (see "When to ask").
 
@@ -122,62 +121,14 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
   - Policy, approvals and credentials need a security-focused review.
 - **Docs follow code** in the same commit series.
 
-## Stack as built (P0; pinned)
+## Stack, monorepo conventions, shared packages
 
-| Tool | Version | Notes |
-|---|---|---|
-| Node | 24 (`.nvmrc`) | Runs `.ts` natively (type stripping); the ui token generator uses it |
-| pnpm | 10.18.0 | `packageManager`; run via corepack |
-| Turborepo | 2.11.9 | `globalDependencies` include root configs and `docs/ARCHITECTURE.md`; `globalEnv` includes `CI`, `MAWL_REQUIRE_DOCKER` |
-| Biome | 2.5.15 | `linter.rules.preset: "recommended"`. Excludes docs, mockup, `.claude/skills`, generated `tokens.css`. Can't parse Tailwind `@theme` |
-| Vitest | 5.0.5 | Root `test.projects`; `defineProject` per package. `beforeAll` ctx has no `skip`, so use `beforeEach(ctx => ctx.skip())` |
-| TypeScript | 7.0.2 | `module: preserve` + `bundler`, `noEmit`, `allowImportingTsExtensions` in base. Server and UI apps need overrides (PLAN P1.2/P1.6) |
-| AI SDK | `ai` 7.0.143 | Spec V4. `MockLanguageModelV4` (`ai/test`), `ToolLoopAgent`, `stepCountIs`, `tool({ needsApproval })`. MCP: `@ai-sdk/mcp` 2.x |
-| zod | 4.6.7 | `z.iso.datetime()` requires `Z` (UTC only); `z.strictObject` for secret-free shapes |
-| oRPC | 1.15.7 (not the 2.0 beta) | `oc`, `eventIterator` from `@orpc/contract`. WS: `@orpc/server/ws`, `@orpc/client/websocket` |
-| culori | 4.0.2 (+ `@types/culori` 4.0.1) | OKLCH accent engine |
-| Provider SDKs | `@ai-sdk/anthropic` 4.0.82, `@ai-sdk/openai` 4.0.96, `@openrouter/ai-sdk-provider` 3.1.0, `ollama-ai-provider-v2` 4.0.1, `@ai-sdk/openai-compatible` 3.0.71, `@ai-sdk/provider` 4.0.29 | All Apache-2.0, all spec V4. Live in `@mawl/core` `src/providers/`; keys never leave the server |
-| Drizzle | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 (1.0 is still beta) | `@mawl/db`. JS `null` into NOT NULL jsonb needs `jsonValue()`. Migrations in `packages/db/drizzle/`; never edit an applied one, add a new one |
-| PGlite | `@electric-sql/pglite` 0.5.10 + `@electric-sql/pglite-pgvector` 0.0.11 | In-process Postgres so DB suites run locally without Docker; the same suite also runs on Testcontainers |
-| graphile-worker | 0.18.0 (MIT) | Run jobs in `apps/server`. Needs a real `pg` Pool (not PGlite); bundles into `dist/server.mjs` (migrations are embedded). Task `run.execute` |
-| testcontainers | 12.2.1 | Image `pgvector/pgvector:0.8.7-pg17`; `pg` 8.23.1 |
-| Travis CI | `.travis.yml`, `dist: noble`, Node from `.nvmrc`, pnpm via corepack | **Docker suites only** (user's student plan): one job, `pnpm test:docker` (the `*.pg.test.ts` files and `postgres.smoke.test.ts`) then `pnpm test:compose` (the compose image smoke test, kept out of the default `pnpm test`) with `MAWL_REQUIRE_DOCKER=1`. Builds `main` and PRs only. `scripts/travis-config.test.ts` checks it. Travis does not lint, typecheck or run e2e |
-| GitHub Actions | checkout 7.0.1, setup-node 7.1.0, cache 6.1.0, pnpm/action-setup 6.1.0; `anthropics/claude-code-action` 1.0.256 | `ci.yml` is the **fast gate**: lint, typecheck, tests and e2e, with `MAWL_SKIP_DOCKER_SUITES=1` so the Docker suites run on Travis only (the `vitest.config.ts` of `apps/server`, `packages/db` and `packages/testkit` exclude those files when it is set; `scripts/docker-suites-skip.test.ts` checks it). `pgvector-windows.yml` builds pgvector with MSVC and runs its `installcheck`. `claude.yml` reviews same-repo PRs (Sonnet) and answers `@claude` from the owner, members and collaborators, using the `CLAUDE_CODE_OAUTH_TOKEN` secret. All pinned by full SHA (tests enforce it). Dependabot is weekly |
-
-## Monorepo conventions
-
-- **JIT internal packages** `@mawl/<dir>`:
-  - private, `type: module`, `exports: { ".": "./src/index.ts" }`, no build step
-  - tsconfig extends `../../tsconfig.base.json` with `include: ["src", "vitest.config.ts"]`
-  - scripts `typecheck` + `test` only; there is no per-package lint
-- **Root turbo tasks.** `//#lint:root` (biome), `//#typecheck:root` (scripts + configs) and `//#test:workspace`. The plain `lint`/`typecheck`/`test` tasks depend on them. The root scripts call turbo, so never name a root task the same as its script.
-- **`scripts/workspace.test.ts` + `validateManifest()`** check every package's manifest, tsconfig, entry file and smoke test. A new package must satisfy them.
-- **Relative imports use `.ts` extensions.**
-
-## Shared packages so far (reuse, don't re-implement)
-
-- **`@mawl/testkit`**:
-  - `fakeModel(script)` gives scripted turns: text, toolCalls, reasoning, usage with cache/reasoning tokens, `error`, `streamError`, abort handling, `.calls`. SDK retries consume turns.
-  - `seq`, `fixedClock`, `seededRandom`.
-  - `withPostgres()` inside a sync `describe`. It skips without Docker locally and **fails** when `CI`/`MAWL_REQUIRE_DOCKER` is set.
-- **`@mawl/ui`**:
-  - Typed tokens, plus `src/tokens.css` generated by `pnpm --filter @mawl/ui generate`. Regenerate after any token change; a test fails if you forget.
-  - `deriveAccent(hex, theme)`.
-  - `applyAccent(hex, rootStyle)` writes both light and dark scales, so theme flips need no JS. Root element only.
-  - Semantic colors pass 4.5:1 as text and on their soft tints.
-- **`@mawl/contracts`**:
-  - Prefixed ULID ids with `newId(kind)` (monotonic; `__resetIdState()` in tests).
-  - Enums, and `RUN_TRANSITIONS`, which is tested against the ARCHITECTURE §5 mermaid diagram. Change both together.
-  - Entities and the event union.
-  - `parseModelRef`/`formatModelRef` (`<credentialId>:<modelId>`, split at the first colon) and the closed `RunErrorCode` set stored on failed runs.
-  - Versioned envelope `v: 1`. Clients use `parseEnvelope()`, which never throws, skips unknown types and keeps advancing `since`.
-  - oRPC `contract`, with base errors UNAUTHORIZED, FORBIDDEN, VALIDATION, NOT_FOUND, CONFLICT.
+Pinned versions, the monorepo conventions and the shared-package catalog (testkit, ui, contracts) are in [docs/STACK.md](docs/STACK.md). Read it before adding a dependency or package, and reuse the shared packages instead of re-implementing. Key facts: Node 24, pnpm 10 via corepack, TS 7 strict, Vitest 5, Biome, zod 4, JIT internal packages @mawl/<dir>, relative imports use .ts extensions.
 
 ## Frontend rules (web, desktop, mobile)
 
 - **Always use the design skills** in `.claude/skills/` together with `docs/DESIGN.md`:
   - `frontend-design`
-  - `ui-taste` (`reference/craft.md`, then `reference/polish.md`)
   - `ui-ux-pro-max` (`references/quick-reference.md`, `references/pro-rules.md`; its `scripts/search.py` needs Python 3, which isn't installed, so read the CSVs directly)
   - `ios-design` for mobile
   - **Expo work** (the mobile app, `packages/ui-native`, any Expo/React Native config, build or dependency task) also uses the Expo skills from https://github.com/expo/skills, installed under `.claude/skills/`. Expo skills cover the how (Router, EAS, SDK-compatible packages); the design skills above still apply to every Expo UI slice. Expo slices go to `head-coder`, and the brief names both skill sets.

@@ -26,7 +26,7 @@ You are the **reviewer** for Mawl. You are read-only. Use shell commands only fo
    - DESIGN.md tokens only (no raw hex), so accent changes work
    - all states present, a11y (contrast, focus, labels, targets), reduced motion
    - copy rules
-   - the "anti-generic" checks from the `frontend-design` and `ui-taste` skills (`.claude/skills/*/SKILL.md`; ui-taste `reference/audit.md`)
+   - the "anti-generic" checks from the `frontend-design` skill (`.claude/skills/frontend-design/SKILL.md`)
 7. **Simplicity.** Dead code, needless abstraction, overlong functions, unclear names.
 
 ## Output (≤ 400 words)
