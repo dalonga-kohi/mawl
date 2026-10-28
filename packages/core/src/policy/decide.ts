@@ -101,20 +101,27 @@ function stringArg(args: Json, key: string): string | undefined {
   return typeof v === 'string' ? v : undefined
 }
 
+/** Url subjects longer than this never match an `argPattern` (the web_fetch input cap). */
+export const MAX_URL_SUBJECT_CHARS = 2048
+
 /**
  * What an `argPattern` is matched against: the tool's primary argument, the first of `command`,
- * `url` (as the WHATWG parser prints it) or `path`. A tool without one never matches a pattern.
+ * `url` (as the WHATWG parser prints it) or `path`. A tool without one, or a url longer than
+ * `MAX_URL_SUBJECT_CHARS`, never matches a pattern (the stricter outcome: no rule lowers it).
  */
 function subjectOf(args: Json): string | undefined {
   const command = stringArg(args, 'command')
   if (command !== undefined) return command
   const url = stringArg(args, 'url')
   if (url !== undefined) {
+    if (url.length > MAX_URL_SUBJECT_CHARS) return undefined
+    let href: string
     try {
-      return new URL(url).href
+      href = new URL(url).href
     } catch {
-      return url
+      href = url
     }
+    return href.length > MAX_URL_SUBJECT_CHARS ? undefined : href
   }
   return stringArg(args, 'path')
 }
@@ -176,13 +183,13 @@ function globalDefault(input: PolicyInput, config: PolicyConfig): Step {
   }
 }
 
-function matches(m: PolicyMatch, input: PolicyInput): boolean {
+/** `subject` is `subjectOf(input.args)`, computed once per decision. */
+function matches(m: PolicyMatch, input: PolicyInput, subject: string | undefined): boolean {
   if (m.tool !== undefined && m.tool !== input.tool) return false
   if (m.mcpServer !== undefined && m.mcpServer !== input.mcpServer) return false
   if (m.actionClass !== undefined && m.actionClass !== input.actionClass) return false
   if (m.nodeKind !== undefined && m.nodeKind !== input.nodeKind) return false
   if (m.argPattern !== undefined) {
-    const subject = subjectOf(input.args)
     if (subject === undefined) return false
     return input.actionClass === 'shell_exec'
       ? commandPrefixMatch(m.argPattern, subject)
@@ -200,11 +207,15 @@ function specificity(m: PolicyMatch): [number, number] {
 }
 
 /** The winning rule of one tier: most specific, ties to the stricter level. */
-function pick(rules: readonly PolicyRuleLike[], input: PolicyInput): PolicyRuleLike | undefined {
+function pick(
+  rules: readonly PolicyRuleLike[],
+  input: PolicyInput,
+  subject: string | undefined,
+): PolicyRuleLike | undefined {
   let best: PolicyRuleLike | undefined
   let bestSpec: [number, number] = [-1, -1]
   for (const rule of rules) {
-    if (!matches(rule.match, input)) continue
+    if (!matches(rule.match, input, subject)) continue
     const spec = specificity(rule.match)
     const cmp = spec[0] - bestSpec[0] || spec[1] - bestSpec[1]
     if (best === undefined || cmp > 0 || (cmp === 0 && RANK[rule.level] > RANK[best.level])) {
@@ -255,8 +266,9 @@ export function decide(input: PolicyInput, config: PolicyConfig): PolicyDecision
   if (base.final) return { level: base.level, source: base.source, reason: base.reason }
 
   let d: PolicyDecision
-  const userRule = pick(config.userRules, input)
-  const profileRule = userRule ? undefined : pick(config.profileRules, input)
+  const subject = subjectOf(input.args)
+  const userRule = pick(config.userRules, input, subject)
+  const profileRule = userRule ? undefined : pick(config.profileRules, input, subject)
   if (userRule) d = fromRule(userRule, input, 'user_rule')
   else if (base.source === 'user_rule') d = base
   else if (profileRule) d = fromRule(profileRule, input, 'profile')

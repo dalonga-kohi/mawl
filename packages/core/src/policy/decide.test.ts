@@ -754,6 +754,30 @@ describe('decide: precedence', () => {
     expect(decide(input(over), config)).toMatchObject({ level, source })
   })
 
+  it('a url subject over 2048 characters never matches a glob, so it never lowers', () => {
+    const url = `https://a.com/${'x'.repeat(2100)}`
+    const d = decide(
+      input({ tool: 'fetch_like', actionClass: 'send_message', args: { url } }),
+      user({ match: { tool: 'fetch_like', argPattern: 'https://a.com/*' }, level: 'auto' }),
+    )
+    expect(d).toMatchObject({ level: 'ask', source: 'global' })
+  })
+
+  it('a 5000-character url against 200 rules stays fast and does not lower', () => {
+    const url = `https://a.com/${'a'.repeat(5000)}`
+    const rules = Array.from({ length: 200 }, () => ({
+      match: { tool: 'fetch_like', argPattern: `${'*a'.repeat(50)}b` },
+      level: 'auto' as const,
+    }))
+    const start = performance.now()
+    const d = decide(
+      input({ tool: 'fetch_like', actionClass: 'send_message', args: { url } }),
+      user(...rules),
+    )
+    expect(d.level).toBe('ask')
+    expect(performance.now() - start).toBeLessThan(1000)
+  })
+
   it('always explains itself', () => {
     expect(decide(input({ actionClass: 'credential' }), NONE).reason).toMatch(/\S/)
   })
