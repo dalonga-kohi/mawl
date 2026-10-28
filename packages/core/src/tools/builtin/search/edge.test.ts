@@ -47,6 +47,13 @@ describe('parseDdgsHtml edge cases', () => {
     ])
   })
 
+  it('drops a /y.js ad-click link even when the result block carries no ad class', () => {
+    const html = doc(
+      hit('//duckduckgo.com/y.js?ad_domain=shop.example&u3=x'),
+      hit('https://ok.example/'),
+    )
+    expect(urlsOf(html)).toEqual(['https://ok.example/'])
+  })
   it('drops a redirect wrapper whose target is not http(s) or is missing or malformed', () => {
     const html = doc(
       hit('//duckduckgo.com/l/?uddg=javascript%3Aalert(1)'),

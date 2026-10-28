@@ -115,13 +115,14 @@ describe('search key service edge cases (PGlite)', () => {
     )
   })
 
-  it('a second set moves updatedAt forward and never backward', async () => {
+  it('a second set moves updatedAt forward', async () => {
     const { svc } = await service()
-    const first = (await svc.setKey({ provider: 'tavily', apiKey: 'one' })).backends[0]?.updatedAt
-    const second = (await svc.setKey({ provider: 'tavily', apiKey: 'two' })).backends[0]?.updatedAt
-    expect(Date.parse(second ?? '')).toBeGreaterThanOrEqual(Date.parse(first ?? ''))
+    await svc.setKey({ provider: 'tavily', apiKey: 'one' })
+    const old = new Date('2020-01-01T00:00:00Z')
+    await db.update(serviceCredentials).set({ updatedAt: old })
+    const after = (await svc.setKey({ provider: 'tavily', apiKey: 'two' })).backends[0]?.updatedAt
+    expect(Date.parse(after ?? '')).toBeGreaterThan(old.getTime())
   })
-
   it('sends a 512-character punctuation-heavy key intact in the header', async () => {
     const key = `${'a!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'.repeat(15)}`.slice(0, 512)
     const fetch = routed()
