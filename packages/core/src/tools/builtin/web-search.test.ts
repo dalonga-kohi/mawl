@@ -75,14 +75,17 @@ describe('braveSearch', () => {
     expect(init?.redirect).toBe('error')
     // The key travels in the header only, never in the url.
     expect(url).not.toContain(KEY)
-    expect(results).toEqual([
-      {
-        title: 'Python Web Frameworks',
-        url: 'https://example.com/python',
-        snippet: 'Main snippet & more',
-      },
-      { title: 'Second', url: 'https://example.org/2', snippet: 'Two' },
-    ])
+    expect(results).toEqual({
+      backend: 'brave',
+      results: [
+        {
+          title: 'Python Web Frameworks',
+          url: 'https://example.com/python',
+          snippet: 'Main snippet & more',
+        },
+        { title: 'Second', url: 'https://example.org/2', snippet: 'Two' },
+      ],
+    })
   })
 
   it('answers no web results as an empty list', async () => {
@@ -92,7 +95,17 @@ describe('braveSearch', () => {
         count: 5,
         signal: new AbortController().signal,
       }),
-    ).toEqual([])
+    ).toEqual({ backend: 'brave', results: [] })
+  })
+
+  it('maps a network error to unavailable', async () => {
+    const fetch = vi.fn<FetchFn>(async () => {
+      throw new TypeError('fetch failed')
+    })
+    const err = await braveSearch({ apiKey: KEY, fetch })
+      .search('x', { count: 5, signal: new AbortController().signal })
+      .catch((e: unknown) => e)
+    expect((err as SearchFailedError).reason).toBe('unavailable')
   })
 
   it.each([
@@ -124,7 +137,7 @@ describe('web_search tool', () => {
   it('lists the results as data', async () => {
     const out = text(await bind(brave(async () => json(braveBody))).call({ query: 'python web' }))
     expect(out.startsWith('<tool_result>\n')).toBe(true)
-    expect(out).toContain('1. Python Web Frameworks')
+    expect(out).toContain('Source: brave\n1. Python Web Frameworks')
     expect(out).toContain('https://example.com/python')
     expect(out).toContain('2. Second')
   })

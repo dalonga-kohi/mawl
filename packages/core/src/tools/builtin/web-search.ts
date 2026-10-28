@@ -1,103 +1,15 @@
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
-import { cut } from '../text.ts'
 import type { Tool, ToolOutcome } from '../types.ts'
+import { SearchFailedError, type SearchProvider } from './search/types.ts'
 
-export interface SearchResult {
-  title: string
-  url: string
-  snippet: string
-}
-
-/** Why a search backend failed. Closed: backend text can echo the key, so none is kept. */
-export class SearchFailedError extends Error {
-  constructor(readonly reason: 'invalid_key' | 'rate_limited' | 'unavailable') {
-    super(`search failed: ${reason}`)
-    this.name = 'SearchFailedError'
-  }
-}
-
-/** A pluggable web search backend. Brave is the first; others implement the same port. */
-export interface SearchProvider {
-  readonly name: string
-  search(query: string, options: { count: number; signal: AbortSignal }): Promise<SearchResult[]>
-}
-
-/** Brave Search web endpoint (api-dashboard.search.brave.com docs, checked 2026-10-24). */
-export const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search'
-
-const BraveResponse = z.looseObject({
-  web: z
-    .looseObject({
-      results: z
-        .array(
-          z.looseObject({
-            title: z.string(),
-            url: z.string(),
-            description: z.string().optional(),
-          }),
-        )
-        .optional(),
-    })
-    .optional(),
-})
-
-const ENTITIES: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&#x27;': "'",
-  '&nbsp;': ' ',
-}
-
-/** Brave marks matches with <strong>; keep plain text only. */
-function plain(text: string, max: number): string {
-  const out = text
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(?:amp|lt|gt|quot|nbsp|#39|#x27);/g, (e) => ENTITIES[e] ?? e)
-    .replace(/\s+/g, ' ')
-    .trim()
-  return out.length > max ? `${cut(out, max)}…` : out
-}
-
-/**
- * Brave Search backend. The key goes in the `X-Subscription-Token` header only (never the url),
- * redirects are refused so it can never be sent elsewhere, and no response text is kept on error.
- */
-export function braveSearch({
-  apiKey,
-  fetch,
-}: {
-  apiKey: string
-  fetch: (url: string, init: RequestInit) => Promise<Response>
-}): SearchProvider {
-  return {
-    name: 'brave',
-    async search(query, { count, signal }) {
-      const url = new URL(BRAVE_SEARCH_URL)
-      url.searchParams.set('q', query)
-      url.searchParams.set('count', String(count))
-      const res = await fetch(url.href, {
-        method: 'GET',
-        redirect: 'error',
-        signal,
-        headers: { accept: 'application/json', 'x-subscription-token': apiKey },
-      })
-      if (res.status === 401 || res.status === 403) throw new SearchFailedError('invalid_key')
-      if (res.status === 429) throw new SearchFailedError('rate_limited')
-      if (!res.ok) throw new SearchFailedError('unavailable')
-      const parsed = BraveResponse.safeParse(await res.json().catch(() => null))
-      if (!parsed.success) throw new SearchFailedError('unavailable')
-      return (parsed.data.web?.results ?? []).slice(0, count).map((r) => ({
-        title: plain(r.title, 200),
-        url: r.url,
-        snippet: plain(r.description ?? '', 500),
-      }))
-    },
-  }
-}
+export { BRAVE_SEARCH_URL, braveSearch } from './search/brave.ts'
+export {
+  type SearchAnswer,
+  SearchFailedError,
+  type SearchProvider,
+  type SearchResult,
+} from './search/types.ts'
 
 export interface WebSearchDeps {
   /** The configured backend, read per call so a new or cleared key applies at once. Null: no key. */
@@ -137,15 +49,17 @@ export function webSearchTool(deps: WebSearchDeps): Tool {
       const timer = new AbortController()
       const handle = setTimeout(() => timer.abort(new Error('timeout')), timeoutMs)
       try {
-        const results = await provider.search(query, {
+        const { backend, results } = await provider.search(query, {
           count,
           signal: AbortSignal.any([ctx.signal, timer.signal]),
         })
-        if (results.length === 0) return { kind: 'ok', text: `No results for "${query}".` }
-        const lines = results.map(
-          (r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`,
-        )
-        return { kind: 'ok', text: lines.join('\n') }
+        const source = `Source: ${backend}`
+        if (results.length === 0)
+          return { kind: 'ok', text: `${source}\nNo results for "${query}".` }
+        const lines = results
+          .slice(0, count)
+          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`)
+        return { kind: 'ok', text: `${source}\n${lines.join('\n')}` }
       } catch (err) {
         if (ctx.signal.aborted) throw err
         if (timer.signal.aborted) {

@@ -317,7 +317,7 @@ describe('web_search edge: Brave responses and the key', () => {
     const [url, init] = f.mock.calls[0] ?? []
     expect(url).not.toContain(KEY)
     expect(new URL(url as string).searchParams.get('q')).toBe('a & b=c#d é')
-    expect(JSON.stringify(init?.headers)).toContain(KEY)
+    expect(new Headers(init?.headers).get('x-subscription-token')).toBe(KEY)
     expect(init?.redirect).toBe('error')
   })
 
@@ -371,7 +371,10 @@ describe('web_search edge: Brave responses and the key', () => {
   it('asks the provider per call, so clearing the key applies at once', async () => {
     let provider: SearchProvider | null = {
       name: 'x',
-      search: async () => [{ title: 't', url: 'https://x.com', snippet: '' }],
+      search: async () => ({
+        backend: 'x',
+        results: [{ title: 't', url: 'https://x.com', snippet: '' }],
+      }),
     }
     const h = bind([webSearchTool({ provider: async () => provider })])
     expect(text(await h.call('web_search', { query: 'q' }))).toContain('https://x.com')
