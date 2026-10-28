@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { DDGS_SEARCH_URL, ddgsSearch, parseDdgsHtml } from './ddgs.ts'
 import { SEARCH_USER_AGENT } from './http.ts'
+import { growthRatio, LINEAR_MAX_RATIO } from './scaling-test-util.ts'
 import { SearchFailedError, type SearchFetch } from './types.ts'
 
 const fixture = (name: string) =>
@@ -81,14 +82,14 @@ describe('parseDdgsHtml', () => {
     expect(parseDdgsHtml(html)).toEqual({ kind: 'results', results: [] })
   })
 
+  // n vs 4n (linear ~4x, quadratic ~16x), not a wall-clock budget: CI runners are slower. The
+  // first version of the challenge check was quadratic on unclosed <title> tags.
   it.each([
-    ['unclosed <title> tags', `bots use DuckDuckGo too${'<title>'.repeat(100_000)}`],
-    ['unclosed quoted attributes', `<div ${'class="x '.repeat(100_000)}`],
-    ['many forms', `bots use DuckDuckGo too${'<form><input value="'.repeat(50_000)}`],
-  ])('stays linear on %s', (_l, html) => {
-    const started = performance.now()
-    parseDdgsHtml(html)
-    expect(performance.now() - started).toBeLessThan(300)
+    ['unclosed <title> tags', (n: number) => `bots use DuckDuckGo too${'<title>'.repeat(n)}`],
+    ['unclosed quoted attributes', (n: number) => `<div ${'class="x '.repeat(n)}`],
+    ['many forms', (n: number) => `bots use DuckDuckGo too${'<form><input value="'.repeat(n)}`],
+  ])('stays linear on %s', (_l, page) => {
+    expect(growthRatio(page, parseDdgsHtml, 10_000)).toBeLessThan(LINEAR_MAX_RATIO)
   })
 
   it('does not take the wording alone, without a challenge form, for the challenge', () => {

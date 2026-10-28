@@ -3,6 +3,7 @@ import { braveSearch } from './brave.ts'
 import { chainedSearch } from './chain.ts'
 import { DDGS_COOL_DOWN_MS, ddgsSearch, parseDdgsHtml } from './ddgs.ts'
 import { decodeEntities, plain, readText, send } from './http.ts'
+import { growthRatio, LINEAR_MAX_RATIO } from './scaling-test-util.ts'
 import { tavilySearch } from './tavily.ts'
 import {
   SearchFailedError,
@@ -118,22 +119,22 @@ describe('parseDdgsHtml edge cases', () => {
     })
   })
 
-  it('parses 5000 results in well under a second', () => {
-    const started = performance.now()
-    parseDdgsHtml(doc(...Array.from({ length: 5_000 }, (_, i) => hit(`https://e.example/${i}`))))
-    expect(performance.now() - started).toBeLessThan(1_000)
+  // Scaling guards compare n with 4n (linear ~4x, quadratic ~16x) instead of a wall-clock budget,
+  // which is flaky on slower CI runners. The old regex parser measured ~16x on the two tag cases.
+  it('parses thousands of results in time linear in their number', () => {
+    const page = (n: number) =>
+      doc(...Array.from({ length: n }, (_, i) => hit(`https://e.example/${i}`)))
+    expect(growthRatio(page, parseDdgsHtml, 1_250)).toBeLessThan(LINEAR_MAX_RATIO)
   })
 
   it('does not go quadratic on many unterminated <div tags (a 2 MiB page of them must not block)', () => {
-    const started = performance.now()
-    parseDdgsHtml('<div '.repeat(20_000))
-    expect(performance.now() - started).toBeLessThan(300)
+    const page = (n: number) => '<div '.repeat(n)
+    expect(growthRatio(page, parseDdgsHtml, 5_000)).toBeLessThan(LINEAR_MAX_RATIO)
   })
 
   it('does not go quadratic on many unterminated <a tags inside one result', () => {
-    const started = performance.now()
-    parseDdgsHtml(`<div class="result">${'<a '.repeat(20_000)}`)
-    expect(performance.now() - started).toBeLessThan(300)
+    const page = (n: number) => `<div class="result">${'<a '.repeat(n)}`
+    expect(growthRatio(page, parseDdgsHtml, 5_000)).toBeLessThan(LINEAR_MAX_RATIO)
   })
 
   it('drops a result with no href, an empty href, or an href broken by a stray ">"', () => {
