@@ -105,25 +105,49 @@ function stringArg(args: Json, key: string): string | undefined {
 export const MAX_URL_SUBJECT_CHARS = 2048
 
 /**
- * What an `argPattern` is matched against: the tool's primary argument, the first of `command`,
- * `url` (as the WHATWG parser prints it) or `path`. A tool without one, or a url longer than
- * `MAX_URL_SUBJECT_CHARS`, never matches a pattern (the stricter outcome: no rule lowers it).
+ * A url split where a glob star must not cross: `origin` is `scheme://host[:port]` (never
+ * credentials, path, query or fragment), `rest` is the path plus query (no fragment).
  */
-function subjectOf(args: Json): string | undefined {
+type Subject = { kind: 'text'; value: string } | { kind: 'url'; origin: string; rest: string }
+
+/**
+ * What an `argPattern` is matched against: the tool's primary argument, the first of `command`,
+ * `url` (parsed with the WHATWG parser) or `path`. A tool without one, or a url that does not
+ * parse or is longer than `MAX_URL_SUBJECT_CHARS`, never matches a pattern (the stricter outcome:
+ * no rule lowers it).
+ */
+function subjectOf(args: Json): Subject | undefined {
   const command = stringArg(args, 'command')
-  if (command !== undefined) return command
+  if (command !== undefined) return { kind: 'text', value: command }
   const url = stringArg(args, 'url')
   if (url !== undefined) {
     if (url.length > MAX_URL_SUBJECT_CHARS) return undefined
-    let href: string
+    let u: URL
     try {
-      href = new URL(url).href
+      u = new URL(url)
     } catch {
-      href = url
+      return undefined
     }
-    return href.length > MAX_URL_SUBJECT_CHARS ? undefined : href
+    if (u.href.length > MAX_URL_SUBJECT_CHARS) return undefined
+    return { kind: 'url', origin: `${u.protocol}//${u.host}`, rest: `${u.pathname}${u.search}` }
   }
-  return stringArg(args, 'path')
+  const path = stringArg(args, 'path')
+  return path === undefined ? undefined : { kind: 'text', value: path }
+}
+
+/**
+ * A url pattern is split like the url: the part up to the first `/` after `://` is matched
+ * against `scheme://host[:port]` only, the rest (default `/`) against path plus query. So a star
+ * in the host part can never reach into the path or query (`https://*.example.com/*` does not
+ * match `https://evil.net/?.example.com/`). A pattern without `://` never matches a url.
+ */
+function urlGlobMatch(pattern: string, origin: string, rest: string): boolean {
+  const sep = pattern.indexOf('://')
+  if (sep < 0) return false
+  const slash = pattern.indexOf('/', sep + 3)
+  const patOrigin = slash < 0 ? pattern : pattern.slice(0, slash)
+  const patRest = slash < 0 ? '/' : pattern.slice(slash)
+  return globMatch(patOrigin, origin) && globMatch(patRest, rest)
 }
 
 /** The built-in default, including the hard floors that end the decision (`final`). */
@@ -184,16 +208,22 @@ function globalDefault(input: PolicyInput, config: PolicyConfig): Step {
 }
 
 /** `subject` is `subjectOf(input.args)`, computed once per decision. */
-function matches(m: PolicyMatch, input: PolicyInput, subject: string | undefined): boolean {
+function matches(m: PolicyMatch, input: PolicyInput, subject: Subject | undefined): boolean {
   if (m.tool !== undefined && m.tool !== input.tool) return false
   if (m.mcpServer !== undefined && m.mcpServer !== input.mcpServer) return false
   if (m.actionClass !== undefined && m.actionClass !== input.actionClass) return false
   if (m.nodeKind !== undefined && m.nodeKind !== input.nodeKind) return false
   if (m.argPattern !== undefined) {
     if (subject === undefined) return false
+    if (subject.kind === 'url') {
+      return (
+        input.actionClass !== 'shell_exec' &&
+        urlGlobMatch(m.argPattern, subject.origin, subject.rest)
+      )
+    }
     return input.actionClass === 'shell_exec'
-      ? commandPrefixMatch(m.argPattern, subject)
-      : globMatch(m.argPattern, subject)
+      ? commandPrefixMatch(m.argPattern, subject.value)
+      : globMatch(m.argPattern, subject.value)
   }
   return true
 }
@@ -210,7 +240,7 @@ function specificity(m: PolicyMatch): [number, number] {
 function pick(
   rules: readonly PolicyRuleLike[],
   input: PolicyInput,
-  subject: string | undefined,
+  subject: Subject | undefined,
 ): PolicyRuleLike | undefined {
   let best: PolicyRuleLike | undefined
   let bestSpec: [number, number] = [-1, -1]

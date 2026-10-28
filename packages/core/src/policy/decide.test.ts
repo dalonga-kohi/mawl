@@ -754,6 +754,26 @@ describe('decide: precedence', () => {
     expect(decide(input(over), config)).toMatchObject({ level, source })
   })
 
+  it.each([
+    ['https://*.example.com/*', 'https://evil.net/?.example.com/', false],
+    ['https://*.example.com/*', 'https://evil.net/x.example.com/', false],
+    ['https://*.example.com/*', 'https://evil.net#.example.com/', false],
+    ['https://*.example.com/*', 'https://a.example.com/x', true],
+    ['https://*.example.com/*', 'https://a.example.com/x?q=1', true],
+    ['https://*.example.com/*', 'https://example.com.evil.net/', false],
+    ['https://*example.com/*', 'https://user@evil.net/?example.com/', false],
+    ['https://example.com', 'https://example.com', true],
+    ['https://example.com', 'https://example.com/other', false],
+    ['*.example.com/*', 'https://a.example.com/x', false],
+    ['https://*', 'https://evil.net/x', false],
+  ])('url glob %s against %s is %s (a star never crosses the host)', (pattern, url, lowers) => {
+    const d = decide(
+      input({ tool: 'fetch_like', actionClass: 'send_message', args: { url } }),
+      user({ match: { tool: 'fetch_like', argPattern: pattern }, level: 'auto' }),
+    )
+    expect(d.level).toBe(lowers ? 'auto' : 'ask')
+  })
+
   it('a url subject over 2048 characters never matches a glob, so it never lowers', () => {
     const url = `https://a.com/${'x'.repeat(2100)}`
     const d = decide(
