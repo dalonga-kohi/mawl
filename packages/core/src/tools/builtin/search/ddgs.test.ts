@@ -71,6 +71,26 @@ describe('parseDdgsHtml', () => {
     expect(parseDdgsHtml(shouty)).toEqual({ kind: 'challenge' })
   })
 
+  it('does not take a no-results page for a query that quotes the wording as the challenge', () => {
+    const q = 'bots use DuckDuckGo too confirm this search was made by a human'
+    const html = EMPTY.replaceAll('qzxjvkqwpzzxqvbnm7731lkjhgfzzqxjv', q).replace(
+      '<div class="serp__results">',
+      `<form action="/html/" method="post"><input name="q" value="${q}"><input type="submit" value="S"></form><div class="serp__results">`,
+    )
+    expect(html).toContain(`<strong>&quot;${q}&quot;</strong>`)
+    expect(parseDdgsHtml(html)).toEqual({ kind: 'results', results: [] })
+  })
+
+  it.each([
+    ['unclosed <title> tags', `bots use DuckDuckGo too${'<title>'.repeat(100_000)}`],
+    ['unclosed quoted attributes', `<div ${'class="x '.repeat(100_000)}`],
+    ['many forms', `bots use DuckDuckGo too${'<form><input value="'.repeat(50_000)}`],
+  ])('stays linear on %s', (_l, html) => {
+    const started = performance.now()
+    parseDdgsHtml(html)
+    expect(performance.now() - started).toBeLessThan(300)
+  })
+
   it('does not take the wording alone, without a challenge form, for the challenge', () => {
     const html = '<html><body><p>Unfortunately, bots use DuckDuckGo too.</p></body></html>'
     expect(parseDdgsHtml(html)).toEqual({ kind: 'unrecognized' })
@@ -191,6 +211,18 @@ describe('ddgsSearch', () => {
       const answer = await c.run()
       expect(c.fetch).toHaveBeenCalledTimes(2)
       expect((answer as unknown as { backend: string }).backend).toBe('ddgs')
+    })
+
+    it('does not cool down after a no-results page whose query quotes the challenge wording', async () => {
+      const q = 'confirm this search was made by a human'
+      const empty = EMPTY.replaceAll('qzxjvkqwpzzxqvbnm7731lkjhgfzzqxjv', q).replace(
+        '<div class="serp__results">',
+        `<form action="/html/" method="post"><input name="q" value="${q}"><input type="submit" value="S"></form><div class="serp__results">`,
+      )
+      const c = clocked([() => page(empty), () => page(RESULTS)])
+      expect(await c.run()).toEqual({ backend: 'ddgs', results: [] })
+      await c.run()
+      expect(c.fetch).toHaveBeenCalledTimes(2)
     })
 
     it.each([

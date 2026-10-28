@@ -21,39 +21,59 @@ export type DdgsPage =
   | { kind: 'challenge' }
   | { kind: 'unrecognized' }
 
-const RESULT_DIV = /<div\b([^>]*)>/gi
-const ANCHOR = /<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi
-/** Anchored on the class inside the opening tag, so an enclosing `div` never swallows it. */
-const SNIPPET = /<(a|div|td|span)\b([^>]*\bresult__snippet\b[^>]*)>([\s\S]*?)<\/\1\s*>/i
-const NO_RESULTS = /\bclass\s*=\s*["'][^"']*\b(?:no-results|result--no-result)\b/i
-
-/** The challenge page's wording, as served (case and line breaks vary). */
-const CHALLENGE_WORDING = [
-  /bots\s+use\s+duckduckgo\s+too/i,
-  /confirm\s+this\s+search\s+was\s+made\s+by\s+a\s+human/i,
-]
-/**
- * The challenge page's markup: its class/id names (matched on attributes only, so a query echoed
- * in the page's input value does not count), or a form with a submit button.
- */
-const CHALLENGE_MARKUP = [
-  /<[^>]*\b(?:class|id)\s*=\s*["'][^"']*\b(?:anomaly-modal|challenge-form)/i,
-  /<form\b[\s\S]*?(?:<button\b|\btype\s*=\s*["']?submit)[\s\S]*?<\/form\s*>/i,
-]
-
-/** Two signals: the wording and challenge markup, so a page that only quotes the text is not it. */
-function isChallenge(html: string): boolean {
-  return (
-    CHALLENGE_WORDING.some((re) => re.test(html)) && CHALLENGE_MARKUP.some((re) => re.test(html))
-  )
+/** One opening tag: its lower-case name, where it starts and ends, and its raw attribute text. */
+interface Tag {
+  name: string
+  start: number
+  /** Index just after the closing `>`. */
+  end: number
+  attrs: string
 }
 
+/** A tag whose attributes run longer than this is malformed and skipped. */
+const MAX_TAG_CHARS = 4096
+
+/**
+ * Every opening tag, in one forward pass. Linear on hostile input: the next tag is searched only
+ * after the previous tag's `>`, so no character is scanned twice, and a missing `>` ends the scan
+ * (no later tag could close either). Tags inside comments or scripts may be read as tags; the
+ * reader is tolerant, not a full HTML parser.
+ */
+function scanTags(html: string): Tag[] {
+  const open = /<([a-z][a-z0-9]*)(?=[\s/>])/gi
+  const tags: Tag[] = []
+  for (;;) {
+    const m = open.exec(html)
+    if (!m) break
+    const gt = html.indexOf('>', m.index)
+    if (gt === -1) break
+    if (gt - m.index <= MAX_TAG_CHARS) {
+      tags.push({
+        name: (m[1] ?? '').toLowerCase(),
+        start: m.index,
+        end: gt + 1,
+        attrs: html.slice(m.index + m[0].length, gt),
+      })
+    }
+    open.lastIndex = gt + 1
+  }
+  return tags
+}
+
+/** A quoted attribute's value; null when absent or when its quote is never closed. */
 function attr(attrs: string, name: string): string | null {
   const m = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(attrs)
   return m ? (m[1] ?? m[2] ?? '') : null
 }
 
-const classes = (attrs: string) => new Set((attr(attrs, 'class') ?? '').split(/\s+/))
+const classes = (tag: Tag) => new Set((attr(tag.attrs, 'class') ?? '').split(/\s+/))
+
+/** The text from `from` to the first `</name>` before `to`; null when the element never closes. */
+function inner(html: string, name: string, from: number, to: number): string | null {
+  const region = html.slice(from, to)
+  const close = new RegExp(`</${name}\\s*>`, 'i').exec(region)
+  return close ? region.slice(0, close.index) : null
+}
 
 /**
  * The real target of a result link: DuckDuckGo may wrap it as `//duckduckgo.com/l/?uddg=<url>`.
@@ -77,40 +97,117 @@ function resolveLink(raw: string): string | null {
   return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null
 }
 
+/** The challenge page's wording, as served (case and line breaks vary). */
+const CHALLENGE_WORDING = [
+  /bots\s+use\s+duckduckgo\s+too/i,
+  /confirm\s+this\s+search\s+was\s+made\s+by\s+a\s+human/i,
+]
+
 /**
- * A small tolerant reader for the html endpoint. Each result is a `div` with class `result`; its
- * title is the `result__a` link and its snippet the `result__snippet` element. Ads are dropped.
- * Parsed results always win (a snippet may quote the challenge wording). Without results, the
- * challenge page is `challenge`, and zero results count only when the page says so (its
- * no-results marker); anything else is `unrecognized`, so it never reads as an empty answer.
+ * The page text the wording is looked for in: without `<input>` tags and the first `<title>`,
+ * where the query is echoed. Only the first title is searched for its end, so this stays linear.
+ */
+function wordingText(html: string, tags: readonly Tag[]): string {
+  let out = ''
+  let at = 0
+  let titleSeen = false
+  for (const tag of tags) {
+    if (tag.start < at) continue
+    if (tag.name === 'input') {
+      out += html.slice(at, tag.start)
+      at = tag.end
+    } else if (tag.name === 'title' && !titleSeen) {
+      titleSeen = true
+      const text = inner(html, 'title', tag.end, html.length)
+      out += html.slice(at, tag.start)
+      at = tag.end + (text?.length ?? 0)
+    }
+  }
+  return out + html.slice(at)
+}
+
+/**
+ * Two signals, so a page that only quotes the text is not the challenge: its wording (outside the
+ * echoed query) and challenge markup. Markup is the anomaly class names, the `challenge-form` id
+ * or an `anomaly.js` form action; or, on a page that is not a results page (no `links` /
+ * `serp__results` container, which every normal page has), a form with a submit button.
+ */
+function isChallenge(html: string, tags: readonly Tag[]): boolean {
+  const text = wordingText(html, tags)
+  if (!CHALLENGE_WORDING.some((re) => re.test(text))) return false
+  let serp = false
+  let form = false
+  let submit = false
+  for (const tag of tags) {
+    const cls = classes(tag)
+    const id = attr(tag.attrs, 'id')
+    if ([...cls].some((c) => c.startsWith('anomaly-modal')) || id === 'challenge-form') return true
+    if (tag.name === 'form' && /anomaly\.js/i.test(attr(tag.attrs, 'action') ?? '')) return true
+    if (id === 'links' || cls.has('serp__results')) serp = true
+    if (tag.name === 'form') form = true
+    if (
+      form &&
+      (tag.name === 'button' ||
+        (tag.name === 'input' && (attr(tag.attrs, 'type') ?? '').toLowerCase() === 'submit'))
+    ) {
+      submit = true
+    }
+  }
+  return !serp && submit
+}
+
+/**
+ * A small tolerant reader for the html endpoint, linear in the page size (no backtracking regex
+ * over the page). Each result is a `div` with class `result`; its title is the `result__a` link
+ * and its snippet the `result__snippet` element. Ads, results without a usable link and results
+ * whose title link never closes are dropped. Parsed results always win (a snippet may quote the
+ * challenge wording). Without results, the challenge page is `challenge`, and zero results count
+ * only when the page says so (its no-results marker); anything else is `unrecognized`, so it never
+ * reads as an empty answer.
  */
 export function parseDdgsHtml(html: string): DdgsPage {
-  const starts: { at: number; classes: Set<string> }[] = []
-  for (const m of html.matchAll(RESULT_DIV)) {
-    const cls = classes(m[1] ?? '')
-    if (cls.has('result')) starts.push({ at: m.index, classes: cls })
-  }
+  const tags = scanTags(html)
+  const starts: number[] = []
+  let noResults = false
+  tags.forEach((tag, i) => {
+    const cls = classes(tag)
+    if (cls.has('no-results') || cls.has('result--no-result')) noResults = true
+    if (tag.name === 'div' && cls.has('result')) starts.push(i)
+  })
+
   const results: SearchResult[] = []
-  starts.forEach((start, i) => {
-    if (start.classes.has('result--ad') || start.classes.has('result--no-result')) return
-    const block = html.slice(start.at, starts[i + 1]?.at ?? html.length)
-    let title: { href: string; text: string } | null = null
-    for (const a of block.matchAll(ANCHOR)) {
-      const attrs = a[1] ?? ''
-      if (classes(attrs).has('result__a')) {
-        title = { href: attr(attrs, 'href') ?? '', text: a[2] ?? '' }
-        break
+  starts.forEach((first, n) => {
+    const head = tags[first]
+    if (!head) return
+    const cls = classes(head)
+    if (cls.has('result--ad') || cls.has('result--no-result')) return
+    const last = starts[n + 1] ?? tags.length
+    const blockEnd = tags[last]?.start ?? html.length
+    let title: Tag | undefined
+    let snippet: Tag | undefined
+    for (let i = first + 1; i < last; i++) {
+      const tag = tags[i]
+      if (!tag) continue
+      const c = classes(tag)
+      if (!title && tag.name === 'a' && c.has('result__a')) title = tag
+      if (!snippet && ['a', 'div', 'td', 'span'].includes(tag.name) && c.has('result__snippet')) {
+        snippet = tag
       }
     }
     if (!title) return
-    const url = resolveLink(title.href)
+    const href = attr(title.attrs, 'href')?.trim()
+    if (!href) return
+    const url = resolveLink(href)
     if (!url) return
-    const snippet = SNIPPET.exec(block)?.[3] ?? ''
-    results.push({ title: plain(title.text, 200), url, snippet: plain(snippet, 500) })
+    const text = inner(html, 'a', title.end, blockEnd)
+    if (text === null) return
+    const snippetText = snippet ? (inner(html, snippet.name, snippet.end, blockEnd) ?? '') : ''
+    results.push({ title: plain(text, 200), url, snippet: plain(snippetText, 500) })
   })
+
   if (results.length > 0) return { kind: 'results', results }
-  if (isChallenge(html)) return { kind: 'challenge' }
-  if (NO_RESULTS.test(html)) return { kind: 'results', results }
+  if (isChallenge(html, tags)) return { kind: 'challenge' }
+  if (noResults) return { kind: 'results', results }
   return { kind: 'unrecognized' }
 }
 
@@ -130,6 +227,10 @@ export interface DdgsDeps {
  * `coolDownMs` no request is sent and every search is `unavailable` at once, so a model that keeps
  * searching does not deepen the block. One request per search; the challenge is never answered.
  * The cool-down lives in this instance, so the host keeps one instance for the process.
+ *
+ * Other failures (a network error, a refused redirect, a 5xx, an unrecognized page) start no
+ * cool-down on purpose: they look the same as an outage or a redesign, not as DuckDuckGo
+ * refusing us, and each search still sends DuckDuckGo at most one request.
  */
 export function ddgsSearch({
   fetch,
