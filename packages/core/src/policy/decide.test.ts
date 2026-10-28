@@ -882,4 +882,73 @@ describe('parseProfilePolicy', () => {
       policy: { mode: 'standard', rules: [], allowedHosts: [] },
     })
   })
+
+  it('keeps the valid block, handoff and ask rules when another element is invalid', () => {
+    const block = { match: { tool: 'send_mail' }, level: 'block' }
+    const handoff = { match: { tool: 'pay' }, level: 'handoff' }
+    const ask = { match: { tool: 'post' }, level: 'ask' }
+    const auto = { match: { tool: 'web_search' }, level: 'auto' }
+    const r = parseProfilePolicy({
+      mode: 'autopilot',
+      allowedHosts: ['a.com'],
+      rules: [block, { match: {}, level: 'auto' }, handoff, auto, ask],
+    })
+    expect(r).toEqual({
+      valid: false,
+      policy: { mode: 'standard', rules: [block, handoff, ask], allowedHosts: [] },
+    })
+  })
+
+  it('keeps the strict rules when only a top-level key is invalid', () => {
+    const block = { match: { tool: 'send_mail' }, level: 'block' }
+    const r = parseProfilePolicy({ rules: [block], allowAll: true })
+    expect(r.policy.rules).toEqual([block])
+    expect(r.valid).toBe(false)
+  })
+
+  it('reads at most the rule cap when salvaging', () => {
+    const block = { match: { tool: 'x' }, level: 'block' }
+    const r = parseProfilePolicy({ rules: Array(500).fill(block), bad: 1 })
+    expect(r.policy.rules).toHaveLength(200)
+  })
+
+  it('an invalid policy with a valid block rule still blocks that tool', () => {
+    const { policy } = parseProfilePolicy({
+      rules: [
+        { match: { tool: 'send_mail' }, level: 'block' },
+        { match: {}, level: 'auto' },
+      ],
+    })
+    const d = decide(input({ tool: 'send_mail', actionClass: 'send_message' }), {
+      userRules: policy.rules,
+      profileRules: [],
+      allowedHosts: policy.allowedHosts,
+    })
+    expect(d).toMatchObject({ level: 'block', source: 'user_rule' })
+  })
+
+  it('an invalid policy drops its auto rules', () => {
+    const { policy } = parseProfilePolicy({
+      rules: [
+        { match: { tool: 'send_mail' }, level: 'auto' },
+        { match: {}, level: 'auto' },
+      ],
+    })
+    const d = decide(input({ tool: 'send_mail', actionClass: 'send_message' }), {
+      userRules: policy.rules,
+      profileRules: [],
+      allowedHosts: policy.allowedHosts,
+    })
+    expect(d).toMatchObject({ level: 'ask', source: 'global' })
+  })
+
+  it.each([
+    ['rules is not an array', { rules: 'nope', mode: 'x' }],
+    ['rules is missing', { mode: 'x' }],
+  ])('salvages nothing when %s', (_name, raw) => {
+    expect(parseProfilePolicy(raw)).toEqual({
+      valid: false,
+      policy: { mode: 'standard', rules: [], allowedHosts: [] },
+    })
+  })
 })

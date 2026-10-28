@@ -2,11 +2,13 @@ import {
   type ActionClass,
   type Json,
   type NodeKind,
+  POLICY_LIMITS,
   type PolicyLevel,
   type PolicyMatch,
   type PolicyMode,
   type PolicySource,
   ProfilePolicy,
+  ProfilePolicyRule,
   type RunTrigger,
 } from '@mawl/contracts'
 import { normalizeHost, urlHost } from './host.ts'
@@ -346,11 +348,24 @@ export function decide(input: PolicyInput, config: PolicyConfig): PolicyDecision
 }
 
 /**
- * Reads `profiles.policy_json`. Anything invalid becomes the default policy (standard mode, no
- * rules, no allowed hosts): fail closed, never Autopilot and never allow-all.
+ * Reads `profiles.policy_json`. When it is invalid anywhere, it fails closed without losing the
+ * owner's restrictions: the mode becomes `standard`, the allowed hosts are dropped, and of the
+ * rules (the first `POLICY_LIMITS.rules` elements) only the valid ones that do not lower anything
+ * (`ask`, `handoff`, `block`) are kept. Never Autopilot, never allow-all.
  */
 export function parseProfilePolicy(raw: unknown): { policy: ProfilePolicy; valid: boolean } {
   const parsed = ProfilePolicy.safeParse(raw)
   if (parsed.success) return { policy: parsed.data, valid: true }
-  return { policy: ProfilePolicy.parse({}), valid: false }
+  const rules: ProfilePolicyRule[] = []
+  const rawRules =
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as { rules?: unknown }).rules
+      : undefined
+  if (Array.isArray(rawRules)) {
+    for (const element of rawRules.slice(0, POLICY_LIMITS.rules)) {
+      const rule = ProfilePolicyRule.safeParse(element)
+      if (rule.success && rule.data.level !== 'auto') rules.push(rule.data)
+    }
+  }
+  return { policy: { mode: 'standard', rules, allowedHosts: [] }, valid: false }
 }
