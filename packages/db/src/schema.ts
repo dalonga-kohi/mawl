@@ -329,8 +329,9 @@ export const runWaits = pgTable(
 export const SERVICE_KINDS = ['tavily_search', 'brave_search'] as const
 
 /**
- * Keys of non-model services (the keyed web search backends, one row each). `secretEnc` holds ciphertext only (AAD
- * `service_credentials:<service>`); never add a plaintext column, never select it for an API read.
+ * Keys of non-model services (the keyed web search backends, one row each). `secretEnc` holds
+ * ciphertext only (AAD `service_credentials:<service>`); never add a plaintext column, never
+ * select it for an API read.
  */
 export const serviceCredentials = pgTable(
   'service_credentials',
