@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<!--
+  Synthetic: the shape of DuckDuckGo's bot challenge ("anomaly") page, which it serves to the html
+  endpoint (typically with status 202) instead of results. It has no result links and no
+  no-results marker; the parser must report it as blocked, never as zero results.
+-->
+<html lang="en-US">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>DuckDuckGo</title>
+</head>
+<body>
+  <div class="anomaly-modal__mask">
+    <div class="anomaly-modal__modal">
+      <div class="anomaly-modal__title">Unfortunately, bots use DuckDuckGo too.</div>
+      <div class="anomaly-modal__description">Please complete the following challenge to confirm this search was made by a human.</div>
+      <form id="challenge-form" action="//duckduckgo.com/anomaly.js?sv=html&amp;cc=sre" method="POST">
+        <div class="anomaly-modal__puzzle"></div>
+        <button class="anomaly-modal__submit" type="submit">Submit</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
