@@ -848,8 +848,13 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
       try {
         const blob = Uint8Array.from({ length: 64 }, (_, i) => 255 - i)
         await m.db.insert(serviceCredentials).values({ service: 'brave_search', secretEnc: blob })
+        await m.db.insert(serviceCredentials).values({ service: 'tavily_search', secretEnc: blob })
         await expectPgError(
           m.db.insert(serviceCredentials).values({ service: 'brave_search', secretEnc: blob }),
+          UNIQUE,
+        )
+        await expectPgError(
+          m.db.insert(serviceCredentials).values({ service: 'tavily_search', secretEnc: blob }),
           UNIQUE,
         )
         await expectPgError(
@@ -859,8 +864,9 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           }),
           CHECK,
         )
-        const [row] = await m.db.select().from(serviceCredentials)
-        expect(Array.from(row?.secretEnc ?? [])).toEqual(Array.from(blob))
+        const rows = await m.db.select().from(serviceCredentials)
+        expect(rows.map((r) => r.service).sort()).toEqual(['brave_search', 'tavily_search'])
+        expect(Array.from(rows[0]?.secretEnc ?? [])).toEqual(Array.from(blob))
       } finally {
         await m.close()
       }
