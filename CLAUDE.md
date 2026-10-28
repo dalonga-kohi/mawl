@@ -26,6 +26,15 @@ Every agent (orchestrator and all subagents in `.claude/agents/`) uses the **`ca
 - Code, commands, paths, versions and error strings stay verbatim.
 - The user can say "stop caveman" or "normal mode" to switch it off.
 
+## Token budget and other models
+
+Full rules in [docs/WORKFLOW.md](docs/WORKFLOW.md). Short version:
+- `docs/PLAN.md` is now an index plus versions and the slice template; each phase lives in `docs/plan/<phase>.md` (d1, d2, ...). Pick slices and mark status in the phase file, then update the index counts.
+- Never read `docs/ARCHITECTURE.md` or a whole big phase file (`docs/plan/d1.md` is 39 KB); grep for the slice id or heading and read that range. The "Read before any work" list above means: know it exists, read the parts the slice needs.
+- **Big research (more than one file or doc page of facts) goes to Gemini, not an agent.** Write `docs/research/<topic>.prompt.md`, ask the user to run it and save the answer as `docs/research/<topic>.md`, then read only that.
+- **Light `coder`-class slices may go to Codex** (user-run, own branch and worktree) via `docs/handoffs/<id>.md`; `reviewer` still reviews them. Hard slices and UI stay with Claude.
+- **The user takes** image assets, manual checks, product decisions and junior-level code on separate packages. Mark each pending slice `claude`, `codex` or `user` and keep lanes on different packages.
+
 ## Roles
 
 **You (the main session, Sonnet): orchestrator and planner.**
@@ -177,7 +186,6 @@ Ask in one line with the reason. Run it after the regular `reviewer`, and pass i
 
 - **Always use the design skills** in `.claude/skills/` together with `docs/DESIGN.md`:
   - `frontend-design`
-  - `ui-taste` (`reference/craft.md`, then `reference/polish.md`)
   - `ui-ux-pro-max` (`references/quick-reference.md`, `references/pro-rules.md`; its `scripts/search.py` needs Python 3, which isn't installed, so read the CSVs directly)
   - `ios-design` for mobile
   - **Expo work** (the mobile app, `packages/ui-native`, any Expo/React Native config, build or dependency task) also uses the Expo skills from https://github.com/expo/skills, installed under `.claude/skills/`. Expo skills cover the how (Router, EAS, SDK-compatible packages); the design skills above still apply to every Expo UI slice. Expo slices go to `head-coder`, and the brief names both skill sets.
