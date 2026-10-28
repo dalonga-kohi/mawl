@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { plain, readJson, send } from './http.ts'
+import { plain, readJson, send, webUrl } from './http.ts'
 import { SearchFailedError, type SearchFetch, type SearchProvider } from './types.ts'
 
 /** Tavily search endpoint (docs.tavily.com api-reference/endpoint/search, checked 2026-10-28). */
@@ -48,11 +48,14 @@ export function tavilySearch({
       if (!parsed.success) throw new SearchFailedError('unavailable')
       return {
         backend: 'tavily',
-        results: parsed.data.results.slice(0, count).map((r) => ({
-          title: plain(r.title, 200),
-          url: r.url,
-          snippet: plain(r.content ?? '', 500),
-        })),
+        results: parsed.data.results
+          .filter((r) => webUrl(r.url) !== null)
+          .slice(0, count)
+          .map((r) => ({
+            title: plain(r.title, 200),
+            url: r.url,
+            snippet: plain(r.content ?? '', 500),
+          })),
       }
     },
   }

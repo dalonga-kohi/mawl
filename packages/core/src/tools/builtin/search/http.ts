@@ -36,6 +36,16 @@ export async function send(
   return res
 }
 
+/** The url as given when it parses as absolute http(s); anything else (javascript:, data:) is null. */
+export function webUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? raw : null
+  } catch {
+    return null
+  }
+}
+
 /** Reads the body as UTF-8 text, at most `max` bytes; a larger body is `unavailable`. */
 export async function readText(
   res: Response,
