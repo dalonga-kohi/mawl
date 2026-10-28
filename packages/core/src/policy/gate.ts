@@ -24,7 +24,10 @@ export interface PolicyGateDeps {
   profileRules?: readonly PolicyRuleLike[]
   /** The stored policy was invalid; the default policy was used. Log it, never the value. */
   onInvalidPolicy?(profileId: ProfileId): void
-  /** `load` threw; the call was decided with the default policy and the strictest trigger. */
+  /**
+   * `load` threw (the call was decided with the default policy and the strictest trigger), or
+   * `seenHosts` threw (the fetch asks again). Log the error name only, never its detail.
+   */
   onLoadError?(error: unknown): void
 }
 
@@ -90,8 +93,9 @@ export function policyGate(deps: PolicyGateDeps): ToolGate {
         if (host?.kind === 'public') {
           try {
             hostSeenInRun = (await deps.seenHosts(req.runId)).includes(host.host)
-          } catch {
+          } catch (err) {
             // Unknown: ask again rather than assume.
+            deps.onLoadError?.(err)
             hostSeenInRun = false
           }
         }

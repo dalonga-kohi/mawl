@@ -43,7 +43,7 @@ export function createPolicyGate(db: ProvidersDb, logger?: Logger): ToolGate {
     onLoadError(err) {
       logger?.error(
         { errName: err instanceof Error ? err.name : typeof err },
-        'policy context could not be loaded; deciding with the default policy',
+        'policy context could not be loaded; deciding with the stricter fallback',
       )
     },
   })

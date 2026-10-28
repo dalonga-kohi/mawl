@@ -165,13 +165,17 @@ describe('policyGate through the tool registry', () => {
     expect(onLoadError).toHaveBeenCalled()
   })
 
-  it('asks again when the seen hosts cannot be read', async () => {
+  it('asks again when the seen hosts cannot be read, and reports the failure', async () => {
+    const onLoadError = vi.fn()
+    const err = new Error('db down')
     const h = harness({
       seenHosts: async () => {
-        throw new Error('db down')
+        throw err
       },
+      onLoadError,
     })
     expect((await h.call('web_fetch', { url: 'https://a.com/' })).denied).toBe(true)
+    expect(onLoadError).toHaveBeenCalledWith(err)
   })
 
   it('reads the seen hosts only for web_fetch', async () => {
