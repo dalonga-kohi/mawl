@@ -22,8 +22,7 @@ export type ToolErrorCode =
   | 'too_many_redirects'
   | 'http_error'
   | 'unsupported_content_type'
-  | 'search_not_configured'
-  | 'search_failed'
+  | 'search_unavailable'
   | 'artifact_not_found'
 
 /** An event a tool asks the host to commit atomically with its recorded result. */
