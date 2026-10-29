@@ -6,24 +6,34 @@ import {
   type RunStatus,
   type Usage,
 } from '@mawl/contracts'
-import type {
-  AppendResult,
-  ModelMessage,
-  NewStep,
-  NewToolStep,
-  PersistedStep,
-  RunContext,
-  RunRecord,
-  RunStore,
-  RunWait,
-  ToolCallKey,
-  ToolResultRecord,
-  TransitionPatch,
+import {
+  APPROVAL_TTL_MS,
+  type AppendResult,
+  type ApprovedCall,
+  type ModelMessage,
+  type NewStep,
+  type NewToolStep,
+  type PersistedStep,
+  type RunContext,
+  type RunRecord,
+  type RunStore,
+  type RunWait,
+  type ToolCallKey,
+  type ToolResultRecord,
+  type TransitionPatch,
 } from '@mawl/core'
 import { schema } from '@mawl/db'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import {
+  type ApprovalPublicRow,
+  approvalAad,
+  approvalPublicColumns,
+  cancelPendingApprovals,
+  toApproval,
+} from '../approvals/repo.ts'
 import type { ProvidersDb } from '../providers/types.ts'
+import type { SecretBox } from '../secrets/index.ts'
 import {
   insertRunStep,
   insertToolResult,
@@ -32,7 +42,8 @@ import {
   toToolRecord,
 } from './repo.ts'
 
-const { runs, profiles, messages, threads, runSteps, runWaits, toolResults, jsonValue } = schema
+const { runs, profiles, messages, threads, runSteps, runWaits, toolResults, approvals, jsonValue } =
+  schema
 
 /** Most recent messages sent to the model. A stopgap until context assembly (P3.5). */
 export const HISTORY_LIMIT = 200
@@ -41,6 +52,9 @@ export const HISTORY_LIMIT = 200
 const StepInput = z.object({
   messages: z.array(z.looseObject({ role: z.enum(['assistant', 'tool']) })),
 })
+
+const isRecord = (v: Json): v is { [key: string]: Json } =>
+  v !== null && typeof v === 'object' && !Array.isArray(v)
 
 /** Round-trips through JSON so the value is plain JSON (no undefined), as jsonb stores it. */
 function asJson(value: unknown): Json {
@@ -73,7 +87,16 @@ const toRecord = (row: typeof runs.$inferSelect): RunRecord => ({
 })
 
 /** Drizzle implementation of the run engine's persistence port (see `RunStore` in core). */
-export function createRunStore(db: ProvidersDb): RunStore {
+export interface RunStoreOptions {
+  /**
+   * Encrypts the arguments of a parked approval and decrypts them for the replay. Every
+   * production store gets it; without it parking an approval throws and an approved call is
+   * treated as unreadable (refused).
+   */
+  secretBox?: SecretBox
+}
+
+export function createRunStore(db: ProvidersDb, { secretBox }: RunStoreOptions = {}): RunStore {
   return {
     async load(runId: RunId): Promise<RunContext | null> {
       const [row] = await db
@@ -149,6 +172,10 @@ export function createRunStore(db: ProvidersDb): RunStore {
           .where(and(eq(runs.id, runId), eq(runs.status, from)))
           .returning({ profileId: runs.profileId })
         if (!row) return false
+        // Leaving waiting_approval this way is a cancel: its approval can never be decided now.
+        if (from === 'waiting_approval') {
+          await cancelPendingApprovals(tx, { id: runId, profileId: row.profileId })
+        }
         await recordEvent(tx, {
           profileId: row.profileId,
           runId,
@@ -213,31 +240,70 @@ export function createRunStore(db: ProvidersDb): RunStore {
     },
 
     async park(runId, wait: RunWait, activeMsDelta): Promise<boolean> {
-      // Replaced by the approvals table in the next commit of D2.4.
-      if (wait.kind === 'approval') throw new Error('approvals are not stored yet')
+      const status = wait.kind === 'approval' ? 'waiting_approval' : 'waiting_user'
+      // Encrypted before the transaction: the blob is bound to the approval's own id (AAD).
+      const approvalId = newId('approval')
+      let argsEnc: Uint8Array | undefined
+      if (wait.kind === 'approval') {
+        if (!secretBox) throw new Error('parking an approval needs the secret box')
+        argsEnc = secretBox.encrypt(wait.approval.argsText, approvalAad(approvalId))
+      }
       return db.transaction(async (tx) => {
         const [row] = await tx
           .update(runs)
           .set({
-            status: 'waiting_user',
+            status,
             ...(activeMsDelta ? { activeMs: sql`${runs.activeMs} + ${activeMsDelta}` } : {}),
           })
           .where(and(eq(runs.id, runId), eq(runs.status, 'running')))
           .returning({ profileId: runs.profileId })
         if (!row) return false
+        let created: ApprovalPublicRow | undefined
+        if (wait.kind === 'approval' && argsEnc) {
+          const a = wait.approval
+          ;[created] = await tx
+            .insert(approvals)
+            .values({
+              id: approvalId,
+              profileId: row.profileId,
+              runId,
+              stepIdx: wait.stepIdx,
+              toolCallId: wait.toolCallId,
+              tool: a.tool,
+              actionClass: a.actionClass,
+              argsEnc,
+              argsHash: a.argsHash,
+              argsRedacted: jsonValue(a.argsRedacted),
+              reason: a.reason,
+              expiresAt: sql`now() + make_interval(secs => ${APPROVAL_TTL_MS / 1000})`,
+            })
+            .returning(approvalPublicColumns)
+        }
         await tx.insert(runWaits).values({
           runId,
           stepIdx: wait.stepIdx,
           toolCallId: wait.toolCallId,
           kind: wait.kind,
-          payload: jsonValue(wait.payload),
+          payload: jsonValue(
+            wait.kind === 'approval' && isRecord(wait.payload)
+              ? { ...wait.payload, approvalId }
+              : wait.payload,
+          ),
         })
         await recordEvent(tx, {
           profileId: row.profileId,
           runId,
           type: 'run.status',
-          payload: { status: 'waiting_user', prevStatus: 'running' },
+          payload: { status, prevStatus: 'running' },
         })
+        if (created) {
+          await recordEvent(tx, {
+            profileId: row.profileId,
+            runId,
+            type: 'approval.created',
+            payload: { approval: toApproval(created) },
+          })
+        }
         return true
       })
     },
@@ -256,9 +322,32 @@ export function createRunStore(db: ProvidersDb): RunStore {
       return row ? toToolRecord(row) : null
     },
 
-    async approvedCall(): Promise<null> {
-      // Nothing is approved before the approvals table exists (next commit of D2.4).
-      return null
+    async approvedCall(runId, key: ToolCallKey): Promise<ApprovedCall | null> {
+      const [row] = await db
+        .select({
+          id: approvals.id,
+          tool: approvals.tool,
+          argsEnc: approvals.argsEnc,
+          argsHash: approvals.argsHash,
+        })
+        .from(approvals)
+        .where(
+          and(
+            eq(approvals.runId, runId),
+            eq(approvals.stepIdx, key.stepIdx),
+            eq(approvals.toolCallId, key.toolCallId),
+            eq(approvals.status, 'approved'),
+          ),
+        )
+      if (!row) return null
+      if (!secretBox) return { status: 'unreadable' }
+      try {
+        const argsText = secretBox.decrypt(row.argsEnc, approvalAad(row.id))
+        return { status: 'approved', tool: row.tool, argsText, argsHash: row.argsHash }
+      } catch {
+        // A changed master key or a tampered blob: the registry refuses the call (fail closed).
+        return { status: 'unreadable' }
+      }
     },
 
     async recordToolCall(runId, call): Promise<void> {

@@ -15,6 +15,7 @@ import { z } from 'zod'
 import type { DeltaSink } from '../events/deltas.ts'
 import type { Logger } from '../logger.ts'
 import type { ProvidersDb } from '../providers/types.ts'
+import type { SecretBox } from '../secrets/index.ts'
 import type { RunRegistry } from './registry.ts'
 import { createRunStore } from './store.ts'
 
@@ -43,13 +44,15 @@ export interface RunTaskDeps {
   deltas?: DeltaSink
   /** The tools runs get. The engine offers them only to a model that `supportsTools`. */
   tools?: ToolRegistry
+  /** Encrypts parked approval arguments and decrypts them for the replay (see `RunStoreOptions`). */
+  secretBox?: SecretBox
 }
 
 /** The `run.execute` job handler. Throws only on infrastructure errors, so Graphile retries those. */
 export function createRunTask(deps: RunTaskDeps) {
   const { logger, registry } = deps
   const clock = deps.clock ?? { now: () => new Date() }
-  const store = createRunStore(deps.db)
+  const store = createRunStore(deps.db, deps.secretBox ? { secretBox: deps.secretBox } : {})
 
   return async (payload: unknown, helpers: { abortSignal: AbortSignal }): Promise<void> => {
     const parsed = Payload.safeParse(payload)
