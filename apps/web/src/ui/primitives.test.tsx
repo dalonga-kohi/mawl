@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { describe, expect, it, vi } from 'vitest'
 import { Badge } from './Badge.tsx'
 import { Button, buttonClass, IconButton } from './Button.tsx'
@@ -8,6 +9,7 @@ import { Input, Textarea } from './Input.tsx'
 import { Modal } from './Modal.tsx'
 import { Switch } from './Switch.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './Tabs.tsx'
+import { Toaster } from './Toaster.tsx'
 import { Tooltip, TooltipProvider } from './Tooltip.tsx'
 
 const classes = (el: Element) => el.className.split(/\s+/)
@@ -198,5 +200,19 @@ describe('Badge', () => {
     expect(classes(screen.getByText('3'))).toEqual(
       expect.arrayContaining(['rounded-sm', 'bg-accent-soft', 'text-accent-ink']),
     )
+  })
+})
+
+describe('Toaster', () => {
+  it('sits on the raised surface of the current theme, not an inverted ink pill', async () => {
+    render(<Toaster />)
+    act(() => {
+      toast('Saved')
+    })
+    const text = await screen.findByText('Saved')
+    const card = text.closest('[data-sonner-toast]') as HTMLElement
+    expect(card.className).toContain('bg-surface')
+    expect(card.className).toContain('text-text')
+    expect(card.className).not.toContain('bg-text')
   })
 })

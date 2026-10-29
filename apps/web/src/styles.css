@@ -207,11 +207,12 @@
   .thinking-dot {
     animation: mawl-breathe 1.2s ease-in-out infinite;
   }
+  /* Something is running: a teal (--secondary, the status color) dot that breathes softly. */
   .live-dot {
-    width: 7px;
-    height: 7px;
+    width: 9px;
+    height: 9px;
     border-radius: 999px;
-    background: var(--ok);
+    background: var(--secondary);
     animation: mawl-breathe 2s ease-in-out infinite;
   }
 }

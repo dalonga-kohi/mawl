@@ -3,8 +3,9 @@ import type { ComponentProps } from 'react'
 import { cn } from './cn.ts'
 
 /**
- * shadcn's dropdown menu, reshaped: an 18 px-radius surface whose rows (12 px) nest inside its
- * 6 px padding, a soft surface-2 highlight, 44 px rows on touch and a quick settle-in.
+ * shadcn's dropdown menu, reshaped: a rounded card (--r-card) whose rows (--r-sm) nest inside its
+ * 6 px padding, a soft --hover highlight, 44 px rows on touch, and a quick settle-in that grows
+ * from the trigger (Radix's transform origin).
  */
 export const DropdownMenu = DropdownMenuPrimitive.Root
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
@@ -21,7 +22,7 @@ export function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 flex max-h-(--radix-dropdown-menu-content-available-height) min-w-48 origin-(--radix-dropdown-menu-content-transform-origin) flex-col gap-0.5 overflow-x-hidden overflow-y-auto rounded-md bg-surface p-1.5 text-text shadow-2',
+          'z-50 flex max-h-(--radix-dropdown-menu-content-available-height) min-w-48 origin-(--radix-dropdown-menu-content-transform-origin) flex-col gap-0.5 overflow-x-hidden overflow-y-auto rounded-card bg-surface p-1.5 text-text shadow-2',
           'animate-in fade-in-0 zoom-in-[.98] duration-(--dur-fast) ease-out',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[.98]',
           className,
