@@ -3,9 +3,11 @@ import './splash.css'
 import { MotionConfig } from 'motion/react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { hostWindowControls } from '../shell/window-controls.ts'
 import { type HostBridge, hostAppearance, inTauri, tauriBridge } from './bridge.ts'
 import type { HostAppearance } from './remote.ts'
 import { Splash } from './Splash.tsx'
+import { SplashFrame } from './SplashFrame.tsx'
 import { applySplashAppearance, initialViewFrom } from './setup.ts'
 
 const container = document.getElementById('root')
@@ -35,13 +37,15 @@ void Promise.all([bridge(), appearance()]).then(([host, look]) => {
   createRoot(container).render(
     <StrictMode>
       <MotionConfig reducedMotion={look?.reduceMotion ? 'always' : 'user'}>
-        {host ? (
-          <Splash bridge={host} initialView={initialViewFrom(window.location.search)} />
-        ) : (
-          <main className="grid min-h-dvh place-items-center bg-bg px-6 text-center text-text-2">
-            <p>This page belongs to the Mawl desktop app.</p>
-          </main>
-        )}
+        <SplashFrame controls={hostWindowControls()}>
+          {host ? (
+            <Splash bridge={host} initialView={initialViewFrom(window.location.search)} />
+          ) : (
+            <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center bg-bg px-6 text-center text-text-2">
+              <p>This page belongs to the Mawl desktop app.</p>
+            </main>
+          )}
+        </SplashFrame>
       </MotionConfig>
     </StrictMode>,
   )
