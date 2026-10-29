@@ -1,49 +1,56 @@
-import { accentScaleKeys, accentTints, accentVarName, deriveAccent } from './accent.ts'
 import { dur, ease } from './motion.ts'
-import { defaultAccent, neutrals, secondary, semantic } from './palette.ts'
+import {
+  DEFAULT_PALETTE_ID,
+  type PaletteColors,
+  paletteList,
+  palettes,
+  primaryStates,
+  type ThemeName,
+  themeTints,
+} from './palette.ts'
 import { radii, shadows, spacing } from './space.ts'
 import { fontFamilies, typeScale } from './type.ts'
 
 type Decl = readonly [name: string, value: string]
 
-const kebab = (s: string) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase()
-const entries = (obj: Record<string, string>, prefix = '--'): Decl[] =>
-  Object.entries(obj).map(([k, v]) => [`${prefix}${kebab(k)}`, v])
-
-/** Public accent var -> scale entry. The suffix names are owned by accentVarName(). */
-const publicAccentVars = [
-  ['--accent', 'accent'],
-  ['--accent-hover', 'accentHover'],
-  ['--accent-press', 'accentPress'],
-  ['--accent-fill', 'accentFill'],
-  ['--on-accent', 'onAccent'],
-  ['--accent-ink', 'accentInk'],
-] as const
-
-/** Default (Mawl) values for both scales. applyAccent() overrides them at runtime. */
-function accentScaleDecls(): Decl[] {
-  return (['light', 'dark'] as const).flatMap((theme) => {
-    const scale = deriveAccent(defaultAccent.hex, theme)
-    return accentScaleKeys.map((key): Decl => [accentVarName(theme, key), scale[key]])
-  })
+/**
+ * The public color variables one palette sets in one theme. `--accent` and `--accent-fill` are both
+ * the primary: `--accent` feeds tints and decoration, `--accent-fill` filled buttons.
+ */
+export function paletteColorDecls(c: PaletteColors): Decl[] {
+  const { hover, press } = primaryStates(c)
+  return [
+    ['--bg', c.bg],
+    ['--surface', c.surface],
+    ['--surface-2', c.surface2],
+    ['--line', c.line],
+    ['--text', c.text],
+    ['--text-2', c.text2],
+    ['--text-3', c.text3],
+    ['--accent', c.primary],
+    ['--accent-hover', hover],
+    ['--accent-press', press],
+    ['--accent-fill', c.primary],
+    ['--on-accent', c.onPrimary],
+    ['--accent-ink', c.accentInk],
+    ['--secondary', c.secondary],
+    ['--secondary-ink', c.secondaryInk],
+    ['--ok', c.ok],
+    ['--warn', c.warn],
+    ['--danger', c.danger],
+    ['--info', c.info],
+  ]
 }
 
-/** Points each public accent var at the scale for `theme`, so theme flips need no JavaScript. */
-function accentDecls(theme: 'light' | 'dark'): Decl[] {
-  return publicAccentVars.map(([name, key]): Decl => [name, `var(${accentVarName(theme, key)})`])
-}
-/** Derived from the live accent and surface, so they follow theme and user accent changes. */
+/** Derived from the live palette and surface, so they follow theme and palette changes. */
 const mix = (token: string, pct: number, over: string) =>
   `color-mix(in oklab, var(--${token}) ${pct}%, ${over})`
 
-/** Tokens that differ between light and dark. Both dark blocks are built from this one list. */
-function themeDecls(theme: 'light' | 'dark'): Decl[] {
-  const tint = accentTints[theme]
+/** Tokens that differ between light and dark but not between palettes. */
+function themeDecls(theme: ThemeName): Decl[] {
+  const tint = themeTints[theme]
   return [
-    ...entries(neutrals[theme]),
-    ...entries(semantic[theme]),
-    ...entries(secondary[theme]),
-    ...accentDecls(theme),
+    ['color-scheme', theme],
     ['--accent-soft', mix('accent', tint.soft, 'var(--surface)')],
     ['--accent-softer', mix('accent', tint.softer, 'var(--surface)')],
     ['--accent-ring', mix('accent-ink', tint.ring, 'transparent')],
@@ -53,7 +60,6 @@ function themeDecls(theme: 'light' | 'dark'): Decl[] {
 }
 
 const derivedDecls: Decl[] = [
-  ['--info', 'var(--accent)'],
   ['--ok-soft', mix('ok', 12, 'var(--surface)')],
   ['--warn-soft', mix('warn', 12, 'var(--surface)')],
   ['--danger-soft', mix('danger', 12, 'var(--surface)')],
@@ -79,6 +85,9 @@ const block = (selector: string, decls: readonly Decl[], indent = ''): string =>
   [`${indent}${selector} {`, ...decls.map(([n, v]) => `${indent}  ${n}: ${v};`), `${indent}}`].join(
     '\n',
   )
+
+const systemDark = (selector: string, decls: readonly Decl[]) =>
+  `@media (prefers-color-scheme: dark) {\n${block(selector, decls, '  ')}\n}`
 
 const colorTokens = [
   'bg',
@@ -109,7 +118,7 @@ const colorTokens = [
   'secondary-soft',
 ]
 
-/** Tailwind v4 reads runtime vars through `inline`, so utilities follow theme and accent changes. */
+/** Tailwind v4 reads runtime vars through `inline`, so utilities follow theme and palette changes. */
 const tailwindTheme: Decl[] = [
   ...colorTokens.map((t): Decl => [`--color-${t}`, `var(--${t})`]),
   ...Object.keys(radii).map((k): Decl => [`--radius-${k}`, `var(--r-${k})`]),
@@ -119,19 +128,39 @@ const tailwindTheme: Decl[] = [
   ['--ease-out', ease.outCss],
 ]
 
+/**
+ * Palette blocks. `data-theme` (light|dark, or absent for the OS setting) and `data-palette` sit on
+ * `<html>`; without `data-palette` the page is Mawl. Palette selectors are not tied to `:root`, so
+ * any element can wear a palette (the settings preview tiles). Specificity keeps it right: a
+ * palette's light block (0,1,0) beats the `:root` default on order, its dark blocks (0,2,0) beat
+ * both the default dark blocks and its own light block.
+ */
+function paletteBlocks(): string[] {
+  return paletteList.flatMap((p) => {
+    const sel = `[data-palette="${p.id}"]`
+    const dark = paletteColorDecls(p.dark)
+    return [
+      block(sel, paletteColorDecls(p.light)),
+      systemDark(`${sel}:not([data-theme="light"])`, dark),
+      block(`${sel}[data-theme="dark"]`, dark),
+    ]
+  })
+}
+
 export function generateTokensCss(): string {
-  const dark = themeDecls('dark')
+  const fallback = palettes[DEFAULT_PALETTE_ID]
+  const dark = [...paletteColorDecls(fallback.dark), ...themeDecls('dark')]
   return `${[
     '/* Generated by src/generate-tokens.ts from src/*.ts. Do not edit; run `pnpm --filter @mawl/ui generate`. */',
     block(':root', [
-      ['color-scheme', 'light'],
-      ...accentScaleDecls(),
+      ...paletteColorDecls(fallback.light),
       ...themeDecls('light'),
       ...derivedDecls,
       ...fixedDecls,
     ]),
-    `@media (prefers-color-scheme: dark) {\n${block(':root:not([data-theme="light"])', [...dark, ['color-scheme', 'dark']], '  ')}\n}`,
-    block(':root[data-theme="dark"]', [...dark, ['color-scheme', 'dark']]),
+    systemDark(':root:not([data-theme="light"])', dark),
+    block(':root[data-theme="dark"]', dark),
+    ...paletteBlocks(),
     `/* --ease-out stays a literal: \`--ease-out: var(--ease-out)\` would resolve to itself. */\n${block('@theme inline', tailwindTheme)}`,
   ].join('\n\n')}\n`
 }
