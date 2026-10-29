@@ -128,4 +128,38 @@ describe('OwnerTokenGate', () => {
     expect(await screen.findByText(`App with ${RIGHT}`)).toBeTruthy()
     expect(verify).toHaveBeenCalledTimes(2)
   })
+
+  it('shows a retry as its own connecting screen with the try number, not the form', async () => {
+    const pending = deferred<TokenCheck>()
+    let calls = 0
+    const { user } = setup({
+      verify: () => (++calls === 1 ? Promise.resolve('unreachable') : pending.promise),
+    })
+    await user.type(await screen.findByLabelText('Owner token'), RIGHT)
+    await user.click(screen.getByRole('button', { name: 'Open Mawl' }))
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Connecting to Mawl' })).toBeTruthy()
+    expect(screen.getByText('Try 2')).toBeTruthy()
+    expect(screen.queryByLabelText('Owner token')).toBeNull()
+    pending.resolve('ok')
+    expect(await screen.findByText(`App with ${RIGHT}`)).toBeTruthy()
+  })
+
+  it('hands the splash’s orb into the desktop app, and the gate’s own orb into a browser tab', async () => {
+    setup({ launch: RIGHT })
+    // The app is there at once; the orb covers it for its flight.
+    expect(screen.getByText(`App with ${RIGHT}`)).toBeTruthy()
+    expect(document.querySelector('[data-entry-curtain]')).not.toBeNull()
+  })
+
+  it('starts the hand-off from where the gate drew its orb', async () => {
+    const { user } = setup()
+    await user.type(await screen.findByLabelText('Owner token'), RIGHT)
+    await user.click(screen.getByRole('button', { name: 'Open Mawl' }))
+    expect(await screen.findByText(`App with ${RIGHT}`)).toBeTruthy()
+    const orb = document.querySelector<HTMLElement>('[data-entry-curtain] svg.mawl')
+    // jsdom lays nothing out, so the measured orb is 0 px wide; what matters is that the curtain
+    // drew the gate's orb (88 px in a real window), not the splash's centred one.
+    expect(orb?.getAttribute('width')).toBe('0')
+  })
 })
