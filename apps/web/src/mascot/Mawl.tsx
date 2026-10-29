@@ -1,8 +1,27 @@
 import { durSeconds, ease, spring } from '@mawl/ui'
-import { AnimatePresence, motion, useReducedMotionConfig } from 'motion/react'
-import { type RefObject, useEffect, useId, useRef, useState } from 'react'
+import {
+  AnimatePresence,
+  type MotionValue,
+  motion,
+  useReducedMotionConfig,
+  useSpring,
+  useTransform,
+} from 'motion/react'
+import { type ReactNode, useEffect, useId, useState } from 'react'
 import { cx } from '../ui/cx.ts'
 import { ART, BLINKS, type Glyph, GlyphShape, POSES } from './glyphs.tsx'
+import {
+  BLINK_MS,
+  browserClock,
+  GAZES,
+  type GazeName,
+  gazeForOffset,
+  type LifeClock,
+  type ProjectedEye as ProjectedEyeValues,
+  projectEye,
+  QUIET_AMPLITUDE,
+  startIdleLife,
+} from './idle-life.ts'
 import type { MascotState } from './states.ts'
 import { type OrbColors, type OrbWay, orbColors } from './ways.ts'
 
@@ -12,20 +31,20 @@ export { POSES } from './glyphs.tsx'
  * Mawl, the orb (DESIGN.md §8; art in design/assets/mascot-orb/). One circle, one colourway, and
  * glyph eyes that carry every expression.
  *
- * The state picks the eyes and the effect (see {@link POSES}). Eyes cross-fade and spring between
- * states through Motion; ambient loops (breathing, blink, spin, shake) live in `mawl.css`, keyed on
- * `data-state`. Reduced motion (the OS setting or the in-app toggle, which drives Motion's config)
- * stops the loops and turns the eye changes into short fades.
+ * The state picks the eyes and the effect (see {@link POSES}). The eyes sit on a sphere: one gaze
+ * (yaw and pitch, Motion springs) is the single source of truth, and each eye's position and squash
+ * are projected from it (`projectEye`), inside a clip of the orb, so a far look carries the leading
+ * eye over the edge. While idle (and, quieter, while listening) the orb looks around and blinks on
+ * its own (`idle-life.ts`). Eyes cross-fade and spring between states; ambient loops live in
+ * `mawl.css`, keyed on `data-state`. Reduced motion (the OS setting or the in-app toggle, which
+ * drives Motion's config) stops the loops and the idle life and turns eye changes into short fades.
  */
 
-/** Below this size the soft light is lost and the strokes thin out, so the orb goes flat. */
+/** Below this size the soft light is lost and the strokes thin out, so the orb goes flat and still. */
 export const SOFT_FROM = 48
-/** Eyes follow the pointer only when the orb is big enough for the glance to read. */
-const FOLLOW_FROM = 64
 /** Matches `mawl-hop` in mawl.css. */
 export const HOP_MS = 550
-/** Pointer gaze reach, in artwork units. */
-const GAZE = { x: 14, y: 10 }
+const GAZE_SPRING = { stiffness: spring.gentle.stiffness, damping: spring.gentle.damping }
 
 /**
  * The whole artwork, with room for the effects up and to the right. Mawl keeps it at every size,
@@ -40,24 +59,42 @@ export function Mawl({
   state = 'idle',
   way = 'lavender',
   className,
+  clock = browserClock,
 }: {
   /** Rendered width and height in px. */
   size?: number
   state?: MascotState
   way?: OrbWay
   className?: string
+  /** The idle-life clock; tests pass fake timers and a scripted random. */
+  clock?: LifeClock
 }) {
-  const gradientId = useGradientId()
+  const ids = useOrbIds()
   const reduce = useReducedMotionConfig() ?? false
-  const svgRef = useRef<SVGSVGElement>(null)
-  const lookRef = useRef<SVGGElement>(null)
   const [hopping, setHopping] = useState(false)
   const flat = size < SOFT_FROM
   const pose = POSES[state]
   const colors = orbColors(way)
   const pressable = !flat && !reduce
+  const alive = !flat && !reduce && (state === 'idle' || state === 'listening')
+  const quiet = state === 'listening'
+  const life = useIdleLife(alive, quiet, clock)
 
-  usePointerGaze(svgRef, lookRef, state === 'idle' && size >= FOLLOW_FROM && !reduce)
+  const rest = gazeForOffset(pose.look)
+  const look = GAZES[life.gaze]
+  const amp = quiet ? QUIET_AMPLITUDE : 1
+  const target = { yaw: rest.yaw + look.yaw * amp, pitch: rest.pitch + look.pitch * amp }
+  const yaw = useSpring(target.yaw, GAZE_SPRING)
+  const pitch = useSpring(target.pitch, GAZE_SPRING)
+  useEffect(() => {
+    if (reduce) {
+      yaw.jump(target.yaw)
+      pitch.jump(target.pitch)
+    } else {
+      yaw.set(target.yaw)
+      pitch.set(target.pitch)
+    }
+  }, [reduce, target.yaw, target.pitch, yaw, pitch])
 
   useEffect(() => {
     if (!hopping) return
@@ -68,7 +105,6 @@ export function Mawl({
 
   return (
     <svg
-      ref={svgRef}
       className={cx(
         'mawl',
         flat && 'is-flat',
@@ -82,25 +118,34 @@ export function Mawl({
       viewBox={FULL_BOX}
       data-state={state}
       data-way={way}
+      data-gaze={life.gaze}
+      data-blink={life.closed ? '' : undefined}
       aria-hidden="true"
       focusable="false"
       onClick={pressable ? () => setHopping(true) : undefined}
     >
+      <defs>
+        <clipPath id={ids.clip}>
+          <circle cx={ART.cx} cy={ART.cy} r={ART.r} />
+        </clipPath>
+      </defs>
       <g className="mawl-hop">
         <g className="mawl-motion">
           <g className="mawl-press">
-            <OrbBody colors={colors} flat={flat} gradientId={gradientId} />
-            <motion.g
-              data-part="eyes"
-              initial={false}
-              animate={{ x: pose.look?.x ?? 0, y: pose.look?.y ?? 0 }}
-              transition={spring.gentle}
-            >
-              <g ref={lookRef} className="mawl-look">
-                <AnimatedEye side="l" glyph={pose.l} ink={colors.ink} heavy={flat} />
-                <AnimatedEye side="r" glyph={pose.r} ink={colors.ink} heavy={flat} />
-              </g>
-            </motion.g>
+            <OrbBody colors={colors} flat={flat} gradientId={ids.gradient} />
+            <g data-part="face" clipPath={`url(#${ids.clip})`}>
+              {(['l', 'r'] as const).map((side) => (
+                <ProjectedEye key={side} side={side} yaw={yaw} pitch={pitch}>
+                  <AnimatedEye
+                    side={side}
+                    glyph={side === 'l' ? pose.l : pose.r}
+                    ink={colors.ink}
+                    heavy={flat}
+                    closed={life.closed}
+                  />
+                </ProjectedEye>
+              ))}
+            </g>
           </g>
         </g>
       </g>
@@ -121,6 +166,71 @@ export function Mawl({
       )}
     </svg>
   )
+}
+
+/**
+ * Places one eye where the gaze projects it on the sphere, squashed as it turns away. Transform
+ * only: x, y and scale are derived from the two gaze springs, so nothing re-renders per frame.
+ */
+function ProjectedEye({
+  side,
+  yaw,
+  pitch,
+  children,
+}: {
+  side: 'l' | 'r'
+  yaw: MotionValue<number>
+  pitch: MotionValue<number>
+  children: ReactNode
+}) {
+  const x = useProjected(side, yaw, pitch, 'x')
+  const y = useProjected(side, yaw, pitch, 'y')
+  const scaleX = useProjected(side, yaw, pitch, 'sx')
+  const scaleY = useProjected(side, yaw, pitch, 'sy')
+  return (
+    <motion.g
+      data-part="eye-anchor"
+      style={{ x, y, scaleX, scaleY, transformBox: 'view-box', transformOrigin: '0px 0px' }}
+    >
+      {children}
+    </motion.g>
+  )
+}
+
+function useProjected(
+  side: 'l' | 'r',
+  yaw: MotionValue<number>,
+  pitch: MotionValue<number>,
+  key: keyof ProjectedEyeValues,
+) {
+  return useTransform([yaw, pitch], ([y, p]: number[]) => projectEye(side, y ?? 0, p ?? 0)[key])
+}
+
+/** The idle life while `enabled`, paused while the tab is hidden; centre and open eyes otherwise. */
+function useIdleLife(enabled: boolean, quiet: boolean, clock: LifeClock) {
+  const [gaze, setGaze] = useState<GazeName>('centre')
+  const [closed, setClosed] = useState(false)
+  useEffect(() => {
+    if (!enabled) return
+    let stop: (() => void) | undefined
+    const start = () => {
+      stop ??= startIdleLife(clock, { onGaze: setGaze, onBlink: setClosed }, { quiet })
+    }
+    const halt = () => {
+      stop?.()
+      stop = undefined
+      setGaze('centre')
+      setClosed(false)
+    }
+    const onVisibility = () => (document.visibilityState === 'hidden' ? halt() : start())
+    if (document.visibilityState !== 'hidden') start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      halt()
+    }
+  }, [enabled, quiet, clock])
+  return { gaze, closed }
 }
 
 /** The circle, soft (a top-left light) from 48 px and flat below. */
@@ -188,14 +298,17 @@ function AnimatedEye({
   glyph,
   ink,
   heavy,
+  closed,
 }: {
   side: 'l' | 'r'
   glyph: Glyph
   ink: string
   heavy: boolean
+  closed: boolean
 }) {
+  const blinks = BLINKS.has(glyph)
   return (
-    <g transform={eyeHome(side)}>
+    <g>
       <AnimatePresence initial={false}>
         <motion.g
           key={glyph}
@@ -210,9 +323,14 @@ function AnimatedEye({
           }}
           exit={{ opacity: 0, scale: 0.6, transition: { duration: durSeconds.fast } }}
         >
-          <g className={cx('mawl-glyph', `mawl-glyph-${glyph}`, BLINKS.has(glyph) && 'mawl-blink')}>
+          <motion.g
+            className={cx('mawl-glyph', `mawl-glyph-${glyph}`, blinks && 'mawl-blink')}
+            initial={false}
+            animate={{ scaleY: blinks && closed ? 0.1 : 1 }}
+            transition={{ duration: BLINK_MS / 2000 }}
+          >
             <GlyphShape kind={glyph} ink={ink} heavy={heavy} />
-          </g>
+          </motion.g>
         </motion.g>
       </AnimatePresence>
     </g>
@@ -251,39 +369,8 @@ export function useGradientId() {
   return `mawl${useId().replace(/[^a-zA-Z0-9_-]/g, '')}-soft`
 }
 
-/**
- * While enabled, the eyes glance toward the pointer, at most once per frame. Disabling it (or
- * unmounting) hands the eyes back to their resting pose.
- */
-function usePointerGaze(
-  svgRef: RefObject<SVGSVGElement | null>,
-  lookRef: RefObject<SVGGElement | null>,
-  enabled: boolean,
-) {
-  useEffect(() => {
-    const look = lookRef.current
-    if (!enabled || !look) return
-    let frame = 0
-    let last: PointerEvent | undefined
-    const update = () => {
-      frame = 0
-      const svg = svgRef.current
-      if (!svg || !last) return
-      const r = svg.getBoundingClientRect()
-      const clamp = (n: number) => Math.max(-1, Math.min(1, n))
-      const dx = clamp((last.clientX - (r.left + r.width / 2)) / 180)
-      const dy = clamp((last.clientY - (r.top + r.height / 2)) / 180)
-      look.style.transform = `translate(${(dx * GAZE.x).toFixed(1)}px, ${(dy * GAZE.y).toFixed(1)}px)`
-    }
-    const onMove = (e: PointerEvent) => {
-      last = e
-      if (!frame) frame = requestAnimationFrame(update)
-    }
-    document.addEventListener('pointermove', onMove, { passive: true })
-    return () => {
-      document.removeEventListener('pointermove', onMove)
-      if (frame) cancelAnimationFrame(frame)
-      look.style.transform = ''
-    }
-  }, [enabled, svgRef, lookRef])
+/** Clip and gradient ids unique to this instance, so several orbs never share a `url(#…)`. */
+function useOrbIds() {
+  const base = `mawl${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  return { gradient: `${base}-soft`, clip: `${base}-face` }
 }

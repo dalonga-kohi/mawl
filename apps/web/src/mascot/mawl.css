@@ -1,6 +1,6 @@
 /*
  * Mawl, the orb (DESIGN.md §8). Colours come from the colourway in ways.ts; this file holds only
- * motion. Eye changes are Motion springs in Mawl.tsx; the ambient loops below are keyed on
+ * motion. Eye changes, the gaze and blinks are Motion in Mawl.tsx; the ambient loops below are keyed on
  * `data-state`. Ambient motion belongs only to the mascot (DESIGN.md §7). Distances are in the
  * orb's 400-unit artwork, so they scale with it.
  */
@@ -21,10 +21,6 @@
   font-weight: 800;
 }
 
-.mawl-look {
-  transition: transform 0.15s var(--ease-out);
-}
-
 /* Hover and press on an orb that hops when clicked. */
 .mawl.is-pressable {
   cursor: pointer;
@@ -39,12 +35,9 @@
   transform: scale(0.97);
 }
 
-/* Idle and listening: a slow breath and a blink every ~3 s. */
+/* Idle and listening: a slow breath. Look-around and blinks are scheduled in idle-life.ts. */
 .mawl:is([data-state="idle"], [data-state="listening"]) .mawl-motion {
   animation: mawl-breathe 3.4s ease-in-out infinite;
-}
-.mawl-blink {
-  animation: mawl-blink 3.2s linear infinite;
 }
 
 /* Thinking: the orb drifts a little, the two thought dots bob. */
@@ -122,16 +115,6 @@
   }
   50% {
     transform: scale(1.035, 0.955);
-  }
-}
-@keyframes mawl-blink {
-  0%,
-  93%,
-  100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.1);
   }
 }
 @keyframes mawl-sway {

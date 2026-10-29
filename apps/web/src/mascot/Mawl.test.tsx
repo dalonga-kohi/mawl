@@ -1,7 +1,8 @@
 import { act, fireEvent, render } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import type { ReactElement } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { LifeClock } from './idle-life.ts'
 import { HOP_MS, Mawl, POSES } from './Mawl.tsx'
 import { MASCOT_STATES } from './states.ts'
 import { WAYS } from './ways.ts'
@@ -15,15 +16,37 @@ const glyphs = (svg: SVGSVGElement) =>
   [...svg.querySelectorAll('[data-part="eye"]')].map((n) => n.getAttribute('data-glyph'))
 const effects = (svg: SVGSVGElement) =>
   [...svg.querySelectorAll('[data-part^="fx-"]')].map((n) => n.getAttribute('data-part'))
-const look = (svg: SVGSVGElement) => svg.querySelector<SVGGElement>('.mawl-look')
 const reduced = (ui: ReactElement) => <MotionConfig reducedMotion="always">{ui}</MotionConfig>
 
-/** jsdom has no layout: place the mascot so pointer maths has a centre to work from. */
-function placeAt(svg: SVGSVGElement, left: number, top: number, size: number) {
-  svg.getBoundingClientRect = () =>
-    ({ left, top, width: size, height: size, right: left + size, bottom: top + size }) as DOMRect
+/** A clock on vitest's fake timers with a scripted random sequence, that tracks pending timers. */
+function testClock(randoms: number[]) {
+  let i = 0
+  const pending = new Set<unknown>()
+  const clock: LifeClock = {
+    random: () => randoms[i++ % randoms.length] ?? 0,
+    setTimeout: (fn, ms) => {
+      const id = setTimeout(() => {
+        pending.delete(id)
+        fn()
+      }, ms)
+      pending.add(id)
+      return id
+    },
+    clearTimeout: (id) => {
+      pending.delete(id)
+      clearTimeout(id as ReturnType<typeof setTimeout>)
+    },
+  }
+  return { clock, pending }
 }
-const nextFrame = () => act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
+const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms))
+function setHidden(hidden: boolean) {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => (hidden ? 'hidden' : 'visible'),
+  })
+  act(() => void document.dispatchEvent(new Event('visibilitychange')))
+}
 
 describe('Mawl, the orb', () => {
   it('is decorative and reports its state', () => {
@@ -127,46 +150,90 @@ describe('Mawl, the orb', () => {
     expect(glyphs(small)).toEqual(['l', 'r'])
   })
 
-  it('follows the pointer with its eyes while idle and large', async () => {
-    const { container } = render(<Mawl size={160} />)
-    const svg = svgOf(container)
-    placeAt(svg, 0, 0, 160)
-    fireEvent.pointerMove(document, { clientX: 2000, clientY: 80 })
-    await nextFrame()
-    expect(look(svg)?.style.transform).toMatch(/^translate\(14(\.0)?px/)
-  })
+  describe('idle life', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+      setHidden(false)
+    })
 
-  it('follows the pointer from 64 px, not below', async () => {
-    const at = render(<Mawl size={64} />)
-    const below = render(<Mawl size={63} />)
-    placeAt(svgOf(at.container), 0, 0, 64)
-    placeAt(svgOf(below.container), 0, 0, 63)
-    fireEvent.pointerMove(document, { clientX: 2000, clientY: 30 })
-    await nextFrame()
-    expect(look(svgOf(at.container))?.style.transform).not.toBe('')
-    expect(look(svgOf(below.container))?.style.transform).toBe('')
-  })
+    it('looks around on its own while idle and large, then comes back', () => {
+      vi.useFakeTimers()
+      // Look wait 2 s, blink wait 6 s, then up-right, held 0.6 s.
+      const { clock } = testClock([0, 0.999, 0.99, 0])
+      const svg = svgOf(render(<Mawl size={160} clock={clock} />).container)
+      expect(svg.getAttribute('data-gaze')).toBe('centre')
+      advance(2000)
+      expect(svg.getAttribute('data-gaze')).toBe('upRight')
+      advance(600)
+      expect(svg.getAttribute('data-gaze')).toBe('centre')
+    })
 
-  it('keeps its eyes still when small, busy or asked to reduce motion', async () => {
-    const cases = [
-      render(<Mawl size={40} />),
-      render(<Mawl size={160} state="working" />),
-      render(reduced(<Mawl size={160} />)),
-    ]
-    for (const { container } of cases) placeAt(svgOf(container), 0, 0, 160)
-    fireEvent.pointerMove(document, { clientX: 2000, clientY: 80 })
-    await nextFrame()
-    for (const { container } of cases) expect(look(svgOf(container))?.style.transform).toBe('')
-  })
+    it('blinks on its own, closing for 120 ms', () => {
+      vi.useFakeTimers()
+      // Look wait 5 s; blink wait 3 s, single.
+      const { clock } = testClock([0.999, 0, 0.9])
+      const svg = svgOf(render(<Mawl size={160} clock={clock} />).container)
+      advance(3000)
+      expect(svg.hasAttribute('data-blink')).toBe(true)
+      advance(120)
+      expect(svg.hasAttribute('data-blink')).toBe(false)
+    })
 
-  it('lets go of the pointer pose when it leaves idle', async () => {
-    const { container, rerender } = render(<Mawl size={160} />)
-    const svg = svgOf(container)
-    placeAt(svg, 0, 0, 160)
-    fireEvent.pointerMove(document, { clientX: 2000, clientY: 80 })
-    await nextFrame()
-    rerender(<Mawl size={160} state="thinking" />)
-    expect(look(svg)?.style.transform).toBe('')
+    it('stays still when small, busy or asked to reduce motion', () => {
+      vi.useFakeTimers()
+      const cases = [
+        (clock: LifeClock) => <Mawl size={40} clock={clock} />,
+        (clock: LifeClock) => <Mawl size={160} state="working" clock={clock} />,
+        (clock: LifeClock) => reduced(<Mawl size={160} clock={clock} />),
+      ]
+      for (const ui of cases) {
+        const { clock, pending } = testClock([0, 0.99, 0.99, 0])
+        const { container, unmount } = render(ui(clock))
+        advance(20_000)
+        const svg = svgOf(container)
+        expect(svg.getAttribute('data-gaze')).toBe('centre')
+        expect(svg.hasAttribute('data-blink')).toBe(false)
+        expect(pending.size).toBe(0)
+        unmount()
+      }
+    })
+
+    it('stops its timers on unmount and when it leaves idle', () => {
+      vi.useFakeTimers()
+      const first = testClock([0.5])
+      const a = render(<Mawl size={160} clock={first.clock} />)
+      expect(first.pending.size).toBeGreaterThan(0)
+      a.unmount()
+      expect(first.pending.size).toBe(0)
+      const second = testClock([0.5])
+      const b = render(<Mawl size={160} clock={second.clock} />)
+      b.rerender(<Mawl size={160} state="thinking" clock={second.clock} />)
+      expect(second.pending.size).toBe(0)
+    })
+
+    it('pauses while the tab is hidden and resumes when it shows again', () => {
+      vi.useFakeTimers()
+      const { clock, pending } = testClock([0, 0.999, 0.99, 0])
+      const svg = svgOf(render(<Mawl size={160} clock={clock} />).container)
+      setHidden(true)
+      expect(pending.size).toBe(0)
+      advance(10_000)
+      expect(svg.getAttribute('data-gaze')).toBe('centre')
+      setHidden(false)
+      expect(pending.size).toBeGreaterThan(0)
+    })
+
+    it('keeps the eyes inside a clip of the orb circle, so a far look cuts the leading eye', () => {
+      const svg = svgOf(render(<Mawl size={160} />).container)
+      const clipped = svg.querySelector('[data-part="face"]')
+      const ref = clipped?.getAttribute('clip-path')?.match(/^url\(#(.+)\)$/)?.[1]
+      const circle = ref ? svg.querySelector(`clipPath[id="${ref}"] circle`) : null
+      const body = svg.querySelector('[data-part="body"]')
+      for (const attr of ['cx', 'cy', 'r']) {
+        expect(circle?.getAttribute(attr), attr).toBe(body?.getAttribute(attr))
+      }
+      expect(clipped?.querySelectorAll('[data-part="eye"]')).toHaveLength(2)
+    })
   })
 
   it('blinks only with bar eyes', () => {
