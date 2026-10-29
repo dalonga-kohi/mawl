@@ -112,4 +112,20 @@ describe('the host commands ACL', () => {
     ])
     expect(read('src/shell.rs')).toContain('titlebar::allow_window_chrome(')
   })
+  it('gives the bundled splash, a local page, exactly the window-chrome permissions its title bar needs', () => {
+    // The splash shows the title bar too (also when the server fails), and it is not a remote
+    // origin, so a static local capability covers it: no `remote`, no wildcard.
+    const base = capabilities.find((c) => c.identifier === 'default')
+    expect(base?.windows).toEqual(['main'])
+    const window = (base?.permissions ?? [])
+      .map((p) => (typeof p === 'string' ? p : p.identifier))
+      .filter((id) => /^core:window:allow-/.test(id))
+    expect(window.sort()).toEqual([
+      'core:window:allow-close',
+      'core:window:allow-internal-toggle-maximize',
+      'core:window:allow-minimize',
+      'core:window:allow-start-dragging',
+      'core:window:allow-toggle-maximize',
+    ])
+  })
 })

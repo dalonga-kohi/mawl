@@ -1,11 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities of the main Mawl window. No filesystem, no shell.",
+  "description": "Capabilities of the main Mawl window. The window-chrome set is for the bundled splash's title bar (the app page gets its own per origin, titlebar.rs). No filesystem, no shell.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
     "notification:default",
     "deep-link:default",
     {
