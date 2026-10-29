@@ -2,15 +2,15 @@
 
 > Calm, lowkey, gentle and a little playful. The UI stays quiet so the work and the mascot can speak.
 
-> **2026-10-21 redesign: [UI-REDESIGN.md](UI-REDESIGN.md) wins over this file** on palette, mascot (now **Mawl**, a lemon-lime mochi, not the brown beaver Pip), shape (everything round), shell layout and the shadcn component base. Sections 3, 5 (layout), 6 (avatars), 8 and 9 are being rewritten slice by slice (PLAN U1 to U7). Since U1, §3 (colors and accent) and §5 (shape and elevation) follow the redesign.
+> **2026-10-21 redesign: [UI-REDESIGN.md](UI-REDESIGN.md) wins over this file** on shape (everything round), shell layout and the shadcn component base. The 2026-10-29 orb pass (PLAN U8 to U14) then replaced its lime mochi and Cream/Ink palette: **this file now wins on palette (§3) and the mascot (§8)**, which describe the Mawl palette and the orb.
 
 The reference mood is the airy blue/white Telegram concepts plus a quiet dark mode. They show direction only; we don't copy them. When you do frontend work, apply the **frontend-design** and **ui-ux-pro-max** skills on top of this document. This document wins on any conflict.
 
 ## 1. Concept: "Mawl keeps watch"
 
-Mawl, a soft lemon-lime mochi, keeps watch while your teammates work, and you check in whenever you like. That gives us:
-- **Calm surfaces** (quiet neutrals, see UI-REDESIGN.md §3): the backdrop.
-- **Mochi** (Mawl's fixed lemon-lime palette, used on the mascot and a few tiny highlights; lime is also the default accent): warmth and character.
+Mawl, a soft lavender orb with glyph eyes, keeps watch while your teammates work, and you check in whenever you like. That gives us:
+- **Calm surfaces** (the Mawl neutrals, §3: cool paper in light, deep navy in dark): the backdrop.
+- **The orb** (Mawl's fixed colourways, §8, lavender by default) and the **Mawl violet** primary, with teal for live status: warmth and character.
 - **One memorable element:** the mascot, plus a soft river *wave* line that appears at moments of transition (onboarding, the empty states, the bottom of the mobile login). Everything else stays disciplined.
 
 ## 2. Principles
@@ -37,7 +37,7 @@ The default palette is **Mawl** (2026-10 orb redesign, PLAN U8): cool paper in l
 | `--line` | `#DCE2EE` | Hairlines (use sparingly) |
 | `--text` | `#1B2432` | Primary text (14.6:1 on bg) |
 | `--text-2` | `#58677D` | Secondary text (5.4:1 on bg) |
-| `--text-3` | `#6F7C91` | Placeholder, meta, disabled (4.2:1 on surface). Never for body text |
+| `--text-3` | `#606D83` | Placeholder, meta, disabled (4.5:1 or more on bg, surface and surface-2; a quieter step than text-2). Never for body text |
 
 ### Neutrals: dark
 Deep navy. Surfaces separate by a step in lightness and a 1 px `--line` hairline, never by shadows.
@@ -50,7 +50,7 @@ Deep navy. Surfaces separate by a step in lightness and a 1 px `--line` hairline
 | `--line` | `#273246` | Hairlines |
 | `--text` | `#F2F5FC` | Primary text (17.5:1 on bg) |
 | `--text-2` | `#A7B2C4` | Secondary text (8.9:1 on bg) |
-| `--text-3` | `#6F7C91` | Meta (3.7:1 on surface) |
+| `--text-3` | `#8390A4` | Meta (4.8:1 or more on bg, surface and surface-2) |
 
 ### Primary (the accent)
 The primary is **Mawl violet `#7950E8`**, the same fill in both themes; white text on it is 5.1:1. Its accent ink, for small text, links and icons, is hand-picked per theme: `#5E32C5` in light and `#BDA4ED` in dark (7.7:1 and 7.2:1 on the card). The engine pins these values for the Mawl primary instead of deriving them (`mawlAccent` in `palette.ts`, `mawlScale` in `accent.ts`).
@@ -84,7 +84,7 @@ Ink on every soft preset fill is 8.8:1 or better; every derived light `--accent-
 In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are derived from that raised base (the Mawl primary keeps its own fill and ink; only its `--accent` tint base is raised). The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
 
 ### Secondary (teal)
-For status, online, the computer and success. Never for primary actions.
+For status, online, the computer and success. Never for primary actions. `--secondary` is for fills and UI only (light `#087F86` is 4.46:1 on bg, under the text bar); `--secondary-ink` is the only teal text color.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -252,7 +252,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
 - **Memory:** BlockCard (fill meter), FactRow, Timeline, SkillCard, DiffView.
 - **Routines:** RoutineRow (natural-language summary, next run, toggle), RunHistory.
 - **Settings:** one calm column inside the page frame. From 760 px a 200 px list of pill links (icon and name; the current one on `--surface-2` with an accent-ink icon) sits beside the open section; below 760 px the same links become one pill segmented track above it. The section lives in `?section=` (`appearance` is the bare `/settings`). Only sections that exist are listed, never "coming soon" ones. Each section has its own heading and one line, then round `--surface` cards (24 px, 20 px padding), each with a heading, one helper line and its control.
-  - Appearance: Theme (a pill segmented control: Light, Dark, System), Accent color (round swatches Lime, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
+  - Appearance: Theme (a pill segmented control: Light, Dark, System), Accent color (round swatches Mawl, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
   - Models and keys: each connected model is its own round card (mark, name, what it is, Check and Remove or Sign out), then one card per way to connect (ChatGPT plan, Claude plan with its steps opening inside the card, API key). Loading is a skeleton card, an unreachable server an inline card with Try again, and an empty list a card with an icon tile.
   - Later: Channels, Devices (QR pairing), Data.
 - **New teammate dialog** (`NewTeammateDialog`): a 32 px dialog with pill Name and Model fields, a round `Select` for the model connection (a native select with the pill look and our own chevron), a 24 px Job textarea card, and soft Cancel and primary Create pills. Errors sit under their field and say how to fix it; Create reads "Creating…" and is disabled while the server works; a failed create shows a danger notice. Escape closes it and returns focus.
