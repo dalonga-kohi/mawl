@@ -95,7 +95,11 @@ export function OwnerTokenGate({
   }, [phase.kind, storage, check])
 
   if (phase.kind === 'ready') {
-    return <EntryHandoff from={phase.from}>{children(phase.token)}</EntryHandoff>
+    return (
+      <EntryHandoff from={phase.from} backdrop={<SplashField />}>
+        {children(phase.token)}
+      </EntryHandoff>
+    )
   }
 
   const retry = (token: string) => {

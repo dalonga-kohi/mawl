@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import { MotionConfig, MotionGlobalConfig } from 'motion/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { CLAIM_WAIT_MS, EntryHandoff, flightTo, useEntryTarget } from './entry.tsx'
+import {
+  CLAIM_WAIT_MS,
+  claimWaitFor,
+  EntryHandoff,
+  flightTo,
+  NO_CLAIM_WAIT_MS,
+  useEntryTarget,
+} from './entry.tsx'
 
 // The hand-off's timing is its own (the claim wait); Motion's tweens finish at once here.
 beforeAll(() => {
@@ -68,6 +75,23 @@ describe('the orb hand-off into the app', () => {
     expect(curtain()).not.toBeNull()
     await vi.waitFor(() => expect(curtain()).toBeNull(), { timeout: CLAIM_WAIT_MS + 1500 })
     expect(screen.getByText('Settings')).toBeTruthy()
+  })
+
+  it('waits only a moment for a claim on a page that has no landing orb', () => {
+    expect(claimWaitFor('/settings')).toBe(NO_CLAIM_WAIT_MS)
+    expect(claimWaitFor('/tools/github')).toBe(NO_CLAIM_WAIT_MS)
+    expect(claimWaitFor('/approvals')).toBe(NO_CLAIM_WAIT_MS)
+    expect(claimWaitFor('/t/mawl')).toBe(CLAIM_WAIT_MS)
+    expect(claimWaitFor('/')).toBe(CLAIM_WAIT_MS)
+  })
+
+  it('draws the screen being left on the curtain so it fades with it', () => {
+    render(
+      <EntryHandoff from="centre" backdrop={<p>Field</p>}>
+        <p>App</p>
+      </EntryHandoff>,
+    )
+    expect(curtain()?.textContent).toContain('Field')
   })
 
   it('never makes the owner wait on the flight under reduced motion', async () => {

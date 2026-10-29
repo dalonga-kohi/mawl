@@ -25,6 +25,8 @@ import { describe, INITIAL_STATUS, type Status, type View } from './status.ts'
 
 /** How long "Ready" stays on screen so the last bead and Mawl's hop read, before the hand-off. */
 export const READY_HOLD_MS = 650
+/** The hold when the very first status was already Ready (a healthy server, e.g. reopening from the tray). */
+export const QUICK_READY_HOLD_MS = 250
 const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
@@ -144,7 +146,7 @@ export function Splash({
 }
 
 /** Ready: let the last bead land and Mawl hop, fade all but the orb, then hand over to the app. */
-function useEnterWhenReady(ready: boolean, bridge: HostBridge): boolean {
+function useEnterWhenReady(ready: boolean, bridge: HostBridge, quick: boolean): boolean {
   const [leaving, setLeaving] = useState(false)
   const reduce = useReducedMotionConfig() ?? false
 
@@ -153,9 +155,12 @@ function useEnterWhenReady(ready: boolean, bridge: HostBridge): boolean {
       setLeaving(false)
       return
     }
-    const hold = setTimeout(() => setLeaving(true), reduce ? 0 : READY_HOLD_MS)
+    const hold = setTimeout(
+      () => setLeaving(true),
+      reduce ? 0 : quick ? QUICK_READY_HOLD_MS : READY_HOLD_MS,
+    )
     return () => clearTimeout(hold)
-  }, [ready, reduce])
+  }, [ready, reduce, quick])
 
   useEffect(() => {
     if (!leaving) return
@@ -188,7 +193,15 @@ function LocalStatus({
   const paced = usePacedStatus(latest)
   const status = paced ?? INITIAL_STATUS
   const view = describe(status)
-  const leaving = useEnterWhenReady(status.phase === 'ready', bridge)
+  // Nothing was booting when the window opened: skip most of the show.
+  const firstWasReady = useRef<boolean | undefined>(undefined)
+  if (latest && firstWasReady.current === undefined)
+    firstWasReady.current = latest.phase === 'ready'
+  const leaving = useEnterWhenReady(
+    status.phase === 'ready',
+    bridge,
+    firstWasReady.current === true,
+  )
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
@@ -273,7 +286,7 @@ function RemoteStatus({
   const [attempt, setAttempt] = useState(0)
   const [switching, setSwitching] = useState(false)
   const [refused, setRefused] = useState<string | undefined>()
-  const leaving = useEnterWhenReady(phase.kind === 'ready', bridge)
+  const leaving = useEnterWhenReady(phase.kind === 'ready', bridge, false)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` re-runs the check on Try again.
   useEffect(() => {

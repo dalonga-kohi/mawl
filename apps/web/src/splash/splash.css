@@ -38,7 +38,8 @@
 }
 
 /* --- the beads ------------------------------------------------------------------------------ */
-.splash-bead {
+.splash-bead,
+.splash-bead-pulse {
   transform-box: fill-box;
   transform-origin: 50% 50%;
 }
@@ -60,7 +61,7 @@
 [data-bead][data-state="active"] .splash-bead-glyph {
   color: var(--accent-ink);
 }
-[data-bead][data-state="active"] .splash-bead {
+[data-bead][data-state="active"] .splash-bead-pulse {
   animation: splash-bead-breathe 1.4s ease-in-out infinite;
 }
 [data-bead][data-state="done"] .splash-bead-body {
@@ -154,7 +155,7 @@
 :is(
   .splash-arc-active,
   .splash-ring,
-  .splash-bead,
+  .splash-bead-pulse,
   .splash-glow,
   .splash-glyph,
   .splash-retry-icon
@@ -166,7 +167,7 @@
   :is(
     .splash-arc-active,
     .splash-ring,
-    .splash-bead,
+    .splash-bead-pulse,
     .splash-glow,
     .splash-glyph,
     .splash-retry-icon
@@ -196,10 +197,10 @@
 @keyframes splash-bead-breathe {
   0%,
   100% {
-    transform: scale(0.92);
+    transform: scale(0.96);
   }
   50% {
-    transform: scale(1.02);
+    transform: scale(1.06);
   }
 }
 @keyframes splash-spin {

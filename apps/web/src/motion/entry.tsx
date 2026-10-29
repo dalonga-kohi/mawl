@@ -29,6 +29,15 @@ export type EntryFrom = 'centre' | { x: number; y: number; size: number }
 
 /** How long the curtain waits for the landing to claim the orb before it fades in place. */
 export const CLAIM_WAIT_MS = 1200
+/** The same wait on a page that has no landing orb to claim (Approvals, Tools, Settings). */
+export const NO_CLAIM_WAIT_MS = 200
+
+const NO_LANDING = /^\/(approvals|tools|settings)(\/|$)/
+
+/** How long to hold the curtain for a claim, given the page the app opened on. */
+export function claimWaitFor(pathname: string): number {
+  return NO_LANDING.test(pathname) ? NO_CLAIM_WAIT_MS : CLAIM_WAIT_MS
+}
 /** The splash's orb size (`STAGE_ORB` in splash/Stage.tsx), for a hand-off from the centre. */
 const CENTRE_ORB = 128
 
@@ -71,13 +80,17 @@ type Phase = 'cover' | 'fly' | 'fade' | 'gone'
 
 export function EntryHandoff({
   from,
+  backdrop: backdropArt,
   children,
 }: {
   /** `undefined`: there is nothing to hand off, the app shows at once. */
   from: EntryFrom | undefined
+  /** Art from the screen being left (the gate's field), drawn on the curtain so it fades with it. */
+  backdrop?: ReactNode
   children: ReactNode
 }) {
   const reduce = useReducedMotionConfig() ?? false
+  const [claimWait] = useState(() => claimWaitFor(window.location.pathname))
   const [phase, setPhase] = useState<Phase>(from ? 'cover' : 'gone')
   const [claimed, setClaimed] = useState<Claim | undefined>()
   const [scope, animate] = useAnimate<HTMLDivElement>()
@@ -96,9 +109,9 @@ export function EntryHandoff({
       setPhase('fade')
       return
     }
-    const timer = setTimeout(() => setPhase('fade'), CLAIM_WAIT_MS)
+    const timer = setTimeout(() => setPhase('fade'), claimWait)
     return () => clearTimeout(timer)
-  }, [phase, reduce])
+  }, [phase, reduce, claimWait])
 
   useLayoutEffect(() => {
     if (phase !== 'cover' || !claimed || reduce) return
@@ -154,7 +167,9 @@ export function EntryHandoff({
           aria-hidden="true"
           className="pointer-events-none fixed inset-x-0 top-(--titlebar-h) bottom-0 z-50"
         >
-          <div ref={backdrop} className="absolute inset-x-0 top-0 bottom-0 bg-bg" />
+          <div ref={backdrop} className="absolute inset-x-0 top-0 bottom-0 overflow-hidden bg-bg">
+            {backdropArt}
+          </div>
           <div ref={orb} className="fixed -translate-x-1/2 -translate-y-1/2" style={start}>
             <Mawl
               size={typeof start.width === 'number' ? start.width : CENTRE_ORB}

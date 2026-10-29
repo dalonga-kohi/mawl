@@ -149,9 +149,11 @@ function Bead({ name, i, state }: { name: (typeof STEPS)[number]; i: number; sta
         animate={{ scale: state === 'done' ? 1 : state === 'active' ? 0.92 : 0.8 }}
         transition={spring.bouncy}
       >
-        <circle r={RING.bead} className="splash-bead-body" />
-        <g className="splash-bead-glyph" transform="scale(0.3)">
-          <GlyphShape kind={BEAD_GLYPH[name]} ink="currentColor" heavy />
+        <g className="splash-bead-pulse">
+          <circle r={RING.bead} className="splash-bead-body" />
+          <g className="splash-bead-glyph" transform="scale(0.3)">
+            <GlyphShape kind={BEAD_GLYPH[name]} ink="currentColor" heavy />
+          </g>
         </g>
       </motion.g>
     </g>
