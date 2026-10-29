@@ -168,7 +168,10 @@ impl Shell {
             return;
         };
         self.presence.open_link(
-            || navigate(app, target.clone()),
+            || {
+                titlebar::allow_window_chrome(app, &target);
+                navigate(app, target.clone());
+            },
             || self.pending_link.set(path.to_owned()),
         );
     }

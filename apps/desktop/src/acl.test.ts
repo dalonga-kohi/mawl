@@ -111,7 +111,8 @@ describe('the host commands ACL', () => {
       'core:window:allow-start-dragging',
       'core:window:allow-toggle-maximize',
     ])
-    expect(read('src/shell.rs')).toContain('titlebar::allow_window_chrome(')
+    // Both ways into the app grant first: the entry (entry_url) and a deep link (open_link).
+    expect(read('src/shell.rs').match(/titlebar::allow_window_chrome\(/g)).toHaveLength(2)
   })
   it('gives the bundled splash, a local page, exactly the window-chrome permissions its title bar needs', () => {
     // The splash shows the title bar too (also when the server fails), and it is not a remote
