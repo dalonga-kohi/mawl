@@ -99,6 +99,8 @@ pub struct Shell {
     stopped: Arc<AtomicBool>,
     /// The window target changed: start Mawl again once this run has exited.
     relaunch: AtomicBool,
+    /// Origins the title bar's window permissions are already granted to (once each).
+    chrome: titlebar::Granted,
 }
 
 impl Shell {
@@ -169,7 +171,7 @@ impl Shell {
         };
         self.presence.open_link(
             || {
-                titlebar::allow_window_chrome(app, &target);
+                titlebar::allow_window_chrome(app, &self.chrome, &target);
                 navigate(app, target.clone());
             },
             || self.pending_link.set(path.to_owned()),
@@ -415,7 +417,7 @@ fn watch_remote(app: &AppHandle) {
 fn enter_app_now(app: &AppHandle, shell: &Shell) {
     shell.presence.try_enter(|| {
         let url = shell.entry_url();
-        titlebar::allow_window_chrome(app, &url);
+        titlebar::allow_window_chrome(app, &shell.chrome, &url);
         navigate(app, url);
     });
 }
@@ -601,6 +603,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         close_hinted: AtomicBool::new(false),
         stopped: flags.stopped,
         relaunch: AtomicBool::new(false),
+        chrome: titlebar::Granted::default(),
     });
 
     let config = app
