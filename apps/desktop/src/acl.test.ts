@@ -89,4 +89,27 @@ describe('the host commands ACL', () => {
       expect(text, file).not.toMatch(/https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[^"]*\*/)
     }
   })
+  it('gives the app page window chrome only, per exact origin, at run time', () => {
+    // The title bar (decorations are off) must drag, minimize, maximize and close from the app
+    // page, a remote origin. The port is only known at run time, so the host adds a capability for
+    // that exact origin (never a file, never a wildcard) just before it navigates there.
+    const titlebar = read('src/titlebar.rs')
+    expect(titlebar).toContain('CapabilityBuilder::new(')
+    expect(titlebar).toContain('.local(false)')
+    expect(titlebar).toContain('.window(MAIN_WINDOW)')
+    expect(titlebar).not.toMatch(/\.remote\(\s*"[^"]*\*/)
+    const granted = [...titlebar.matchAll(/\.permission\("([^"]+)"\)/g)].map((m) => m[1])
+    expect(granted.sort()).toEqual([
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+      'core:window:allow-close',
+      'core:window:allow-internal-toggle-maximize',
+      'core:window:allow-is-focused',
+      'core:window:allow-is-maximized',
+      'core:window:allow-minimize',
+      'core:window:allow-start-dragging',
+      'core:window:allow-toggle-maximize',
+    ])
+    expect(read('src/shell.rs')).toContain('titlebar::allow_window_chrome(')
+  })
 })

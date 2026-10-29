@@ -1,6 +1,7 @@
 #[cfg(windows)]
 mod session_end;
 mod shell;
+mod titlebar;
 mod tray;
 
 use mawl_host::{autostart, deep_link};

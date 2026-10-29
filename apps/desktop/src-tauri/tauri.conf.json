@@ -17,6 +17,7 @@
         "url": "splash.html",
         "visible": false,
         "title": "Mawl",
+        "decorations": false,
         "width": 1280,
         "height": 800,
         "minWidth": 390,

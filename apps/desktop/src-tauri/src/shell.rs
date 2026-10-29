@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::titlebar;
 use mawl_host::appearance::{self, Appearance};
 use mawl_host::autostart::launched_hidden;
 use mawl_host::deep_link::{link_target, PendingLink};
@@ -409,9 +410,11 @@ fn watch_remote(app: &AppHandle) {
 /// Navigates to the app only if the server is ready at this instant; the check and the navigation
 /// happen under one lock, so leave_app cannot slip in between.
 fn enter_app_now(app: &AppHandle, shell: &Shell) {
-    shell
-        .presence
-        .try_enter(|| navigate(app, shell.entry_url()));
+    shell.presence.try_enter(|| {
+        let url = shell.entry_url();
+        titlebar::allow_window_chrome(app, &url);
+        navigate(app, url);
+    });
 }
 
 /// "Connect to a remote Mawl…" from the tray: the splash's form, over the app. The server keeps
