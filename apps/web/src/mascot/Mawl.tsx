@@ -27,9 +27,12 @@ export const HOP_MS = 550
 /** Pointer gaze reach, in artwork units. */
 const GAZE = { x: 14, y: 10 }
 
-/** The whole artwork, with room for the effects up and to the right. */
+/**
+ * The whole artwork, with room for the effects up and to the right. Mawl keeps it at every size,
+ * so the orb stays 82.5 % of the box and does not jump when it goes flat under 48 px.
+ */
 const FULL_BOX = '0 0 400 400'
-/** Just the orb, for small sizes and avatars. */
+/** Just the orb, for the still avatar (which never shows effects). */
 export const COMPACT_BOX = '33 33 334 334'
 
 export function Mawl({
@@ -76,7 +79,7 @@ export function Mawl({
       )}
       width={size}
       height={size}
-      viewBox={flat ? COMPACT_BOX : FULL_BOX}
+      viewBox={FULL_BOX}
       data-state={state}
       data-way={way}
       aria-hidden="true"

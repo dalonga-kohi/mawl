@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { HOP_MS, Mawl, POSES } from './Mawl.tsx'
 import { MASCOT_STATES } from './states.ts'
+import { WAYS } from './ways.ts'
 
 const svgOf = (container: HTMLElement) => {
   const svg = container.querySelector('svg.mawl')
@@ -69,9 +70,20 @@ describe('Mawl, the orb', () => {
   })
 
   it('wears the colourway it is given', () => {
-    const svg = svgOf(render(<Mawl size={160} way="teal" />).container)
+    const svg = svgOf(render(<Mawl size={32} way="teal" />).container)
     expect(svg.getAttribute('data-way')).toBe('teal')
-    expect(svg.querySelector('[data-part="eye"] [fill], [data-part="eye"] [stroke]')).toBeTruthy()
+    expect(svg.querySelector('[data-part="body"]')?.getAttribute('fill')).toBe(WAYS.teal.body)
+    expect(svg.querySelector('[data-part="eye"] rect')?.getAttribute('fill')).toBe(WAYS.teal.ink)
+  })
+
+  it('keeps the orb the same size on screen across the 48 px switch to flat', () => {
+    const diameter = (size: number) => {
+      const svg = svgOf(render(<Mawl size={size} />).container)
+      const [, , w] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number)
+      const r = Number(svg.querySelector('[data-part="body"]')?.getAttribute('r'))
+      return (Number(svg.getAttribute('width')) * 2 * r) / (w ?? 1)
+    }
+    expect(diameter(47) / diameter(48)).toBeCloseTo(47 / 48, 5)
   })
 
   it('keeps gradient ids unique per instance and points the body at its own', () => {
