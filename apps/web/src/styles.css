@@ -136,6 +136,11 @@
     font-family: var(--ff-ui);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* The desktop title bar's height (TitleBar sets data-titlebar); 0 in a browser. */
+    --titlebar-h: 0px;
+  }
+  html[data-titlebar] {
+    --titlebar-h: 40px;
   }
   html,
   body,
