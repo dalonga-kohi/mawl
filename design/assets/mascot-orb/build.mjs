@@ -115,8 +115,8 @@ function icon(bg, way) {
     `<g transform="translate(512 512) scale(1.95) translate(-200 -205)">${orb(way, 'idle', 'flat')}</g></svg>`
   )
 }
-const iconDark = icon('#0B1019', WAYS.lavender)
-const iconLight = icon('#F5F7FC', WAYS.purple)
+const iconDark = icon('#0B1019', WAYS.orange)
+const iconLight = icon('#F5F7FC', WAYS.orange)
 
 writeFileSync(`${OUT}/mawl-flat.svg`, svg(orb(WAYS.orange, 'idle', 'flat')))
 writeFileSync(`${OUT}/mawl-soft.svg`, svg(orb(WAYS.orange, 'idle', 'soft')))
