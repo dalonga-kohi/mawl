@@ -33,8 +33,8 @@ describe('MawlAvatar', () => {
     expect(svg.getAttribute('height')).toBe('16')
   })
 
-  it("wears lavender unless the teammate's color picks another colourway", () => {
-    expect(svgOf(render(<MawlAvatar />).container).getAttribute('data-way')).toBe('lavender')
+  it("wears orange unless the teammate's color picks another colourway", () => {
+    expect(svgOf(render(<MawlAvatar />).container).getAttribute('data-way')).toBe('orange')
     expect(svgOf(render(<MawlAvatar color="#A9D3F5" />).container).getAttribute('data-way')).toBe(
       'sky',
     )

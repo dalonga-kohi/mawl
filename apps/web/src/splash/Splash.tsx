@@ -106,7 +106,7 @@ export function Splash({
   )
 
   // Nothing to show until the host said which Mawl this window is for (a few milliseconds).
-  if (!target) return <main className="min-h-dvh bg-bg" />
+  if (!target) return <main className="min-h-[calc(100dvh-var(--titlebar-h))] bg-bg" />
 
   if (screen.kind === 'relaunching') {
     return (
@@ -151,7 +151,7 @@ export function Splash({
 /** The centred column every splash screen shares; `leaving` fades it out into the app. */
 function Frame({ children, leaving = false }: { children: ReactNode; leaving?: boolean }) {
   return (
-    <main className="grid min-h-dvh place-items-center overflow-hidden bg-bg px-6 py-10 text-text">
+    <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center overflow-hidden bg-bg px-6 py-10 text-text">
       <motion.div
         className="flex w-full max-w-[380px] flex-col items-center text-center"
         initial={{ opacity: 0, scale: 0.96 }}
@@ -590,7 +590,7 @@ function ConnectForm({
   ) : null
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10 text-text">
+    <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center bg-bg px-5 py-10 text-text">
       <motion.div
         className="flex w-full max-w-[400px] flex-col items-center text-center"
         initial={{ opacity: 0, y: 6 }}

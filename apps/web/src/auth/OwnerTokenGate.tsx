@@ -8,6 +8,8 @@ import {
   useState,
 } from 'react'
 import { Mawl } from '../mascot/Mawl.tsx'
+import { hostWindowControls } from '../shell/window-controls.ts'
+import { SplashFrame } from '../splash/SplashFrame.tsx'
 import { Button } from '../ui/Button.tsx'
 import { Input } from '../ui/Input.tsx'
 import { clearStoredToken, readStoredToken, storeToken, type TokenCheck } from './token.ts'
@@ -77,34 +79,36 @@ export function OwnerTokenGate({
   if (phase.kind === 'ready') return children(phase.token)
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10 text-text">
-      <div className="flex w-full max-w-[400px] flex-col items-center text-center">
-        {phase.kind === 'restoring' ? (
-          <div role="status" className="flex flex-col items-center gap-4">
-            <Mawl size={88} state="thinking" />
-            <p className="text-text-2">Connecting to Mawl…</p>
-          </div>
-        ) : phase.kind === 'unreachable' ? (
-          <Unreachable
-            onRetry={() => {
-              setPhase({ kind: 'checking' })
-              void check(phase.token, false)
-            }}
-          />
-        ) : (
-          <TokenForm
-            // A new form per refusal: the field starts empty and focused for the next try.
-            key={attempt}
-            checking={phase.kind === 'checking'}
-            notice={phase.kind === 'asking' ? phase.notice : undefined}
-            onSubmit={(token) => {
-              setPhase({ kind: 'checking' })
-              void check(token, false)
-            }}
-          />
-        )}
-      </div>
-    </main>
+    <SplashFrame controls={hostWindowControls()}>
+      <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center bg-bg px-5 py-10 text-text">
+        <div className="flex w-full max-w-[400px] flex-col items-center text-center">
+          {phase.kind === 'restoring' ? (
+            <div role="status" className="flex flex-col items-center gap-4">
+              <Mawl size={88} state="thinking" />
+              <p className="text-text-2">Connecting to Mawl…</p>
+            </div>
+          ) : phase.kind === 'unreachable' ? (
+            <Unreachable
+              onRetry={() => {
+                setPhase({ kind: 'checking' })
+                void check(phase.token, false)
+              }}
+            />
+          ) : (
+            <TokenForm
+              // A new form per refusal: the field starts empty and focused for the next try.
+              key={attempt}
+              checking={phase.kind === 'checking'}
+              notice={phase.kind === 'asking' ? phase.notice : undefined}
+              onSubmit={(token) => {
+                setPhase({ kind: 'checking' })
+                void check(token, false)
+              }}
+            />
+          )}
+        </div>
+      </main>
+    </SplashFrame>
   )
 }
 

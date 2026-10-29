@@ -89,4 +89,45 @@ describe('the host commands ACL', () => {
       expect(text, file).not.toMatch(/https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[^"]*\*/)
     }
   })
+  it('gives the app page window chrome only, per exact origin, at run time', () => {
+    // The title bar (decorations are off) must drag, minimize, maximize and close from the app
+    // page, a remote origin. The port is only known at run time, so the host adds a capability for
+    // that exact origin (never a file, never a wildcard) just before it navigates there.
+    const titlebar = read('src/titlebar.rs')
+    expect(titlebar).toContain('CapabilityBuilder::new(')
+    expect(titlebar).toContain('.local(false)')
+    expect(titlebar).toContain('.window(MAIN_WINDOW)')
+    expect(titlebar).not.toMatch(/\.remote\(\s*"[^"]*\*/)
+    const list = /const PERMISSIONS: \[&str; \d+\] = \[([\s\S]*?)\];/.exec(titlebar)?.[1] ?? ''
+    const granted = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    expect(granted.sort()).toEqual([
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+      'core:window:allow-close',
+      'core:window:allow-internal-toggle-maximize',
+      'core:window:allow-is-focused',
+      'core:window:allow-is-maximized',
+      'core:window:allow-minimize',
+      'core:window:allow-start-dragging',
+      'core:window:allow-toggle-maximize',
+    ])
+    // Both ways into the app grant first: the entry (entry_url) and a deep link (open_link).
+    expect(read('src/shell.rs').match(/titlebar::allow_window_chrome\(/g)).toHaveLength(2)
+  })
+  it('gives the bundled splash, a local page, exactly the window-chrome permissions its title bar needs', () => {
+    // The splash shows the title bar too (also when the server fails), and it is not a remote
+    // origin, so a static local capability covers it: no `remote`, no wildcard.
+    const base = capabilities.find((c) => c.identifier === 'default')
+    expect(base?.windows).toEqual(['main'])
+    const window = (base?.permissions ?? [])
+      .map((p) => (typeof p === 'string' ? p : p.identifier))
+      .filter((id) => /^core:window:allow-/.test(id))
+    expect(window.sort()).toEqual([
+      'core:window:allow-close',
+      'core:window:allow-internal-toggle-maximize',
+      'core:window:allow-minimize',
+      'core:window:allow-start-dragging',
+      'core:window:allow-toggle-maximize',
+    ])
+  })
 })

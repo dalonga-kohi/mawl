@@ -57,7 +57,7 @@ export const COMPACT_BOX = '33 33 334 334'
 export function Mawl({
   size = 40,
   state = 'idle',
-  way = 'lavender',
+  way = 'orange',
   className,
   clock = browserClock,
 }: {

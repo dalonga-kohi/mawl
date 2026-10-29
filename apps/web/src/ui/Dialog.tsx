@@ -16,7 +16,7 @@ export const DialogClose = DialogPrimitive.Close
 
 /** Fade timing shared by the overlay and every dialog-like surface (sheet, alert dialog). */
 export const overlayClass = cn(
-  'fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]',
+  'fixed inset-x-0 top-(--titlebar-h) bottom-0 z-40 bg-bg/70 backdrop-blur-[2px]',
   'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-(--dur-base)',
   'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--dur-fast)',
 )

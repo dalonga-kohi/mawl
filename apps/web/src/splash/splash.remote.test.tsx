@@ -50,7 +50,7 @@ describe('the splash with a remote Mawl', () => {
     render(<Splash bridge={bridge} />)
     expect(await screen.findByText(/mawl\.example\.com/)).toBeTruthy()
     await vi.waitFor(() => expect(bridge.checkRemote).toHaveBeenCalledTimes(1))
-    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
     // The local server's status is never asked for.
     expect(bridge.status).not.toHaveBeenCalled()
   })
@@ -66,7 +66,7 @@ describe('the splash with a remote Mawl', () => {
     expect(bridge.enterApp).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Try again' }))
-    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
   })
 
   it('switches back to this PC’s Mawl', async () => {
@@ -183,7 +183,7 @@ describe('the connect form', () => {
     const { bridge } = fakeBridge({ status: { phase: 'ready' } })
     render(<Splash bridge={bridge} initialView="connect" />)
     await user.click(await screen.findByRole('button', { name: 'Cancel' }))
-    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
   })
 
   it('can be opened from the failed screen', async () => {

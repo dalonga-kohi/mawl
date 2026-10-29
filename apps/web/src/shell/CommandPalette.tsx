@@ -110,7 +110,7 @@ export function CommandPalette() {
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]"
+                className="fixed inset-x-0 top-(--titlebar-h) bottom-0 z-40 bg-bg/70 backdrop-blur-[2px]"
                 {...overlayFade}
               />
             </Dialog.Overlay>

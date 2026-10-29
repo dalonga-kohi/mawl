@@ -38,13 +38,13 @@ function SheetPanel({ children }: { children: ReactNode }) {
           <Dialog.Portal forceMount>
             <Dialog.Overlay asChild>
               <motion.div
-                className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-[2px]"
+                className="fixed inset-x-0 top-(--titlebar-h) bottom-0 z-40 bg-bg/70 backdrop-blur-[2px]"
                 {...overlayFade}
               />
             </Dialog.Overlay>
             <Dialog.Content asChild aria-describedby={undefined}>
               <motion.div
-                className="fixed inset-y-0 right-0 z-50 flex w-[min(360px,100vw)] flex-col rounded-l-lg bg-surface shadow-2"
+                className="fixed top-(--titlebar-h) right-0 bottom-0 z-50 flex w-[min(360px,100vw)] flex-col rounded-l-lg bg-surface shadow-2"
                 {...sheetFromRight}
               >
                 <Dialog.Title className="sr-only">Context</Dialog.Title>

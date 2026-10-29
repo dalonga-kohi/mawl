@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::titlebar;
 use mawl_host::appearance::{self, Appearance};
 use mawl_host::autostart::launched_hidden;
 use mawl_host::deep_link::{link_target, PendingLink};
@@ -98,6 +99,8 @@ pub struct Shell {
     stopped: Arc<AtomicBool>,
     /// The window target changed: start Mawl again once this run has exited.
     relaunch: AtomicBool,
+    /// Origins the title bar's window permissions are already granted to (once each).
+    chrome: titlebar::Granted,
 }
 
 impl Shell {
@@ -167,7 +170,10 @@ impl Shell {
             return;
         };
         self.presence.open_link(
-            || navigate(app, target.clone()),
+            || {
+                titlebar::allow_window_chrome(app, &self.chrome, &target);
+                navigate(app, target.clone());
+            },
             || self.pending_link.set(path.to_owned()),
         );
     }
@@ -409,9 +415,11 @@ fn watch_remote(app: &AppHandle) {
 /// Navigates to the app only if the server is ready at this instant; the check and the navigation
 /// happen under one lock, so leave_app cannot slip in between.
 fn enter_app_now(app: &AppHandle, shell: &Shell) {
-    shell
-        .presence
-        .try_enter(|| navigate(app, shell.entry_url()));
+    shell.presence.try_enter(|| {
+        let url = shell.entry_url();
+        titlebar::allow_window_chrome(app, &shell.chrome, &url);
+        navigate(app, url);
+    });
 }
 
 /// "Connect to a remote Mawl…" from the tray: the splash's form, over the app. The server keeps
@@ -595,6 +603,7 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         close_hinted: AtomicBool::new(false),
         stopped: flags.stopped,
         relaunch: AtomicBool::new(false),
+        chrome: titlebar::Granted::default(),
     });
 
     let config = app

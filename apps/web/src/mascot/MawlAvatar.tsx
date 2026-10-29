@@ -6,7 +6,7 @@ import { type OrbWay, orbColors, wayForColor } from './ways.ts'
 /**
  * The orb for chat lists and teammate avatars: body and eyes, no effects, no motion. A teammate
  * wears the colourway its stored colour maps to (see {@link wayForColor}); without one it wears
- * Mawl's own lavender. The state shows in the eyes only.
+ * Mawl's own orange. The state shows in the eyes only.
  */
 export function MawlAvatar({
   color,

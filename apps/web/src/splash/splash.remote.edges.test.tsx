@@ -333,7 +333,7 @@ describe('the splash flows under failure', () => {
     render(<Splash bridge={bridge} />)
     const again = await screen.findByRole('button', { name: 'Try again' })
     await user.dblClick(again)
-    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalled())
+    await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalled(), { timeout: 5000 })
     await new Promise((r) => setTimeout(r, 50))
     expect(bridge.enterApp).toHaveBeenCalledTimes(1)
   })

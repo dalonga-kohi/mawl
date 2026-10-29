@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest'
 interface TauriConfig {
   build: { frontendDist: string; devUrl: string }
   app: {
-    windows: { label: string; create?: boolean; url?: string; visible?: boolean }[]
+    windows: {
+      label: string
+      create?: boolean
+      decorations?: boolean
+      url?: string
+      visible?: boolean
+    }[]
     security: { csp: string }
   }
 }
@@ -33,6 +39,10 @@ describe('the Tauri window and its CSP', () => {
     // module script is same-origin and no CORS applies.
     expect(config.build.frontendDist).toBe('../../web/dist')
     expect(config.build.devUrl).toMatch(/^http:\/\/localhost:\d+$/)
+  })
+
+  it('draws no native title bar: the web build supplies its own', () => {
+    expect(config.app.windows.find((w) => w.label === 'main')?.decorations).toBe(false)
   })
 
   it('builds the main window with a navigation rule and no pop-ups', () => {

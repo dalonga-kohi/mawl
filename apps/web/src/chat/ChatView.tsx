@@ -23,6 +23,7 @@ import { errorCode } from '../api/providers-api.ts'
 import { Mawl } from '../mascot/Mawl.tsx'
 import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
+import { type OrbWay, wayForColor } from '../mascot/ways.ts'
 import { enter, press, transitions } from '../motion/presets.ts'
 import { useProfile } from '../profile/useProfile.ts'
 import { useCredentials } from '../settings/models/queries.ts'
@@ -43,6 +44,7 @@ import { Button, buttonClass, IconButton } from '../ui/Button.tsx'
 import { cx } from '../ui/cx.ts'
 import { EmptyState } from '../ui/EmptyState.tsx'
 import { Composer, type ComposerHandle } from './Composer.tsx'
+import { greetingFor } from './greetings.ts'
 import { Markdown } from './Markdown.tsx'
 import { MessageItem, UserBubble, userText } from './MessageItem.tsx'
 import { failureCopy, isActive, statusLine } from './run-copy.ts'
@@ -67,12 +69,6 @@ function pendingRunOf(messages: Message[]): RunId | undefined {
   if (!lastUser?.runId) return undefined
   const replied = messages.some((m) => m.role === 'assistant' && m.runId === lastUser.runId)
   return replied ? undefined : lastUser.runId
-}
-
-/** "What's next, Sam?" from the owner's profile name; just "What's next?" without one. */
-export function greeting(ownerName: string): string {
-  const first = ownerName.trim().split(/\s+/)[0]
-  return first ? `What's next, ${first}?` : "What's next?"
 }
 
 /** `/t/$slug`: a teammate's conversation. */
@@ -247,22 +243,26 @@ function Conversation({
   const loading = resolving || (threadId !== undefined && messagesQuery.isPending)
   const threadsFailed = threadParam === undefined && threads.isError
   const landing = empty && !threadsFailed && !messagesQuery.isError
-  // One id per conversation: the landing's big Mawl and the header's small one are the same Mawl.
+  // The greeting never waits for the network: while the conversation list loads, the hero shows at
+  // once (the owner's first look at a teammate is nearly always an empty chat or a cached one).
+  const hero = landing || (resolving && !threadsFailed)
+  // One id per conversation: the landing's big orb and the header's small one are the same orb.
   const mawlId = `chat-mawl-${profile.id}`
+  const way = wayForColor(profile.color)
 
   const header = (
     <header className="flex min-h-16 items-center gap-2 px-3 py-2 md:px-4">
       <ShowSidebarButton />
-      {landing ? null : (
+      {hero ? null : (
         <motion.span
           layoutId={mawlId}
-          transition={transitions.gentle}
+          transition={transitions.glide}
           className="grid size-10 shrink-0 place-items-center"
         >
-          <Mawl size={34} state={mascot} />
+          <Mawl size={34} state={mascot} way={way} />
         </motion.span>
       )}
-      <div className={cx('flex min-w-0 flex-1 flex-col', landing && 'pl-1')}>
+      <div className={cx('flex min-w-0 flex-1 flex-col', hero && 'pl-1')}>
         <h1 className="truncate text-heading">{profile.name}</h1>
         <p className="flex min-w-0 items-center gap-1.5 text-micro text-text-2">
           {active ? <span className="live-dot shrink-0" aria-hidden="true" /> : null}
@@ -321,6 +321,14 @@ function Conversation({
           >
             The Mawl server didn't send this teammate's conversations. Check that it's running.
           </EmptyState>
+        ) : resolving ? (
+          <Landing
+            greeting={greetingFor(owner.name)}
+            mascot={mascot}
+            way={way}
+            mascotSize={compact ? 88 : 120}
+            layoutId={mawlId}
+          />
         ) : loading ? (
           <MessagesSkeleton />
         ) : messagesQuery.isError ? (
@@ -333,8 +341,9 @@ function Conversation({
           </EmptyState>
         ) : empty ? (
           <Landing
-            greeting={greeting(owner.name)}
+            greeting={greetingFor(owner.name)}
             mascot={mascot}
+            way={way}
             mascotSize={compact ? 88 : 120}
             layoutId={mawlId}
           />
@@ -363,7 +372,7 @@ function Conversation({
           transition={{ layout: transitions.gentle }}
           className={cx(
             'px-3 md:px-6',
-            landing ? 'pt-2' : 'pt-1 pb-[max(12px,env(safe-area-inset-bottom))] md:pb-5',
+            hero ? 'pt-2' : 'pt-1 pb-[max(12px,env(safe-area-inset-bottom))] md:pb-5',
           )}
         >
           <div className={cx(COLUMN, 'flex flex-col gap-2')}>
@@ -419,11 +428,13 @@ function Conversation({
 function Landing({
   greeting,
   mascot,
+  way,
   mascotSize,
   layoutId,
 }: {
   greeting: string
   mascot: MascotState
+  way: OrbWay
   mascotSize: number
   layoutId: string
 }) {
@@ -432,8 +443,8 @@ function Landing({
       aria-label="New chat"
       className="flex min-h-0 flex-1 flex-col items-center justify-end gap-3 overflow-hidden px-6 pb-5 text-center"
     >
-      <motion.div layoutId={layoutId} transition={transitions.gentle}>
-        <Mawl size={mascotSize} state={mascot} />
+      <motion.div layoutId={layoutId} transition={transitions.glide}>
+        <Mawl size={mascotSize} state={mascot} way={way} />
       </motion.div>
       <h2 className="font-display text-title md:text-display">{greeting}</h2>
     </section>
@@ -449,8 +460,9 @@ function Suggestions({ onPick }: { onPick: (suggestion: string) => void }) {
             <motion.button
               type="button"
               onClick={() => onPick(text)}
+              whileHover={{ y: -2 }}
               {...press}
-              className="flex h-9 items-center gap-2 rounded-md px-3.5 text-small text-text-2 shadow-[0_0_0_1px_var(--line)] transition-colors duration-(--dur-fast) hover:bg-hover hover:text-text pointer-coarse:h-11"
+              className="flex h-9 items-center gap-2 rounded-md bg-surface-2 px-3.5 text-small text-text-2 transition-[background-color,color,box-shadow] duration-(--dur-fast) hover:bg-hover hover:text-text hover:shadow-[0_8px_24px_-10px_var(--accent-fill)] pointer-coarse:h-11"
             >
               <Icon className="size-4" aria-hidden="true" />
               {text}

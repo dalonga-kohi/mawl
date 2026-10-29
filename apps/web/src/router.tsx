@@ -108,6 +108,9 @@ const routeTree = rootRoute.addChildren([
 export function createAppRouter({ initialPath }: { initialPath?: string } = {}) {
   return createRouter({
     routeTree,
+    // The chat chunk is lazy: loading it when a link is hovered or focused means the click lands on
+    // a ready view and the greeting shows at once.
+    defaultPreload: 'intent',
     defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     history:
