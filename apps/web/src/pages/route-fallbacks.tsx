@@ -2,14 +2,18 @@ import type { ErrorComponentProps } from '@tanstack/react-router'
 import { Button } from '../ui/Button.tsx'
 import { EmptyState } from '../ui/EmptyState.tsx'
 
-/** Shown while a split-off page's code loads: the page frame with quiet placeholder bars. */
+/**
+ * Shown while a split-off page's code loads: the page frame with quiet placeholder bars. It fades
+ * in after a short grace (`route-pending` in styles.css), so a load that is nearly instant never
+ * flashes a skeleton; the screen reader still hears "Loading" at once.
+ */
 export function RoutePending() {
   return (
     <div
       role="status"
       aria-label="Loading"
       aria-busy="true"
-      className="flex flex-col gap-3 px-6 py-8 md:px-10"
+      className="route-pending flex flex-col gap-3 px-6 py-8 md:px-10"
     >
       <span className="h-7 w-40 animate-pulse rounded-sm bg-surface-2" />
       <span className="h-4 w-64 max-w-full animate-pulse rounded-xs bg-surface-2" />

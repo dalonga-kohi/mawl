@@ -25,6 +25,7 @@ import { Mawl } from '../mascot/Mawl.tsx'
 import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
 import { type OrbWay, wayForColor } from '../mascot/ways.ts'
+import { useEntryTarget } from '../motion/entry.tsx'
 import { enter, press, transitions } from '../motion/presets.ts'
 import { useProfile } from '../profile/useProfile.ts'
 import { useCredentials } from '../settings/models/queries.ts'
@@ -446,12 +447,19 @@ function Landing({
   mascotSize: number
   layoutId: string
 }) {
+  // The orb the splash or the token gate hands into the app lands here (motion/entry.tsx).
+  const entry = useEntryTarget(way, mascot)
   return (
     <section
       aria-label="New chat"
       className="flex min-h-0 flex-1 flex-col items-center justify-end gap-3 overflow-hidden px-6 pb-5 text-center"
     >
-      <motion.div layoutId={layoutId} transition={transitions.glide}>
+      <motion.div
+        ref={entry.ref}
+        layoutId={layoutId}
+        transition={transitions.glide}
+        style={{ opacity: entry.hidden ? 0 : 1 }}
+      >
         <Mawl size={mascotSize} state={mascot} way={way} />
       </motion.div>
       <h2 className="font-display text-title md:text-display">{greeting}</h2>

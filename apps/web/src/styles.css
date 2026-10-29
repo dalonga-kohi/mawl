@@ -307,6 +307,19 @@
   }
 }
 
+/* A page's loading skeleton waits a beat before it shows, so a fast chunk never flashes it. */
+.route-pending {
+  animation: route-pending-in var(--dur-base) var(--ease-out) 150ms both;
+}
+@keyframes route-pending-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
    MotionConfig; this freezes CSS animation. Mawl holds its pose on its own (mascot/mawl.css). */
 @media (prefers-reduced-motion: reduce) {

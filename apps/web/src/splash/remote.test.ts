@@ -43,17 +43,16 @@ describe('what the host says about the remote Mawl, parsed at the boundary', () 
   })
 
   it('reads the saved appearance strictly', () => {
-    expect(parseHostAppearance({ theme: 'dark', accent: '#F7C4A3', reduceMotion: true })).toEqual({
+    expect(parseHostAppearance({ theme: 'dark', palette: 'gruvbox', reduceMotion: true })).toEqual({
       theme: 'dark',
-      accent: '#F7C4A3',
+      palette: 'gruvbox',
       reduceMotion: true,
     })
-    expect(parseHostAppearance({ theme: 'light', accent: null, reduceMotion: false })).toEqual({
-      theme: 'light',
-      accent: null,
-      reduceMotion: false,
-    })
-    expect(parseHostAppearance({ theme: 'neon', accent: '#fff', reduceMotion: 1 })).toBeNull()
+    // A file saved before U14 still has the retired accent and no palette: it wears Mawl.
+    expect(parseHostAppearance({ theme: 'light', accent: '#F7C4A3', reduceMotion: false })).toEqual(
+      { theme: 'light', palette: null, reduceMotion: false },
+    )
+    expect(parseHostAppearance({ theme: 'neon', palette: 'mawl', reduceMotion: 1 })).toBeNull()
     expect(parseHostAppearance(null)).toBeNull()
   })
 })

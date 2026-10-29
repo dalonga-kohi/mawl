@@ -137,14 +137,16 @@ describe('address and token helpers at the edges', () => {
     expect(parseTarget({ kind: 'remote', origin: 42 })).toEqual({ kind: 'local' })
     expect(parseTarget({ kind: 'cloud', origin: 'https://x' })).toEqual({ kind: 'local' })
 
-    const ok = { theme: 'dark', accent: '#AABBCC', reduceMotion: true }
+    const ok = { theme: 'dark', palette: 'nord', reduceMotion: true }
     expect(parseHostAppearance(ok)).toEqual(ok)
-    expect(parseHostAppearance({ ...ok, accent: null })).toEqual({ ...ok, accent: null })
+    expect(parseHostAppearance({ ...ok, palette: null })).toEqual({ ...ok, palette: null })
+    // The host also sends the window background it painted; the splash has no use for it.
+    expect(parseHostAppearance({ ...ok, bg: '#0B1019' })).toEqual(ok)
+    // A palette this build does not know (a newer app, a hand edit) falls back on its own.
+    for (const palette of ['solarized', 'red; background:url(x)', 42, '', undefined]) {
+      expect(parseHostAppearance({ ...ok, palette })).toEqual({ ...ok, palette: null })
+    }
     for (const bad of [
-      { ...ok, accent: '#ABC' },
-      { ...ok, accent: 'AABBCC' },
-      { ...ok, accent: '#AABBCCDD' },
-      { ...ok, accent: 'red; background:url(x)' },
       { ...ok, theme: 'sepia' },
       { ...ok, reduceMotion: 'true' },
       { theme: 'dark' },

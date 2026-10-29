@@ -32,6 +32,7 @@ use mawl_host::webview::{
 };
 use serde::Serialize;
 use tauri::webview::NewWindowResponse;
+use tauri::window::Color;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
@@ -216,9 +217,20 @@ fn open_externally(app: &AppHandle, gate: &LinkGate, target: &Url) {
     });
 }
 
-/// Reads the owner's theme and accent from the app page into `<data>/appearance.json`, for the
-/// splash (`mawl_host::appearance`). Only when the window shows the app's origin; the answer is
-/// checked field by field. Never blocks: the page answers later, or not at all.
+/// The window colour for a saved appearance's painted background, if one was saved.
+fn background_of(look: &Appearance) -> Option<Color> {
+    let (r, g, b) = appearance::rgb(look.bg.as_deref()?)?;
+    Some(Color(r, g, b, 255))
+}
+
+fn saved_background(data_dir: &std::path::Path) -> Option<Color> {
+    background_of(&appearance::load(data_dir)?)
+}
+
+/// Reads the owner's theme and palette, and the page's painted background, from the app page into
+/// `<data>/appearance.json`, for the splash (`mawl_host::appearance`), and paints the window in that
+/// background from now on. Only when the window shows the app's origin; the answer is checked field
+/// by field. Never blocks: the page answers later, or not at all.
 fn pull_appearance(app: &AppHandle) {
     let Some(shell) = app.try_state::<Shell>() else {
         return;
@@ -233,8 +245,12 @@ fn pull_appearance(app: &AppHandle) {
         return;
     }
     let data_dir = shell.data_dir.clone();
+    let painted = window.clone();
     let _ = window.eval_with_callback(appearance::READ_SCRIPT, move |answer| {
         if let Some(look) = appearance::parse_eval_result(&answer) {
+            if let Some(color) = background_of(&look) {
+                let _ = painted.set_background_color(Some(color));
+            }
             if let Err(e) = appearance::save(&data_dir, &look) {
                 eprintln!("mawl: could not keep the appearance for the splash: {e}");
             }
@@ -622,7 +638,13 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
     let popup_app = app.clone();
     let popup_gate = Arc::clone(&gate);
     let nav_app = app.clone();
-    let window = WebviewWindowBuilder::from_config(app, &config)?
+    let mut builder = WebviewWindowBuilder::from_config(app, &config)?;
+    // The background the app last painted (palette and theme), so neither the first frame nor a
+    // page change ever shows white (`mawl_host::appearance`).
+    if let Some(color) = saved_background(&app.state::<Shell>().data_dir) {
+        builder = builder.background_color(color);
+    }
+    let window = builder
         .initialization_script(init_script)
         // No pop-ups: window.open and target=_blank would start a webview that the navigation rule
         // does not guard. An external web link goes to the browser instead (`open_externally`).
@@ -820,7 +842,7 @@ pub fn host_target(shell: tauri::State<'_, Shell>) -> TargetView {
     }
 }
 
-/// The owner's theme and accent as last read from the app page, for the splash.
+/// The owner's theme and palette as last read from the app page, for the splash.
 #[tauri::command]
 pub fn splash_appearance(shell: tauri::State<'_, Shell>) -> Option<Appearance> {
     appearance::load(&shell.data_dir)

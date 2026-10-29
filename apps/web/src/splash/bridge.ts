@@ -64,7 +64,7 @@ export function tauriBridge(): HostBridge {
   }
 }
 
-/** The owner's theme and accent as the host last saw them in the app, or `null`. */
+/** The owner's theme, palette and motion as the host last saw them in the app, or `null`. */
 export async function hostAppearance(): Promise<HostAppearance | null> {
   try {
     return parseHostAppearance(await invoke('splash_appearance'))

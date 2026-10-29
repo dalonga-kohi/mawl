@@ -1,6 +1,7 @@
 import {
   type FormEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -8,18 +9,24 @@ import {
   useState,
 } from 'react'
 import { Mawl } from '../mascot/Mawl.tsx'
+import type { MascotState } from '../mascot/states.ts'
+import { type EntryFrom, EntryHandoff } from '../motion/entry.tsx'
 import { hostWindowControls } from '../shell/window-controls.ts'
+import { SplashField } from '../splash/Field.tsx'
+import { Actions, Caption, LaunchFrame } from '../splash/LaunchFrame.tsx'
 import { SplashFrame } from '../splash/SplashFrame.tsx'
+import { OrbStage } from '../splash/Stage.tsx'
 import { Button } from '../ui/Button.tsx'
 import { Input } from '../ui/Input.tsx'
 import { clearStoredToken, readStoredToken, storeToken, type TokenCheck } from './token.ts'
 
 type Phase =
-  | { kind: 'ready'; token: string }
+  | { kind: 'ready'; token: string; from: EntryFrom | undefined }
   | { kind: 'restoring' }
   | { kind: 'asking'; notice?: string }
   | { kind: 'checking' }
   | { kind: 'unreachable'; token: string }
+  | { kind: 'retrying'; token: string }
 
 const COPY = {
   wrong: "That token didn't work. Check it and try again.",
@@ -27,10 +34,19 @@ const COPY = {
   empty: 'Enter the owner token.',
 }
 
+/** Where the gate's orb is now, for the hand-off into the app; `undefined` when none is drawn. */
+function orbFrom(box: RefObject<HTMLElement | null>): EntryFrom | undefined {
+  const svg = box.current?.querySelector('svg')
+  if (!svg) return undefined
+  const r = svg.getBoundingClientRect()
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2, size: r.width }
+}
+
 /**
  * Holds the app back until there is a token the server accepts (D1.4). Desktop: the launch token
- * the Tauri host injected, used at once. Headless: a token saved in this tab (checked first), or
- * the one the owner types. A refused token is cleared, never kept.
+ * the Tauri host injected, used at once, and the orb the splash left in the middle of the window
+ * flies into the app. Headless: a token saved in this tab (checked first), or the one the owner
+ * types; the gate's own orb flies into the app. A refused token is cleared, never kept.
  */
 export function OwnerTokenGate({
   launch,
@@ -44,17 +60,19 @@ export function OwnerTokenGate({
   children: (token: string) => ReactNode
 }) {
   const [phase, setPhase] = useState<Phase>(() => {
-    if (launch) return { kind: 'ready', token: launch }
+    if (launch) return { kind: 'ready', token: launch, from: 'centre' }
     return readStoredToken(storage) ? { kind: 'restoring' } : { kind: 'asking' }
   })
   const [attempt, setAttempt] = useState(0)
+  const [tries, setTries] = useState(0)
+  const orb = useRef<HTMLSpanElement>(null)
 
   const check = useCallback(
     async (token: string, saved: boolean) => {
       const result = await verify(token)
       if (result === 'ok') {
         storeToken(storage, token)
-        setPhase({ kind: 'ready', token })
+        setPhase({ kind: 'ready', token, from: orbFrom(orb) })
       } else if (result === 'unauthorized') {
         clearStoredToken(storage)
         setAttempt((n) => n + 1)
@@ -76,28 +94,63 @@ export function OwnerTokenGate({
     else setPhase({ kind: 'asking' })
   }, [phase.kind, storage, check])
 
-  if (phase.kind === 'ready') return children(phase.token)
+  if (phase.kind === 'ready') {
+    return (
+      <EntryHandoff from={phase.from} backdrop={<SplashField />}>
+        {children(phase.token)}
+      </EntryHandoff>
+    )
+  }
+
+  const retry = (token: string) => {
+    setTries((n) => n + 1)
+    setPhase({ kind: 'retrying', token })
+    void check(token, false)
+  }
 
   return (
     <SplashFrame controls={hostWindowControls()}>
-      <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center bg-bg px-5 py-10 text-text">
-        <div className="flex w-full max-w-[400px] flex-col items-center text-center">
-          {phase.kind === 'restoring' ? (
-            <div role="status" className="flex flex-col items-center gap-4">
-              <Mawl size={88} state="thinking" />
-              <p className="text-text-2">Connecting to Mawl…</p>
-            </div>
-          ) : phase.kind === 'unreachable' ? (
-            <Unreachable
-              onRetry={() => {
-                setPhase({ kind: 'checking' })
-                void check(phase.token, false)
-              }}
+      {phase.kind === 'restoring' || phase.kind === 'retrying' ? (
+        <LaunchFrame
+          stage={
+            <OrbStage
+              orbRef={orb}
+              mascot="thinking"
+              mode={phase.kind === 'retrying' ? 'retry' : 'progress'}
+              progress={{ done: 0, active: true, label: 'Connecting to Mawl' }}
+              retry={phase.kind === 'retrying' ? { attempt: tries + 1 } : undefined}
             />
-          ) : (
+          }
+        >
+          <Caption
+            title="Connecting to Mawl"
+            detail={
+              phase.kind === 'retrying'
+                ? 'Trying the Mawl server again.'
+                : 'Checking the token saved in this tab.'
+            }
+          />
+        </LaunchFrame>
+      ) : phase.kind === 'unreachable' ? (
+        <LaunchFrame stage={<OrbStage orbRef={orb} mascot="oops" mode="failed" />}>
+          <Caption
+            title="Can't reach the Mawl server"
+            detail="Check that it is running and that this address is the one it listens on."
+          />
+          <Actions>
+            <Button variant="primary" className="w-full" onClick={() => retry(phase.token)}>
+              Try again
+            </Button>
+          </Actions>
+        </LaunchFrame>
+      ) : (
+        <main className="relative grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center overflow-hidden bg-bg px-5 py-10 text-text">
+          <SplashField />
+          <div className="relative flex w-full max-w-[400px] flex-col items-center text-center">
             <TokenForm
               // A new form per refusal: the field starts empty and focused for the next try.
               key={attempt}
+              orb={orb}
               checking={phase.kind === 'checking'}
               notice={phase.kind === 'asking' ? phase.notice : undefined}
               onSubmit={(token) => {
@@ -105,33 +158,20 @@ export function OwnerTokenGate({
                 void check(token, false)
               }}
             />
-          )}
-        </div>
-      </main>
+          </div>
+        </main>
+      )}
     </SplashFrame>
   )
 }
 
-function Unreachable({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <Mawl size={88} state="sleepy" />
-      <h1 className="mt-3 font-display text-title text-balance">Can't reach the Mawl server</h1>
-      <p className="text-pretty text-text-2">
-        Check that it is running and that this address is the one it listens on.
-      </p>
-      <Button variant="primary" className="mt-4" onClick={onRetry}>
-        Try again
-      </Button>
-    </div>
-  )
-}
-
 function TokenForm({
+  orb,
   checking,
   notice,
   onSubmit,
 }: {
+  orb: RefObject<HTMLSpanElement | null>
   checking: boolean
   notice: string | undefined
   onSubmit: (token: string) => void
@@ -141,6 +181,8 @@ function TokenForm({
   const [empty, setEmpty] = useState(false)
   const field = useRef<HTMLInputElement>(null)
   const error = empty ? COPY.empty : notice
+  // The orb follows the form: asking, checking, or unhappy with the last answer.
+  const mood: MascotState = checking ? 'thinking' : error ? 'oops' : 'waiting'
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -156,8 +198,10 @@ function TokenForm({
 
   return (
     <>
-      <Mawl size={88} state="waiting" />
-      <h1 className="mt-5 font-display text-title text-balance">Enter your owner token</h1>
+      <span ref={orb} className="splash-orb">
+        <Mawl size={88} state={mood} />
+      </span>
+      <h1 className="mt-4 font-display text-title text-balance">Enter your owner token</h1>
       <p id={ids.help} className="mt-2 text-pretty text-text-2">
         This Mawl server opens only for its owner. The token is in the server's log from its first
         start, and in the owner-token file in its secrets folder.
@@ -165,7 +209,8 @@ function TokenForm({
       <form
         noValidate
         onSubmit={submit}
-        className="mt-6 flex w-full flex-col gap-3 rounded-card bg-surface p-5 text-left shadow-1"
+        aria-busy={checking}
+        className="mt-6 flex w-full flex-col gap-3 rounded-panel bg-surface p-5 text-left shadow-1"
       >
         <label htmlFor={ids.field} className="text-small font-semibold text-text-2">
           Owner token
