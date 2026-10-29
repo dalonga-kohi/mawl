@@ -12,10 +12,7 @@ const inMinutes = (m: number) => new Date(Date.now() + m * 60_000).toISOString()
 
 const sweeper = profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
-function setup(items: Approval[]) {
-  const fake = fakeApi({ profiles: [sweeper], approvals: items })
-  return fake
-}
+const setup = (items: Approval[]) => fakeApi({ profiles: [sweeper], approvals: items })
 
 const pendingRow = (name = 'Send email for Inbox Sweeper') => screen.findByRole('article', { name })
 
@@ -169,15 +166,26 @@ describe('approvals inbox', () => {
   it('shows the true status on a conflict, without an error', async () => {
     const a = approval({ profileId: sweeper.id, expiresAt: inMinutes(30) })
     const fake = setup([a])
-    // The server expired it before the click arrived.
+    // The conflict answer carries the status; the row in the fake stays pending, so only the
+    // carried status can explain what the card shows.
     fake.approvals.state.decideError = new FakeRpcError('CONFLICT', { status: 'expired' })
     const { user } = await renderApp('/approvals', fake.api)
     const row = await pendingRow()
-    fake.approvals.state.items[0] = { ...a, status: 'expired', decidedAt: inMinutes(0) }
     await user.click(within(row).getByRole('button', { name: 'Approve' }))
-    const recent = await screen.findByRole('region', { name: 'Recent' })
-    expect(await within(recent).findByText('Expired')).toBeTruthy()
+    expect(await within(row).findByText('Expired')).toBeTruthy()
+    expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('treats a conflict that claims pending as a failure, not a result', async () => {
+    const a = approval({ profileId: sweeper.id, expiresAt: inMinutes(30) })
+    const fake = setup([a])
+    fake.approvals.state.decideError = new FakeRpcError('CONFLICT', { status: 'pending' })
+    const { user } = await renderApp('/approvals', fake.api)
+    const row = await pendingRow()
+    await user.click(within(row).getByRole('button', { name: 'Deny' }))
+    expect((await within(row).findByRole('alert')).textContent).toContain("couldn't save")
+    expect(within(row).getByRole('button', { name: 'Deny' }).hasAttribute('disabled')).toBe(false)
   })
 
   it('says so and keeps the buttons when the decision could not be sent', async () => {

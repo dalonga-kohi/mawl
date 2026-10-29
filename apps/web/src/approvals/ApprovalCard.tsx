@@ -2,7 +2,7 @@ import type { Approval, ApprovalStatus } from '@mawl/contracts'
 import { Link } from '@tanstack/react-router'
 import { Ban, Check, CircleAlert, Clock, X } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { conflictStatus } from '../api/approvals-api.ts'
 import { toolLabel } from '../chat/ToolActivityCard.tsx'
 import { when } from '../chat/when.ts'
@@ -30,6 +30,14 @@ function useNow(active: boolean, ms = 30_000): number {
     return () => clearInterval(timer)
   }, [active, ms])
   return now
+}
+
+const RESULT: Record<ApprovalStatus, string> = {
+  pending: '',
+  approved: 'Approved, so the teammate can go ahead.',
+  denied: 'Denied, so the teammate was told no.',
+  expired: 'Ran out of time, so the teammate was told no.',
+  cancelled: 'The run was cancelled before anyone decided.',
 }
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -62,11 +70,21 @@ export function ApprovalCard({
   const failed = decide.isError && conflictStatus(decide.error) === undefined
   const act = (decision: 'approve' | 'deny') => decide.mutate({ id: approval.id, decision })
 
+  // The buttons leave with the decision; keep keyboard focus on the card instead of the page.
+  const card = useRef<HTMLElement>(null)
+  const wasPending = useRef(pending)
+  useEffect(() => {
+    if (wasPending.current && !pending) card.current?.focus()
+    wasPending.current = pending
+  }, [pending])
+
   return (
     <article
+      ref={card}
+      tabIndex={-1}
       aria-label={`${title} for ${name}`}
       className={cx(
-        'flex flex-col gap-3 rounded-card bg-surface p-4 shadow-[0_0_0_1px_var(--line)]',
+        'flex flex-col gap-3 rounded-card outline-offset-2 bg-surface p-4 shadow-[0_0_0_1px_var(--line)]',
         inline && 'max-w-[68ch]',
       )}
     >
@@ -110,11 +128,13 @@ export function ApprovalCard({
             </p>
           ) : null}
         </div>
-      ) : (
-        <p className="text-small text-text-2">
-          {when(decide.data?.decidedAt ?? approval.decidedAt ?? approval.createdAt)}
-        </p>
-      )}
+      ) : null}
+      {/* Stays mounted, so the result is announced when the buttons go away. */}
+      <p role="status" className="text-small text-text-2 empty:hidden">
+        {pending
+          ? ''
+          : `${RESULT[settled]} ${when(decide.data?.decidedAt ?? approval.decidedAt ?? approval.createdAt)}`}
+      </p>
       {inline ? (
         <Link to="/approvals" className={cx(buttonClass('ghost', 'sm'), 'self-start')}>
           Open all approvals
@@ -128,7 +148,6 @@ function StatusBadge({ status }: { status: Exclude<ApprovalStatus, 'pending'> })
   const { variant, icon: Icon } = STATUS_BADGE[status]
   return (
     <motion.span
-      key={status}
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1, transition: transitions.bouncy }}
     >

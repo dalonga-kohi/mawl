@@ -15,14 +15,17 @@ export interface ApprovalsApi {
   decide(input: { id: ApprovalId; decision: 'approve' | 'deny' }): Promise<Approval>
 }
 
-/** The true status a CONFLICT answer carries, when it carries a valid one. */
+/**
+ * The true status a CONFLICT answer carries, when it carries a settled one. `pending` is not one:
+ * a conflict that claims the approval is still pending is a server fault, treated as a failure.
+ */
 export function conflictStatus(error: unknown): ApprovalStatus | undefined {
   if (typeof error !== 'object' || error === null) return undefined
   if ((error as { code?: unknown }).code !== 'CONFLICT') return undefined
   const data = (error as { data?: unknown }).data
   if (typeof data !== 'object' || data === null) return undefined
   const status = (data as { status?: unknown }).status
-  const known = ['pending', 'approved', 'denied', 'expired', 'cancelled']
+  const known = ['approved', 'denied', 'expired', 'cancelled']
   return typeof status === 'string' && known.includes(status)
     ? (status as ApprovalStatus)
     : undefined

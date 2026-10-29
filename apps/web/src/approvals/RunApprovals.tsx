@@ -23,24 +23,23 @@ export function RunApprovals({
 }) {
   const recent = useRecentApprovals()
   const mine = recent.data?.filter((a) => a.runId === runId) ?? []
-  if (mine.length > 0) {
-    return (
-      <>
-        {[...mine].reverse().map((a) => (
-          <motion.div key={a.id} {...enter}>
-            <ApprovalCard approval={a} teammate={teammate} inline />
-          </motion.div>
-        ))}
-      </>
-    )
-  }
-  if (!waiting || recent.isPending) return null
+  // Waiting but no live card: the call could not be loaded, or a newer one has not arrived yet.
+  const needsNote = waiting && !recent.isPending && !mine.some((a) => a.status === 'pending')
   return (
-    <motion.div {...enter} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <p className="text-small text-text-2">Waiting for your OK. Open approvals to decide.</p>
-      <Link to="/approvals" className={buttonClass('soft', 'sm')}>
-        Open approvals
-      </Link>
-    </motion.div>
+    <>
+      {[...mine].reverse().map((a) => (
+        <motion.div key={a.id} {...enter}>
+          <ApprovalCard approval={a} teammate={teammate} inline />
+        </motion.div>
+      ))}
+      {needsNote ? (
+        <motion.div {...enter} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-small text-text-2">Waiting for your OK. Open approvals to decide.</p>
+          <Link to="/approvals" className={buttonClass('soft', 'sm')}>
+            Open approvals
+          </Link>
+        </motion.div>
+      ) : null}
+    </>
   )
 }

@@ -89,14 +89,40 @@ describe('approval card in the chat', () => {
   })
 
   it('shows the true status when it was already decided elsewhere', async () => {
-    const { fake, parked } = waitingChat()
+    const { fake } = waitingChat()
     fake.approvals.state.decideError = new FakeRpcError('CONFLICT', { status: 'approved' })
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     const card = await screen.findByRole('article', { name: 'Send email for Inbox Sweeper' })
     await user.click(within(card).getByRole('button', { name: 'Deny' }))
     expect(await within(card).findByText('Approved')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(parked.status).toBe('pending')
+  })
+
+  it('announces the result and moves focus to the card when a decision lands', async () => {
+    const { fake } = waitingChat()
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    const card = await screen.findByRole('article', { name: 'Send email for Inbox Sweeper' })
+    expect(within(card).getByRole('status').textContent).toBe('')
+    await user.click(within(card).getByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(within(card).getByRole('status').textContent).toContain('Approved'))
+    expect(document.activeElement).toBe(card)
+  })
+
+  it('points to the inbox when the run waits but only decided cards are loaded', async () => {
+    const { fake, runId } = waitingChat()
+    const p = fake.chat.profiles[0]
+    // A second call parked after the first was decided; the list has not caught up yet.
+    fake.approvals.state.items = [
+      approval({
+        profileId: p?.id as ProfileId,
+        runId,
+        status: 'approved',
+        decidedAt: '2026-10-18T10:00:00.000Z',
+      }),
+    ]
+    await renderApp('/t/inbox-sweeper', fake.api)
+    expect(await screen.findByText('Waiting for your OK. Open approvals to decide.')).toBeTruthy()
+    expect(screen.getByText('Approved')).toBeTruthy()
   })
 
   it('points to the inbox when the parked call cannot be loaded', async () => {

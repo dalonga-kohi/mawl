@@ -24,7 +24,7 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** Time left before a pending approval resolves as expired. Rounds up, so it never says 0 min. */
+/** Time left before a pending approval resolves as expired. Minutes round up, so it never says 0 min; hours and days round to the nearest. */
 export function expiryLabel(expiresAt: string, now: number): string {
   const left = Date.parse(expiresAt) - now
   if (left <= 0) return 'Expiring now'
