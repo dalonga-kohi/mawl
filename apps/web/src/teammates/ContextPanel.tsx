@@ -59,7 +59,7 @@ function RunDetails({ run }: { run: Run | undefined }) {
         ))}
       </dl>
       {run.status === 'failed' ? (
-        <p className="w-full rounded-lg bg-danger-soft p-3 text-small text-danger">
+        <p className="w-full rounded-card bg-danger-soft p-3 text-small text-danger">
           {failureCopy(run.error).title}
         </p>
       ) : null}

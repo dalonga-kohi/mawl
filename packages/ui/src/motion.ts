@@ -7,13 +7,18 @@ export const spring = {
   snappy: { type: 'spring', stiffness: 420, damping: 34 },
   /** Celebrations, mascot hops, badge pop-in */
   bouncy: { type: 'spring', stiffness: 260, damping: 14 },
+  /**
+   * Critically damped (ratio 1.0), about a 0.3 s response: the sidebar slide and the active-row
+   * indicator. Settles without overshoot and re-targets from its current velocity when interrupted.
+   */
+  glide: { type: 'spring', stiffness: 440, damping: 42 },
 } as const
 
 /** Milliseconds, for CSS and timers. */
-export const dur = { fast: 120, base: 200, slow: 320 } as const
+export const dur = { fast: 100, base: 200, slow: 320 } as const
 
 /** Seconds, for Motion's `duration`. */
-export const durSeconds = { fast: 0.12, base: 0.2, slow: 0.32 } as const
+export const durSeconds = { fast: 0.1, base: 0.2, slow: 0.32 } as const
 
 export const ease = {
   /** Default tween, as a Motion easing array. */

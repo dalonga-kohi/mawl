@@ -43,7 +43,7 @@ interface ComposerProps {
 const circlePress = { whileTap: { scale: 0.94 }, transition: transitions.snappy } as const
 
 const circle =
-  'relative grid size-8 shrink-0 place-items-center rounded-pill accent-tween disabled:cursor-default pointer-coarse:before:absolute pointer-coarse:before:-inset-1.5'
+  'relative grid size-8 shrink-0 place-items-center rounded-full tween disabled:cursor-default pointer-coarse:before:absolute pointer-coarse:before:-inset-1.5'
 
 /**
  * The pill composer (UI-REDESIGN.md §2): a round `+` menu, the autosizing input and
@@ -151,7 +151,7 @@ function AddMenu() {
           aria-label="Add to message"
           className={cx(
             circle,
-            'text-text-2 hover:bg-surface-2 hover:text-text active:scale-[.94] data-[state=open]:bg-surface-2',
+            'text-text-2 hover:bg-hover hover:text-text active:scale-[.94] data-[state=open]:bg-selected',
           )}
         >
           <Plus className="size-[18px]" aria-hidden="true" />

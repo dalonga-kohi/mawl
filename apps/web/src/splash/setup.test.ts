@@ -9,15 +9,17 @@ describe('the splash setup', () => {
     expect(initialViewFrom('?demo=failed')).toBe('main')
   })
 
-  it('applies the owner’s theme, accent and motion from the host', () => {
+  it('applies the owner’s theme and motion from the host, in the Mawl palette', () => {
     const root = document.createElement('html')
     applySplashAppearance(root, { theme: 'dark', accent: '#4F46E5', reduceMotion: true })
     expect(root.getAttribute('data-theme')).toBe('dark')
     expect(root.classList.contains('reduce-motion')).toBe(true)
-    expect(root.style.length).toBeGreaterThan(0)
+    // The host does not carry the palette yet (U14), so the splash wears Mawl.
+    expect(root.getAttribute('data-palette')).toBe('mawl')
+    expect(root.getAttribute('style')).toBeNull()
   })
 
-  it('keeps the defaults without a saved appearance, and the default accent without one', () => {
+  it('keeps the defaults without a saved appearance, and Mawl without a palette', () => {
     const root = document.createElement('html')
     applySplashAppearance(root, null)
     expect(root.hasAttribute('data-theme')).toBe(false)
@@ -25,6 +27,6 @@ describe('the splash setup', () => {
 
     applySplashAppearance(root, { theme: 'system', accent: null, reduceMotion: false })
     expect(root.hasAttribute('data-theme')).toBe(false)
-    expect(root.style.length).toBeGreaterThan(0)
+    expect(root.getAttribute('data-palette')).toBe('mawl')
   })
 })

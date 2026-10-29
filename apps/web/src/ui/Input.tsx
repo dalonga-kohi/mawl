@@ -16,7 +16,7 @@ const fieldBase = cn(
 )
 
 /** For native controls that are not an Input (a `<select>`, say). Pills, 40 px or 44 px on touch. */
-export const fieldClass = cn(fieldBase, 'h-10 rounded-pill px-4 pointer-coarse:h-11')
+export const fieldClass = cn(fieldBase, 'h-10 rounded-card px-4 pointer-coarse:h-11')
 
 export function Input({ className, type = 'text', ...props }: ComponentProps<'input'>) {
   return <input type={type} data-slot="input" className={cn(fieldClass, className)} {...props} />

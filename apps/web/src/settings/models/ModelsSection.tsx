@@ -37,7 +37,7 @@ function ChatGptButton({
 function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex items-center gap-2 rounded-pill bg-surface-2 py-1 pr-1 pl-3.5">
+    <div className="flex items-center gap-2 rounded-card bg-surface-2 py-1 pr-1 pl-3.5">
       <code className="flex-1 overflow-x-auto font-mono text-small whitespace-nowrap">
         {command}
       </code>
@@ -134,7 +134,7 @@ function Skeleton() {
     <div aria-hidden="true" className={cx(settingsCard, 'flex flex-col gap-4')}>
       {[0, 1].map((i) => (
         <div key={i} className="flex items-center gap-3">
-          <span className="size-8 animate-pulse rounded-pill bg-surface-2" />
+          <span className="size-8 animate-pulse rounded-full bg-surface-2" />
           <span className="flex flex-col gap-1.5">
             <span className="h-3.5 w-40 animate-pulse rounded-xs bg-surface-2" />
             <span className="h-3 w-24 animate-pulse rounded-xs bg-surface-2" />

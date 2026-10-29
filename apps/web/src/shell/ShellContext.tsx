@@ -16,6 +16,12 @@ interface ShellApi {
   setPanelOpen(open: boolean): void
   paletteOpen: boolean
   setPaletteOpen(open: boolean): void
+  /**
+   * Opens the palette from an on-screen control, so it grows out of that control (Apple's anchored
+   * origin). `paletteOrigin` is the control's center in viewport px, or null when opened by key.
+   */
+  openPaletteFrom(el: Element): void
+  paletteOrigin: { x: number; y: number } | null
   /** The sidebar mascot shows the focused teammate's state (DESIGN.md §8). */
   mascot: MascotState
   setMascot(state: MascotState): void
@@ -51,7 +57,17 @@ export function ShellProvider({
   // closed until asked (the sheet is never remembered).
   const [wideOpen, setWideOpenState] = useState(() => loadPanelOpen(window.localStorage))
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteOpen, setPaletteOpenState] = useState(false)
+  const [paletteOrigin, setPaletteOrigin] = useState<{ x: number; y: number } | null>(null)
+  const setPaletteOpen = useCallback((open: boolean) => {
+    if (open) setPaletteOrigin(null)
+    setPaletteOpenState(open)
+  }, [])
+  const openPaletteFrom = useCallback((el: Element) => {
+    const r = el.getBoundingClientRect()
+    setPaletteOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+    setPaletteOpenState(true)
+  }, [])
   const [mascot, setMascot] = useState<MascotState>('idle')
   const [sidebarOpen, setSidebarOpenState] = useState(() => loadSidebarOpen(window.localStorage))
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -90,6 +106,8 @@ export function ShellProvider({
       setPanelOpen: wide ? setWideOpen : setSheetOpen,
       paletteOpen,
       setPaletteOpen,
+      openPaletteFrom,
+      paletteOrigin,
       mascot,
       setMascot,
       compact,
@@ -106,6 +124,9 @@ export function ShellProvider({
       wideOpen,
       sheetOpen,
       paletteOpen,
+      setPaletteOpen,
+      openPaletteFrom,
+      paletteOrigin,
       mascot,
       compact,
       sidebarOpen,

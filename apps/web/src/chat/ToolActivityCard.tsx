@@ -63,7 +63,7 @@ function StatusIcon({ status }: { status: StepStatus }) {
   return (
     <span
       className={cx(
-        'grid size-6 shrink-0 place-items-center rounded-pill [&_svg]:size-3.5 [&_svg]:stroke-[2.4]',
+        'grid size-6 shrink-0 place-items-center rounded-full [&_svg]:size-3.5 [&_svg]:stroke-[2.4]',
         status === 'running'
           ? 'bg-accent-soft text-accent-ink'
           : status === 'failed'
@@ -72,7 +72,7 @@ function StatusIcon({ status }: { status: StepStatus }) {
       )}
     >
       {status === 'running' ? (
-        <span className="size-3 animate-spin rounded-pill border-2 border-current border-r-transparent" />
+        <span className="size-3 animate-spin rounded-full border-2 border-current border-r-transparent" />
       ) : (
         <motion.span
           key="done"
@@ -112,8 +112,8 @@ export function ToolActivity({ steps }: { steps: ToolStep[] }) {
         aria-controls={bodyId}
         onClick={() => setOpen(!open)}
         className={cx(
-          'accent-tween relative flex h-9 max-w-full items-center gap-2 overflow-hidden rounded-pill bg-surface py-1 pr-3 pl-1.5 text-left',
-          'text-small text-text-2 shadow-[0_0_0_1px_var(--line)] hover:bg-surface-2 hover:text-text active:scale-[.97] pointer-coarse:h-11',
+          'tween relative flex h-9 max-w-full items-center gap-2 overflow-hidden rounded-md bg-surface py-1 pr-3 pl-1.5 text-left',
+          'text-small text-text-2 shadow-[0_0_0_1px_var(--line)] hover:bg-hover hover:text-text active:scale-[.97] pointer-coarse:h-11',
         )}
       >
         <StatusIcon status={status} />

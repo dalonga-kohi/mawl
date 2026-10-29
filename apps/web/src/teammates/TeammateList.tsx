@@ -1,10 +1,15 @@
 import type { Profile } from '@mawl/contracts'
 import { Link, useParams } from '@tanstack/react-router'
 import { Ellipsis, Pin, PinOff, Plus } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import type { KeyboardEvent } from 'react'
 import { when } from '../chat/when.ts'
+import { MawlAvatar } from '../mascot/MawlAvatar.tsx'
+import { transitions } from '../motion/presets.ts'
+import { ActiveIndicator } from '../shell/ActiveIndicator.tsx'
 import { useShell } from '../shell/ShellContext.tsx'
-import { Button, IconButton } from '../ui/Button.tsx'
-import { cx } from '../ui/cx.ts'
+import { Button } from '../ui/Button.tsx'
+import { cn } from '../ui/cn.ts'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +19,15 @@ import {
 import { usePinned } from './pins.ts'
 import { useProfiles, useThreads } from './queries.ts'
 import { TeammateAvatar } from './TeammateAvatar.tsx'
+
+/** Rows enter, leave and reorder (pinning) on the glide spring; reduced motion makes it instant. */
+const rowMotion = {
+  layout: 'position' as const,
+  initial: { opacity: 0, y: -4 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, transition: transitions.exit },
+  transition: transitions.glide,
+}
 
 function Row({
   profile,
@@ -29,38 +43,62 @@ function Row({
 }) {
   const { mascot } = useShell()
   const latest = useThreads(profile.id).data?.[0]
-  const preview = latest ? (latest.title ?? 'Untitled chat') : 'No messages yet'
-  const stamp = latest ? when(latest.lastEventAt ?? latest.createdAt) : ''
   // Only the open teammate has run data to read; other rows get a dot once the API reports runs.
   const live = open && (mascot === 'thinking' || mascot === 'working')
+  const line = live ? 'Working…' : latest ? (latest.title ?? 'Untitled chat') : 'No messages yet'
+  const stamp = latest ? when(latest.lastEventAt ?? latest.createdAt) : ''
   return (
-    <li className="group relative">
+    <motion.li className="group relative" {...rowMotion}>
       <Link
         to="/t/$slug"
         params={{ slug: profile.slug }}
-        className={cx(
-          'accent-tween flex min-h-[60px] items-center gap-3 rounded-md px-2.5 py-2',
-          'hover:bg-surface-2/70 active:scale-[.98] aria-[current=page]:bg-surface-2',
+        data-teammate-row=""
+        className={cn(
+          'tween relative isolate flex min-h-15 items-center gap-3 rounded-md py-2 pr-2.5 pl-2',
+          'hover:bg-hover active:scale-[.98]',
         )}
       >
-        <TeammateAvatar color={profile.color} size={36} />
+        {open ? <ActiveIndicator /> : null}
+        <span className="relative shrink-0">
+          <TeammateAvatar color={profile.color} size={40} state={open ? mascot : 'idle'} />
+          {live ? (
+            <span
+              className="live-dot absolute right-0 bottom-0 shadow-[0_0_0_2px_var(--bg)]"
+              role="img"
+              aria-label="Working now"
+            />
+          ) : null}
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-heading">{profile.name}</span>
-          <span className="block truncate pr-7 text-small text-text-2">{preview}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="min-w-0 flex-1 truncate text-body font-semibold text-text">
+              {profile.name}
+            </span>
+            {pinned ? (
+              <span role="img" aria-label="Pinned" className="text-text-3">
+                <Pin className="size-3" aria-hidden="true" />
+              </span>
+            ) : null}
+            <span className="shrink-0 text-micro text-text-3 tabular-nums">{stamp}</span>
+          </span>
+          <span
+            className={cn(
+              'block truncate pr-7 text-small',
+              live ? 'text-secondary-ink' : 'text-text-2',
+            )}
+          >
+            {line}
+          </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 self-start pt-0.5">
-          {live ? <span className="live-dot" role="img" aria-label="Working now" /> : null}
-          <span className="text-micro text-text-3 tabular-nums">{stamp}</span>
-        </span>
-        {/* reason: the unread pill needs a per-teammate unread count the API does not expose yet. */}
+        {/* reason: the unread count needs a per-teammate unread number the API does not expose yet. */}
       </Link>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`More actions for ${profile.name}`}
-          className={cx(
-            'absolute right-2 bottom-2 grid size-7 place-items-center rounded-pill text-text-2 pointer-coarse:size-11',
-            'opacity-0 transition-opacity duration-(--dur-fast) hover:bg-line group-hover:opacity-100',
-            'focus-visible:opacity-100 data-[state=open]:bg-line data-[state=open]:opacity-100 pointer-coarse:opacity-100',
+          className={cn(
+            'absolute right-1.5 bottom-1.5 grid size-7 place-items-center rounded-sm text-text-2 pointer-coarse:size-11',
+            'opacity-0 transition-[opacity,background-color] duration-(--dur-fast) hover:bg-selected group-hover:opacity-100',
+            'focus-visible:opacity-100 data-[state=open]:bg-selected data-[state=open]:opacity-100 pointer-coarse:opacity-100',
           )}
         >
           <Ellipsis className="size-[18px]" aria-hidden="true" />
@@ -72,19 +110,19 @@ function Row({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </li>
+    </motion.li>
   )
 }
 
 function Skeleton() {
   return (
-    <ul aria-hidden="true" className="flex flex-col gap-1">
-      {[0, 1, 2].map((i) => (
-        <li key={i} className="flex min-h-[60px] items-center gap-3 px-2.5 py-2">
-          <span className="size-9 animate-pulse rounded-pill bg-surface-2" />
-          <span className="flex flex-1 flex-col gap-1.5">
-            <span className="h-3 w-2/3 animate-pulse rounded-xs bg-surface-2" />
-            <span className="h-2.5 w-1/2 animate-pulse rounded-xs bg-surface-2" />
+    <ul aria-hidden="true" className="flex flex-col gap-0.5">
+      {[0, 1, 2, 3].map((i) => (
+        <li key={i} className="flex min-h-15 items-center gap-3 py-2 pr-2.5 pl-2">
+          <span className="size-10 shrink-0 animate-pulse rounded-full bg-selected" />
+          <span className="flex flex-1 flex-col gap-2">
+            <span className="h-3 w-1/2 animate-pulse rounded-xs bg-selected" />
+            <span className="h-2.5 w-4/5 animate-pulse rounded-xs bg-hover" />
           </span>
         </li>
       ))}
@@ -92,11 +130,58 @@ function Skeleton() {
   )
 }
 
-const headingClass = 'px-2.5 text-small text-text-3'
+/** The last row of the list: a round plus slot where an orb would be, and the label. */
+function NewTeammateRow({ onClick }: { onClick: () => void }) {
+  return (
+    <motion.li {...rowMotion}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'tween group/new flex min-h-13 w-full items-center gap-3 rounded-md py-1.5 pr-2.5 pl-2 text-left text-body text-text-2',
+          'hover:bg-hover hover:text-text active:scale-[.97]',
+        )}
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-hover text-text-2 transition-colors duration-(--dur-fast) group-hover/new:bg-selected group-hover/new:text-accent-ink">
+          <Plus
+            className="size-[18px] transition-transform duration-(--dur-base) ease-out group-hover/new:rotate-90"
+            aria-hidden="true"
+          />
+        </span>
+        New teammate
+      </button>
+    </motion.li>
+  )
+}
+
+const ROVING_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End']
+
+/** Up/Down move between teammate rows, Home and End jump to the ends; Enter opens (a link). */
+function rovingKeys(e: KeyboardEvent<HTMLUListElement>) {
+  if (!ROVING_KEYS.includes(e.key)) return
+  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-teammate-row]')]
+  if (rows.length === 0) return
+  const here = (e.target as HTMLElement)
+    .closest('li')
+    ?.querySelector<HTMLElement>('[data-teammate-row]')
+  const i = here ? rows.indexOf(here) : -1
+  const next =
+    e.key === 'Home'
+      ? 0
+      : e.key === 'End'
+        ? rows.length - 1
+        : e.key === 'ArrowDown'
+          ? Math.min(rows.length - 1, i + 1)
+          : Math.max(0, i - 1)
+  e.preventDefault()
+  rows[next]?.focus()
+}
 
 /**
- * The sidebar's teammate groups: Pinned (only when something is pinned), then Teammates, one row
- * per teammate with a tinted mini Mawl, the latest conversation and its time.
+ * The teammates, listed like chats: pinned ones first (with a pin mark), then the rest, one row
+ * per teammate with its orb, name, the latest conversation (or what it is doing) and its time; a
+ * New teammate row closes the list. Loading shows skeleton rows, an empty list invites the first
+ * teammate, and a failed load says so with Retry.
  */
 export function TeammateList({ onNewTeammate }: { onNewTeammate: () => void }) {
   const profiles = useProfiles()
@@ -106,42 +191,23 @@ export function TeammateList({ onNewTeammate }: { onNewTeammate: () => void }) {
   const pinnedProfiles = pinned
     .map((id) => all.find((p) => p.id === id))
     .filter((p): p is Profile => p !== undefined)
-  const rest = all.filter((p) => !pinned.includes(p.id))
-  const rows = (list: Profile[]) =>
-    list.map((p) => (
-      <Row
-        key={p.id}
-        profile={p}
-        pinned={pinned.includes(p.id)}
-        open={p.slug === slug}
-        onTogglePin={() => toggle(p.id)}
-      />
-    ))
+  const ordered = [...pinnedProfiles, ...all.filter((p) => !pinned.includes(p.id))]
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 pb-2">
-      {pinnedProfiles.length > 0 ? (
-        <section aria-label="Pinned" className="flex flex-col gap-1">
-          <h2 className={headingClass}>Pinned</h2>
-          <ul className="flex flex-col gap-0.5">{rows(pinnedProfiles)}</ul>
-        </section>
-      ) : null}
-      <section aria-label="Teammates" className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <h2 className={headingClass}>Teammates</h2>
-          <IconButton
-            label="New teammate"
-            tooltipSide="right"
-            className="size-7 pointer-coarse:size-11"
-            onClick={onNewTeammate}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-          </IconButton>
-        </div>
+    <section
+      aria-label="Teammates"
+      aria-busy={profiles.isPending}
+      className="mt-2 flex min-h-0 flex-1 flex-col"
+    >
+      <h2 className="px-3 pb-1 text-small text-text-3">Teammates</h2>
+      <motion.div
+        layoutScroll
+        className="-mx-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2"
+      >
         {profiles.isPending ? (
           <Skeleton />
         ) : profiles.isError ? (
-          <div className="flex flex-col items-start gap-2 px-2.5 py-2">
+          <div className="flex flex-col items-start gap-2 px-3 py-2">
             <p role="alert" className="text-small text-text-2">
               Couldn't load your teammates. Check that the Mawl server is running.
             </p>
@@ -150,16 +216,38 @@ export function TeammateList({ onNewTeammate }: { onNewTeammate: () => void }) {
             </Button>
           </div>
         ) : all.length === 0 ? (
-          <div className="flex flex-col items-start gap-2 px-2.5 py-2">
-            <p className="text-small text-text-2">Your teammates will be listed here.</p>
-            <Button size="sm" onClick={onNewTeammate}>
-              Add a teammate
+          <motion.div
+            className="flex flex-col items-start gap-1.5 px-3 py-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: transitions.fade }}
+          >
+            <MawlAvatar size={40} className="mb-1" />
+            <p className="text-body font-semibold text-text">No teammates yet</p>
+            <p className="text-small text-text-2">
+              Give one a job and it shows up here, like a chat.
+            </p>
+            <Button variant="primary" size="sm" className="mt-2" onClick={onNewTeammate}>
+              <Plus aria-hidden="true" />
+              New teammate
             </Button>
-          </div>
+          </motion.div>
         ) : (
-          <ul className="flex flex-col gap-0.5">{rows(rest)}</ul>
+          <ul className="flex flex-col gap-0.5" onKeyDown={rovingKeys}>
+            <AnimatePresence initial={false}>
+              {ordered.map((p) => (
+                <Row
+                  key={p.id}
+                  profile={p}
+                  pinned={pinned.includes(p.id)}
+                  open={p.slug === slug}
+                  onTogglePin={() => toggle(p.id)}
+                />
+              ))}
+              <NewTeammateRow key="new-teammate" onClick={onNewTeammate} />
+            </AnimatePresence>
+          </ul>
         )}
-      </section>
-    </div>
+      </motion.div>
+    </section>
   )
 }

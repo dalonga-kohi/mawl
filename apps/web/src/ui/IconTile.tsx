@@ -20,7 +20,7 @@ export function IconTile({
       aria-hidden="true"
       style={{ width: size, height: size }}
       className={cn(
-        'grid shrink-0 place-items-center rounded-pill bg-surface-2 text-text-3',
+        'grid shrink-0 place-items-center rounded-card bg-surface-2 text-text-3',
         className,
       )}
     >

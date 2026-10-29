@@ -6,7 +6,7 @@ import {
   type LucideIcon,
   MessageCircle,
   Plug,
-  Settings,
+  SlidersHorizontal,
   Wrench,
 } from 'lucide-react'
 
@@ -44,8 +44,8 @@ export const MAIN_NAV: NavItem[] = [
 export const SETTINGS_NAV: NavItem = {
   to: '/settings',
   label: 'Settings',
-  /** The same gear as the sidebar's Settings button. */
-  icon: Settings,
+  /** The same sliders as the sidebar's Settings button. */
+  icon: SlidersHorizontal,
   keywords: ['preferences', 'appearance', 'models', 'keys'],
 }
 

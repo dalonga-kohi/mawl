@@ -8,15 +8,15 @@ export function initialViewFrom(search: string): SplashView {
 }
 
 /**
- * The owner's theme, accent and reduced motion, as the host last read them from the app (the
- * splash cannot read the app origin's storage). Without one, the defaults stay: the OS theme and
- * Mawl's own accent.
+ * The owner's theme and reduced motion, as the host last read them from the app (the splash cannot
+ * read the app origin's storage). The host still reports the retired `accent` and not the palette
+ * (U14 carries it over), so the splash wears Mawl. Without a saved appearance the defaults stay.
  */
 export function applySplashAppearance(root: HTMLElement, look: HostAppearance | null): void {
   if (!look) return
   applyAppearance(root, {
     theme: look.theme,
-    accent: look.accent ?? DEFAULT_APPEARANCE.accent,
+    palette: DEFAULT_APPEARANCE.palette,
     reduceMotion: look.reduceMotion,
   })
 }

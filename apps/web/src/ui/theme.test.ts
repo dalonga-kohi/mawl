@@ -33,8 +33,6 @@ const shadcnVars = {
   '--popover-foreground': '--text',
   '--primary': '--accent-fill',
   '--primary-foreground': '--on-accent',
-  '--secondary': '--surface-2',
-  '--secondary-foreground': '--text',
   '--muted': '--surface-2',
   '--muted-foreground': '--text-2',
   '--destructive': '--danger',
@@ -56,6 +54,15 @@ describe('shadcn variables on Mawl tokens', () => {
     for (const name of Object.keys(shadcnVars)) {
       if (name === '--radius') continue
       expect(theme.get(`--color-${name.slice(2)}`), name).toBe(`var(${name})`)
+    }
+  })
+
+  it('leaves --secondary to the Mawl teal: no shadcn alias overrides it', () => {
+    expect(shadcnRoot.has('--secondary')).toBe(false)
+    expect(shadcnRoot.has('--secondary-foreground')).toBe(false)
+    expect(tokenNames.has('--secondary')).toBe(true)
+    for (const name of ['secondary', 'secondary-ink', 'secondary-soft']) {
+      expect(theme.get(`--color-${name}`), name).toBe(`var(--${name})`)
     }
   })
 
@@ -85,9 +92,56 @@ describe('token discipline', () => {
     expect(offenders).toEqual([])
   })
 
+  it('names every @keyframes once across the stylesheets, so no animation silently overrides another', () => {
+    const names = sources
+      .filter((f) => f.endsWith('.css'))
+      .flatMap((f) =>
+        [...readFileSync(f, 'utf8').matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]),
+      )
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i)
+    expect(dupes).toEqual([])
+  })
+
+  it('shapes controls as rounded rectangles: no pill radius anywhere (round things use rounded-full)', () => {
+    const offenders = sources.filter((f) =>
+      /rounded-pill|--r-pill|radius-pill/.test(readFileSync(f, 'utf8')),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('exposes the hover and selected fills to Tailwind', () => {
+    expect(theme.get('--color-hover')).toBe('var(--hover)')
+    expect(theme.get('--color-selected')).toBe('var(--selected)')
+    expect(tokenNames.has('--hover')).toBe(true)
+    expect(tokenNames.has('--selected')).toBe(true)
+  })
+
   it('imports with relative paths (the @/ alias exists only for the shadcn CLI)', () => {
     const offenders = sources.filter((f) => /from\s+['"]@\//.test(readFileSync(f, 'utf8')))
     expect(offenders).toEqual([])
+  })
+})
+
+describe('palette and theme swaps', () => {
+  const start = styles.indexOf('@media (prefers-reduced-motion: no-preference)')
+  const rule = styles.slice(start, styles.indexOf('\n}\n', start))
+
+  it('cross-fades colors only, only during a swap and never under reduced motion', () => {
+    expect(start).toBeGreaterThan(-1)
+    expect(rule).toContain(':root.color-swap:not(.reduce-motion) *')
+    expect(rule).toMatch(/transition-property:[^;]*background-color[^;]*color/)
+    expect(rule).not.toMatch(/transition-property:[^;]*(transform|translate|scale|width|height)/)
+    expect(rule).toContain('transition-duration: var(--dur-base)')
+  })
+
+  it('stays outside any @layer, so it wins over the layered Tailwind utilities', () => {
+    const before = styles.slice(0, start)
+    const opened = (before.match(/@layer [\w-]+\s*\{/g) ?? []).length
+    expect(opened).toBeGreaterThan(0)
+    // Every layer block opened before the rule has closed: count braces from the last @layer.
+    const lastLayer = before.lastIndexOf('@layer')
+    const tail = before.slice(lastLayer)
+    expect((tail.match(/\{/g) ?? []).length).toBe((tail.match(/\}/g) ?? []).length)
   })
 })
 

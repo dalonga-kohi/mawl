@@ -61,7 +61,7 @@ function Reasoning({ text }: { text: string }) {
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={() => setOpen(!open)}
-        className="-ml-2 flex h-8 w-fit items-center gap-1 rounded-pill px-2 text-small text-text-2 transition-colors duration-(--dur-fast) hover:bg-surface-2 hover:text-text pointer-coarse:h-11"
+        className="-ml-2 flex h-8 w-fit items-center gap-1 rounded-md px-2 text-small text-text-2 transition-colors duration-(--dur-fast) hover:bg-hover hover:text-text pointer-coarse:h-11"
       >
         <ChevronRight
           aria-hidden="true"
@@ -108,7 +108,7 @@ function Blocks({ parts }: { parts: MessagePart[] }) {
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: as above.
             key={i}
-            className="inline-flex h-8 w-fit items-center gap-1.5 rounded-pill bg-surface-2 px-3 text-micro text-text-2"
+            className="inline-flex h-8 w-fit items-center gap-1.5 rounded-md bg-surface-2 px-3 text-micro text-text-2"
           >
             <Paperclip className="size-3.5" aria-hidden="true" />
             {block.name}

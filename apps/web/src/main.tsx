@@ -11,7 +11,7 @@ import { createAppRouter } from './router.tsx'
 const container = document.getElementById('root')
 if (!container) throw new Error('index.html is missing #root')
 
-// The token gate renders before AppearanceProvider: give it the saved theme and accent too.
+// The token gate renders before AppearanceProvider: give it the saved theme and palette too.
 try {
   applyAppearance(document.documentElement, loadAppearance(window.localStorage))
 } catch {

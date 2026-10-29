@@ -276,7 +276,7 @@ function Conversation({
       {model ? (
         <span
           title={modelTitle}
-          className="hidden h-7 max-w-[20ch] shrink-0 items-center truncate rounded-pill px-2.5 font-mono text-micro text-text-2 transition-colors duration-(--dur-fast) hover:bg-surface-2 md:inline-flex"
+          className="hidden h-7 max-w-[20ch] shrink-0 items-center truncate rounded-sm px-2.5 font-mono text-micro text-text-2 transition-colors duration-(--dur-fast) hover:bg-hover md:inline-flex"
         >
           {model}
         </span>
@@ -450,7 +450,7 @@ function Suggestions({ onPick }: { onPick: (suggestion: string) => void }) {
               type="button"
               onClick={() => onPick(text)}
               {...press}
-              className="flex h-9 items-center gap-2 rounded-pill px-3.5 text-small text-text-2 shadow-[0_0_0_1px_var(--line)] transition-colors duration-(--dur-fast) hover:bg-surface-2 hover:text-text pointer-coarse:h-11"
+              className="flex h-9 items-center gap-2 rounded-md px-3.5 text-small text-text-2 shadow-[0_0_0_1px_var(--line)] transition-colors duration-(--dur-fast) hover:bg-hover hover:text-text pointer-coarse:h-11"
             >
               <Icon className="size-4" aria-hidden="true" />
               {text}
@@ -528,7 +528,7 @@ function Thinking({ name }: { name: string }) {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="thinking-dot size-2 rounded-pill bg-text-3"
+          className="thinking-dot size-2 rounded-full bg-text-3"
           style={{ animationDelay: `${i * 0.18}s` }}
         />
       ))}
@@ -655,7 +655,7 @@ function MessageScroller({
             <IconButton
               label="Jump to latest"
               tooltipSide="top"
-              className="bg-surface text-text shadow-[0_0_0_1px_var(--line),var(--shadow-2)] hover:bg-surface"
+              className="rounded-full bg-surface text-text shadow-[0_0_0_1px_var(--line),var(--shadow-2)] hover:bg-surface"
               onClick={() => {
                 const el = box.current
                 if (el) el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() })
@@ -704,7 +704,7 @@ function ChatSkeleton() {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-busy="true">
       <div className="flex min-h-16 items-center gap-3 px-4">
-        <span className="size-9 animate-pulse rounded-pill bg-surface-2" />
+        <span className="size-9 animate-pulse rounded-full bg-surface-2" />
         <span className="h-4 w-40 animate-pulse rounded-xs bg-surface-2" />
       </div>
       <MessagesSkeleton />

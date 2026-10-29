@@ -1,4 +1,4 @@
-import { accentPresets, defaultAccent, retiredAccentPresets } from '@mawl/ui'
+import { PALETTE_IDS } from '@mawl/ui'
 import { describe, expect, it } from 'vitest'
 import {
   APPEARANCE_STORAGE_KEY,
@@ -26,13 +26,12 @@ const throwingStorage = {
   },
 }
 
+const loadFrom = (value: unknown) =>
+  loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: JSON.stringify(value) }))
+
 describe('loadAppearance', () => {
-  it('defaults to the system theme, the Lime accent and full motion', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({
-      theme: 'system',
-      accent: defaultAccent.hex,
-      reduceMotion: false,
-    })
+  it('defaults to the system theme, the Mawl palette and full motion', () => {
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', palette: 'mawl', reduceMotion: false })
     expect(loadAppearance(memoryStorage())).toEqual(DEFAULT_APPEARANCE)
   })
 
@@ -45,72 +44,69 @@ describe('loadAppearance', () => {
     expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: '42' }))).toEqual(
       DEFAULT_APPEARANCE,
     )
+    expect(loadFrom([1, 2])).toEqual(DEFAULT_APPEARANCE)
   })
 
   it('keeps each valid field and replaces only the invalid ones', () => {
-    const stored = JSON.stringify({ theme: 'dark', accent: 'red', reduceMotion: 'yes' })
-    expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: stored }))).toEqual({
+    expect(loadFrom({ theme: 'dark', palette: 'nord', reduceMotion: 'yes' })).toEqual({
       theme: 'dark',
-      accent: defaultAccent.hex,
+      palette: 'nord',
       reduceMotion: false,
+    })
+    expect(loadFrom({ theme: 'sepia', palette: 'dracula', reduceMotion: true })).toEqual({
+      theme: 'system',
+      palette: 'dracula',
+      reduceMotion: true,
     })
   })
 
-  it('rejects a theme outside system, light and dark', () => {
-    const stored = JSON.stringify({ theme: 'sepia', accent: '#12A4B0', reduceMotion: true })
-    expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: stored }))).toEqual({
-      theme: 'system',
-      accent: '#12A4B0',
-      reduceMotion: true,
-    })
+  it('reads every palette id', () => {
+    for (const id of PALETTE_IDS) expect(loadFrom({ palette: id }).palette, id).toBe(id)
+  })
+
+  it('falls back to Mawl for an unknown, mis-cased or non-string palette', () => {
+    for (const palette of ['solarized', 'Dracula', '', 7, null, { id: 'nord' }]) {
+      expect(loadFrom({ theme: 'dark', palette }).palette, String(palette)).toBe('mawl')
+    }
   })
 })
 
-describe('loadAppearance, retired accent presets', () => {
-  const load = (accent: unknown) =>
-    loadAppearance(
-      memoryStorage({
-        [APPEARANCE_STORAGE_KEY]: JSON.stringify({ theme: 'dark', accent, reduceMotion: true }),
-      }),
-    ).accent
-
-  it('moves a saved retired preset color (any case) to Lime and keeps the other fields', () => {
-    for (const p of retiredAccentPresets) {
-      expect(load(p.hex), p.name).toBe(defaultAccent.hex)
-      expect(load(p.hex.toLowerCase()), p.name).toBe(defaultAccent.hex)
-    }
-    const stored = JSON.stringify({ theme: 'dark', accent: '#3D8BFD', reduceMotion: true })
-    expect(loadAppearance(memoryStorage({ [APPEARANCE_STORAGE_KEY]: stored }))).toEqual({
-      theme: 'dark',
-      accent: defaultAccent.hex,
-      reduceMotion: true,
-    })
-  })
-
-  it('moves a saved retired preset name or id to Lime', () => {
-    for (const value of ['lake', 'Lake', 'moss', 'Amber', 'coral', 'plum']) {
-      expect(load(value), value).toBe(defaultAccent.hex)
+describe('loadAppearance, migrating the retired accent', () => {
+  it('moves any saved accent (preset, custom or retired) to Mawl and keeps the other fields', () => {
+    for (const accent of ['#7950E8', '#A9D3F5', '#12A4B0', '#D8E88A', 'lime', 'sky']) {
+      expect(loadFrom({ theme: 'dark', accent, reduceMotion: true }), accent).toEqual({
+        theme: 'dark',
+        palette: 'mawl',
+        reduceMotion: true,
+      })
     }
   })
 
-  it('resolves a saved current preset name or id to its color', () => {
-    const sky = accentPresets.find((p) => p.id === 'sky')
-    expect(load('sky')).toBe(sky?.hex)
-    expect(load('Sky')).toBe(sky?.hex)
-  })
-
-  it('keeps a saved custom color and every current preset color', () => {
-    expect(load('#12a4b0')).toBe('#12A4B0')
-    for (const p of accentPresets) expect(load(p.hex), p.name).toBe(p.hex)
+  it('drops the accent field cleanly', () => {
+    const loaded = loadFrom({ theme: 'light', accent: '#F7C4A3', palette: 'gruvbox' })
+    expect(loaded).toEqual({ theme: 'light', palette: 'gruvbox', reduceMotion: false })
+    expect('accent' in loaded).toBe(false)
   })
 })
 
 describe('saveAppearance', () => {
   it('round-trips through loadAppearance', () => {
     const storage = memoryStorage()
-    const prefs = { theme: 'light', accent: '#CBB9F4', reduceMotion: true } as const
+    const prefs = { theme: 'light', palette: 'rose-pine', reduceMotion: true } as const
     saveAppearance(storage, prefs)
     expect(loadAppearance(storage)).toEqual(prefs)
+  })
+
+  it('writes only theme, palette and motion, so a migrated record loses its accent', () => {
+    const storage = memoryStorage({
+      [APPEARANCE_STORAGE_KEY]: JSON.stringify({ theme: 'dark', accent: '#A9D3F5' }),
+    })
+    saveAppearance(storage, loadAppearance(storage))
+    expect(JSON.parse(storage.data.get(APPEARANCE_STORAGE_KEY) ?? '')).toEqual({
+      theme: 'dark',
+      palette: 'mawl',
+      reduceMotion: false,
+    })
   })
 
   it('never throws when storage is unavailable', () => {
@@ -135,12 +131,20 @@ describe('applyAppearance', () => {
     expect(root.getAttribute('data-theme')).toBe('light')
   })
 
-  it('writes both accent scales so a theme flip needs no JavaScript', () => {
+  it('sets data-palette, Mawl included, and writes no inline colors', () => {
     const root = document.createElement('div')
-    const sky = accentPresets.find((p) => p.id === 'sky')
-    applyAppearance(root, { ...DEFAULT_APPEARANCE, accent: sky?.hex ?? '' })
-    expect(root.style.getPropertyValue('--accent-light-accent')).not.toBe('')
-    expect(root.style.getPropertyValue('--accent-dark-fill')).not.toBe('')
+    applyAppearance(root, DEFAULT_APPEARANCE)
+    expect(root.getAttribute('data-palette')).toBe('mawl')
+    applyAppearance(root, { ...DEFAULT_APPEARANCE, palette: 'catppuccin' })
+    expect(root.getAttribute('data-palette')).toBe('catppuccin')
+    expect(root.getAttribute('style')).toBeNull()
+  })
+
+  it('falls back to Mawl for a palette that slipped past the types', () => {
+    const root = document.createElement('div')
+    // reason: simulates a value from outside the type system (a stale caller or the devtools).
+    applyAppearance(root, { ...DEFAULT_APPEARANCE, palette: 'neon' as 'mawl' })
+    expect(root.getAttribute('data-palette')).toBe('mawl')
   })
 
   it('toggles the reduce-motion class', () => {

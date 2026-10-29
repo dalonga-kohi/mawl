@@ -9,8 +9,10 @@
 /*
  * shadcn/ui's semantic variables, pointed at the @mawl/ui token with the same role, so a component
  * pasted from the registry already speaks Mawl. packages/ui stays the single source of truth; these
- * are aliases only. shadcn's own `--accent` (a neutral hover fill) is deliberately not aliased:
- * `--accent` is Mawl's user-chosen brand color, and shadcn's role is `--secondary` here.
+ * are aliases only. Two shadcn names are deliberately not aliased because Mawl owns them:
+ * `--accent` is the active palette's primary, and `--secondary` is the Mawl teal (status,
+ * online, computer). A pasted component that uses shadcn's neutral `bg-secondary` or
+ * `bg-accent` fill should use `bg-surface-2` instead.
  */
 :root {
   --background: var(--bg);
@@ -21,8 +23,6 @@
   --popover-foreground: var(--text);
   --primary: var(--accent-fill);
   --primary-foreground: var(--on-accent);
-  --secondary: var(--surface-2);
-  --secondary-foreground: var(--text);
   --muted: var(--surface-2);
   --muted-foreground: var(--text-2);
   --destructive: var(--danger);
@@ -35,7 +35,7 @@
 /*
  * Tailwind sees only Mawl tokens: the default palette, fonts and radii are cleared so a raw
  * color can't sneak into a component. Every value points at a CSS variable from tokens.css, which
- * already switches per theme and per accent.
+ * already switches per theme and per palette.
  */
 @theme inline {
   --color-*: initial;
@@ -63,6 +63,11 @@
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-ink: var(--secondary-ink);
+  --color-secondary-soft: var(--secondary-soft);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -71,8 +76,6 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
@@ -86,14 +89,14 @@
   --font-mono: var(--ff-mono);
 
   --radius-*: initial;
-  /* UI-REDESIGN §2: controls are pills; card 24, panel 28, dialog and window 32. */
+  /* DESIGN.md §5: soft rounded rectangles, never pills. Rows and buttons 10, cards and inputs 12,
+     panels 14, dialogs 16. Truly round things (orbs, avatars, dots) use the static `rounded-full`. */
   --radius-xs: var(--r-xs);
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-card: var(--r-card);
   --radius-panel: var(--r-panel);
   --radius-dialog: var(--r-dialog);
-  --radius-pill: var(--r-pill);
 
   --shadow-*: initial;
   --shadow-1: var(--shadow-1);
@@ -172,12 +175,13 @@
 }
 
 @layer components {
-  /* Accent swaps tween over 320 ms (DESIGN.md §3). Only accent-bearing surfaces get the transition.
-     `scale` is Tailwind 4's press property (`active:scale-[.97]`); it answers within 120 ms. */
-  .accent-tween {
+  /* Interactive feedback (DESIGN.md §7, Interaction principles): fills and colors fade in within
+     --dur-fast (100 ms); `scale` is Tailwind 4's press property (`active:scale-[.97]`), so a press
+     answers on pointer-down. Palette swaps cross-fade through `color-swap` below, not here. */
+  .tween {
     transition:
-      background-color var(--dur-slow) var(--ease-out),
-      color var(--dur-slow) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
       box-shadow var(--dur-fast) var(--ease-out),
       scale var(--dur-fast) var(--ease-out),
       opacity var(--dur-fast) var(--ease-out);
@@ -203,11 +207,12 @@
   .thinking-dot {
     animation: mawl-breathe 1.2s ease-in-out infinite;
   }
+  /* Something is running: a teal (--secondary, the status color) dot that breathes softly. */
   .live-dot {
-    width: 7px;
-    height: 7px;
+    width: 9px;
+    height: 9px;
     border-radius: 999px;
-    background: var(--ok);
+    background: var(--secondary);
     animation: mawl-breathe 2s ease-in-out infinite;
   }
 }
@@ -280,6 +285,23 @@
     scrollbar-color: var(--thumb) transparent;
   }
 }
+/* A palette or theme change cross-fades every color over --dur-base (DESIGN.md §3).
+   AppearanceProvider puts `color-swap` on <html> for that window only, so day-to-day transitions
+   keep their own timing. Unlayered on purpose: it must win over Tailwind's layered utilities.
+   Colors only; never layout. Reduced motion (OS or the in-app toggle) skips it. */
+@media (prefers-reduced-motion: no-preference) {
+  :root.color-swap:not(.reduce-motion),
+  :root.color-swap:not(.reduce-motion) *,
+  :root.color-swap:not(.reduce-motion) *::before,
+  :root.color-swap:not(.reduce-motion) *::after {
+    transition-property:
+      background-color, color, border-color, outline-color, text-decoration-color, fill, stroke,
+      box-shadow;
+    transition-duration: var(--dur-base);
+    transition-timing-function: var(--ease-out);
+  }
+}
+
 /* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
    MotionConfig; this freezes CSS animation. Mawl holds its pose on its own (mascot/mawl.css). */
 @media (prefers-reduced-motion: reduce) {

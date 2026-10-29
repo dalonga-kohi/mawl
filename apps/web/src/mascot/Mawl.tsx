@@ -1,115 +1,100 @@
-import { useReducedMotionConfig } from 'motion/react'
-import { type CSSProperties, type RefObject, useEffect, useId, useRef, useState } from 'react'
+import { durSeconds, ease, spring } from '@mawl/ui'
+import {
+  AnimatePresence,
+  type MotionValue,
+  motion,
+  useReducedMotionConfig,
+  useSpring,
+  useTransform,
+} from 'motion/react'
+import { type ReactNode, useEffect, useId, useState } from 'react'
 import { cx } from '../ui/cx.ts'
+import { ART, BLINKS, type Glyph, GlyphShape, POSES } from './glyphs.tsx'
+import {
+  BLINK_MS,
+  browserClock,
+  GAZES,
+  type GazeName,
+  gazeForOffset,
+  type LifeClock,
+  type ProjectedEye as ProjectedEyeValues,
+  projectEye,
+  QUIET_AMPLITUDE,
+  startIdleLife,
+} from './idle-life.ts'
 import type { MascotState } from './states.ts'
+import { type OrbColors, type OrbWay, orbColors } from './ways.ts'
+
+export { POSES } from './glyphs.tsx'
 
 /**
- * Mawl, the lemon-lime mochi (docs/UI-REDESIGN.md §2-4). Ported from the user's mint reference:
- * the shapes and keyframes are the reference's, recolored with the fixed Mawl palette in
- * `mawl.css`. Every color is a `--mawl-*` variable; none of them follow the accent.
+ * Mawl, the orb (DESIGN.md §8; art in design/assets/mascot-orb/). One circle, one colourway, and
+ * glyph eyes that carry every expression.
  *
- * The state only picks which eyes, mouth and effect are on (see {@link POSES}); the motion for each
- * state lives in `mawl.css`, keyed on `data-state`. Reduced motion (the OS setting or the in-app
- * toggle, which drives Motion's config) freezes Mawl on its pose.
+ * The state picks the eyes and the effect (see {@link POSES}). The eyes sit on a sphere: one gaze
+ * (yaw and pitch, Motion springs) is the single source of truth, and each eye's position and squash
+ * are projected from it (`projectEye`), inside a clip of the orb, so a far look carries the leading
+ * eye over the edge. While idle (and, quieter, while listening) the orb looks around and blinks on
+ * its own (`idle-life.ts`). Eyes cross-fade and spring between states; ambient loops live in
+ * `mawl.css`, keyed on `data-state`. Reduced motion (the OS setting or the in-app toggle, which
+ * drives Motion's config) stops the loops and the idle life and turns eye changes into short fades.
  */
 
-export type EyeShape = 'line' | 'focus' | 'happy' | 'round' | 'closed'
-export type MouthShape = 'smile' | 'wavy' | 'flat' | 'open' | 'o' | 'sleep'
-export type Effect = 'dots' | 'chips' | 'sparkles' | 'sweat' | 'zz' | 'alert'
-
-export interface Pose {
-  eyes: EyeShape
-  mouth: MouthShape
-  fx?: Effect
-  /** Where the eyes rest, in viewBox units. */
-  look?: { x: number; y: number }
-}
-
-export const POSES: Record<MascotState, Pose> = {
-  idle: { eyes: 'line', mouth: 'smile' },
-  // The composer sits below Mawl, so listening glances down at it.
-  listening: { eyes: 'line', mouth: 'smile', look: { x: 0, y: 4 } },
-  thinking: { eyes: 'line', mouth: 'wavy', fx: 'dots', look: { x: 6, y: -4 } },
-  working: { eyes: 'focus', mouth: 'flat', fx: 'chips' },
-  waiting: { eyes: 'line', mouth: 'smile', fx: 'alert', look: { x: 3, y: -2 } },
-  done: { eyes: 'happy', mouth: 'open', fx: 'sparkles' },
-  oops: { eyes: 'round', mouth: 'o', fx: 'sweat' },
-  sleepy: { eyes: 'closed', mouth: 'sleep', fx: 'zz' },
-}
-
-/** The body outline, shared with {@link MawlAvatar}. */
-export const BODY_PATH =
-  'M-48 20 C-48 -20 -28 -44 0 -44 C28 -44 48 -20 48 20 C48 36 36 42 0 42 C-36 42 -48 36 -48 20 Z'
-
-const INK = 'var(--mawl-ink)'
-const OPEN_MOUTH = 'M-8 8 Q0 8 8 8 Q8 19 0 19 Q-8 19 -8 8 Z'
-
-/** The five eye shapes, shared with {@link MawlAvatar}. */
-export function MawlEyes({ on, still }: { on?: EyeShape | undefined; still?: boolean }) {
-  const part = (shape: EyeShape) => ({
-    'data-part': `eyes-${shape}`,
-    'data-on': on === shape ? '' : undefined,
-  })
-  const stroke = { stroke: INK, strokeLinecap: 'round', fill: 'none' } as const
-  return (
-    <>
-      <g {...part('line')} className={still ? undefined : 'mawl-blink'}>
-        <path d="M-13 -7 L-13 1 M13 -7 L13 1" strokeWidth="6" {...stroke} />
-      </g>
-      <g {...part('focus')}>
-        <path d="M-17 -5 L-9 -1.5 M17 -5 L9 -1.5" strokeWidth="5.5" {...stroke} />
-      </g>
-      <g {...part('happy')}>
-        <path
-          d="M-18 1 L-13 -6 L-8 1 M8 1 L13 -6 L18 1"
-          strokeWidth="5.5"
-          strokeLinejoin="round"
-          {...stroke}
-        />
-      </g>
-      <g {...part('round')} fill={INK}>
-        <circle cx="-13" cy="-3" r="4.5" />
-        <circle cx="13" cy="-3" r="4.5" />
-      </g>
-      <g {...part('closed')}>
-        <path d="M-18 -3 Q-13 3 -8 -3 M8 -3 Q13 3 18 -3" strokeWidth="5" {...stroke} />
-      </g>
-    </>
-  )
-}
-
-/** At or below this size the eye strokes fall under a pixel, so mawl.css makes them heavier. */
-export const TINY_AT = 20
-/** Below this width the effects are unreadable, so Mawl drops them and crops to its body. */
-const COMPACT_BELOW = 48
-/** Eyes follow the pointer only when Mawl is big enough for the glance to read. */
-const FOLLOW_FROM = 64
+/** Below this size the soft light is lost and the strokes thin out, so the orb goes flat and still. */
+export const SOFT_FROM = 48
 /** Matches `mawl-hop` in mawl.css. */
 export const HOP_MS = 550
-const FULL_BOX = { x: -85, y: -90, w: 170, h: 150 }
-// Body, ears and tail only; overflow stays visible, so a hop or bob may leave the box.
-const COMPACT_BOX = { x: -50, y: -46, w: 112, h: 92 }
+const GAZE_SPRING = { stiffness: spring.gentle.stiffness, damping: spring.gentle.damping }
+
+/**
+ * The whole artwork, with room for the effects up and to the right. Mawl keeps it at every size,
+ * so the orb stays 82.5 % of the box and does not jump when it goes flat under 48 px.
+ */
+const FULL_BOX = '0 0 400 400'
+/** Just the orb, for the still avatar (which never shows effects). */
+export const COMPACT_BOX = '33 33 334 334'
 
 export function Mawl({
   size = 40,
   state = 'idle',
+  way = 'lavender',
   className,
+  clock = browserClock,
 }: {
-  /** Rendered width in px; the height follows the artwork. */
+  /** Rendered width and height in px. */
   size?: number
   state?: MascotState
+  way?: OrbWay
   className?: string
+  /** The idle-life clock; tests pass fake timers and a scripted random. */
+  clock?: LifeClock
 }) {
-  const ids = useSvgIds()
+  const ids = useOrbIds()
   const reduce = useReducedMotionConfig() ?? false
-  const svgRef = useRef<SVGSVGElement>(null)
-  const lookRef = useRef<SVGGElement>(null)
   const [hopping, setHopping] = useState(false)
-  const compact = size < COMPACT_BELOW
+  const flat = size < SOFT_FROM
   const pose = POSES[state]
-  const box = compact ? COMPACT_BOX : FULL_BOX
+  const colors = orbColors(way)
+  const pressable = !flat && !reduce
+  const alive = !flat && !reduce && (state === 'idle' || state === 'listening')
+  const quiet = state === 'listening'
+  const life = useIdleLife(alive, quiet, clock)
 
-  usePointerGaze(svgRef, lookRef, state === 'idle' && size >= FOLLOW_FROM && !reduce)
+  const rest = gazeForOffset(pose.look)
+  const look = GAZES[life.gaze]
+  const amp = quiet ? QUIET_AMPLITUDE : 1
+  const target = { yaw: rest.yaw + look.yaw * amp, pitch: rest.pitch + look.pitch * amp }
+  const yaw = useSpring(target.yaw, GAZE_SPRING)
+  const pitch = useSpring(target.pitch, GAZE_SPRING)
+  useEffect(() => {
+    if (reduce) {
+      yaw.jump(target.yaw)
+      pitch.jump(target.pitch)
+    } else {
+      yaw.set(target.yaw)
+      pitch.set(target.pitch)
+    }
+  }, [reduce, target.yaw, target.pitch, yaw, pitch])
 
   useEffect(() => {
     if (!hopping) return
@@ -118,213 +103,276 @@ export function Mawl({
     return () => clearTimeout(timer)
   }, [hopping])
 
-  const on = (part: string, active: boolean) => ({
-    'data-part': part,
-    'data-on': active ? '' : undefined,
-  })
-  const mouth = (shape: MouthShape) => on(`mouth-${shape}`, pose.mouth === shape)
-  const fx = (kind: Effect) => on(`fx-${kind}`, pose.fx === kind)
-  const lineStroke = { stroke: INK, strokeLinecap: 'round', fill: 'none' } as const
-  const style = {
-    '--mawl-look': pose.look ? `translate(${pose.look.x}px, ${pose.look.y}px)` : 'none',
-  } as CSSProperties
-
   return (
     <svg
-      ref={svgRef}
       className={cx(
         'mawl',
-        size <= TINY_AT && 'is-tiny',
+        flat && 'is-flat',
         reduce && 'is-still',
+        pressable && 'is-pressable',
         hopping && 'is-hopping',
         className,
       )}
       width={size}
-      height={Math.round((size * box.h) / box.w)}
-      viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+      height={size}
+      viewBox={FULL_BOX}
       data-state={state}
+      data-way={way}
+      data-gaze={life.gaze}
+      data-blink={life.closed ? '' : undefined}
       aria-hidden="true"
       focusable="false"
-      style={style}
-      onClick={compact || reduce ? undefined : () => setHopping(true)}
+      onClick={pressable ? () => setHopping(true) : undefined}
     >
       <defs>
-        <linearGradient id={ids.body} x1="0.25" y1="0" x2="0.65" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--mawl-body-top)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--mawl-body-bottom)' }} />
-        </linearGradient>
-        <linearGradient id={ids.tail} x1="0" y1="0" x2="0.6" y2="1">
-          <stop offset="0" style={{ stopColor: 'var(--mawl-tail-top)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--mawl-tail-bottom)' }} />
-        </linearGradient>
-        <clipPath id={ids.mouth}>
-          <path d={OPEN_MOUTH} />
+        <clipPath id={ids.clip}>
+          <circle cx={ART.cx} cy={ART.cy} r={ART.r} />
         </clipPath>
       </defs>
-      {compact ? null : <ellipse className="mawl-shadow" cx="0" cy="46" rx="42" ry="5.5" />}
       <g className="mawl-hop">
-        <g className="mawl-bounce">
-          <g className="mawl-squish">
-            <g className="mawl-tail">
-              <ellipse
-                cx="46"
-                cy="-14"
-                rx="12"
-                ry="20"
-                fill={`url(#${ids.tail})`}
-                transform="rotate(28 46 -14)"
-              />
+        <g className="mawl-motion">
+          <g className="mawl-press">
+            <OrbBody colors={colors} flat={flat} gradientId={ids.gradient} />
+            <g data-part="face" clipPath={`url(#${ids.clip})`}>
+              {(['l', 'r'] as const).map((side) => (
+                <ProjectedEye key={side} side={side} yaw={yaw} pitch={pitch}>
+                  <AnimatedEye
+                    side={side}
+                    glyph={side === 'l' ? pose.l : pose.r}
+                    ink={colors.ink}
+                    heavy={flat}
+                    closed={life.closed}
+                  />
+                </ProjectedEye>
+              ))}
             </g>
-            <g className="mawl-ears">
-              <circle cx="-29" cy="-33" r="10" fill="var(--mawl-ear)" />
-              <circle cx="29" cy="-33" r="10" fill="var(--mawl-ear)" />
-              <circle cx="-29" cy="-34" r="5.5" fill="var(--mawl-ear-inner)" />
-              <circle cx="29" cy="-34" r="5.5" fill="var(--mawl-ear-inner)" />
-            </g>
-            <g className="mawl-paw">
-              <ellipse
-                cx="-51"
-                cy="-12"
-                rx="6.5"
-                ry="11"
-                fill={`url(#${ids.body})`}
-                transform="rotate(-32 -51 -12)"
-              />
-            </g>
-            <path data-part="body" d={BODY_PATH} fill={`url(#${ids.body})`} />
-            <g className="mawl-blush" fill="var(--mawl-blush)">
-              <ellipse cx="-29" cy="10" rx="6" ry="3.5" />
-              <ellipse cx="29" cy="10" rx="6" ry="3.5" />
-            </g>
-            <g ref={lookRef} className="mawl-look">
-              <MawlEyes on={pose.eyes} still={reduce} />
-            </g>
-            <path {...mouth('smile')} d="M-6 9 Q0 14 6 9" strokeWidth="2.5" {...lineStroke} />
-            <path
-              {...mouth('wavy')}
-              d="M-5 11 Q-2.5 8.5 0 11 Q2.5 13.5 5 11"
-              strokeWidth="2.3"
-              {...lineStroke}
-            />
-            <path {...mouth('flat')} d="M-4.5 11 L4.5 11" strokeWidth="2.5" {...lineStroke} />
-            <g {...mouth('open')}>
-              <path d={OPEN_MOUTH} fill={INK} stroke={INK} strokeWidth="2" strokeLinejoin="round" />
-              <g clipPath={`url(#${ids.mouth})`}>
-                <ellipse cx="0" cy="20" rx="6" ry="5.5" fill="var(--mawl-tongue)" />
-              </g>
-            </g>
-            <ellipse {...mouth('o')} cx="0" cy="12" rx="3" ry="3.6" fill={INK} />
-            <path {...mouth('sleep')} d="M-4 10 Q0 12.5 4 10" strokeWidth="2.2" {...lineStroke} />
           </g>
         </g>
       </g>
-      {compact ? null : (
-        <>
-          <g {...fx('dots')} fill="var(--mawl-ear-inner)">
-            <circle className="mawl-dot" cx="-10" cy="-66" r="3.2" />
-            <circle className="mawl-dot" cx="0" cy="-66" r="3.2" />
-            <circle className="mawl-dot" cx="10" cy="-66" r="3.2" />
-          </g>
-          <g {...fx('chips')} fill="var(--mawl-body-bottom)">
-            <g transform="translate(58 -34)">
-              <circle className="mawl-chip" r="2.6" />
-            </g>
-            <g transform="translate(63 -22)">
-              <circle className="mawl-chip" r="2.2" />
-            </g>
-            <g transform="translate(54 -44)">
-              <circle className="mawl-chip" r="2" />
-            </g>
-          </g>
-          <g {...fx('sparkles')} fill="var(--mawl-sparkle)">
-            <g transform="translate(-52 -50)">
-              <path
-                className="mawl-sparkle"
-                d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z"
-              />
-            </g>
-            <g transform="translate(-62 -14)">
-              <path
-                className="mawl-sparkle"
-                d="M0 -5 Q0.7 -0.7 5 0 Q0.7 0.7 0 5 Q-0.7 0.7 -5 0 Q-0.7 -0.7 0 -5 Z"
-              />
-            </g>
-            <g transform="translate(38 -68)">
-              <path
-                className="mawl-sparkle"
-                d="M0 -6 Q0.8 -0.8 6 0 Q0.8 0.8 0 6 Q-0.8 0.8 -6 0 Q-0.8 -0.8 0 -6 Z"
-              />
-            </g>
-          </g>
-          <g {...fx('sweat')} fill="var(--mawl-sweat)">
-            <g transform="translate(-42 -30)">
-              <path className="mawl-drop" d="M0 -6 C3 -1 4 2 0 4 C-4 2 -3 -1 0 -6 Z" />
-            </g>
-          </g>
-          <g {...fx('zz')} className="mawl-zz">
-            <g transform="translate(34 -46)">
-              <text fontSize="12">z</text>
-            </g>
-            <g transform="translate(44 -58)">
-              <text fontSize="14">z</text>
-            </g>
-            <g transform="translate(54 -72)">
-              <text fontSize="16">z</text>
-            </g>
-          </g>
-          <g {...fx('alert')}>
-            <g className="mawl-bubble">
-              <circle cx="31" cy="-49" r="3" fill="var(--mawl-sparkle)" />
-              <circle cx="42" cy="-64" r="11" fill="var(--mawl-sparkle)" />
-              <path d="M42 -69.5 L42 -63" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
-              <circle cx="42" cy="-58" r="1.9" fill={INK} />
-            </g>
-          </g>
-        </>
+      {flat ? null : (
+        <AnimatePresence initial={false}>
+          {pose.fx ? (
+            <motion.g
+              key={pose.fx}
+              data-part={`fx-${pose.fx}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: durSeconds.base, ease: ease.out } }}
+              exit={{ opacity: 0, transition: { duration: durSeconds.fast, ease: ease.out } }}
+            >
+              <OrbEffect kind={pose.fx} body={colors.body} />
+            </motion.g>
+          ) : null}
+        </AnimatePresence>
       )}
     </svg>
   )
 }
 
-/** Gradient and clip ids unique to this instance, so several Mawls never share a `url(#…)`. */
-export function useSvgIds() {
-  const base = `mawl${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
-  return { body: `${base}-body`, tail: `${base}-tail`, mouth: `${base}-mouth` }
+/**
+ * Places one eye where the gaze projects it on the sphere, squashed as it turns away. Transform
+ * only: x, y and scale are derived from the two gaze springs, so nothing re-renders per frame.
+ */
+function ProjectedEye({
+  side,
+  yaw,
+  pitch,
+  children,
+}: {
+  side: 'l' | 'r'
+  yaw: MotionValue<number>
+  pitch: MotionValue<number>
+  children: ReactNode
+}) {
+  const x = useProjected(side, yaw, pitch, 'x')
+  const y = useProjected(side, yaw, pitch, 'y')
+  const scaleX = useProjected(side, yaw, pitch, 'sx')
+  const scaleY = useProjected(side, yaw, pitch, 'sy')
+  return (
+    <motion.g
+      data-part="eye-anchor"
+      // Scale about the eye's own centre: the glyph is drawn around (0, 0) and the anchor carries
+      // no other transform, so origin 0 0 of the view box is that centre before the translate.
+      style={{ x, y, scaleX, scaleY, originX: 0, originY: 0, transformBox: 'view-box' }}
+    >
+      {children}
+    </motion.g>
+  )
+}
+
+function useProjected(
+  side: 'l' | 'r',
+  yaw: MotionValue<number>,
+  pitch: MotionValue<number>,
+  key: keyof ProjectedEyeValues,
+) {
+  return useTransform([yaw, pitch], ([y, p]: number[]) => projectEye(side, y ?? 0, p ?? 0)[key])
+}
+
+/** The idle life while `enabled`, paused while the tab is hidden; centre and open eyes otherwise. */
+function useIdleLife(enabled: boolean, quiet: boolean, clock: LifeClock) {
+  const [gaze, setGaze] = useState<GazeName>('centre')
+  const [closed, setClosed] = useState(false)
+  useEffect(() => {
+    if (!enabled) return
+    let stop: (() => void) | undefined
+    const start = () => {
+      stop ??= startIdleLife(clock, { onGaze: setGaze, onBlink: setClosed }, { quiet })
+    }
+    const halt = () => {
+      stop?.()
+      stop = undefined
+      setGaze('centre')
+      setClosed(false)
+    }
+    const onVisibility = () => (document.visibilityState === 'hidden' ? halt() : start())
+    if (document.visibilityState !== 'hidden') start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      halt()
+    }
+  }, [enabled, quiet, clock])
+  return { gaze, closed }
+}
+
+/** The circle, soft (a top-left light) from 48 px and flat below. */
+export function OrbBody({
+  colors,
+  flat,
+  gradientId,
+}: {
+  colors: OrbColors
+  flat: boolean
+  gradientId: string
+}) {
+  return (
+    <>
+      {flat ? null : (
+        <defs>
+          <radialGradient id={gradientId} cx=".34" cy=".28" r=".85">
+            <stop offset="0" stopColor={colors.hi} />
+            <stop offset=".55" stopColor={colors.body} />
+            <stop offset="1" stopColor={colors.lo} />
+          </radialGradient>
+        </defs>
+      )}
+      <circle
+        data-part="body"
+        cx={ART.cx}
+        cy={ART.cy}
+        r={ART.r}
+        fill={flat ? colors.body : `url(#${gradientId})`}
+      />
+    </>
+  )
+}
+
+const eyeHome = (side: 'l' | 'r') =>
+  `translate(${ART.cx + (side === 'l' ? -ART.eyeX : ART.eyeX)} ${ART.eyeY})`
+
+/** A still eye, for the avatar. */
+export function StillEye({
+  side,
+  glyph,
+  ink,
+  heavy,
+}: {
+  side: 'l' | 'r'
+  glyph: Glyph
+  ink: string
+  heavy: boolean
+}) {
+  return (
+    <g transform={eyeHome(side)}>
+      <g data-part="eye" data-side={side} data-glyph={glyph}>
+        <GlyphShape kind={glyph} ink={ink} heavy={heavy} />
+      </g>
+    </g>
+  )
 }
 
 /**
- * While enabled, the eyes glance toward the pointer, at most once per frame. Disabling it (or
- * unmounting) hands the eyes back to the stylesheet's resting pose.
+ * The new glyph pops in on a bouncy spring while the old one fades out over `dur.fast`, so a state
+ * change reads at once. Under reduced motion Motion drops the scale and keeps the fade.
  */
-function usePointerGaze(
-  svgRef: RefObject<SVGSVGElement | null>,
-  lookRef: RefObject<SVGGElement | null>,
-  enabled: boolean,
-) {
-  useEffect(() => {
-    const look = lookRef.current
-    if (!enabled || !look) return
-    let frame = 0
-    let last: PointerEvent | undefined
-    const update = () => {
-      frame = 0
-      const svg = svgRef.current
-      if (!svg || !last) return
-      const r = svg.getBoundingClientRect()
-      const clamp = (n: number) => Math.max(-1, Math.min(1, n))
-      const dx = clamp((last.clientX - (r.left + r.width / 2)) / 180)
-      const dy = clamp((last.clientY - (r.top + r.height * 0.6)) / 180)
-      look.style.transform = `translate(${(dx * 5).toFixed(1)}px, ${(dy * 3.5).toFixed(1)}px)`
-    }
-    const onMove = (e: PointerEvent) => {
-      last = e
-      if (!frame) frame = requestAnimationFrame(update)
-    }
-    document.addEventListener('pointermove', onMove, { passive: true })
-    return () => {
-      document.removeEventListener('pointermove', onMove)
-      if (frame) cancelAnimationFrame(frame)
-      look.style.transform = ''
-    }
-  }, [enabled, svgRef, lookRef])
+function AnimatedEye({
+  side,
+  glyph,
+  ink,
+  heavy,
+  closed,
+}: {
+  side: 'l' | 'r'
+  glyph: Glyph
+  ink: string
+  heavy: boolean
+  closed: boolean
+}) {
+  const blinks = BLINKS.has(glyph)
+  return (
+    <g>
+      <AnimatePresence initial={false}>
+        <motion.g
+          key={glyph}
+          data-part="eye"
+          data-side={side}
+          data-glyph={glyph}
+          initial={{ opacity: 0, scale: 0.4 }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            transition: { opacity: { duration: durSeconds.fast }, scale: spring.bouncy },
+          }}
+          exit={{ opacity: 0, scale: 0.6, transition: { duration: durSeconds.fast } }}
+        >
+          <motion.g
+            className={cx('mawl-glyph', `mawl-glyph-${glyph}`, blinks && 'mawl-blink')}
+            initial={false}
+            animate={{ scaleY: blinks && closed ? 0.1 : 1 }}
+            transition={{ duration: BLINK_MS / 2000 }}
+          >
+            <GlyphShape kind={glyph} ink={ink} heavy={heavy} />
+          </motion.g>
+        </motion.g>
+      </AnimatePresence>
+    </g>
+  )
+}
+
+/** The marks around a large orb (build.mjs `extra`), in the body colour. */
+function OrbEffect({ kind, body }: { kind: 'think' | 'ask' | 'z'; body: string }) {
+  if (kind === 'think')
+    return (
+      <g fill={body}>
+        <circle className="mawl-dot" cx="350" cy="92" r="7" />
+        <circle className="mawl-dot" cx="372" cy="62" r="10" />
+      </g>
+    )
+  if (kind === 'ask')
+    return (
+      <text className="mawl-mark mawl-ask" x="318" y="76" fontSize="54" fill={body}>
+        ?!
+      </text>
+    )
+  return (
+    <g className="mawl-mark" fill={body}>
+      <text className="mawl-z" x="322" y="92" fontSize="44">
+        z
+      </text>
+      <text className="mawl-z" x="354" y="58" fontSize="30">
+        z
+      </text>
+    </g>
+  )
+}
+
+/** A gradient id unique to this instance, so several orbs never share a `url(#…)`. */
+export function useGradientId() {
+  return `mawl${useId().replace(/[^a-zA-Z0-9_-]/g, '')}-soft`
+}
+
+/** Clip and gradient ids unique to this instance, so several orbs never share a `url(#…)`. */
+function useOrbIds() {
+  const base = `mawl${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+  return { gradient: `${base}-soft`, clip: `${base}-face` }
 }

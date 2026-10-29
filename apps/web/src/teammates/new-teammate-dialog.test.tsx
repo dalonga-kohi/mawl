@@ -14,22 +14,22 @@ async function openDialog() {
 }
 
 describe('new teammate dialog', () => {
-  it('uses pill fields, a round select and a 24 px job card', async () => {
+  it('uses rounded fields, a rounded select and a job card', async () => {
     const { dialog } = await openDialog()
-    expect(within(dialog).getByLabelText('Name').className).toContain('rounded-pill')
-    expect(within(dialog).getByLabelText('Model').className).toContain('rounded-pill')
+    expect(within(dialog).getByLabelText('Name').className).toContain('rounded-card')
+    expect(within(dialog).getByLabelText('Model').className).toContain('rounded-card')
     const select = within(dialog).getByLabelText('Model connection')
     expect(select.tagName).toBe('SELECT')
-    expect(select.className).toContain('rounded-pill')
+    expect(select.className).toContain('rounded-card')
     expect(select.className).toContain('appearance-none')
     expect(within(dialog).getByLabelText('Job (optional)').className).toContain('rounded-card')
   })
 
-  it('has pill Cancel and Create buttons that are named and 44 px on touch', async () => {
+  it('has rounded Cancel and Create buttons that are named and 44 px on touch', async () => {
     const { dialog } = await openDialog()
     for (const name of ['Cancel', 'Create teammate']) {
       const button = within(dialog).getByRole('button', { name })
-      expect(button.className).toContain('rounded-pill')
+      expect(button.className).toContain('rounded-md')
       expect(button.className).toContain('pointer-coarse:h-11')
     }
   })

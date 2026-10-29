@@ -86,7 +86,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
           type="button"
           onClick={copy}
           aria-label={copied ? 'Copied' : 'Copy code'}
-          className="flex h-8 items-center gap-1.5 rounded-pill px-2.5 text-micro text-text-2 transition-colors duration-(--dur-fast) hover:bg-surface-2 hover:text-text active:scale-[.97] pointer-coarse:h-11"
+          className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-micro text-text-2 transition-colors duration-(--dur-fast) hover:bg-hover hover:text-text active:scale-[.97] pointer-coarse:h-11"
         >
           {copied ? (
             <Check className="size-3.5" aria-hidden="true" />

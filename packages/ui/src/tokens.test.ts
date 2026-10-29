@@ -10,9 +10,18 @@ describe('motion tokens', () => {
     expect(spring.bouncy).toEqual({ type: 'spring', stiffness: 260, damping: 14 })
   })
 
-  it('exposes durations in ms and seconds', () => {
-    expect(dur).toEqual({ fast: 120, base: 200, slow: 320 })
-    expect(durSeconds).toEqual({ fast: 0.12, base: 0.2, slow: 0.32 })
+  it('has a critically damped glide spring with about a 0.3 s response', () => {
+    const { stiffness, damping } = spring.glide
+    expect(spring.glide.type).toBe('spring')
+    // Damping ratio for unit mass: c / (2 * sqrt(k)). 1.0 means no overshoot.
+    expect(damping / (2 * Math.sqrt(stiffness))).toBeCloseTo(1, 1)
+    // Response (period of the undamped spring): 2π / sqrt(k).
+    expect((2 * Math.PI) / Math.sqrt(stiffness)).toBeCloseTo(0.3, 1)
+  })
+
+  it('exposes durations in ms and seconds; hover and press answer within 100 ms', () => {
+    expect(dur).toEqual({ fast: 100, base: 200, slow: 320 })
+    expect(durSeconds).toEqual({ fast: 0.1, base: 0.2, slow: 0.32 })
   })
 
   it('exposes ease.out as an array and a CSS string', () => {
@@ -30,8 +39,13 @@ describe('space and shape tokens', () => {
     expect(spacing).toEqual([4, 8, 12, 16, 20, 24, 32, 40, 56])
   })
 
-  it('has round radii by hierarchy plus a pill', () => {
-    expect(radii).toEqual({ xs: 8, sm: 12, md: 18, card: 24, panel: 28, dialog: 32, pill: 999 })
+  it('has soft rounded-rectangle radii by hierarchy and no pill', () => {
+    expect(radii).toEqual({ xs: 6, sm: 8, md: 10, card: 12, panel: 14, dialog: 16 })
+    expect(radii).not.toHaveProperty('pill')
+  })
+
+  it('keeps every radius small enough that a 40 px control reads as a rectangle, not a pill', () => {
+    for (const v of Object.values(radii)) expect(v).toBeLessThanOrEqual(16)
   })
 
   it('has two warm shadows in light, and dark mode swaps them for a hairline', () => {
