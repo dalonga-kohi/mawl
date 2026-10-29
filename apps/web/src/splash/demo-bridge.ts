@@ -1,5 +1,10 @@
 import type { ConnectResult, HostBridge } from './bridge.ts'
-import type { HostAppearance, RemoteHealth, Target } from './remote.ts'
+import {
+  type HostAppearance,
+  parseHostAppearance,
+  type RemoteHealth,
+  type Target,
+} from './remote.ts'
 import { parseStatus, type Status } from './status.ts'
 
 /**
@@ -8,7 +13,7 @@ import { parseStatus, type Status } from './status.ts'
  * status, e.g. `demo=failed`, `demo=restarting`, `demo=stopping`. `demo=remote` checks a remote
  * Mawl that answers, `demo=remote-down` one that never answers; add `&connect` for the form. Connecting
  * with the token `wrong-token-wrong-token-wrong-token` shows a refusal; any address starting with
- * `https://down` shows an unreachable one. `look=dark|light|ocean` previews a saved appearance.
+ * `https://down` shows an unreachable one. `look=...` previews a saved appearance (see `demoAppearance`).
  */
 const FIXED: Record<string, Status> = {
   database: { phase: 'starting', stage: 'database' },
@@ -28,13 +33,17 @@ const FIXED: Record<string, Status> = {
 const REMOTE: Target = { kind: 'remote', origin: 'https://mawl.tail1234.ts.net/' }
 
 const LOOKS: Record<string, HostAppearance> = {
-  dark: { theme: 'dark', accent: null, reduceMotion: false },
-  light: { theme: 'light', accent: null, reduceMotion: false },
-  ocean: { theme: 'dark', accent: '#3A7BD5', reduceMotion: true },
+  dark: { theme: 'dark', palette: null, reduceMotion: false },
+  light: { theme: 'light', palette: null, reduceMotion: false },
+  still: { theme: 'dark', palette: null, reduceMotion: true },
 }
 
+/** `look=dark|light|still`, or `look=<theme>-<palette>` such as `look=light-gruvbox`. */
 export function demoAppearance(look: string): HostAppearance | null {
-  return LOOKS[look] ?? null
+  const fixed = LOOKS[look]
+  if (fixed) return fixed
+  const [theme, ...rest] = look.split('-')
+  return parseHostAppearance({ theme, palette: rest.join('-'), reduceMotion: false })
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))

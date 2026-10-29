@@ -1,3 +1,4 @@
+import { PALETTE_IDS } from '@mawl/ui'
 import { z } from 'zod'
 
 /**
@@ -36,12 +37,15 @@ export const ConnectErrorSchema = z.discriminatedUnion('kind', [
 ])
 export type ConnectError = z.infer<typeof ConnectErrorSchema>
 
+/**
+ * The owner's look as the host last read it from the app (`mawl_host::appearance`). The host only
+ * checks the palette's shape; which names exist is this build's call, so an unknown one is `null`
+ * (the splash then wears Mawl) rather than a reason to drop the theme too. The host also sends the
+ * window background it painted (`bg`), which the splash does not need and strips.
+ */
 export const HostAppearanceSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']),
-  accent: z
-    .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/)
-    .nullable(),
+  palette: z.enum(PALETTE_IDS).nullable().catch(null),
   reduceMotion: z.boolean(),
 })
 export type HostAppearance = z.infer<typeof HostAppearanceSchema>

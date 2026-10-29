@@ -9,13 +9,13 @@ describe('the splash setup', () => {
     expect(initialViewFrom('?demo=failed')).toBe('main')
   })
 
-  it('applies the owner’s theme and motion from the host, in the Mawl palette', () => {
+  it('wears the owner’s theme, palette and motion as the host last saw them in the app', () => {
     const root = document.createElement('html')
-    applySplashAppearance(root, { theme: 'dark', accent: '#4F46E5', reduceMotion: true })
+    applySplashAppearance(root, { theme: 'dark', palette: 'dracula', reduceMotion: true })
     expect(root.getAttribute('data-theme')).toBe('dark')
+    expect(root.getAttribute('data-palette')).toBe('dracula')
     expect(root.classList.contains('reduce-motion')).toBe(true)
-    // The host does not carry the palette yet (U14), so the splash wears Mawl.
-    expect(root.getAttribute('data-palette')).toBe('mawl')
+    // Attribute swaps only: tokens.css holds every palette, nothing is written inline.
     expect(root.getAttribute('style')).toBeNull()
   })
 
@@ -25,7 +25,7 @@ describe('the splash setup', () => {
     expect(root.hasAttribute('data-theme')).toBe(false)
     expect(root.classList.contains('reduce-motion')).toBe(false)
 
-    applySplashAppearance(root, { theme: 'system', accent: null, reduceMotion: false })
+    applySplashAppearance(root, { theme: 'system', palette: null, reduceMotion: false })
     expect(root.hasAttribute('data-theme')).toBe(false)
     expect(root.getAttribute('data-palette')).toBe('mawl')
   })

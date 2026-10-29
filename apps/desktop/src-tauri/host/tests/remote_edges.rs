@@ -441,21 +441,21 @@ fn appearance_answers_that_are_malformed_or_hostile() {
     }
     // Wrong types fall back field by field.
     let a = appearance::parse_eval_result(&answer(
-        r##"{"theme":7,"accent":["#ABCDEF"],"reduceMotion":"yes","extra":{"x":1}}"##,
+        r##"{"theme":7,"palette":["mawl"],"bg":["#ABCDEF"],"reduceMotion":"yes","extra":{"x":1}}"##,
     ))
     .unwrap();
     assert_eq!(a.theme, Theme::System);
-    assert_eq!(a.accent, None);
+    assert_eq!(a.palette, None);
+    assert_eq!(a.bg, None);
     assert!(!a.reduce_motion);
 }
 
 #[test]
-fn appearance_accent_is_strict() {
-    let accent = |v: &str| {
-        appearance::parse_eval_result(&answer(&format!(r#"{{"accent":{v}}}"#)))
-            .and_then(|a| a.accent)
+fn appearance_background_is_strict() {
+    let bg = |v: &str| {
+        appearance::parse_eval_result(&answer(&format!(r#"{{"bg":{v}}}"#))).and_then(|a| a.bg)
     };
-    assert_eq!(accent(r##""#abcdef""##), Some("#ABCDEF".into()));
+    assert_eq!(bg(r##""#abcdef""##), Some("#ABCDEF".into()));
     for bad in [
         r##""#abcde""##,
         r##""#abcdefa""##,
@@ -469,7 +469,7 @@ fn appearance_accent_is_strict() {
         "null",
         "123",
     ] {
-        assert_eq!(accent(bad), None, "{bad}");
+        assert_eq!(bg(bad), None, "{bad}");
     }
 }
 
@@ -514,7 +514,8 @@ fn appearance_save_load_round_trip_and_hand_edited_file_is_rechecked() {
     let dir = temp_dir("appearance-rt").join("not").join("yet");
     let look = appearance::Appearance {
         theme: Theme::Dark,
-        accent: Some("#112233".into()),
+        palette: Some("nord".into()),
+        bg: Some("#112233".into()),
         reduce_motion: true,
     };
     appearance::save(&dir, &look).unwrap();
@@ -522,11 +523,12 @@ fn appearance_save_load_round_trip_and_hand_edited_file_is_rechecked() {
     assert_eq!(appearance::load(&dir), Some(look));
     fs::write(
         dir.join(appearance::APPEARANCE_FILE),
-        r##"{"theme":"dark","accent":"red; x","reduceMotion":true}"##,
+        r##"{"theme":"dark","palette":"red; x","bg":"red; x","reduceMotion":true}"##,
     )
     .unwrap();
     let loaded = appearance::load(&dir).unwrap();
-    assert_eq!(loaded.accent, None);
+    assert_eq!(loaded.palette, None);
+    assert_eq!(loaded.bg, None);
     assert_eq!(loaded.theme, Theme::Dark);
 }
 
