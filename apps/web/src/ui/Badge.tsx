@@ -5,7 +5,7 @@ import { cn } from './cn.ts'
 
 /** shadcn's badge: a small pill for counts and status. Status badges pair color with text. */
 export const badgeVariants = cva(
-  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 rounded-pill px-2 text-micro whitespace-nowrap tabular-nums [&>svg]:size-3 [&>svg]:shrink-0',
+  'inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 rounded-sm px-2 text-micro whitespace-nowrap tabular-nums [&>svg]:size-3 [&>svg]:shrink-0',
   {
     variants: {
       variant: {

@@ -39,7 +39,7 @@ function Row({
         to="/t/$slug"
         params={{ slug: profile.slug }}
         className={cx(
-          'accent-tween flex min-h-[60px] items-center gap-3 rounded-md px-2.5 py-2',
+          'tween flex min-h-[60px] items-center gap-3 rounded-md px-2.5 py-2',
           'hover:bg-surface-2/70 active:scale-[.98] aria-[current=page]:bg-surface-2',
         )}
       >
@@ -58,7 +58,7 @@ function Row({
         <DropdownMenuTrigger
           aria-label={`More actions for ${profile.name}`}
           className={cx(
-            'absolute right-2 bottom-2 grid size-7 place-items-center rounded-pill text-text-2 pointer-coarse:size-11',
+            'absolute right-2 bottom-2 grid size-7 place-items-center rounded-sm text-text-2 pointer-coarse:size-11',
             'opacity-0 transition-opacity duration-(--dur-fast) hover:bg-line group-hover:opacity-100',
             'focus-visible:opacity-100 data-[state=open]:bg-line data-[state=open]:opacity-100 pointer-coarse:opacity-100',
           )}
@@ -81,7 +81,7 @@ function Skeleton() {
     <ul aria-hidden="true" className="flex flex-col gap-1">
       {[0, 1, 2].map((i) => (
         <li key={i} className="flex min-h-[60px] items-center gap-3 px-2.5 py-2">
-          <span className="size-9 animate-pulse rounded-pill bg-surface-2" />
+          <span className="size-9 animate-pulse rounded-full bg-surface-2" />
           <span className="flex flex-1 flex-col gap-1.5">
             <span className="h-3 w-2/3 animate-pulse rounded-xs bg-surface-2" />
             <span className="h-2.5 w-1/2 animate-pulse rounded-xs bg-surface-2" />

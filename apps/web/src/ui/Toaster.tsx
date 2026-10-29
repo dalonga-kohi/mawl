@@ -14,7 +14,7 @@ export function Toaster(props: ToasterProps) {
         unstyled: true,
         classNames: {
           toast:
-            'flex items-center gap-2 rounded-pill bg-text px-4 py-2.5 text-small text-bg shadow-2',
+            'flex items-center gap-2 rounded-card bg-text px-4 py-2.5 text-small text-bg shadow-2',
         },
       }}
       {...props}

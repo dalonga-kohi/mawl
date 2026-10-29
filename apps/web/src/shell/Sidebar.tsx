@@ -20,7 +20,7 @@ export const SIDEBAR_WIDTH = 280
 
 /** A full-width pill row: icon, label, and an optional trailing hint. */
 const rowClass = cn(
-  'accent-tween flex h-10 w-full items-center gap-3 rounded-pill px-3 text-left text-body text-text pointer-coarse:h-11',
+  'tween flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-body text-text pointer-coarse:h-11',
   'hover:bg-surface-2 active:scale-[.97] aria-[current=page]:bg-surface-2',
   '[&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-text-2 aria-[current=page]:[&_svg]:text-accent-ink',
 )
@@ -85,14 +85,14 @@ function Footer() {
       <button
         type="button"
         className={cn(
-          'accent-tween flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-pill pr-3 pl-1.5 text-left text-heading text-text',
+          'tween flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md pr-3 pl-1.5 text-left text-heading text-text',
           'hover:bg-surface-2 active:scale-[.97] pointer-coarse:h-12',
         )}
         onClick={() => setEditing(true)}
       >
         <span
           aria-hidden="true"
-          className="grid size-8 shrink-0 place-items-center rounded-pill bg-accent-soft text-heading text-accent-ink"
+          className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-heading text-accent-ink"
         >
           {profile.name ? (
             profile.name.slice(0, 1).toUpperCase()

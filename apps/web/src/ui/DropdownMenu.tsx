@@ -34,7 +34,7 @@ export function DropdownMenuContent({
 
 export const menuItemClass = cn(
   'relative flex min-h-10 cursor-pointer items-center gap-2.5 rounded-sm px-2.5 text-small outline-none select-none pointer-coarse:min-h-11',
-  'transition-colors duration-(--dur-fast) data-[highlighted]:bg-surface-2',
+  'transition-colors duration-(--dur-fast) data-[highlighted]:bg-hover',
   'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
   "[&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-text-2",
 )

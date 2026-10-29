@@ -36,7 +36,7 @@ function Item({
     <Command.Item
       onSelect={onSelect}
       keywords={keywords ?? []}
-      className="accent-tween flex h-10 cursor-pointer items-center gap-3 rounded-pill px-3.5 text-body text-text select-none pointer-coarse:h-11 data-[selected=true]:bg-surface-2 [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-text-2 data-[selected=true]:[&_svg]:text-accent-ink"
+      className="tween flex h-10 cursor-pointer items-center gap-3 rounded-md px-3.5 text-body text-text select-none pointer-coarse:h-11 data-[selected=true]:bg-selected [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-text-2 data-[selected=true]:[&_svg]:text-accent-ink"
     >
       {icon}
       <span className="min-w-0 flex-1 truncate">{children}</span>
@@ -90,12 +90,12 @@ export function CommandPalette() {
               >
                 <Dialog.Title className="sr-only">Command palette</Dialog.Title>
                 <Command label="Command palette" loop>
-                  <div className="flex items-center gap-3 rounded-pill bg-surface-2 px-4">
+                  <div className="flex items-center gap-3 rounded-card bg-surface-2 px-4">
                     <Search className="size-[18px] shrink-0 text-text-3" aria-hidden="true" />
                     <Command.Input
                       aria-label="Search commands"
                       placeholder="Search or jump to…"
-                      className="h-11 flex-1 rounded-pill bg-transparent text-body text-text outline-none placeholder:text-text-3 pointer-coarse:h-12"
+                      className="h-11 flex-1 rounded-card bg-transparent text-body text-text outline-none placeholder:text-text-3 pointer-coarse:h-12"
                     />
                   </div>
                   <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain pt-1">
@@ -150,7 +150,7 @@ export function CommandPalette() {
                               data-theme={
                                 appearance.theme === 'system' ? undefined : appearance.theme
                               }
-                              className="size-[18px] shrink-0 rounded-pill bg-accent-fill shadow-[0_0_0_2px_var(--surface-2)]"
+                              className="size-[18px] shrink-0 rounded-full bg-accent-fill shadow-[0_0_0_2px_var(--surface-2)]"
                             />
                           }
                           onSelect={run(() => setPalette(p.id), `Palette set to ${p.name}`)}

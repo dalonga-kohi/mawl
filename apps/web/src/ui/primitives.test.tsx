@@ -13,12 +13,12 @@ import { Tooltip, TooltipProvider } from './Tooltip.tsx'
 const classes = (el: Element) => el.className.split(/\s+/)
 
 describe('Button', () => {
-  it('is a pill with a press scale, a type of button and the touch-size bump', () => {
+  it('is a soft rounded rectangle with a press scale, a type of button and the touch-size bump', () => {
     render(<Button>Save</Button>)
     const button = screen.getByRole('button', { name: 'Save' })
     expect(button.getAttribute('type')).toBe('button')
     expect(classes(button)).toEqual(
-      expect.arrayContaining(['rounded-pill', 'active:scale-[.97]', 'pointer-coarse:h-11']),
+      expect.arrayContaining(['rounded-md', 'active:scale-[.97]', 'pointer-coarse:h-11']),
     )
   })
 
@@ -56,13 +56,13 @@ describe('Button', () => {
       </Button>,
     )
     const link = screen.getByRole('link', { name: 'Open teammates' })
-    expect(classes(link)).toEqual(expect.arrayContaining(['rounded-pill', 'bg-accent-fill']))
+    expect(classes(link)).toEqual(expect.arrayContaining(['rounded-md', 'bg-accent-fill']))
     expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('keeps buttonClass for links styled as buttons', () => {
     expect(buttonClass('primary').split(' ')).toEqual(
-      expect.arrayContaining(['rounded-pill', 'bg-accent-fill']),
+      expect.arrayContaining(['rounded-md', 'bg-accent-fill']),
     )
   })
 })
@@ -76,7 +76,7 @@ describe('IconButton', () => {
     )
     const button = screen.getByRole('button', { name: 'New teammate' })
     expect(classes(button)).toEqual(
-      expect.arrayContaining(['rounded-pill', 'size-9', 'pointer-coarse:size-11']),
+      expect.arrayContaining(['rounded-md', 'size-9', 'pointer-coarse:size-11']),
     )
     await userEvent.hover(button)
     expect((await screen.findByRole('tooltip')).textContent).toBe('New teammate')
@@ -141,7 +141,7 @@ describe('Modal', () => {
 })
 
 describe('Input and Textarea', () => {
-  it('draws inputs as pills and textareas as 24 px cards, both marking invalid state', () => {
+  it('draws inputs and textareas as rounded cards, both marking invalid state', () => {
     render(
       <>
         <Input aria-label="Name" aria-invalid />
@@ -151,7 +151,7 @@ describe('Input and Textarea', () => {
     const input = screen.getByRole('textbox', { name: 'Name' })
     expect(classes(input)).toEqual(
       expect.arrayContaining([
-        'rounded-pill',
+        'rounded-card',
         'pointer-coarse:h-11',
         'aria-[invalid=true]:shadow-[0_0_0_2px_var(--danger)]',
       ]),
@@ -174,7 +174,7 @@ describe('Switch', () => {
 })
 
 describe('Tabs', () => {
-  it('switches panels with pill triggers', async () => {
+  it('switches panels with rounded triggers', async () => {
     render(
       <Tabs defaultValue="a">
         <TabsList aria-label="Panels">
@@ -186,17 +186,17 @@ describe('Tabs', () => {
       </Tabs>,
     )
     const memory = screen.getByRole('tab', { name: 'Memory' })
-    expect(classes(memory)).toEqual(expect.arrayContaining(['rounded-pill', 'pointer-coarse:h-11']))
+    expect(classes(memory)).toEqual(expect.arrayContaining(['rounded-md', 'pointer-coarse:h-11']))
     await userEvent.click(memory)
     expect(screen.getByRole('tabpanel').textContent).toBe('second')
   })
 })
 
 describe('Badge', () => {
-  it('is a small pill in the soft accent by default', () => {
+  it('is a small rounded badge in the soft accent by default', () => {
     render(<Badge>3</Badge>)
     expect(classes(screen.getByText('3'))).toEqual(
-      expect.arrayContaining(['rounded-pill', 'bg-accent-soft', 'text-accent-ink']),
+      expect.arrayContaining(['rounded-sm', 'bg-accent-soft', 'text-accent-ink']),
     )
   })
 })

@@ -41,19 +41,19 @@ function ThemeControl() {
       value={appearance.theme}
       onValueChange={(v) => setTheme(v as ThemePref)}
       orientation="horizontal"
-      className="relative inline-flex w-full rounded-pill bg-surface-2 p-[3px] md:w-auto"
+      className="relative inline-flex w-full rounded-card bg-surface-2 p-[3px] md:w-auto"
     >
       {THEMES.map((t) => (
         <RadioGroup.Item
           key={t.value}
           value={t.value}
           aria-label={t.label}
-          className="relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill px-3.5 text-small font-semibold text-text-2 transition-colors duration-(--dur-fast) hover:text-text data-[state=checked]:text-text pointer-coarse:h-11 md:flex-none [&_svg]:size-4"
+          className="relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3.5 text-small font-semibold text-text-2 transition-colors duration-(--dur-fast) hover:text-text data-[state=checked]:text-text pointer-coarse:h-11 md:flex-none [&_svg]:size-4"
         >
           {appearance.theme === t.value ? (
             <motion.span
               layoutId="theme-thumb"
-              className="absolute inset-0 rounded-pill bg-surface shadow-1"
+              className="absolute inset-0 rounded-md bg-surface shadow-1"
               transition={transitions.snappy}
             />
           ) : null}
@@ -84,13 +84,13 @@ function PaletteTile({
     <RadioGroup.Item
       value={palette.id}
       aria-label={palette.name}
-      className="group relative flex min-h-11 flex-col gap-2 rounded-[18px] p-1.5 text-left transition-[scale] duration-(--dur-fast) ease-out active:scale-[.97]"
+      className="group relative flex min-h-11 flex-col gap-2 rounded-panel p-1.5 text-left transition-[scale] duration-(--dur-fast) ease-out active:scale-[.97]"
     >
       {selected ? (
         <motion.span
           layoutId="palette-ring"
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-[18px] shadow-[inset_0_0_0_2px_var(--accent-ink)]"
+          className="pointer-events-none absolute inset-0 rounded-panel shadow-[inset_0_0_0_2px_var(--accent-ink)]"
           transition={transitions.snappy}
         />
       ) : null}
@@ -99,20 +99,20 @@ function PaletteTile({
         aria-hidden="true"
         data-palette={palette.id}
         data-theme={theme === 'system' ? undefined : theme}
-        className="relative block aspect-[4/3] overflow-hidden rounded-[12px] bg-bg shadow-[inset_0_0_0_1px_var(--line)] transition-[translate,box-shadow] duration-(--dur-fast) ease-out group-hover:-translate-y-0.5 group-hover:shadow-[inset_0_0_0_1px_var(--line),0_10px_24px_-10px_var(--accent)]"
+        className="relative block aspect-[4/3] overflow-hidden rounded-sm bg-bg shadow-[inset_0_0_0_1px_var(--line)] transition-[translate,box-shadow] duration-(--dur-fast) ease-out group-hover:-translate-y-0.5 group-hover:shadow-[inset_0_0_0_1px_var(--line),0_10px_24px_-10px_var(--accent)]"
       >
         <span className="absolute inset-y-0 left-0 flex w-[30%] flex-col gap-1.5 bg-surface-2 px-1.5 pt-2.5">
           {/* Base tokens only: color-mix tokens (accent-soft) are computed on <html> and would wear the app palette. */}
-          <span className="h-1.5 w-full rounded-pill bg-accent-fill opacity-30" />
-          <span className="h-1 w-4/5 rounded-pill bg-text-3 opacity-50" />
-          <span className="h-1 w-3/5 rounded-pill bg-text-3 opacity-50" />
+          <span className="h-1.5 w-full rounded-full bg-accent-fill opacity-30" />
+          <span className="h-1 w-4/5 rounded-full bg-text-3 opacity-50" />
+          <span className="h-1 w-3/5 rounded-full bg-text-3 opacity-50" />
         </span>
-        <span className="absolute top-2.5 right-2 bottom-2.5 left-[calc(30%+8px)] flex flex-col gap-1.5 rounded-[8px] bg-surface p-2 shadow-[inset_0_0_0_1px_var(--line)]">
-          <span className="h-1.5 w-3/4 rounded-pill bg-accent-ink" />
-          <span className="h-1 w-1/2 rounded-pill bg-text-2 opacity-60" />
+        <span className="absolute top-2.5 right-2 bottom-2.5 left-[calc(30%+8px)] flex flex-col gap-1.5 rounded-xs bg-surface p-2 shadow-[inset_0_0_0_1px_var(--line)]">
+          <span className="h-1.5 w-3/4 rounded-full bg-accent-ink" />
+          <span className="h-1 w-1/2 rounded-full bg-text-2 opacity-60" />
           <span className="mt-auto flex items-center gap-1.5">
-            <span className="h-3 w-7 rounded-pill bg-accent-fill" />
-            <span className="size-2 rounded-pill bg-secondary" />
+            <span className="h-3 w-7 rounded-[3px] bg-accent-fill" />
+            <span className="size-2 rounded-full bg-secondary" />
           </span>
         </span>
       </span>
@@ -123,7 +123,7 @@ function PaletteTile({
             <motion.span
               key="check"
               aria-hidden="true"
-              className="grid size-5 shrink-0 place-items-center rounded-pill bg-accent-fill text-on-accent"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-fill text-on-accent"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1, transition: transitions.snappy }}
               exit={{ scale: 0.5, opacity: 0, transition: transitions.exit }}
@@ -222,7 +222,7 @@ function AppearanceSection() {
 function SectionNav() {
   return (
     <nav aria-label="Settings sections" className="md:sticky md:top-0 md:self-start">
-      <ul className="flex gap-0.5 rounded-pill bg-surface-2 p-[3px] md:flex-col md:bg-transparent md:p-0">
+      <ul className="flex gap-0.5 rounded-card bg-surface-2 p-[3px] md:flex-col md:bg-transparent md:p-0">
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <li key={id} className="flex-1 md:flex-none">
             <Link
@@ -231,10 +231,10 @@ function SectionNav() {
               replace
               activeOptions={{ exact: true }}
               className={cx(
-                'accent-tween flex h-9 items-center justify-center gap-3 rounded-pill px-3.5 text-small font-semibold text-text-2 whitespace-nowrap active:scale-[.97] pointer-coarse:h-11',
+                'tween flex h-9 items-center justify-center gap-3 rounded-md px-3.5 text-small font-semibold text-text-2 whitespace-nowrap active:scale-[.97] pointer-coarse:h-11',
                 'hover:text-text aria-[current=page]:bg-surface aria-[current=page]:text-text aria-[current=page]:shadow-1',
-                'md:h-10 md:justify-start md:px-3 md:text-body md:font-normal md:text-text md:hover:bg-surface-2',
-                'md:aria-[current=page]:bg-surface-2 md:aria-[current=page]:shadow-none',
+                'md:h-10 md:justify-start md:px-3 md:text-body md:font-normal md:text-text md:hover:bg-hover',
+                'md:aria-[current=page]:bg-selected md:aria-[current=page]:shadow-none',
                 '[&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:text-text-2 aria-[current=page]:[&_svg]:text-accent-ink',
               )}
             >

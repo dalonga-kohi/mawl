@@ -81,17 +81,18 @@ describe('command palette', () => {
     expect(await screen.findByText('Nothing found')).toBeTruthy()
   })
 
-  it('is a round card with a pill search field and pill rows with a shortcut hint', async () => {
+  it('is a rounded card with a rounded search field and soft rounded rows with a shortcut hint', async () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Control>}k{/Control}')
     const dialog = await screen.findByRole('dialog', { name: 'Command palette' })
     expect(dialog.className).toContain('rounded-panel')
     const search = within(dialog).getByRole('combobox')
-    expect(search.className).toContain('rounded-pill')
+    expect(search.className).toContain('rounded-card')
     expect(search.className).toContain('outline-none')
     expect(search.getAttribute('aria-label')).toBe('Search commands')
     const row = within(dialog).getByRole('option', { name: /sidebar/i })
-    expect(row.className).toContain('rounded-pill')
+    expect(row.className).toContain('rounded-md')
+    expect(row.className).toContain('data-[selected=true]:bg-selected')
     expect(row.className).toContain('pointer-coarse:h-11')
     expect(within(row).getByText(/^(Ctrl B|⌘B)$/)).toBeTruthy()
   })

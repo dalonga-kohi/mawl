@@ -16,7 +16,7 @@ function ProviderMark({ label }: { label: string }) {
   return (
     <span
       aria-hidden="true"
-      className="grid size-8 shrink-0 place-items-center rounded-pill bg-surface-2 text-small font-bold text-text-2"
+      className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2 text-small font-bold text-text-2"
     >
       {label.slice(0, 1).toUpperCase()}
     </span>

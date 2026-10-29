@@ -32,7 +32,7 @@ export function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 max-w-[min(280px,calc(100vw-16px))] origin-(--radix-tooltip-content-transform-origin) rounded-pill bg-text px-2.5 py-1 text-micro text-bg shadow-2 select-none',
+          'z-50 max-w-[min(280px,calc(100vw-16px))] origin-(--radix-tooltip-content-transform-origin) rounded-sm bg-text px-2.5 py-1 text-micro text-bg shadow-2 select-none',
           'animate-in fade-in-0 zoom-in-95 duration-(--dur-fast) ease-out',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           className,

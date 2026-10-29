@@ -75,7 +75,7 @@ describe('composer', () => {
     const fake = fakeApi({ profiles: [sweeper()] })
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     const send = (await screen.findByRole('button', { name: 'Send' })) as HTMLButtonElement
-    expect(send.className).toMatch(/rounded-pill/)
+    expect(send.className).toMatch(/rounded-full/)
     expect(send.className).toMatch(/(^|\s)size-8(\s|$)/)
     expect(send.disabled).toBe(true)
     await user.type(screen.getByLabelText('Message Inbox Sweeper'), 'hi')
@@ -89,7 +89,7 @@ describe('composer', () => {
     expect(send.className).toMatch(/pointer-coarse:before:/)
     const add = screen.getByRole('button', { name: 'Add to message' })
     expect(add.className).toMatch(/(^|\s)size-8(\s|$)/)
-    expect(add.className).toMatch(/rounded-pill/)
+    expect(add.className).toMatch(/rounded-full/)
   })
 
   it('has no model chip in the composer; the header shows a quiet model pill', async () => {
@@ -123,7 +123,7 @@ describe('composer', () => {
     await user.type(await screen.findByLabelText('Message Inbox Sweeper'), 'hi{Enter}')
     await fake.server.stream('He')
     const stop = await screen.findByRole('button', { name: 'Stop' })
-    expect(stop.className).toMatch(/rounded-pill/)
+    expect(stop.className).toMatch(/rounded-full/)
     expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
   })
 
@@ -140,7 +140,7 @@ describe('composer', () => {
 })
 
 describe('messages', () => {
-  it('folds several tool calls into one pill that expands to the steps', async () => {
+  it('folds several tool calls into one row that expands to the steps', async () => {
     const p = sweeper()
     const fake = fakeApi({ profiles: [p] })
     const t = thread(p.id)
@@ -157,7 +157,7 @@ describe('messages', () => {
     )
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     const pill = await screen.findByRole('button', { name: "Used 2 tools, 1 didn't work" })
-    expect(pill.className).toMatch(/rounded-pill/)
+    expect(pill.className).toMatch(/(^|\s)rounded-md(\s|$)/)
     expect(screen.queryByText('Web fetch')).toBeNull()
     await user.click(pill)
     expect(pill.getAttribute('aria-expanded')).toBe('true')
@@ -226,7 +226,7 @@ describe('scroll to bottom', () => {
     log.scrollTop = 100
     fireEvent.scroll(log)
     const jump = await screen.findByRole('button', { name: 'Jump to latest' })
-    expect(jump.className).toMatch(/rounded-pill/)
+    expect(jump.className).toMatch(/rounded-full/)
     log.scrollTo = () => {}
     await user.click(jump)
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull())

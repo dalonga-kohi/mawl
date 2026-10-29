@@ -14,7 +14,7 @@ export function TabsList({ className, ...props }: ComponentProps<typeof TabsPrim
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-pill bg-surface-2 p-[3px]',
+        'inline-flex items-center gap-0.5 rounded-card bg-surface-2 p-[3px]',
         className,
       )}
       {...props}
@@ -27,7 +27,7 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsP
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-pill px-3.5 text-small font-semibold whitespace-nowrap text-text-2 pointer-coarse:h-11',
+        'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-3.5 text-small font-semibold whitespace-nowrap text-text-2 pointer-coarse:h-11',
         'transition-[background-color,color,box-shadow,scale] duration-(--dur-fast) ease-out hover:text-text active:scale-[.97]',
         'data-[state=active]:bg-surface data-[state=active]:text-text data-[state=active]:shadow-1',
         'disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',

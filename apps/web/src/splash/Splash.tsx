@@ -386,7 +386,7 @@ function Track({ done, active, label }: { done: number; active: boolean; label: 
         <span
           key={step}
           data-state={i < done ? 'done' : i === done && active ? 'active' : 'todo'}
-          className="splash-step h-1.5 flex-1 rounded-pill"
+          className="splash-step h-1.5 flex-1 rounded-full"
         />
       ))}
     </div>

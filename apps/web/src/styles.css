@@ -66,6 +66,8 @@
   --color-secondary: var(--secondary);
   --color-secondary-ink: var(--secondary-ink);
   --color-secondary-soft: var(--secondary-soft);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -87,14 +89,14 @@
   --font-mono: var(--ff-mono);
 
   --radius-*: initial;
-  /* UI-REDESIGN §2: controls are pills; card 24, panel 28, dialog and window 32. */
+  /* DESIGN.md §5: soft rounded rectangles, never pills. Rows and buttons 10, cards and inputs 12,
+     panels 14, dialogs 16. Truly round things (orbs, avatars, dots) use the static `rounded-full`. */
   --radius-xs: var(--r-xs);
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-card: var(--r-card);
   --radius-panel: var(--r-panel);
   --radius-dialog: var(--r-dialog);
-  --radius-pill: var(--r-pill);
 
   --shadow-*: initial;
   --shadow-1: var(--shadow-1);
@@ -173,12 +175,13 @@
 }
 
 @layer components {
-  /* Accent-bearing surfaces tween their colors over 320 ms (DESIGN.md §3).
-     `scale` is Tailwind 4's press property (`active:scale-[.97]`); it answers within 120 ms. */
-  .accent-tween {
+  /* Interactive feedback (DESIGN.md §7, Interaction principles): fills and colors fade in within
+     --dur-fast (100 ms); `scale` is Tailwind 4's press property (`active:scale-[.97]`), so a press
+     answers on pointer-down. Palette swaps cross-fade through `color-swap` below, not here. */
+  .tween {
     transition:
-      background-color var(--dur-slow) var(--ease-out),
-      color var(--dur-slow) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
       box-shadow var(--dur-fast) var(--ease-out),
       scale var(--dur-fast) var(--ease-out),
       opacity var(--dur-fast) var(--ease-out);

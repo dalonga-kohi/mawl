@@ -102,6 +102,20 @@ describe('token discipline', () => {
     expect(dupes).toEqual([])
   })
 
+  it('shapes controls as rounded rectangles: no pill radius anywhere (round things use rounded-full)', () => {
+    const offenders = sources.filter((f) =>
+      /rounded-pill|--r-pill|radius-pill/.test(readFileSync(f, 'utf8')),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('exposes the hover and selected fills to Tailwind', () => {
+    expect(theme.get('--color-hover')).toBe('var(--hover)')
+    expect(theme.get('--color-selected')).toBe('var(--selected)')
+    expect(tokenNames.has('--hover')).toBe(true)
+    expect(tokenNames.has('--selected')).toBe(true)
+  })
+
   it('imports with relative paths (the @/ alias exists only for the shadcn CLI)', () => {
     const offenders = sources.filter((f) => /from\s+['"]@\//.test(readFileSync(f, 'utf8')))
     expect(offenders).toEqual([])

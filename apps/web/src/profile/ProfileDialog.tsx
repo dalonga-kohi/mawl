@@ -27,7 +27,7 @@ function FieldSkeleton({ tall = false }: { tall?: boolean }) {
     <div className="flex flex-col gap-1.5">
       <span className="h-3.5 w-24 animate-pulse rounded-xs bg-surface-2" />
       <span
-        className={cn('animate-pulse bg-surface-2', tall ? 'h-36 rounded-md' : 'h-10 rounded-pill')}
+        className={cn('animate-pulse bg-surface-2', tall ? 'h-36 rounded-md' : 'h-10 rounded-card')}
       />
     </div>
   )

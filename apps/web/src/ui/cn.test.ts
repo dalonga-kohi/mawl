@@ -19,7 +19,7 @@ describe('cn', () => {
   })
 
   it('merges the Mawl radii and shadows', () => {
-    expect(cn('rounded-pill', 'rounded-card')).toBe('rounded-card')
+    expect(cn('rounded-full', 'rounded-card')).toBe('rounded-card')
     expect(cn('rounded-dialog', 'rounded-xs')).toBe('rounded-xs')
     expect(cn('shadow-1', 'shadow-2')).toBe('shadow-2')
   })
