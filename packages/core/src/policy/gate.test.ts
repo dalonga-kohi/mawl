@@ -223,6 +223,70 @@ describe('policyGate through the tool registry', () => {
   })
 })
 
+describe('policyGate.checkRedirect: a cross-host hop is decided like a fetch of its own', () => {
+  const hop = (deps: Partial<PolicyGateDeps>, to: string, from = 'https://a.com/start') =>
+    policyGate({
+      load: async () => ({ policy: {}, trigger: 'user' }),
+      seenHosts: async () => [],
+      ...deps,
+    }).checkRedirect?.({ runId, profileId, tool: 'web_fetch', actionClass: 'read', from, to })
+
+  it('follows a hop on the same host without loading anything', async () => {
+    const load = vi.fn(async () => ({ policy: {}, trigger: 'user' as const }))
+    expect(await hop({ load }, 'http://A.com:8080/next')).toBe(true)
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('follows a hop to an allow-listed host or a host this run already fetched', async () => {
+    const allowed = async () => ({ policy: { allowedHosts: ['b.com'] }, trigger: 'user' as const })
+    expect(await hop({ load: allowed }, 'https://b.com/x')).toBe(true)
+    expect(await hop({ seenHosts: async () => ['c.com'] }, 'https://c.com/x')).toBe(true)
+  })
+
+  it('stops at a hop to a host the owner has not seen, a local address, or on a load failure', async () => {
+    expect(await hop({}, 'https://evil.com/collect?d=1')).toBe(false)
+    expect(
+      await hop(
+        { load: async () => ({ policy: { mode: 'autopilot' }, trigger: 'user' }) },
+        'http://192.168.1.1/',
+      ),
+    ).toBe(false)
+    const onLoadError = vi.fn()
+    expect(
+      await hop(
+        {
+          seenHosts: async () => {
+            throw new Error('db down')
+          },
+          onLoadError,
+        },
+        'https://c.com/',
+      ),
+    ).toBe(false)
+    expect(onLoadError).toHaveBeenCalled()
+  })
+
+  it('respects a block rule on the target and Autopilot only outside teammate runs', async () => {
+    const rules = [{ match: { tool: 'web_fetch', argPattern: 'https://b.com/*' }, level: 'block' }]
+    expect(
+      await hop(
+        { load: async () => ({ policy: { rules, allowedHosts: ['b.com'] }, trigger: 'user' }) },
+        'https://b.com/x',
+      ),
+    ).toBe(false)
+    const autopilot = (trigger: 'user' | 'teammate') => async () => ({
+      policy: { mode: 'autopilot' },
+      trigger,
+    })
+    expect(await hop({ load: autopilot('user') }, 'https://d.com/')).toBe(true)
+    expect(await hop({ load: autopilot('teammate') }, 'https://d.com/')).toBe(false)
+  })
+
+  it('refuses a hop from a call url that does not parse', async () => {
+    expect(await hop({}, 'https://b.com/', 'not a url')).toBe(false)
+  })
+})
+
 describe('hostsFromToolCalls', () => {
   it('keeps only hosts of allowed or owner-approved web_fetch calls', () => {
     const hosts = hostsFromToolCalls([

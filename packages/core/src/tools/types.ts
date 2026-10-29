@@ -28,6 +28,7 @@ export type ToolErrorCode =
   | 'unreachable'
   | 'timeout'
   | 'too_many_redirects'
+  | 'redirect_refused'
   | 'http_error'
   | 'unsupported_content_type'
   | 'search_unavailable'
@@ -93,6 +94,11 @@ export interface ToolContext {
   stepIdx: number
   toolCallId: string
   signal: AbortSignal
+  /**
+   * Asks the policy whether a redirect from the call's url to `to` may be followed (the gate's
+   * `checkRedirect`; false when the gate has none). Set by the registry.
+   */
+  allowRedirect?(from: string, to: string): Promise<boolean>
 }
 
 /**
@@ -151,6 +157,21 @@ export type ToolGateDecision =
  */
 export interface ToolGate {
   check(request: ToolGateRequest): Promise<ToolGateDecision>
+  /**
+   * A tool is about to follow a redirect from its call's url (`from`) to `to`. True lets it
+   * follow. A gate without this method refuses every redirect.
+   */
+  checkRedirect?(request: RedirectCheck): Promise<boolean>
+}
+
+export interface RedirectCheck {
+  runId: RunId
+  profileId: ProfileId
+  tool: string
+  actionClass: ActionClass
+  /** The url the call asked for (what the policy decided on). */
+  from: string
+  to: string
 }
 
 /** One tool call's recorded result, as the model saw it. */

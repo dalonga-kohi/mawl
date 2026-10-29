@@ -1,6 +1,14 @@
-import type { NodeKind, ProfileId, RunId, RunTrigger } from '@mawl/contracts'
+import type {
+  ActionClass,
+  Json,
+  NodeKind,
+  PolicyMode,
+  ProfileId,
+  RunId,
+  RunTrigger,
+} from '@mawl/contracts'
 import type { ToolGate, ToolGateDecision } from '../tools/types.ts'
-import { decide, type PolicyRuleLike, parseProfilePolicy } from './decide.ts'
+import { decide, type PolicyDecision, type PolicyRuleLike, parseProfilePolicy } from './decide.ts'
 import { urlHost } from './host.ts'
 
 /** What the gate needs about a run, loaded fresh for every call (so a policy edit applies at once). */
@@ -67,64 +75,87 @@ export function hostsFromToolCalls(payloads: readonly unknown[]): string[] {
  * level: `auto` allows; `block` denies; `ask` and `handoff` park (the registry asks the owner for
  * an approval on `ask` and refuses a `handoff` until takeover exists). Any failure to load fails
  * closed: default policy, trigger `teammate`.
+ *
+ * `checkRedirect` decides a redirect hop to another host as if the run fetched it directly, and
+ * follows it only on `auto` (allowed host, a host this run already fetched, a matching rule, or
+ * Autopilot outside a teammate run). Hops on the call's own host are followed without a lookup.
  */
 export function policyGate(deps: PolicyGateDeps): ToolGate {
-  return {
-    async check(req): Promise<ToolGateDecision> {
-      let ctx: PolicyGateContext
-      try {
-        ctx = await deps.load({ runId: req.runId, profileId: req.profileId })
-      } catch (err) {
-        deps.onLoadError?.(err)
-        ctx = { policy: {}, trigger: 'teammate' }
-      }
-      const { policy, valid } = parseProfilePolicy(ctx.policy)
-      if (!valid) deps.onInvalidPolicy?.(req.profileId)
+  async function decideCall(req: {
+    runId: RunId
+    profileId: ProfileId
+    tool: string
+    actionClass: ActionClass
+    args: Json
+  }): Promise<{ d: PolicyDecision; mode: PolicyMode }> {
+    let ctx: PolicyGateContext
+    try {
+      ctx = await deps.load({ runId: req.runId, profileId: req.profileId })
+    } catch (err) {
+      deps.onLoadError?.(err)
+      ctx = { policy: {}, trigger: 'teammate' }
+    }
+    const { policy, valid } = parseProfilePolicy(ctx.policy)
+    if (!valid) deps.onInvalidPolicy?.(req.profileId)
 
-      let hostSeenInRun = false
-      if (req.tool === 'web_fetch') {
-        const url =
-          req.args !== null && typeof req.args === 'object' && !Array.isArray(req.args)
-            ? req.args.url
-            : undefined
-        const host = typeof url === 'string' ? urlHost(url) : null
-        if (host?.kind === 'public') {
-          try {
-            hostSeenInRun = (await deps.seenHosts(req.runId)).includes(host.host)
-          } catch (err) {
-            // Unknown: ask again rather than assume.
-            deps.onLoadError?.(err)
-            hostSeenInRun = false
-          }
+    let hostSeenInRun = false
+    if (req.tool === 'web_fetch') {
+      const url =
+        req.args !== null && typeof req.args === 'object' && !Array.isArray(req.args)
+          ? req.args.url
+          : undefined
+      const host = typeof url === 'string' ? urlHost(url) : null
+      if (host?.kind === 'public') {
+        try {
+          hostSeenInRun = (await deps.seenHosts(req.runId)).includes(host.host)
+        } catch (err) {
+          // Unknown: ask again rather than assume.
+          deps.onLoadError?.(err)
+          hostSeenInRun = false
         }
       }
+    }
 
-      const mcpServer = mcpServerOf(req.tool)
-      const d = decide(
-        {
-          tool: req.tool,
-          ...(mcpServer !== undefined ? { mcpServer } : {}),
-          actionClass: req.actionClass,
-          args: req.args,
-          nodeKind: ctx.nodeKind ?? 'none',
-          trigger: ctx.trigger,
-          mode: policy.mode,
-          hostSeenInRun,
-        },
-        {
-          userRules: policy.rules,
-          profileRules: deps.profileRules ?? [],
-          allowedHosts: policy.allowedHosts,
-        },
-      )
+    const mcpServer = mcpServerOf(req.tool)
+    const d = decide(
+      {
+        tool: req.tool,
+        ...(mcpServer !== undefined ? { mcpServer } : {}),
+        actionClass: req.actionClass,
+        args: req.args,
+        nodeKind: ctx.nodeKind ?? 'none',
+        trigger: ctx.trigger,
+        mode: policy.mode,
+        hostSeenInRun,
+      },
+      {
+        userRules: policy.rules,
+        profileRules: deps.profileRules ?? [],
+        allowedHosts: policy.allowedHosts,
+      },
+    )
+    return { d, mode: policy.mode }
+  }
+
+  return {
+    async check(req): Promise<ToolGateDecision> {
+      const { d, mode } = await decideCall(req)
       const audit = {
         level: d.level,
         source: d.source,
-        ...(policy.mode === 'autopilot' ? { mode: 'autopilot' as const } : {}),
+        ...(mode === 'autopilot' ? { mode: 'autopilot' as const } : {}),
       }
       if (d.level === 'auto') return { decision: 'allow', audit }
       if (d.level === 'block') return { decision: 'deny', reason: d.reason, audit }
       return { decision: 'park', reason: d.reason, audit }
+    },
+
+    async checkRedirect(req): Promise<boolean> {
+      const from = urlHost(req.from)
+      const to = urlHost(req.to)
+      if (from.kind === 'public' && to.kind === 'public' && from.host === to.host) return true
+      const { d } = await decideCall({ ...req, args: { url: req.to } })
+      return d.level === 'auto'
     },
   }
 }

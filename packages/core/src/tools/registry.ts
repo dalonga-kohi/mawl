@@ -248,6 +248,17 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
               stepIdx: call.stepIdx,
               toolCallId: call.toolCallId,
               signal,
+              allowRedirect: async (from, to) =>
+                gate.checkRedirect
+                  ? gate.checkRedirect({
+                      runId,
+                      profileId,
+                      tool: t.name,
+                      actionClass: t.actionClass,
+                      from,
+                      to,
+                    })
+                  : false,
             })
           } catch (err) {
             // Cancel, pause or shutdown: nothing is recorded, and the engine decides what happens.

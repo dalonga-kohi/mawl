@@ -6,6 +6,7 @@ import type { ToolGate } from './types.ts'
  */
 export const allowAllGate: ToolGate = {
   check: async () => ({ decision: 'allow' }),
+  checkRedirect: async () => true,
 }
 
 /** Refuses every call. For a registry that should never run anything (the engine's empty one). */

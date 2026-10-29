@@ -250,6 +250,16 @@ export function webFetchTool(deps: WebFetchDeps): Tool {
             const next = safeUrl(location, url)
             if (!next)
               return fail('invalid_url', 'The page redirected to a url that cannot be fetched.')
+            // The policy decided on the call's url; a hop to another host is decided again, so
+            // an open redirect cannot carry data to a host the owner has not allowed.
+            if (!(await ctx.allowRedirect?.(raw, next.href))) {
+              return fail(
+                'redirect_refused',
+                `The page redirected to ${cut(next.href, 300)}, which this run may not fetch ` +
+                  'without asking, so the redirect was not followed. To read it, call web_fetch ' +
+                  'with that url.',
+              )
+            }
             url = next
             continue
           }
