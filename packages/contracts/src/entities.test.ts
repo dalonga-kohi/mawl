@@ -93,6 +93,18 @@ describe('secret-bearing public shapes never carry secrets', () => {
     )
   })
 
+  it('Approval refuses the stored arguments or their hash, only the redacted copy is public', () => {
+    expect(Approval.safeParse({ ...f.approval, argsEnc: 'AAEC' }).success).toBe(false)
+    expect(Approval.safeParse({ ...f.approval, args: { to: 'a@b.c' } }).success).toBe(false)
+    expect(Approval.safeParse({ ...f.approval, argsHash: 'ab'.repeat(32) }).success).toBe(false)
+  })
+
+  it('Approval carries its expiry and accepts a cancelled status', () => {
+    expect(Approval.safeParse({ ...f.approval, status: 'cancelled' }).success).toBe(true)
+    const { expiresAt: _, ...withoutExpiry } = f.approval
+    expect(Approval.safeParse(withoutExpiry).success).toBe(false)
+  })
+
   it('McpServer and ChannelBinding refuse token/config keys', () => {
     expect(McpServer.safeParse({ ...f.mcpServer, config: { env: { K: 'v' } } }).success).toBe(false)
     expect(ChannelBinding.safeParse({ ...f.channelBinding, token: 't' }).success).toBe(false)

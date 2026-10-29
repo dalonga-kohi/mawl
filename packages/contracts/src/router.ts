@@ -155,18 +155,35 @@ export const contract = {
     setKey: base.input(SearchKeyInput).output(SearchStatus),
     clearKey: base.input(SearchKeyClear).output(SearchStatus),
   },
+  /**
+   * Tool calls parked for the owner (D2.4). Owner-authenticated only; never reachable from a tool.
+   * A decision cannot change the call: approve replays the stored arguments byte for byte.
+   */
   approvals: {
+    /** Newest first. `status: 'pending'` is the inbox; without it, the recent ones. */
     list: base
       .input(
-        z.object({ profileId: ProfileId.optional(), status: ApprovalStatus.optional() }).optional(),
+        z
+          .strictObject({
+            profileId: ProfileId.optional(),
+            status: ApprovalStatus.optional(),
+            limit: z.number().int().min(1).max(200).optional(),
+          })
+          .optional(),
       )
       .output(z.array(Approval)),
+    get: withNotFound.input(z.strictObject({ id: ApprovalId })).output(Approval),
+    /**
+     * Approve or deny a pending approval. CONFLICT carries the approval's status when it is no
+     * longer pending, including `expired` when it ran out before this decision arrived (it is
+     * then resolved as a denial and the run continues).
+     */
     decide: base
       .errors({
         NOT_FOUND: NotFound,
         CONFLICT: { status: 409, data: z.object({ status: ApprovalStatus }) },
       })
-      .input(Id(ApprovalId).extend({ decision: z.enum(['approve', 'deny']) }))
+      .input(z.strictObject({ id: ApprovalId, decision: z.enum(['approve', 'deny']) }))
       .output(Approval),
   },
   devices: {

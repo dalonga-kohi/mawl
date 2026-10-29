@@ -423,17 +423,29 @@ export type Artifact = z.infer<typeof Artifact>
 
 // --- Approvals ------------------------------------------------------------
 
-export const Approval = z.object({
+/**
+ * A tool call parked for the owner's decision (D2.4). Strict: the stored arguments (encrypted on
+ * the server) and their hash never leave it; only the redacted copy is public.
+ */
+export const Approval = z.strictObject({
   id: ApprovalId,
+  profileId: ProfileId,
   runId: RunId,
+  /** The parked call: the model step and tool call id it belongs to. */
+  stepIdx: z.number().int().nonnegative(),
+  toolCallId: z.string().min(1),
   tool: z.string().min(1),
   /** Arguments with secrets and personal data already redacted by the server. */
   argsRedacted: z.record(z.string(), Json),
   actionClass: ActionClass,
+  /** Mawl's own text saying why the call needs the owner (never model or page text). */
+  reason: z.string(),
   status: ApprovalStatus,
   decidedByDevice: DeviceId.nullable(),
   decidedViaChannel: Origin.nullable(),
   createdAt: Timestamp,
+  /** A pending approval resolves as `expired` (a denial for the model) after this. */
+  expiresAt: Timestamp,
   decidedAt: Timestamp.nullable(),
 })
 export type Approval = z.infer<typeof Approval>

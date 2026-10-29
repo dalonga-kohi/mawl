@@ -190,6 +190,7 @@ export function createRouter({
         },
     approvals: {
       list: stub(os.approvals.list),
+      get: stub(os.approvals.get),
       decide: stub(os.approvals.decide),
     },
     devices: {

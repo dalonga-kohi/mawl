@@ -94,14 +94,19 @@ export const artifact = {
 
 export const approval = {
   id: id('appr'),
+  profileId: id('prof'),
   runId: id('run'),
+  stepIdx: 0,
+  toolCallId: 'call_1',
   tool: 'send_email',
   argsRedacted: { to: '[redacted]' },
   actionClass: 'send_message' satisfies z.infer<typeof ActionClass>,
+  reason: 'Sending a message needs your approval.',
   status: 'pending',
   decidedByDevice: null,
   decidedViaChannel: null,
   createdAt: TS,
+  expiresAt: TS,
   decidedAt: null,
 }
 
