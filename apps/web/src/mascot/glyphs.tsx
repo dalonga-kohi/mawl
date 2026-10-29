@@ -35,10 +35,15 @@ export const ART = { cx: 200, cy: 200, r: 165, eyeX: 62, eyeY: 226 } as const
 
 /**
  * One glyph in `ink`. `heavy` is for the flat orb under 48 px, where the art's 15-unit strokes
- * fall under a pixel and stop reading.
+ * fall under a pixel: the glyph is drawn a third larger with thicker strokes, so it still reads.
  */
 export function GlyphShape({ kind, ink, heavy }: { kind: Glyph; ink: string; heavy: boolean }) {
-  const sw = heavy ? 24 : 15
+  const shape = <GlyphPath kind={kind} ink={ink} heavy={heavy} />
+  return heavy ? <g transform="scale(1.3)">{shape}</g> : shape
+}
+
+function GlyphPath({ kind, ink, heavy }: { kind: Glyph; ink: string; heavy: boolean }) {
+  const sw = heavy ? 20 : 15
   const stroke = {
     fill: 'none',
     stroke: ink,
@@ -48,7 +53,7 @@ export function GlyphShape({ kind, ink, heavy }: { kind: Glyph; ink: string; hea
   switch (kind) {
     case 'bar':
     case 'short': {
-      const w = heavy ? 28 : 18
+      const w = heavy ? 24 : 18
       const h = kind === 'bar' ? 52 : 34
       return <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={w / 2} fill={ink} />
     }
@@ -66,14 +71,14 @@ export function GlyphShape({ kind, ink, heavy }: { kind: Glyph; ink: string; hea
               key={a}
               d="M0 -22V22"
               {...stroke}
-              strokeWidth={heavy ? 18 : 12}
+              strokeWidth={heavy ? 16 : 12}
               transform={`rotate(${a})`}
             />
           ))}
         </>
       )
     case 'ring':
-      return <circle r="16" {...stroke} strokeWidth={heavy ? 16 : 11} />
+      return <circle r="16" {...stroke} strokeWidth={heavy ? 15 : 11} />
     case 'l':
       return <path d="M-22 14V-6H22" {...stroke} />
     case 'r':
