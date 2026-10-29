@@ -33,8 +33,6 @@ const shadcnVars = {
   '--popover-foreground': '--text',
   '--primary': '--accent-fill',
   '--primary-foreground': '--on-accent',
-  '--secondary': '--surface-2',
-  '--secondary-foreground': '--text',
   '--muted': '--surface-2',
   '--muted-foreground': '--text-2',
   '--destructive': '--danger',
@@ -56,6 +54,15 @@ describe('shadcn variables on Mawl tokens', () => {
     for (const name of Object.keys(shadcnVars)) {
       if (name === '--radius') continue
       expect(theme.get(`--color-${name.slice(2)}`), name).toBe(`var(${name})`)
+    }
+  })
+
+  it('leaves --secondary to the Mawl teal: no shadcn alias overrides it', () => {
+    expect(shadcnRoot.has('--secondary')).toBe(false)
+    expect(shadcnRoot.has('--secondary-foreground')).toBe(false)
+    expect(tokenNames.has('--secondary')).toBe(true)
+    for (const name of ['secondary', 'secondary-ink', 'secondary-soft']) {
+      expect(theme.get(`--color-${name}`), name).toBe(`var(--${name})`)
     }
   })
 
