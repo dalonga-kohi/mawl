@@ -15,7 +15,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 | [P1 — Talk to a teammate (web + desktop)](docs/plan/p1.md) | 9 | 0 | 0 | 1 |
 | [U — Mawl UI redesign (see [UI-REDESIGN.md](UI-REDESIGN.md))](docs/plan/u.md) | 8 | 0 | 6 | 0 |
 | [D1 — Desktop host (install and go)](docs/plan/d1.md) | 13 | 1 | 6 | 1 |
-| [D2 — The agent loop](docs/plan/d2.md) | 4 | 0 | 11 | 0 |
+| [D2 — The agent loop](docs/plan/d2.md) | 5 | 0 | 10 | 0 |
 | [D3 — Nodes: This PC first, then Docker computers](docs/plan/d3.md) | 0 | 0 | 12 | 0 |
 | [DP — Projects (added 2026-10-24, REDESIGN R18)](docs/plan/dp.md) | 0 | 0 | 6 | 0 |
 | [D4 — Memory system (see MEMORY.md)](docs/plan/d4.md) | 0 | 0 | 8 | 0 |
