@@ -20,7 +20,7 @@ export const neutrals = {
     line: '#DCE2EE',
     text: '#1B2432',
     text2: '#58677D',
-    text3: '#6F7C91',
+    text3: '#606D83',
   },
   /** Mawl dark: deep navy, with hairline borders instead of shadows. */
   dark: {
@@ -30,7 +30,7 @@ export const neutrals = {
     line: '#273246',
     text: '#F2F5FC',
     text2: '#A7B2C4',
-    text3: '#6F7C91',
+    text3: '#8390A4',
   },
 } as const
 

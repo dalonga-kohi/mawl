@@ -23,13 +23,14 @@ describe('neutral palette', () => {
       ['surface', n.surface],
       ['surface-2', n.surface2],
     ] as const) {
-      it(`${theme}: text and text-2 reach 4.5:1 on ${bgName}`, () => {
+      it(`${theme}: text, text-2 and text-3 reach 4.5:1 on ${bgName}`, () => {
         expect(wcagContrast(n.text, bg)).toBeGreaterThanOrEqual(4.5)
         expect(wcagContrast(n.text2, bg)).toBeGreaterThanOrEqual(4.5)
+        expect(wcagContrast(n.text3, bg)).toBeGreaterThanOrEqual(4.5)
       })
     }
-    it(`${theme}: text-3 (non-body use) reaches 3:1 on surface`, () => {
-      expect(wcagContrast(n.text3, n.surface)).toBeGreaterThanOrEqual(3)
+    it(`${theme}: text-3 stays quieter than text-2`, () => {
+      expect(wcagContrast(n.text3, n.surface)).toBeLessThan(wcagContrast(n.text2, n.surface))
     })
   }
 
