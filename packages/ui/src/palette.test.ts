@@ -1,12 +1,14 @@
 import { converter, formatHex, interpolate, wcagContrast } from 'culori'
 import { describe, expect, it } from 'vitest'
+import * as palette from './palette.ts'
 import {
   accentPresets,
   defaultAccent,
   ink,
-  mascot,
+  mawlAccent,
   neutrals,
   retiredAccentPresets,
+  secondary,
   semantic,
   type ThemeName,
 } from './palette.ts'
@@ -19,6 +21,7 @@ describe('neutral palette', () => {
     for (const [bgName, bg] of [
       ['bg', n.bg],
       ['surface', n.surface],
+      ['surface-2', n.surface2],
     ] as const) {
       it(`${theme}: text and text-2 reach 4.5:1 on ${bgName}`, () => {
         expect(wcagContrast(n.text, bg)).toBeGreaterThanOrEqual(4.5)
@@ -30,31 +33,29 @@ describe('neutral palette', () => {
     })
   }
 
-  it('uses the UI-REDESIGN Cream and Ink values', () => {
-    expect(neutrals.light).toEqual({
-      bg: '#FAF8F4',
+  it('uses the Mawl palette: bg, sidebar as surface-2, card as surface, and both texts', () => {
+    expect(neutrals.light).toMatchObject({
+      bg: '#F5F7FC',
       surface: '#FFFFFF',
-      surface2: '#F2EFE8',
-      line: '#E7E3DA',
-      text: '#1D1B16',
-      text2: '#5E5A50',
-      text3: '#8C877B',
+      surface2: '#EBEFF7',
+      text: '#1B2432',
+      text2: '#58677D',
     })
-    expect(neutrals.dark).toEqual({
-      bg: '#060607',
-      surface: '#0D0D0F',
-      surface2: '#151517',
-      line: '#1E1E22',
-      text: '#ECECEE',
-      text2: '#A6A6AD',
-      text3: '#6F6F77',
+    expect(neutrals.dark).toMatchObject({
+      bg: '#0B1019',
+      surface: '#1B2433',
+      surface2: '#121926',
+      text: '#F2F5FC',
+      text2: '#A7B2C4',
     })
   })
 
-  it('reads near-black in dark mode (bg and surface under OKLCH L 0.2)', () => {
+  it('reads deep navy in dark mode: bg under OKLCH L 0.2 with a blue hue', () => {
     const toOklch = converter('oklch')
-    expect(toOklch(neutrals.dark.bg)?.l).toBeLessThan(0.2)
-    expect(toOklch(neutrals.dark.surface)?.l).toBeLessThan(0.2)
+    const bg = toOklch(neutrals.dark.bg)
+    expect(bg?.l).toBeLessThan(0.2)
+    expect(bg?.h).toBeGreaterThan(230)
+    expect(bg?.h).toBeLessThan(280)
   })
 
   it('uses the light text color as the ink on light accent fills', () => {
@@ -74,11 +75,11 @@ describe('semantic colors', () => {
   }
 })
 
-describe('semantic text on its own soft tint', () => {
-  // Mirrors `color-mix(in oklab, var(--x) 12%, var(--surface))` from tokens.css.
-  const softTint = (fg: string, surface: string) =>
-    formatHex(interpolate([surface, fg], 'oklab')(0.12))
+// Mirrors `color-mix(in oklab, var(--x) 12%, var(--surface))` from tokens.css.
+const softTint = (fg: string, surface: string) =>
+  formatHex(interpolate([surface, fg], 'oklab')(0.12))
 
+describe('semantic text on its own soft tint', () => {
   for (const theme of themes) {
     for (const name of ['ok', 'warn', 'danger'] as const) {
       it(`${theme}: ${name} text on ${name}-soft reaches 4.5:1`, () => {
@@ -90,29 +91,70 @@ describe('semantic text on its own soft tint', () => {
   }
 })
 
-describe('presets and mascot', () => {
-  it('lists the six presets with Lime first and makes Lime the default', () => {
+describe('secondary teal', () => {
+  it('uses the Mawl teal per theme', () => {
+    expect(secondary.light.secondary).toBe('#087F86')
+    expect(secondary.dark.secondary).toBe('#80DACE')
+  })
+
+  for (const theme of themes) {
+    const n = neutrals[theme]
+    it(`${theme}: secondary reaches 3:1 as a UI color on bg, surface and surface-2`, () => {
+      for (const bg of [n.bg, n.surface, n.surface2]) {
+        expect(wcagContrast(secondary[theme].secondary, bg), bg).toBeGreaterThanOrEqual(3)
+      }
+    })
+    it(`${theme}: secondary-ink reaches 4.5:1 on bg, surface, surface-2 and its soft tint`, () => {
+      const s = secondary[theme].secondaryInk
+      const tint = softTint(secondary[theme].secondary, n.surface)
+      for (const bg of [n.bg, n.surface, n.surface2, tint]) {
+        expect(wcagContrast(s, bg), bg).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+  }
+})
+
+describe('the Mawl primary', () => {
+  it('is #7950E8 with white text, the same fill in both themes', () => {
+    expect(mawlAccent.hex).toBe('#7950E8')
+    expect(wcagContrast('#FFFFFF', mawlAccent.hex)).toBeGreaterThanOrEqual(5)
+  })
+
+  it('has the hand-picked accent ink per theme, at 4.5:1 on every neutral', () => {
+    expect(mawlAccent.ink).toEqual({ light: '#5E32C5', dark: '#BDA4ED' })
+    for (const theme of themes) {
+      const n = neutrals[theme]
+      for (const bg of [n.bg, n.surface, n.surface2]) {
+        expect(wcagContrast(mawlAccent.ink[theme], bg), `${theme} ${bg}`).toBeGreaterThanOrEqual(
+          4.5,
+        )
+      }
+    }
+  })
+})
+
+describe('presets', () => {
+  it('lists Mawl first, then the soft presets, and makes Mawl the default', () => {
     expect(accentPresets.map((p) => p.name)).toEqual([
-      'Lime',
+      'Mawl',
       'Sky',
       'Peach',
       'Lilac',
       'Rose',
       'Slate',
     ])
-    expect(accentPresets[0]?.hex).toBe('#D8E88A')
-    expect(defaultAccent.id).toBe('lime')
+    expect(defaultAccent).toEqual({ id: 'mawl', name: 'Mawl', hex: '#7950E8' })
   })
 
-  it('keeps every preset soft: a light color that takes ink text on its fill', () => {
+  it('keeps every preset after Mawl soft: a light color that takes ink text on its fill', () => {
     const toOklch = converter('oklch')
-    for (const p of accentPresets) {
+    for (const p of accentPresets.slice(1)) {
       expect(toOklch(p.hex)?.l, p.name).toBeGreaterThanOrEqual(0.8)
       expect(wcagContrast(p.hex, ink), p.name).toBeGreaterThanOrEqual(6)
     }
   })
 
-  it('retires the old preset names and hexes, none of which collide with a new preset', () => {
+  it('retires Lime with the older presets, none of which collide with a live preset', () => {
     expect(retiredAccentPresets.map((p) => p.name)).toEqual([
       'Lake',
       'Moss',
@@ -120,13 +162,13 @@ describe('presets and mascot', () => {
       'Coral',
       'Plum',
       'Slate',
+      'Lime',
     ])
     const live = new Set<string>(accentPresets.map((p) => p.hex))
     for (const p of retiredAccentPresets) expect(live.has(p.hex), p.name).toBe(false)
   })
 
-  it('has the fixed mascot palette', () => {
-    expect(mascot.fur).toBe('#8B5E3C')
-    expect(Object.keys(mascot)).toEqual(['fur', 'furLight', 'tail', 'tooth', 'nose', 'blush'])
+  it('no longer carries the beaver or lime mascot colors', () => {
+    expect('mascot' in palette).toBe(false)
   })
 })

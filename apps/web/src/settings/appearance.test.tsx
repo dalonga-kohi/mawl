@@ -49,7 +49,7 @@ describe('settings, appearance', () => {
       target: { value: '#12a4b0' },
     })
     expect(stored().accent).toBe('#12A4B0')
-    expect(screen.getByRole('radio', { name: 'Lime' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('radio', { name: 'Mawl' }).getAttribute('aria-checked')).toBe('false')
   })
 
   it('toggles reduced motion', async () => {

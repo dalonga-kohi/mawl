@@ -1,6 +1,6 @@
 import { accentScaleKeys, accentTints, accentVarName, deriveAccent } from './accent.ts'
 import { dur, ease } from './motion.ts'
-import { defaultAccent, mascot, neutrals, semantic } from './palette.ts'
+import { defaultAccent, neutrals, secondary, semantic } from './palette.ts'
 import { radii, shadows, spacing } from './space.ts'
 import { fontFamilies, typeScale } from './type.ts'
 
@@ -20,7 +20,7 @@ const publicAccentVars = [
   ['--accent-ink', 'accentInk'],
 ] as const
 
-/** Default (Lime) values for both scales. applyAccent() overrides them at runtime. */
+/** Default (Mawl) values for both scales. applyAccent() overrides them at runtime. */
 function accentScaleDecls(): Decl[] {
   return (['light', 'dark'] as const).flatMap((theme) => {
     const scale = deriveAccent(defaultAccent.hex, theme)
@@ -42,6 +42,7 @@ function themeDecls(theme: 'light' | 'dark'): Decl[] {
   return [
     ...entries(neutrals[theme]),
     ...entries(semantic[theme]),
+    ...entries(secondary[theme]),
     ...accentDecls(theme),
     ['--accent-soft', mix('accent', tint.soft, 'var(--surface)')],
     ['--accent-softer', mix('accent', tint.softer, 'var(--surface)')],
@@ -56,10 +57,10 @@ const derivedDecls: Decl[] = [
   ['--ok-soft', mix('ok', 12, 'var(--surface)')],
   ['--warn-soft', mix('warn', 12, 'var(--surface)')],
   ['--danger-soft', mix('danger', 12, 'var(--surface)')],
+  ['--secondary-soft', mix('secondary', 12, 'var(--surface)')],
 ]
 
 const fixedDecls: Decl[] = [
-  ...entries(mascot),
   ...spacing.map((s): Decl => [`--space-${s}`, `${s}px`]),
   ...Object.entries(radii).map(([k, v]): Decl => [`--r-${k}`, `${v}px`]),
   ...Object.entries(typeScale).flatMap(([k, t]): Decl[] => [
@@ -103,7 +104,9 @@ const colorTokens = [
   'warn-soft',
   'danger',
   'danger-soft',
-  ...Object.keys(mascot).map(kebab),
+  'secondary',
+  'secondary-ink',
+  'secondary-soft',
 ]
 
 /** Tailwind v4 reads runtime vars through `inline`, so utilities follow theme and accent changes. */

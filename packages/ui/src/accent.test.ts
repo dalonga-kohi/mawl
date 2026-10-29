@@ -1,7 +1,7 @@
 import { converter, formatHex, interpolate, wcagContrast } from 'culori'
 import { describe, expect, it } from 'vitest'
 import { accentTints, applyAccent, deriveAccent, InvalidColorError } from './accent.ts'
-import { accentPresets, ink, neutrals, type ThemeName } from './palette.ts'
+import { accentPresets, ink, mawlAccent, neutrals, type ThemeName } from './palette.ts'
 
 const toOklch = converter('oklch')
 const themes: ThemeName[] = ['light', 'dark']
@@ -93,6 +93,19 @@ describe('deriveAccent shape', () => {
     const lightInk = toOklch(light.accentInk)
     expect(lightInk?.l).toBeLessThan(base?.l ?? 0)
     expect(Math.abs((lightInk?.h ?? 0) - (base?.h ?? 0))).toBeLessThanOrEqual(12)
+  })
+
+  it('pins the Mawl primary: the same fill with white text in both themes and the hand-picked ink', () => {
+    for (const theme of themes) {
+      for (const input of [mawlAccent.hex, mawlAccent.hex.toLowerCase()]) {
+        const s = deriveAccent(input, theme)
+        expect(s.accentFill.toUpperCase(), theme).toBe(mawlAccent.hex)
+        expect(s.onAccent.toLowerCase(), theme).toBe('#ffffff')
+        expect(s.accentInk.toUpperCase(), theme).toBe(mawlAccent.ink[theme])
+        expect(toOklch(s.accentHover)?.l).toBeLessThan(toOklch(s.accentFill)?.l ?? 0)
+      }
+    }
+    expect(deriveAccent(mawlAccent.hex, 'light').accent.toUpperCase()).toBe(mawlAccent.hex)
   })
 
   it('raises the dark-theme base to OKLCH L >= 0.68', () => {

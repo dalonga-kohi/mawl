@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { accentScaleKeys, accentTints, accentVarName, deriveAccent } from './accent.ts'
 import { generateTokensCss } from './css.ts'
 import { dur } from './motion.ts'
-import { defaultAccent, mascot, neutrals, semantic } from './palette.ts'
+import { defaultAccent, neutrals, secondary, semantic } from './palette.ts'
 import { radii, spacing } from './space.ts'
 import { typeScale } from './type.ts'
 
@@ -57,14 +57,22 @@ describe('generateTokensCss', () => {
     expect(generateTokensCss()).toBe(css)
   })
 
-  it('defines every light neutral, semantic and mascot token in :root', () => {
+  it('defines every light neutral, semantic and secondary token in :root', () => {
     for (const [k, v] of Object.entries(neutrals.light)) expect(root.get(`--${kebab(k)}`)).toBe(v)
     for (const [k, v] of Object.entries(semantic.light)) expect(root.get(`--${kebab(k)}`)).toBe(v)
-    for (const [k, v] of Object.entries(mascot)) expect(root.get(`--${kebab(k)}`)).toBe(v)
+    for (const [k, v] of Object.entries(secondary.light)) expect(root.get(`--${kebab(k)}`)).toBe(v)
+    expect(root.get('--secondary-soft')).toBe(
+      'color-mix(in oklab, var(--secondary) 12%, var(--surface))',
+    )
   })
 
-  it('emits the default Lime light and dark scales and maps the public vars to the light one', () => {
-    expect(defaultAccent.name).toBe('Lime')
+  it('no longer emits the beaver or lime mascot tokens', () => {
+    for (const name of root.keys())
+      expect(name).not.toMatch(/^--(fur|fur-light|tooth|nose|blush|tail)$/)
+  })
+
+  it('emits the default Mawl light and dark scales and maps the public vars to the light one', () => {
+    expect(defaultAccent.name).toBe('Mawl')
     for (const theme of ['light', 'dark'] as const) {
       const lime = deriveAccent(defaultAccent.hex, theme)
       for (const key of accentScaleKeys) {
@@ -128,6 +136,8 @@ describe('generateTokensCss', () => {
     for (const block of [darkMedia, darkAttr]) {
       for (const [k, v] of Object.entries(neutrals.dark)) expect(block.get(`--${kebab(k)}`)).toBe(v)
       for (const [k, v] of Object.entries(semantic.dark)) expect(block.get(`--${kebab(k)}`)).toBe(v)
+      for (const [k, v] of Object.entries(secondary.dark))
+        expect(block.get(`--${kebab(k)}`)).toBe(v)
       for (const [pub, key] of publicAccentVars) {
         expect(block.get(pub)).toBe(`var(${accentVarName('dark', key)})`)
       }
@@ -158,6 +168,9 @@ describe('generateTokensCss', () => {
     expect(theme.get('--color-surface-2')).toBe('var(--surface-2)')
     expect(theme.get('--color-text-3')).toBe('var(--text-3)')
     expect(theme.get('--color-danger-soft')).toBe('var(--danger-soft)')
+    expect(theme.get('--color-secondary')).toBe('var(--secondary)')
+    expect(theme.get('--color-secondary-ink')).toBe('var(--secondary-ink)')
+    expect(theme.get('--color-secondary-soft')).toBe('var(--secondary-soft)')
     expect(theme.get('--radius-md')).toBe('var(--r-md)')
     expect(theme.get('--radius-dialog')).toBe('var(--r-dialog)')
     expect(theme.get('--font-sans')).toBe('var(--ff-ui)')

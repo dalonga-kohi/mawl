@@ -27,7 +27,7 @@ const throwingStorage = {
 }
 
 describe('loadAppearance', () => {
-  it('defaults to the system theme, the Lime accent and full motion', () => {
+  it('defaults to the system theme, the Mawl accent and full motion', () => {
     expect(DEFAULT_APPEARANCE).toEqual({
       theme: 'system',
       accent: defaultAccent.hex,
@@ -74,7 +74,7 @@ describe('loadAppearance, retired accent presets', () => {
       }),
     ).accent
 
-  it('moves a saved retired preset color (any case) to Lime and keeps the other fields', () => {
+  it('moves a saved retired preset color (any case) to the default and keeps the other fields', () => {
     for (const p of retiredAccentPresets) {
       expect(load(p.hex), p.name).toBe(defaultAccent.hex)
       expect(load(p.hex.toLowerCase()), p.name).toBe(defaultAccent.hex)
@@ -87,8 +87,8 @@ describe('loadAppearance, retired accent presets', () => {
     })
   })
 
-  it('moves a saved retired preset name or id to Lime', () => {
-    for (const value of ['lake', 'Lake', 'moss', 'Amber', 'coral', 'plum']) {
+  it('moves a saved retired preset name or id, Lime included, to the default', () => {
+    for (const value of ['lake', 'Lake', 'moss', 'Amber', 'coral', 'plum', 'lime', 'Lime']) {
       expect(load(value), value).toBe(defaultAccent.hex)
     }
   })

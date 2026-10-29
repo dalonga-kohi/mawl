@@ -1,5 +1,5 @@
 import { clampChroma, converter, formatHex, interpolate, parse, wcagContrast } from 'culori'
-import { ink, neutrals, type ThemeName } from './palette.ts'
+import { ink, mawlAccent, neutrals, type ThemeName } from './palette.ts'
 
 /** Hex strings, all valid sRGB. soft/softer/ring are color-mix expressions in the generated CSS. */
 export interface AccentScale {
@@ -100,6 +100,7 @@ export function deriveAccent(hex: string, theme: ThemeName): AccentScale {
   const baseHex = formatHex(parseHex(hex))
   // Dark derives everything from the lifted base, so fill, states and ink never go darker than it.
   const eff = theme === 'dark' ? liftedBase(baseHex) : baseHex
+  if (baseHex === mawlAccent.hex.toLowerCase()) return mawlScale(eff, theme)
 
   // White text unless the color is light. Ink is used only when it is >= 6:1 on the base and also
   // stays >= 4.5:1 on the darker hover and press fills; otherwise darken until white passes.
@@ -123,6 +124,23 @@ export function deriveAccent(hex: string, theme: ThemeName): AccentScale {
     accentFill,
     onAccent,
     accentInk: inkFor(eff, theme),
+  }
+}
+
+/**
+ * The Mawl primary keeps its own fill and white text in both themes (it reaches 5.1:1), and wears
+ * the hand-picked ink from the palette. `accent` (tints, info) still follows the dark lift.
+ */
+function mawlScale(eff: string, theme: ThemeName): AccentScale {
+  const fill = mawlAccent.hex.toLowerCase()
+  const states = fillStates(fill)
+  return {
+    accent: eff,
+    accentHover: states.hover,
+    accentPress: states.press,
+    accentFill: fill,
+    onAccent: WHITE,
+    accentInk: mawlAccent.ink[theme].toLowerCase(),
   }
 }
 

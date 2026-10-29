@@ -126,8 +126,8 @@ function AccentControl() {
       <p aria-live="polite" className="text-small text-text-2">
         {preset
           ? preset.hex === defaultAccent.hex
-            ? "Lime is Mawl's own color."
-            : `${preset.name}. Mawl itself stays lime.`
+            ? "Mawl's own purple."
+            : `${preset.name}. Mawl itself stays lavender.`
           : 'Custom color. Mawl adjusts text and focus rings on it so they stay readable.'}
       </p>
     </div>

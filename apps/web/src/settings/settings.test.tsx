@@ -82,8 +82,8 @@ describe('settings page', () => {
       within(accents)
         .getAllByRole('radio')
         .map((r) => r.getAttribute('aria-label')),
-    ).toEqual(['Lime', 'Sky', 'Peach', 'Lilac', 'Rose', 'Slate'])
-    expect(within(region).getByText("Lime is Mawl's own color.")).toBeTruthy()
+    ).toEqual(['Mawl', 'Sky', 'Peach', 'Lilac', 'Rose', 'Slate'])
+    expect(within(region).getByText("Mawl's own purple.")).toBeTruthy()
   })
 
   it('explains that a custom accent is adjusted to stay readable', async () => {
