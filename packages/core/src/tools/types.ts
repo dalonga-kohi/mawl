@@ -1,4 +1,12 @@
-import type { ActionClass, ArtifactId, Json, ProfileId, RunId } from '@mawl/contracts'
+import type {
+  ActionClass,
+  ArtifactId,
+  Json,
+  PolicyLevel,
+  PolicySource,
+  ProfileId,
+  RunId,
+} from '@mawl/contracts'
 import type { ToolResultPart, ToolSet } from 'ai'
 import type { z } from 'zod'
 
@@ -74,7 +82,7 @@ export interface Tool {
   prepare(
     raw: unknown,
   ):
-    | { ok: true; argsRedacted: Json; run(ctx: ToolContext): Promise<ToolOutcome> }
+    | { ok: true; args: Json; argsRedacted: Json; run(ctx: ToolContext): Promise<ToolOutcome> }
     | { ok: false; issues: string }
 }
 
@@ -83,14 +91,36 @@ export interface ToolGateRequest {
   profileId: ProfileId
   tool: string
   actionClass: ActionClass
+  /**
+   * The parsed arguments, unredacted and uncut, so the policy matches what will run (a cut shell
+   * command could hide a chained one). Never stored or shown; the event gets `argsRedacted`.
+   */
+  args: Json
   argsRedacted: Json
 }
 
-export type ToolGateDecision = { decision: 'allow' } | { decision: 'deny'; reason: string }
+/** How the policy engine reached a decision, written into the `run.tool_call` event. */
+export interface ToolGateAudit {
+  level: PolicyLevel
+  source: PolicySource
+  /** Set when the profile runs in Autopilot. */
+  mode?: 'autopilot'
+}
 
 /**
- * The policy hook every tool call passes before it executes. D2.3 replaces the default with the
- * policy engine; D2.4 adds the `ask` path (approvals). This is the only place a decision is made.
+ * - `allow`: the tool runs.
+ * - `deny`: the model gets a typed `denied` result with the reason.
+ * - `park`: the call needs the owner (`ask` or `handoff`). Until approvals land (D2.4) the
+ *   registry treats it as `deny`; D2.4 parks the run instead, without a type change.
+ */
+export type ToolGateDecision =
+  | { decision: 'allow'; audit?: ToolGateAudit }
+  | { decision: 'deny'; reason: string; audit?: ToolGateAudit }
+  | { decision: 'park'; reason: string; audit: ToolGateAudit }
+
+/**
+ * The policy hook every tool call passes before it executes. The server passes the policy engine
+ * (`policyGate`); D2.4 adds the `ask` path (approvals). This is the only place a decision is made.
  */
 export interface ToolGate {
   check(request: ToolGateRequest): Promise<ToolGateDecision>
@@ -116,10 +146,18 @@ export interface ToolCallKey {
  */
 export interface ToolLedger {
   toolResult(runId: RunId, key: ToolCallKey): Promise<ToolResultRecord | null>
-  /** Records a `run.tool_call` event. */
+  /** Records a `run.tool_call` event, with the policy audit when the gate gave one. */
   recordToolCall(
     runId: RunId,
-    call: { toolCallId: string; tool: string; argsRedacted: Json; actionClass: ActionClass },
+    call: {
+      toolCallId: string
+      tool: string
+      argsRedacted: Json
+      actionClass: ActionClass
+      level?: PolicyLevel
+      source?: PolicySource
+      mode?: 'autopilot'
+    },
   ): Promise<void>
   /**
    * Stores the result once, with its `run.tool_result` event and the `emit` events, atomically.

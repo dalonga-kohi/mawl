@@ -4,7 +4,9 @@ import {
   ApprovalStatus,
   ChannelKind,
   MessageRole,
+  NodeKind,
   PolicyLevel,
+  PolicyMode,
   ProviderKind,
   RunErrorCode,
   RunStatus,
@@ -45,17 +47,43 @@ export type Json = z.infer<typeof Json>
 
 // --- Policy ---------------------------------------------------------------
 
-const PolicyMatch = z
-  .object({
-    tool: z.string().min(1).optional(),
-    mcpServer: z.string().min(1).optional(),
+/** Caps on owner-written policy, so a stored policy stays small and cheap to evaluate. */
+export const POLICY_LIMITS = {
+  rules: 200,
+  allowedHosts: 200,
+  hostChars: 253,
+  toolChars: 128,
+  mcpServerChars: 64,
+  argPatternChars: 200,
+} as const
+
+/**
+ * What a rule matches. Strict, so a misspelt criterion is an error instead of being dropped (a
+ * dropped criterion would widen the rule). `argPattern` is a glob (`*` only, anchored), never a
+ * regular expression; for `shell_exec` it is a command prefix (ARCHITECTURE section 5).
+ */
+export const PolicyMatch = z
+  .strictObject({
+    tool: z.string().min(1).max(POLICY_LIMITS.toolChars).optional(),
+    mcpServer: z.string().min(1).max(POLICY_LIMITS.mcpServerChars).optional(),
     actionClass: ActionClass.optional(),
-    argPattern: z.string().min(1).optional(),
+    nodeKind: NodeKind.optional(),
+    argPattern: z.string().min(1).max(POLICY_LIMITS.argPatternChars).optional(),
   })
   .refine(
     (m) => Object.values(m).some((v) => v !== undefined),
     'match needs at least one criterion',
   )
+export type PolicyMatch = z.infer<typeof PolicyMatch>
+
+const notBelowHandoff = (r: { match: PolicyMatch; level: PolicyLevel }) =>
+  !(r.match.actionClass === 'credential' || r.match.actionClass === 'purchase') ||
+  r.level === 'handoff' ||
+  r.level === 'block'
+const NOT_BELOW_HANDOFF = {
+  message: 'credential and purchase rules cannot be lower than handoff',
+  path: ['level'],
+}
 
 /** `credential` and `purchase` are always handoff (ARCHITECTURE section 5): rules may not lower them. */
 export const PolicyRule = z
@@ -65,14 +93,29 @@ export const PolicyRule = z
     match: PolicyMatch,
     level: PolicyLevel,
   })
-  .refine(
-    (r) =>
-      !(r.match.actionClass === 'credential' || r.match.actionClass === 'purchase') ||
-      r.level === 'handoff' ||
-      r.level === 'block',
-    { message: 'credential and purchase rules cannot be lower than handoff', path: ['level'] },
-  )
+  .refine(notBelowHandoff, NOT_BELOW_HANDOFF)
 export type PolicyRule = z.infer<typeof PolicyRule>
+
+/** A rule inside a profile's policy (`profiles.policy_json`). */
+export const ProfilePolicyRule = z
+  .strictObject({ match: PolicyMatch, level: PolicyLevel })
+  .refine(notBelowHandoff, NOT_BELOW_HANDOFF)
+export type ProfilePolicyRule = z.infer<typeof ProfilePolicyRule>
+
+/**
+ * A profile's policy, stored in `profiles.policy_json`. `{}` is the default policy. The server
+ * parses it on every read; an invalid value falls back to the default (fail closed). Hosts in
+ * `allowedHosts` are exact host names (no wildcards, no ports) and lift `web_fetch` to `auto`.
+ */
+export const ProfilePolicy = z.strictObject({
+  mode: PolicyMode.default('standard'),
+  rules: z.array(ProfilePolicyRule).max(POLICY_LIMITS.rules).default([]),
+  allowedHosts: z
+    .array(z.string().min(1).max(POLICY_LIMITS.hostChars))
+    .max(POLICY_LIMITS.allowedHosts)
+    .default([]),
+})
+export type ProfilePolicy = z.infer<typeof ProfilePolicy>
 
 // --- Profiles & credentials ----------------------------------------------
 

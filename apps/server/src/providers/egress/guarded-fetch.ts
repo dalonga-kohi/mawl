@@ -3,7 +3,7 @@ import { request as httpRequest, type IncomingMessage } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { isIP, type LookupFunction } from 'node:net'
 import { Readable } from 'node:stream'
-import { classifyAddress } from './address.ts'
+import { classifyAddress } from '@mawl/core'
 
 /** The request was refused before any connection: the address is never or not yet allowed. */
 export class EgressBlockedError extends Error {

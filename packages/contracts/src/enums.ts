@@ -23,6 +23,18 @@ export type StepKind = z.infer<typeof StepKind>
 export const PolicyLevel = z.enum(['auto', 'ask', 'handoff', 'block'])
 export type PolicyLevel = z.infer<typeof PolicyLevel>
 
+/** Which tier of the policy engine produced a decision (ARCHITECTURE section 5, Policy engine). */
+export const PolicySource = z.enum(['floor', 'user_rule', 'profile', 'global', 'autopilot'])
+export type PolicySource = z.infer<typeof PolicySource>
+
+/** A profile's policy mode. Autopilot lifts lowerable `ask` decisions to `auto`, never a floor. */
+export const PolicyMode = z.enum(['standard', 'autopilot'])
+export type PolicyMode = z.infer<typeof PolicyMode>
+
+/** Where a teammate's tools run (REDESIGN R15). Built-in tools that touch no node have none. */
+export const NodeKind = z.enum(['this_pc', 'docker_terminal', 'docker_desktop'])
+export type NodeKind = z.infer<typeof NodeKind>
+
 export const ActionClass = z.enum([
   'read',
   'write_local',

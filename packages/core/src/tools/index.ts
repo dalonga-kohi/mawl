@@ -25,6 +25,7 @@ export type {
   ToolEmit,
   ToolErrorCode,
   ToolGate,
+  ToolGateAudit,
   ToolGateDecision,
   ToolGateRequest,
   ToolLedger,

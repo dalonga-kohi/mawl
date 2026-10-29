@@ -3,7 +3,7 @@ import { vector } from '@electric-sql/pglite-pgvector'
 import type { RunId } from '@mawl/contracts'
 import { migrationsFolder, schema } from '@mawl/db'
 import { fakeModel } from '@mawl/testkit'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -27,8 +27,11 @@ describe('run.execute with the built-in tools (PGlite)', () => {
   }, 120_000)
   afterAll(() => client.close())
 
-  async function seedQueued(): Promise<RunId> {
-    const profileId = await seedProfile(db)
+  // The fetch tests use example.com, which the profile allows (the policy engine asks otherwise).
+  async function seedQueued(
+    policy: Record<string, unknown> = { allowedHosts: ['example.com'] },
+  ): Promise<RunId> {
+    const profileId = await seedProfile(db, { policy })
     const threadId = await seedThread(db, profileId)
     const runId = await seedRun(db, profileId, { threadId })
     await seedMessage(db, threadId, 'user', [{ type: 'text', text: 'go' }], undefined, runId)
@@ -134,6 +137,27 @@ describe('run.execute with the built-in tools (PGlite)', () => {
     expect(art?.tokenCount).toBeGreaterThan(4000)
     const result = await createRunStore(db).toolResult(runId, { stepIdx: 0, toolCallId: 'call_1' })
     expect(result?.artifactId).toBe(art?.id)
+  })
+
+  it('goes through the policy engine by default: a first fetch to a host is denied, not fetched', async () => {
+    const runId = await seedQueued({})
+    const t = task(
+      fakeModel([
+        { toolCalls: [{ name: 'web_fetch', input: { url: 'https://example.com/' } }] },
+        { text: 'could not read it' },
+      ]),
+    )
+    await t.run(runId)
+    expect(await statusOf(runId)).toBe('succeeded')
+    expect(t.webFetch).not.toHaveBeenCalled()
+    const result = await createRunStore(db).toolResult(runId, { stepIdx: 0, toolCallId: 'call_1' })
+    expect(result?.isError).toBe(true)
+    expect(result?.preview).toContain('denied')
+    const [call] = await db
+      .select()
+      .from(events)
+      .where(and(eq(events.runId, runId), eq(events.type, 'run.tool_call')))
+    expect(call?.payload).toMatchObject({ tool: 'web_fetch', level: 'ask', source: 'global' })
   })
 
   it('notifies once even when the run resumes after the tools ran', async () => {

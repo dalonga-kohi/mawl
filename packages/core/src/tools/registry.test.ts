@@ -7,7 +7,7 @@ import { allowAllGate } from './gate.ts'
 import { createToolRegistry } from './registry.ts'
 import { MemoryArtifacts, MemoryLedger } from './test-util.ts'
 import { ARTIFACT_THRESHOLD_TOKENS, estimateTokens } from './tokens.ts'
-import type { ToolGate, ToolOutcome } from './types.ts'
+import type { ToolGate, ToolGateDecision, ToolOutcome } from './types.ts'
 
 const runId = newId('run')
 const profileId = newId('profile')
@@ -130,16 +130,118 @@ describe('tool registry: the single choke point', () => {
     expect(h.ledger.events.map((e) => e.type)).toEqual(['run.tool_call', 'run.tool_result'])
   })
 
-  it('the default gate allows everything (the seam D2.3 replaces)', async () => {
+  it('the default gate allows everything (tests only; the server passes the policy gate)', async () => {
     expect(
       await allowAllGate.check({
         runId,
         profileId,
         tool: 'x',
         actionClass: 'shell_exec',
+        args: {},
         argsRedacted: {},
       }),
     ).toEqual({ decision: 'allow' })
+  })
+
+  it('gives the gate the full parsed arguments next to the redacted ones', async () => {
+    const check = vi.fn<ToolGate['check']>(async () => ({ decision: 'allow' }))
+    const long = 'x'.repeat(300)
+    const h = harness({ gate: { check } })
+    await h.invoke('echo', { q: long })
+    const req = check.mock.calls[0]?.[0]
+    expect(req?.args).toEqual({ q: long })
+    expect(req?.argsRedacted).not.toEqual({ q: long })
+  })
+
+  it('writes the decided level, source and Autopilot mode into the tool_call event', async () => {
+    const h = harness({
+      gate: {
+        check: async () => ({
+          decision: 'allow',
+          audit: { level: 'auto', source: 'autopilot', mode: 'autopilot' },
+        }),
+      },
+    })
+    await h.invoke('echo', { q: 'x' })
+    expect(h.ledger.events[0]?.payload).toMatchObject({
+      level: 'auto',
+      source: 'autopilot',
+      mode: 'autopilot',
+    })
+  })
+
+  it('records the audit of a denied call too', async () => {
+    const h = harness({
+      gate: {
+        check: async () => ({
+          decision: 'deny',
+          reason: 'no',
+          audit: { level: 'block', source: 'floor' },
+        }),
+      },
+    })
+    await h.invoke('echo', { q: 'x' })
+    expect(h.ledger.events[0]?.payload).toMatchObject({ level: 'block', source: 'floor' })
+    expect(h.ledger.events[0]?.payload).not.toHaveProperty('mode')
+  })
+
+  it('never runs a tool on a decision it does not know, and answers denied', async () => {
+    const run = vi.fn(async () => ({ kind: 'ok' as const, text: 'ran' }))
+    const h = harness({
+      // reason: a gate from a future version (or a bug) returning an unknown variant.
+      gate: { check: async () => ({ decision: 'maybe' }) as unknown as ToolGateDecision },
+      tools: [echoTool(run)],
+    })
+    const r = await h.invoke('echo', { q: 'x' })
+    expect(run).not.toHaveBeenCalled()
+    expect(r.kind === 'result' && r.record.isError).toBe(true)
+    expect(textOf(r)).toContain('denied')
+  })
+
+  it('gives the gate the same parsed value that run gets, when the schema transforms it', async () => {
+    const seen: { gate?: unknown; run?: unknown } = {}
+    const trimming = defineTool({
+      name: 'trim',
+      description: 'trim',
+      inputSchema: z.strictObject({ command: z.string().transform((s) => s.trim().toLowerCase()) }),
+      actionClass: 'shell_exec',
+      run: async ({ command }) => {
+        seen.run = command
+        return { kind: 'ok', text: command }
+      },
+    })
+    const h = harness({
+      gate: {
+        check: async (req) => {
+          seen.gate = (req.args as { command?: unknown }).command
+          return { decision: 'allow' }
+        },
+      },
+      tools: [trimming],
+    })
+    await h.invoke('trim', { command: '  GIT Status  ' })
+    expect(seen.gate).toBe('git status')
+    expect(seen.run).toBe('git status')
+  })
+
+  it('treats a park decision as a denial until approvals exist (D2.4 seam)', async () => {
+    const run = vi.fn(async () => ({ kind: 'ok' as const, text: 'ran' }))
+    const h = harness({
+      gate: {
+        check: async () => ({
+          decision: 'park',
+          reason: 'needs your approval',
+          audit: { level: 'ask', source: 'global' },
+        }),
+      },
+      tools: [echoTool(run)],
+    })
+    const r = await h.invoke('echo', { q: 'x' })
+    expect(run).not.toHaveBeenCalled()
+    expect(r.kind).toBe('result')
+    expect(textOf(r)).toContain('denied')
+    expect(textOf(r)).toContain('needs your approval')
+    expect(h.ledger.events[0]?.payload).toMatchObject({ level: 'ask', source: 'global' })
   })
 
   it('answers an unknown tool with a typed error, without asking the gate', async () => {

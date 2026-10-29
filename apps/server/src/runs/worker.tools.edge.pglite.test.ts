@@ -27,8 +27,9 @@ describe('built-in tools: hostile data through the real store (PGlite)', () => {
   }, 120_000)
   afterAll(() => client.close())
 
+  // The fetch tests use example.com, which the profile allows (the policy engine asks otherwise).
   async function seedQueued(): Promise<RunId> {
-    const profileId = await seedProfile(db)
+    const profileId = await seedProfile(db, { policy: { allowedHosts: ['example.com'] } })
     const threadId = await seedThread(db, profileId)
     const runId = await seedRun(db, profileId, { threadId })
     await seedMessage(db, threadId, 'user', [{ type: 'text', text: 'go' }], undefined, runId)

@@ -57,6 +57,8 @@ export function defineTool<S extends z.ZodType>(def: ToolDefinition<S>): Tool {
       const input = parsed.data
       return {
         ok: true,
+        // For the policy engine only: the arguments exactly as `run` gets them (never stored).
+        args: input === undefined ? null : (JSON.parse(JSON.stringify(input)) as Json),
         // The event payload is jsonb: model-supplied strings must be storable.
         argsRedacted: storableJson(def.redact ? def.redact(input) : defaultRedact(input)),
         run: (ctx) => def.run(input, ctx),

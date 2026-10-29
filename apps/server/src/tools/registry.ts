@@ -10,6 +10,7 @@ import {
   webFetchTool,
   webSearchTool,
 } from '@mawl/core'
+import type { Logger } from '../logger.ts'
 import {
   createGuardedFetch,
   EgressBlockedError,
@@ -18,6 +19,7 @@ import {
 import type { ProvidersDb } from '../providers/types.ts'
 import { createArtifactStore } from '../runs/artifacts.ts'
 import type { SearchService } from '../search/service.ts'
+import { createPolicyGate } from './policy.ts'
 
 /**
  * The fetch `web_fetch` uses: the SSRF guard with private networks refused (model-supplied urls
@@ -44,12 +46,19 @@ export interface ServerToolsDeps {
   search: Pick<SearchService, 'provider'>
   /** Default: the guarded fetch. Tests inject one. */
   webFetch?: WebFetchDeps['fetch']
-  /** Default: allow everything until D2.3's policy engine. */
+  /** Default: the policy engine on this database (`createPolicyGate`). Tests may inject another. */
   gate?: ToolGate
+  logger?: Logger
 }
 
 /** The built-in tools every run gets (when its model supports tools). */
-export function createServerTools({ db, search, webFetch, gate }: ServerToolsDeps): ToolRegistry {
+export function createServerTools({
+  db,
+  search,
+  webFetch,
+  gate,
+  logger,
+}: ServerToolsDeps): ToolRegistry {
   const artifacts = createArtifactStore(db)
   return createToolRegistry({
     tools: [
@@ -60,6 +69,6 @@ export function createServerTools({ db, search, webFetch, gate }: ServerToolsDep
       readArtifactTool(artifacts),
     ],
     artifacts,
-    ...(gate ? { gate } : {}),
+    gate: gate ?? createPolicyGate(db, logger),
   })
 }

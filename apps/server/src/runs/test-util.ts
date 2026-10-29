@@ -14,7 +14,7 @@ const { profiles, threads, runs, messages } = schema
 
 export async function seedProfile(
   db: ProvidersDb,
-  over: { modelMain?: string; personaMd?: string } = {},
+  over: { modelMain?: string; personaMd?: string; policy?: Record<string, unknown> } = {},
 ): Promise<ProfileId> {
   const id = newId('profile')
   await db.insert(profiles).values({
@@ -24,6 +24,7 @@ export async function seedProfile(
     color: '#D8E88A',
     personaMd: over.personaMd ?? 'You are Ada.',
     modelMain: over.modelMain ?? `${newId('credential') as CredentialId}:fake`,
+    ...(over.policy ? { policy: over.policy } : {}),
   })
   return id
 }
