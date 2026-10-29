@@ -89,14 +89,14 @@ export function ApprovalCard({
       </section>
       {pending ? (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
             <Button variant="primary" disabled={busy} onClick={() => act('approve')}>
               Approve
             </Button>
             <Button disabled={busy} onClick={() => act('deny')}>
               Deny
             </Button>
-            <span className="text-small text-text-2 sm:ml-auto">
+            <span className="text-small text-text-2 md:ml-auto">
               {expiryLabel(approval.expiresAt, now)}
             </span>
           </div>
