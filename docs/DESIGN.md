@@ -8,9 +8,9 @@ The reference mood is the airy blue/white Telegram concepts plus a quiet dark mo
 
 ## 1. Concept: "Mawl keeps watch"
 
-Mawl, a soft lavender orb with glyph eyes, keeps watch while your teammates work, and you check in whenever you like. That gives us:
+Mawl, a soft orange orb with glyph eyes, keeps watch while your teammates work, and you check in whenever you like. That gives us:
 - **Calm surfaces** (the Mawl neutrals, §3: cool paper in light, deep navy in dark): the backdrop.
-- **The orb** (Mawl's fixed colourways, §8, lavender by default) and the **Mawl violet** primary, with teal for live status: warmth and character.
+- **The orb** (Mawl's fixed colourways, §8, orange by default) and the **Mawl violet** primary, with teal for live status: warmth and character.
 - **One memorable element:** the mascot, plus a soft river *wave* line that appears at moments of transition (onboarding, the empty states, the bottom of the mobile login). Everything else stays disciplined.
 
 ## 2. Principles
@@ -219,7 +219,7 @@ How Mawl applies Apple's fluid-interface guidance (WWDC "Designing Fluid Interfa
 Mawl is **the orb**: one circle, one colourway, and glyph eyes that carry every expression. No mouth, no ears, no limbs; hats and accessories can sit on top later. It replaced the lemon-lime mochi in the 2026-10 orb redesign (PLAN U8). The art source is `design/assets/mascot-orb/build.mjs` (run `node build.mjs <dir>` for `sheet.html`); the code lives in `apps/web/src/mascot/` (`Mawl.tsx`, `MawlAvatar.tsx`, `glyphs.tsx`, `ways.ts`, `mawl.css`, `states.ts`, `mascot-state.ts`). `packages/mascot` is an empty placeholder package and holds none of it.
 
 - **Style:** a 400-unit artwork, the orb at r 165. From 48 px up it has the **soft** treatment, a radial light at the top left (body lightened 22 % to body to body darkened 14 %). Below 48 px it is **flat**, cropped to the orb, without effects, and its eyes are drawn a third larger with thicker strokes so they read from 16 px (tray, list icons) up.
-- **Colourways** (`ways.ts`), each a body and an ink for the eyes: lavender `#BDA4ED` / `#1B1233` (Mawl's own, the default), purple `#7950E8` / `#F2F5FC`, night `#1B2433` / `#BDA4ED`, teal `#80DACE` / `#0B2F33`, peach `#F8B79B` / `#3A1A10`, rose `#F4A9C0` / `#3A1021`, sky `#A9C8F4` / `#12264A`. A teammate wears the colourway its stored color maps to (`wayForColor`): an exact body, a legacy soft preset (Lime becomes lavender, Lilac purple, Slate night), else the nearest body.
+- **Colourways** (`ways.ts`), each a body and an ink for the eyes: lavender `#BDA4ED` / `#1B1233` (Mawl's own, the default), purple `#7950E8` / `#F2F5FC`, night `#1B2433` / `#BDA4ED`, teal `#80DACE` / `#0B2F33`, peach `#F8B79B` / `#3A1A10`, rose `#F4A9C0` / `#3A1021`, sky `#A9C8F4` / `#12264A`. A teammate wears the colourway its stored color maps to (`wayForColor`): an exact body, a legacy soft preset (Lime becomes orange, Lilac purple, Slate night), else the nearest body.
 - **Drawing:** one inline SVG per instance with gradient and clip ids from `useId`, so several orbs never share a `url(#…)`. Each state picks a left and right glyph, a resting look offset and at most one effect (`POSES` in `glyphs.tsx`). The effects (thought dots, `?!`, `z`) sit up and to the right, in the body color.
 - **Eyes on a sphere:** one gaze (yaw and pitch, two Motion springs on `spring.gentle`) drives both eyes. Each eye is projected onto a sphere a little larger than the orb (`projectEye` in `idle-life.ts`): it moves along the curve and its glyph squashes as it turns away, so the trailing eye closes in on the leading one. The eyes sit in a group clipped to the orb circle, so a far look carries the leading eye over the outline and cuts it off, like a face turning on a ball. Transforms only, nothing re-renders per frame.
 - **Idle life:** while `idle` (and, half as far and less often, while `listening`) the orb looks around on its own: every 2 to 5 s it may pick left, right, up-left, up-right or down (centre is the most likely), eases there, holds 0.6 to 1.8 s and comes back. It blinks every 3 to 6 s, sometimes twice, closing for 120 ms. The schedule takes an injectable clock (tests use fake timers), pauses while the tab is hidden, and never runs below 48 px or under reduced motion. There is no pointer tracking.
@@ -239,7 +239,7 @@ Mawl is **the orb**: one circle, one colourway, and glyph eyes that carry every 
 
 - **Click:** a large orb hops once. Small ones (under 48 px, like the chat header) don't.
 - **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) stop every loop, the idle life (look-around and blinks), the hover scale and the hop; Mawl holds its pose with every effect shown at rest, and eye changes become short fades.
-- **Still avatar:** `MawlAvatar` draws the orb and its eyes only, never moves, and shows the state through its eyes. It takes `way` or the teammate's `color`, and wears lavender without either.
+- **Still avatar:** `MawlAvatar` draws the orb and its eyes only, never moves, and shows the state through its eyes. It takes `way` or the teammate's `color`, and wears orange without either.
 - **Placement:**
   - the chat header (the focused teammate's state)
   - empty states and the new-chat landing

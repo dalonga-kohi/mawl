@@ -15,6 +15,7 @@ const lighten = (h, t) => mix(h, 255, t)
 const darken = (h, t) => mix(h, 0, t)
 
 const WAYS = {
+  orange: { body: '#FF9A4D', ink: '#35170A' },
   lavender: { body: '#BDA4ED', ink: '#1B1233' },
   purple: { body: '#7950E8', ink: '#F2F5FC' },
   night: { body: '#1B2433', ink: '#BDA4ED' },
@@ -117,9 +118,9 @@ function icon(bg, way) {
 const iconDark = icon('#0B1019', WAYS.lavender)
 const iconLight = icon('#F5F7FC', WAYS.purple)
 
-writeFileSync(`${OUT}/mawl-flat.svg`, svg(orb(WAYS.lavender, 'idle', 'flat')))
-writeFileSync(`${OUT}/mawl-soft.svg`, svg(orb(WAYS.lavender, 'idle', 'soft')))
-writeFileSync(`${OUT}/mawl-grain.svg`, svg(orb(WAYS.lavender, 'idle', 'grain')))
+writeFileSync(`${OUT}/mawl-flat.svg`, svg(orb(WAYS.orange, 'idle', 'flat')))
+writeFileSync(`${OUT}/mawl-soft.svg`, svg(orb(WAYS.orange, 'idle', 'soft')))
+writeFileSync(`${OUT}/mawl-grain.svg`, svg(orb(WAYS.orange, 'idle', 'grain')))
 writeFileSync(`${OUT}/app-icon-dark.svg`, iconDark)
 writeFileSync(`${OUT}/app-icon-light.svg`, iconLight)
 
@@ -129,19 +130,19 @@ const iconTile = (s, label, cls) =>
   `<figure><div class="icon ${cls}">${s}</div><figcaption>${label}</figcaption></figure>`
 
 const treat = ['flat', 'soft', 'grain']
-  .map((t) => tile(orb(WAYS.lavender, 'idle', t), t, 220))
+  .map((t) => tile(orb(WAYS.orange, 'idle', t), t, 220))
   .join('')
 const states = Object.keys(STATES)
-  .map((k) => tile(orb(WAYS.lavender, k, 'soft'), k))
+  .map((k) => tile(orb(WAYS.orange, k, 'soft'), k))
   .join('')
-const ways = ['lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky']
+const ways = ['orange', 'lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky']
   .map((k) => tile(orb(WAYS[k], 'idle', 'soft'), k))
   .join('')
-const happy = ['lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky']
+const happy = ['orange', 'lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky']
   .map((k) => tile(orb(WAYS[k], 'done', 'soft'), k))
   .join('')
 const sizes = [96, 48, 32, 20]
-  .map((s) => tile(orb(WAYS.lavender, 'idle', 'flat'), `${s}px`, s))
+  .map((s) => tile(orb(WAYS.orange, 'idle', 'flat'), `${s}px`, s))
   .join('')
 
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -165,7 +166,7 @@ figcaption{font-size:12px;color:var(--tx2);margin-top:6px}
 <h2>States</h2><div class="row">${states}</div>
 <h2>Colourways, idle</h2><div class="row">${ways}</div>
 <h2>Colourways, done</h2><div class="row">${happy}</div>
-<h2>On light and dark</h2><div class="row"><figure class="lt"><div class="art" style="width:200px;height:200px">${svg(orb(WAYS.purple, 'idle', 'soft'))}</div></figure><figure class="dk"><div class="art" style="width:200px;height:200px">${svg(orb(WAYS.lavender, 'idle', 'soft'))}</div></figure></div>
+<h2>On light and dark</h2><div class="row"><figure class="lt"><div class="art" style="width:200px;height:200px">${svg(orb(WAYS.purple, 'idle', 'soft'))}</div></figure><figure class="dk"><div class="art" style="width:200px;height:200px">${svg(orb(WAYS.orange, 'idle', 'soft'))}</div></figure></div>
 <h2>Small sizes</h2><div class="row">${sizes}</div>
 <h2>App icon</h2><div class="row">${iconTile(iconDark, 'dark', '')}${iconTile(iconLight, 'light', '')}${iconTile(iconDark, '64', 'sm')}${iconTile(iconLight, '64', 'sm')}${iconTile(iconDark, '32', 'xs')}${iconTile(iconLight, '32', 'xs')}</div>
 </div></body></html>`

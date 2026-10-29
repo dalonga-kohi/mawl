@@ -56,10 +56,10 @@ describe('Mawl, the orb', () => {
     expect(svg.getAttribute('data-state')).toBe('thinking')
   })
 
-  it('rests idle, in lavender, by default', () => {
+  it('rests idle, in orange, by default', () => {
     const svg = svgOf(render(<Mawl />).container)
     expect(svg.getAttribute('data-state')).toBe('idle')
-    expect(svg.getAttribute('data-way')).toBe('lavender')
+    expect(svg.getAttribute('data-way')).toBe('orange')
   })
 
   it('draws one circle body', () => {

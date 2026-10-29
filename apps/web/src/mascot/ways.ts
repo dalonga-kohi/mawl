@@ -4,10 +4,20 @@
  * the palette or the accent, and this file and `mawl.css` are the only places they live.
  */
 
-export const ORB_WAYS = ['lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky'] as const
+export const ORB_WAYS = [
+  'orange',
+  'lavender',
+  'purple',
+  'night',
+  'teal',
+  'peach',
+  'rose',
+  'sky',
+] as const
 export type OrbWay = (typeof ORB_WAYS)[number]
 
 export const WAYS: Record<OrbWay, { body: string; ink: string }> = {
+  orange: { body: '#FF9A4D', ink: '#35170A' },
   lavender: { body: '#BDA4ED', ink: '#1B1233' },
   purple: { body: '#7950E8', ink: '#F2F5FC' },
   night: { body: '#1B2433', ink: '#BDA4ED' },
@@ -46,10 +56,10 @@ export function orbColors(way: OrbWay): OrbColors {
 
 /**
  * Teammate colours saved before the orb (the old soft accent presets) and the colourway each one
- * now wears. Lime was Mawl's own colour, so it becomes Mawl's own lavender.
+ * now wears. Lime was Mawl's own colour, so it becomes Mawl's own orange.
  */
 const LEGACY: Record<string, OrbWay> = {
-  '#D8E88A': 'lavender',
+  '#D8E88A': 'orange',
   '#A9D3F5': 'sky',
   '#F7C4A3': 'peach',
   '#CBB9F4': 'purple',
@@ -62,12 +72,12 @@ const LEGACY: Record<string, OrbWay> = {
  * the nearest colourway body. The colour is data, so anything that is not a hex falls back.
  */
 export function wayForColor(color: string | undefined): OrbWay {
-  if (!color || !HEX6.test(color)) return 'lavender'
+  if (!color || !HEX6.test(color)) return 'orange'
   const hex = color.toUpperCase()
   const exact = ORB_WAYS.find((w) => WAYS[w].body === hex) ?? LEGACY[hex]
   if (exact) return exact
   const [r, g, b] = rgb(hex)
-  let best: OrbWay = 'lavender'
+  let best: OrbWay = 'orange'
   let bestD = Number.POSITIVE_INFINITY
   for (const way of ORB_WAYS) {
     const [wr, wg, wb] = rgb(WAYS[way].body)

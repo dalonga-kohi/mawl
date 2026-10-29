@@ -2,8 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { ORB_WAYS, orbColors, WAYS, wayForColor } from './ways.ts'
 
 describe('orb colourways', () => {
-  it('lists the seven colourways with lavender first', () => {
-    expect(ORB_WAYS).toEqual(['lavender', 'purple', 'night', 'teal', 'peach', 'rose', 'sky'])
+  it('lists the eight colourways with orange first', () => {
+    expect(ORB_WAYS).toEqual([
+      'orange',
+      'lavender',
+      'purple',
+      'night',
+      'teal',
+      'peach',
+      'rose',
+      'sky',
+    ])
+    expect(WAYS.orange).toEqual({ body: '#FF9A4D', ink: '#35170A' })
     expect(WAYS.lavender).toEqual({ body: '#BDA4ED', ink: '#1B1233' })
     expect(WAYS.purple).toEqual({ body: '#7950E8', ink: '#F2F5FC' })
   })
@@ -21,7 +31,7 @@ describe('orb colourways', () => {
 
 describe('wayForColor', () => {
   it('maps the old soft teammate presets onto a colourway', () => {
-    expect(wayForColor('#D8E88A')).toBe('lavender')
+    expect(wayForColor('#D8E88A')).toBe('orange')
     expect(wayForColor('#A9D3F5')).toBe('sky')
     expect(wayForColor('#F7C4A3')).toBe('peach')
     expect(wayForColor('#CBB9F4')).toBe('purple')
@@ -41,9 +51,9 @@ describe('wayForColor', () => {
     expect(wayForColor('#FF8FB0')).toBe('rose')
   })
 
-  it('falls back to lavender for missing or invalid input', () => {
-    expect(wayForColor(undefined)).toBe('lavender')
-    expect(wayForColor('red')).toBe('lavender')
-    expect(wayForColor('#12345')).toBe('lavender')
+  it('falls back to orange for missing or invalid input', () => {
+    expect(wayForColor(undefined)).toBe('orange')
+    expect(wayForColor('red')).toBe('orange')
+    expect(wayForColor('#12345')).toBe('orange')
   })
 })
