@@ -2,17 +2,24 @@ import type { ProfileId, Run, RunId, ThreadId } from '@mawl/contracts'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { chatSearch } from '../router.tsx'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
 import { TooltipProvider } from '../ui/Tooltip.tsx'
 import { Composer } from './Composer.tsx'
+import { resetSessionGreeting } from './greetings.ts'
 
 beforeAll(async () => {
   await import('./ChatView.tsx')
 })
-beforeEach(() => stubViewport(1440))
+beforeEach(() => {
+  stubViewport(1440)
+  // Line 0 of the greetings is "What's next, {name}?"; the pick is once per session.
+  resetSessionGreeting()
+  vi.spyOn(Math, 'random').mockReturnValue(0)
+})
+afterEach(() => vi.restoreAllMocks())
 
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 

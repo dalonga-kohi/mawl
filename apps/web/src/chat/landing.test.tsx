@@ -1,16 +1,24 @@
 import type { ProviderCredential } from '@mawl/contracts'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { APPEARANCE_STORAGE_KEY } from '../appearance/prefs.ts'
+import { wayForColor } from '../mascot/ways.ts'
 import { PROFILE_STORAGE_KEY } from '../profile/profile-prefs.ts'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
 import { credential } from '../test/fake-providers-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
+import { resetSessionGreeting } from './greetings.ts'
 
 beforeAll(async () => {
   await import('./ChatView.tsx')
 })
-beforeEach(() => stubViewport(1440))
+beforeEach(() => {
+  stubViewport(1440)
+  // The first greeting line is "What's next, {name}?"; the pick is once per session.
+  resetSessionGreeting()
+  vi.spyOn(Math, 'random').mockReturnValue(0)
+})
+afterEach(() => vi.restoreAllMocks())
 
 const CRED = 'cred_01JTEST0000000000000000001' as ProviderCredential['id']
 
@@ -37,7 +45,7 @@ describe('new-chat landing', () => {
     const { user } = await renderApp('/t/inbox-sweeper', fake.api)
     await screen.findByRole('heading', { name: "What's next?" })
     for (const s of ['Plan my week', 'Summarize something', 'Draft a reply']) {
-      expect(screen.getByRole('button', { name: s })).toBeTruthy()
+      expect(await screen.findByRole('button', { name: s })).toBeTruthy()
     }
     await user.click(screen.getByRole('button', { name: 'Draft a reply' }))
     const box = screen.getByLabelText('Message Inbox Sweeper') as HTMLTextAreaElement
@@ -67,6 +75,64 @@ describe('new-chat landing', () => {
     expect(screen.getByLabelText('Message Inbox Sweeper')).toBe(box)
     expect(document.activeElement).toBe(box)
     await waitFor(() => expect(headerMascot()?.getAttribute('data-state')).toBe('thinking'))
+  })
+})
+
+describe('landing, chat-app style', () => {
+  it('shows the greeting at once, without waiting for the conversations to load', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    const never = new Promise<never>(() => {})
+    await renderApp('/t/inbox-sweeper', {
+      ...fake.api,
+      threads: { ...fake.api.threads, list: () => never },
+    })
+    expect(await screen.findByRole('heading', { level: 2, name: "What's next?" })).toBeTruthy()
+    expect(screen.getByLabelText('Message Inbox Sweeper')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Plan my week' })).toBeNull()
+  })
+
+  it('keeps the same greeting when the owner returns to the landing in one session', async () => {
+    const p = sweeper()
+    const fake = fakeApi({ profiles: [p] })
+    const first = await renderApp('/t/inbox-sweeper', fake.api)
+    const heading = await screen.findByRole('heading', { level: 2, name: "What's next?" })
+    const text = heading.textContent
+    first.unmount()
+    vi.spyOn(Math, 'random').mockReturnValue(0.99)
+    await renderApp('/t/inbox-sweeper', fake.api)
+    expect(
+      (await screen.findByRole('heading', { level: 2, name: "What's next?" })).textContent,
+    ).toBe(text)
+  })
+
+  it('has no teammate label under the orb', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    await renderApp('/t/inbox-sweeper', fake.api)
+    await screen.findByRole('heading', { level: 2, name: "What's next?" })
+    expect(screen.queryByText(/your AI teammate/i)).toBeNull()
+  })
+
+  it('wears the teammate colourway on the landing orb and in the header', async () => {
+    const p = profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper', color: '#F4A9C0' })
+    const fake = fakeApi({ profiles: [p] })
+    const { user } = await renderApp('/t/inbox-sweeper', fake.api)
+    const heading = await screen.findByRole('heading', { level: 2, name: "What's next?" })
+    const big = heading.closest('[aria-label="New chat"]')?.querySelector('.mawl')
+    expect(big?.getAttribute('data-way')).toBe(wayForColor('#F4A9C0'))
+    await user.type(screen.getByLabelText('Message Inbox Sweeper'), 'hi{Enter}')
+    await waitFor(() => expect(headerMascot()).not.toBeNull())
+    expect(headerMascot()?.getAttribute('data-way')).toBe(wayForColor('#F4A9C0'))
+  })
+
+  it('draws suggestions as soft rounded rectangles that lift and glow on hover', async () => {
+    const fake = fakeApi({ profiles: [sweeper()] })
+    await renderApp('/t/inbox-sweeper', fake.api)
+    await screen.findByRole('heading', { level: 2, name: "What's next?" })
+    const pill = await screen.findByRole('button', { name: 'Plan my week' })
+    expect(pill.className).toMatch(/(^|\s)rounded-md(\s|$)/)
+    expect(pill.className).not.toMatch(/rounded-full|shadow-\[0_0_0_1px/)
+    expect(pill.className).toMatch(/hover:shadow-/)
+    expect(pill.className).toMatch(/hover:bg-/)
   })
 })
 

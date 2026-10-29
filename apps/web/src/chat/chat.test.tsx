@@ -1,15 +1,22 @@
 import type { ThreadId } from '@mawl/contracts'
 import { screen, waitFor, within } from '@testing-library/react'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { message, profile, thread } from '../test/fake-chat-api.ts'
 import { credential } from '../test/fake-providers-api.ts'
 import { fakeApi, renderApp, stubViewport } from '../test/render-app.tsx'
+import { resetSessionGreeting } from './greetings.ts'
 
 // The conversation is a lazy route chunk; load it once so the first test isn't timing its import.
 beforeAll(async () => {
   await import('./ChatView.tsx')
 })
-beforeEach(() => stubViewport(1440))
+beforeEach(() => {
+  stubViewport(1440)
+  // Line 0 of the greetings is "What's next, {name}?"; the pick is once per session.
+  resetSessionGreeting()
+  vi.spyOn(Math, 'random').mockReturnValue(0)
+})
+afterEach(() => vi.restoreAllMocks())
 
 const sweeper = () => profile({ name: 'Inbox Sweeper', slug: 'inbox-sweeper' })
 
