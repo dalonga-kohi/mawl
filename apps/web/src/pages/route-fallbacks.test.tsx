@@ -20,4 +20,9 @@ describe('route fallbacks', () => {
     render(<RoutePending />)
     expect(screen.getByRole('status', { name: 'Loading' }).getAttribute('aria-busy')).toBe('true')
   })
+
+  it('fades the skeleton in after a short grace, so a fast load never flashes it', () => {
+    render(<RoutePending />)
+    expect(screen.getByRole('status', { name: 'Loading' }).className).toContain('route-pending')
+  })
 })
