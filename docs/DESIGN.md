@@ -26,86 +26,85 @@ Mawl, a soft lemon-lime mochi, keeps watch while your teammates work, and you ch
 
 All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @mawl/ui generate`. Components never use raw hex.
 
-### Neutrals: light ("Cream")
+The default palette is **Mawl** (2026-10 orb redesign, PLAN U8): cool paper in light, deep navy in dark, a violet primary and a teal secondary. U9 adds named palettes beside it.
+
+### Neutrals: light
 | Token | Hex | Use |
 |---|---|---|
-| `--bg` | `#FAF8F4` | The whole window: sidebar, conversation, pages and workspace panel (one tone) |
-| `--surface` | `#FFFFFF` | Raised things only: composer, cards, popovers, dialogs, tool cards, code blocks |
-| `--surface-2` | `#F2EFE8` | Hover fills, tab tracks, user bubbles |
-| `--line` | `#E7E3DA` | Hairlines (use sparingly) |
-| `--text` | `#1D1B16` | Primary text (16.2:1 on bg) |
-| `--text-2` | `#5E5A50` | Secondary text (6.5:1 on bg) |
-| `--text-3` | `#8C877B` | Placeholder, meta, disabled (3.6:1 on surface). Never for body text |
+| `--bg` | `#F5F7FC` | The app background: conversation, pages |
+| `--surface` | `#FFFFFF` | Cards: composer, popovers, dialogs, tool cards, code blocks |
+| `--surface-2` | `#EBEFF7` | The sidebar tone; also hover fills, tab tracks, chips, wells |
+| `--line` | `#DCE2EE` | Hairlines (use sparingly) |
+| `--text` | `#1B2432` | Primary text (14.6:1 on bg) |
+| `--text-2` | `#58677D` | Secondary text (5.4:1 on bg) |
+| `--text-3` | `#6F7C91` | Placeholder, meta, disabled (4.2:1 on surface). Never for body text |
 
-### Neutrals: dark ("Ink")
-Near-black and neutral, not blue. Surfaces separate by a step in lightness and a 1 px `--line` hairline, never by shadows.
+### Neutrals: dark
+Deep navy. Surfaces separate by a step in lightness and a 1 px `--line` hairline, never by shadows.
 
-| Token | Hex |
-|---|---|
-| `--bg` | `#060607` |
-| `--surface` | `#0D0D0F` |
-| `--surface-2` | `#151517` |
-| `--line` | `#1E1E22` |
-| `--text` | `#ECECEE` |
-| `--text-2` | `#A6A6AD` |
-| `--text-3` | `#6F6F77` |
+| Token | Hex | Use |
+|---|---|---|
+| `--bg` | `#0B1019` | App background |
+| `--surface` | `#1B2433` | Cards |
+| `--surface-2` | `#121926` | The sidebar tone; hover fills, chips |
+| `--line` | `#273246` | Hairlines |
+| `--text` | `#F2F5FC` | Primary text (17.5:1 on bg) |
+| `--text-2` | `#A7B2C4` | Secondary text (8.9:1 on bg) |
+| `--text-3` | `#6F7C91` | Meta (3.7:1 on surface) |
 
-### Accent (user-selectable)
-The user picks the accent in Settings → Appearance. The default is **Lime**, Mawl's own color. Every preset is a soft, light color of about the same lightness, so filled buttons keep the preset as their fill and take ink text.
+### Primary (the accent)
+The primary is **Mawl violet `#7950E8`**, the same fill in both themes; white text on it is 5.1:1. Its accent ink, for small text, links and icons, is hand-picked per theme: `#5E32C5` in light and `#BDA4ED` in dark (7.7:1 and 7.2:1 on the card). The engine pins these values for the Mawl primary instead of deriving them (`mawlAccent` in `palette.ts`, `mawlScale` in `accent.ts`).
 
-| Preset | Base (fill) | `--accent-ink`, light | Mood |
-|---|---|---|---|
-| **Lime** (default) | `#D8E88A` | `#687309` | Mawl's pistachio; fresh, gentle |
-| Sky | `#A9D3F5` | `#4A718E` | Airy, calm |
-| Peach | `#F7C4A3` | `#906346` | Warm, friendly |
-| Lilac | `#CBB9F4` | `#76649A` | Playful |
-| Rose | `#F4B6C4` | `#945D6A` | Soft, kind |
-| Slate | `#B9C3CF` | `#666D78` | Ultra-lowkey |
-| Custom | any | derived | A color picker; the engine checks contrast |
+Until U9 replaces it with palettes, the user can still pick another accent in Settings → Appearance. The soft presets keep their fill and take ink text:
 
-Ink on every preset fill is 9.6:1 or better; every light `--accent-ink` is about 5.2:1 on the surface. In dark mode the presets are already light enough, so the base doubles as the ink. The pre-redesign presets (Lake, Moss, Amber, Coral, Plum and the old dark Slate) are retired: a saved preference that still holds one of them, by color, id or name, loads as Lime (`apps/web/src/appearance/prefs.ts`).
+| Preset | Base (fill) | `--accent-ink`, light |
+|---|---|---|
+| **Mawl** (default) | `#7950E8` | `#5E32C5` (hand-picked) |
+| Sky | `#A9D3F5` | `#4A718E` |
+| Peach | `#F7C4A3` | `#906246` |
+| Lilac | `#CBB9F4` | `#75649A` |
+| Rose | `#F4B6C4` | `#945D6A` |
+| Slate | `#B9C3CF` | `#666D78` |
+| Custom | any | derived; the engine checks contrast |
+
+Ink on every soft preset fill is 8.8:1 or better; every derived light `--accent-ink` is about 5.2:1 on the surface. In dark mode the soft presets are light enough to double as the ink. Retired presets (Lake, Moss, Amber, Coral, Plum, the old dark Slate, and Lime, the mochi's color) load as the default, by color, id or name (`apps/web/src/appearance/prefs.ts`).
 
 **The accent engine** (`packages/ui/accent.ts`, using `culori`) turns one hex into a scale. It converts the hex to OKLCH and generates:
 - `--accent` (base)
 - `--accent-hover` (L −4%)
 - `--accent-press` (L −8%)
-- `--accent-soft`: the base mixed over the surface, 24% in light and 14% in dark (soft accents barely tint a light surface at less). Used for selection, the current nav item and user bubbles.
+- `--accent-soft`: the base mixed over the surface, 24% in light and 14% in dark. Used for selection, the current nav item and user bubbles.
 - `--accent-softer`: half of that (12% light, 7% dark)
 - `--accent-ring`: the focus ring, mixed from `--accent-ink` (100% light, 80% dark), so it reaches 3:1 on bg and surface even for pastel accents
-- `--accent-fill`: background for filled buttons and the send button. For light accents (all presets), the engine keeps the base and switches the text to ink, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press` (they are darker, and ink loses contrast as the fill darkens). Otherwise (a mid blue like `#3D8BFD`, or a coral) the fill is darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Hover and press are derived from the fill.
+- `--accent-fill`: background for filled buttons and the send button. For light accents the engine keeps the base and switches the text to ink, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press`. Otherwise the fill is darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Hover and press are derived from the fill.
 - `--on-accent`: the text color on `--accent-fill`, white or ink (`--text` of the light theme), whichever passes 4.5:1
 - `--accent-ink`: the accent as small text, an icon or a link. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on bg, surface, surface-2 and the soft tint.
-- `--accent` (base) is for fills, tints and decoration. With soft accents it is too light to read on a light surface, so text, icons and rings always use `--accent-ink`.
+- `--accent` (base) is for fills, tints and decoration; text, icons and rings always use `--accent-ink`.
 
-In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are all derived from that raised base. The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
+In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are derived from that raised base (the Mawl primary keeps its own fill and ink; only its `--accent` tint base is raised). The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
+
+### Secondary (teal)
+For status, online, the computer and success. Never for primary actions.
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--secondary` | `#087F86` | `#80DACE` | Dots, rings, icons, fills (≥ 3:1 on bg, surface and surface-2) |
+| `--secondary-ink` | `#06767D` | `#80DACE` | Teal text (≥ 4.5:1 on bg, surface, surface-2 and the soft tint). Light is a step darker than the brand teal, which is 4.15:1 on the sidebar |
+| `--secondary-soft` | 12 % over surface | same | Chips and badges behind teal text |
 
 ### shadcn/ui variables
-`apps/web/src/styles.css` maps shadcn's semantic variables onto these tokens, so a component taken from the shadcn registry already speaks Mawl: `--background` → `--bg`, `--foreground` → `--text`, `--card`/`--popover` → `--surface`, `--primary` → `--accent-fill`, `--primary-foreground` → `--on-accent`, `--secondary`/`--muted` → `--surface-2`, `--muted-foreground` → `--text-2`, `--destructive` → `--danger`, `--border`/`--input` → `--line`, `--ring` → `--accent-ring`, `--radius` → `--r-card`. shadcn's own `--accent` (a neutral hover fill) is not aliased: `--accent` is Mawl's brand color, and that role is `--secondary`. A test (`apps/web/src/ui/theme.test.ts`) keeps the mapping and the no-raw-hex rule honest.
+`apps/web/src/styles.css` maps shadcn's semantic variables onto these tokens, so a component taken from the shadcn registry already speaks Mawl: `--background` → `--bg`, `--foreground` → `--text`, `--card`/`--popover` → `--surface`, `--primary` → `--accent-fill`, `--primary-foreground` → `--on-accent`, `--muted` → `--surface-2`, `--muted-foreground` → `--text-2`, `--destructive` → `--danger`, `--border`/`--input` → `--line`, `--ring` → `--accent-ring`, `--radius` → `--r-card`. Two shadcn names are not aliased because Mawl owns them: `--accent` is Mawl's brand color and `--secondary` is the teal. A pasted component that uses shadcn's neutral `bg-secondary` or `bg-accent` fill should use `bg-surface-2`. A test (`apps/web/src/ui/theme.test.ts`) keeps the mapping and the no-raw-hex rule honest.
 
 ### Semantic (fixed, never accent-driven)
-- `--ok` `#007A4A` light, `#32A16A` dark
+- `--ok` `#007A4A` light, `#40B078` dark
 - `--warn` `#985D00` light, `#D98A14` dark
-- `--danger` `#C33632` light, `#EF6056` dark
+- `--danger` `#C33632` light, `#F4766C` dark
 - `--info` = accent
 
-The light values are darker so they reach 4.5:1 as text on white and on their own `-soft` tint. One hex cannot pass on both white and the dark surface, so each theme has its own.
+Each theme has its own value so the color reaches 4.5:1 as text on that theme's card and on its own `-soft` tint (12 % over the surface). The dark ok and danger were lifted for the navy card.
 
-Each has a `-soft` variant at 12% alpha.
-
-### Mascot palette (fixed)
-Mawl's colors are fixed and never follow the accent. They are CSS variables (`--mawl-*`) defined with the mascot in `apps/web/src/mascot/mawl.css`, the only place these hex values live.
-
-| Name | Hex | Use |
-|---|---|---|
-| Body | `#E4F09A` → `#BFD45E` | Body gradient (also the waiting paw and working chips) |
-| Ear / ear inner | `#D2E47A` / `#A8BE4A` | Ears; the inner tone also colors the thinking dots |
-| Tail | `#A4BC48` → `#869B36` | Tail gradient |
-| Ink | `#26301A` | Eyes, mouth, the "!" and a 13 % ground shadow |
-| Blush / tongue | `#FF9AA8` | Cheeks at 40 %, the open mouth's tongue |
-| Sparkle | `#F6D66B` | Done sparkles, the waiting bubble |
-| Sweat | `#8FD3F4` | The oops sweat drop |
-
-The old beaver tokens (`--fur`, `--fur-light`, `--tail`, `--tooth`, `--nose`, `--blush`) in `packages/ui` are unused and retire with the U1 token rework.
+### Mascot colors (fixed)
+The orb's colourways never follow the palette or the accent. They live with the mascot in `apps/web/src/mascot/ways.ts` (see §8), the only place these hex values exist. The old beaver and lime mascot tokens are gone from `packages/ui`.
 
 ## 4. Typography
 
@@ -159,14 +158,14 @@ Rules:
 
 ## 6. Iconography
 
-Lucide icons at 1.75 stroke, 18 px in UI. Never use emoji as icons. Teammate avatars are a round neutral chip holding the **simplified Mawl** (body, ears and eyes; no mouth, no tail) **in the teammate's color**, or an initial when there are many. The tint keeps the teammate's hue at Mawl's lightness, so the dark eyes always read.
+Lucide icons at 1.75 stroke, 18 px in UI. Never use emoji as icons. Teammate avatars are the **still orb** (`MawlAvatar`: body and eyes, no effects, no motion) **in the teammate's colourway**, or an initial when there are many. The teammate's stored color picks the colourway (§8), and every colourway has its own ink, so the eyes always read.
 
 ## 7. Motion
 
 Use existing libraries:
 - **Motion** (`motion/react`) on web and desktop
 - **Reanimated 3** + `moti` on mobile
-- **Inline SVG + CSS keyframes** for Mawl, with CSS transitions between states (Rive is dropped for now, UI-REDESIGN.md §4)
+- **Inline SVG** for Mawl: Motion springs and cross-fades for the eyes between states, CSS keyframes for the ambient loops (Rive is dropped for now, UI-REDESIGN.md §4)
 
 Don't hand-roll animation engines.
 
@@ -194,28 +193,30 @@ Patterns:
 
 ## 8. The mascot: Mawl
 
-Mawl is a soft lemon-lime mochi: a round blob with two round ears and a small paddle tail. No teeth and no species detail. It is ported from the user's approved mint reference and recolored with the palette in §3. Code: `apps/web/src/mascot/` (`Mawl.tsx`, `MawlAvatar.tsx`, `mawl.css`, `states.ts`, `mascot-state.ts`).
+Mawl is **the orb**: one circle, one colourway, and glyph eyes that carry every expression. No mouth, no ears, no limbs; hats and accessories can sit on top later. It replaced the lemon-lime mochi in the 2026-10 orb redesign (PLAN U8). The art source is `design/assets/mascot-orb/build.mjs` (run `node build.mjs <dir>` for `sheet.html`); the code lives in `apps/web/src/mascot/` (`Mawl.tsx`, `MawlAvatar.tsx`, `glyphs.tsx`, `ways.ts`, `mawl.css`, `states.ts`, `mascot-state.ts`). `packages/mascot` is an empty placeholder package and holds none of it.
 
-- **Style:** flat vector, a two-stop body gradient, no outlines. Short vertical-bar eyes, a small smile and pink blush. Readable from 16 px (tray, list icons) to 240 px (onboarding). Below 48 px it crops to the body and drops its effects and shadow; at 20 px or less the eyes get heavier.
-- **Drawing:** one inline SVG per instance with ids from `useId`, so several Mawls on a page never share a gradient or clip path. Each state turns on one set of eyes, one mouth and at most one effect (`POSES` in `Mawl.tsx`); the motion is CSS keyframes keyed on `data-state`, and face parts cross-fade over `dur.fast` when the state changes.
-- **States** (UI-REDESIGN.md §4):
+- **Style:** a 400-unit artwork, the orb at r 165. From 48 px up it has the **soft** treatment, a radial light at the top left (body lightened 22 % to body to body darkened 14 %). Below 48 px it is **flat**, cropped to the orb, without effects, and its eyes are drawn a third larger with thicker strokes so they read from 16 px (tray, list icons) up.
+- **Colourways** (`ways.ts`), each a body and an ink for the eyes: lavender `#BDA4ED` / `#1B1233` (Mawl's own, the default), purple `#7950E8` / `#F2F5FC`, night `#1B2433` / `#BDA4ED`, teal `#80DACE` / `#0B2F33`, peach `#F8B79B` / `#3A1A10`, rose `#F4A9C0` / `#3A1021`, sky `#A9C8F4` / `#12264A`. A teammate wears the colourway its stored color maps to (`wayForColor`): an exact body, a legacy soft preset (Lime becomes lavender, Lilac purple, Slate night), else the nearest body.
+- **Drawing:** one inline SVG per instance with a gradient id from `useId`, so several orbs never share a `url(#…)`. Each state picks a left and right glyph, a resting look offset and at most one effect (`POSES` in `glyphs.tsx`). The effects (thought dots, `?!`, `z`) sit up and to the right, in the body color.
+- **Motion:** eyes change through Motion: the new glyph pops in on `spring.bouncy` while the old one fades out over `dur.fast`, and the look offset moves on `spring.gentle`, so a state change reads in under 100 ms. Ambient loops are CSS keyframes keyed on `data-state`. A clickable orb (48 px and up) scales to 1.03 on hover and 0.97 on press over `dur.fast`.
+- **States:**
 
-| State | When | Motion |
-|---|---|---|
-| `idle` | Nothing happening | Breathing squish, tail wag, a blink every ~3 s. At 64 px and up the eyes follow the pointer (at most once per frame) |
-| `listening` | The owner is typing | Eyes glance down at the composer, ears perk |
-| `thinking` | A run is queued or the model is generating | Head tilt, eyes up and to the side, wavy mouth, three bobbing dots |
-| `working` | Tools are running, or the context is compacting | Quick bob, tail slap, focused eyes, chips drift off |
-| `waiting` | Needs approval, takeover or a reply | A small "!" bubble and a slow wave of a raised paw |
-| `done` | A watched run just succeeded (2.4 s) | Hop with a ground shadow, happy eyes, open smile, sparkles |
-| `oops` | A watched run just failed (2.4 s) | Shake, round eyes, a sweat drop |
-| `sleepy` | The run is paused, or a computer is asleep | Slow deep breathing, closed eyes, floating "z" |
+| State | When | Eyes | Motion and effect |
+|---|---|---|---|
+| `idle` | Nothing happening | Vertical bars | A slow breath and a blink every ~3 s. At 64 px and up the eyes follow the pointer (at most once per frame) |
+| `listening` | The owner is typing | Shorter bars, glancing down at the composer | Breath and blink |
+| `thinking` | A run is queued or the model is generating | Rings, looking up and to the right | A gentle sway; two thought dots bob |
+| `working` | Tools are running, or the context is compacting | Asterisks | The asterisks turn slowly |
+| `waiting` | Needs approval, takeover or a reply | Plus signs | A floating `?!` |
+| `done` | A watched run just succeeded (2.4 s) | `^ ^` | One hop as it lands in done |
+| `oops` | A watched run just failed (2.4 s) | `x x` | A short shake, then a pause |
+| `sleepy` | The run is paused, or a computer is asleep | Corner brackets | Slow deep breathing; rising `z` marks |
 
-- **Click:** a large Mawl hops once. Small ones (the sidebar header) don't.
-- **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) freeze Mawl on its pose: no loops, no pointer follow, no hop, with every effect shown at rest.
-- **Simplified avatar:** `MawlAvatar` draws the body, ears and eyes only, never moves, and shows the state through its eyes. It wears the teammate's color at Mawl's lightness, or Mawl's own lime without one.
+- **Click:** a large orb hops once. Small ones (under 48 px, like the chat header) don't.
+- **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) stop every loop, the pointer follow, the hover scale and the hop; Mawl holds its pose with every effect shown at rest, and eye changes become short fades.
+- **Still avatar:** `MawlAvatar` draws the orb and its eyes only, never moves, and shows the state through its eyes. It takes `way` or the teammate's `color`, and wears lavender without either.
 - **Placement:**
-  - the sidebar header (the focused teammate's state)
+  - the chat header (the focused teammate's state)
   - empty states and the new-chat landing
   - onboarding
   - desktop tray icon (monochrome glyph per state)
@@ -225,7 +226,7 @@ Mawl is a soft lemon-lime mochi: a round blob with two round ears and a small pa
 
 ### Image requests
 
-Mawl is drawn in code from the reference, so no mascot sheet and no onboarding illustration are needed. The **app icon** is drawn in code too, at the user's request: Mawl tilted 8° and cropped by the bottom edge on a rounded near-black tile with a soft lime glow and three gold sparkles, no paw. Source `design/assets/app-icon.svg` (PNG renders `app-icon.png` and a light variant `app-icon-light.png`); the desktop sizes in `apps/desktop/src-tauri/icons/` come from `pnpm exec tauri icon design/assets/app-icon.png`. The Windows ICO and the Dock icon use the black version; the light one is for a light-theme tray or the web. The **installer art** is drawn in code as well (the user waived the request for D1.7b): "Mawl is moving in", a night river where Mawl drifts in inside an open moving box and waves under a lime moon, plus a round porthole onto the same scene for the white header strip. Sources `design/assets/installer/sidebar.svg` (164 x 314) and `header.svg` (150 x 57), with PNG previews beside them; after an edit, run `pnpm --filter @mawl/desktop art`, which renders them in the local Edge at 4x, area-averages to 1x and writes the 24-bit BMPs NSIS loads to `apps/desktop/src-tauri/installer/` (commit them; the header's left and top edges must stay pure white). Nothing is pending for images except tray art per status (`TODO(mascot)` in the tray code).
+The orb is drawn in code (`build.mjs`), so no mascot sheet and no onboarding illustration are needed. The **app icon** is the flat idle orb on a square tile: lavender on Mawl navy `#0B1019` (`design/assets/app-icon.svg`, the default and the Windows ICO) and purple on Mawl light `#F5F7FC` (`app-icon-light.svg`). Both come from `design/assets/mascot-orb/app-icon-*.svg`; the 1024 px PNGs beside them are rendered in the local Edge, and the desktop sizes in `apps/desktop/src-tauri/icons/` come from `pnpm exec tauri icon ../../design/assets/app-icon.png -o src-tauri/icons` run in `apps/desktop` (delete the `android/` and `ios/` folders it adds). The web build has no favicon yet. The **installer art** is drawn in code as well (the user waived the request for D1.7b) and still shows the mochi: "Mawl is moving in", a night river where Mawl drifts in inside an open moving box and waves under a lime moon, plus a round porthole onto the same scene for the white header strip. Sources `design/assets/installer/sidebar.svg` (164 x 314) and `header.svg` (150 x 57), with PNG previews beside them; after an edit, run `pnpm --filter @mawl/desktop art`, which renders them in the local Edge at 4x, area-averages to 1x and writes the 24-bit BMPs NSIS loads to `apps/desktop/src-tauri/installer/` (commit them; the header's left and top edges must stay pure white). Pending: the installer art redrawn with the orb, and tray art per status (`TODO(mascot)` in the tray code).
 
 ## 9. Components (inventory)
 
