@@ -64,43 +64,22 @@ describe('settings page', () => {
     expect(gear.getAttribute('aria-current')).toBe('page')
   })
 
-  it('groups appearance into calm cards: theme, accent color and motion', async () => {
+  it('groups appearance into calm cards: theme, palette and motion', async () => {
     await renderApp('/settings')
     const region = screen.getByRole('region', { name: 'Appearance' })
     const headings = within(region)
       .getAllByRole('heading', { level: 3 })
       .map((h) => h.textContent)
-    expect(headings).toEqual(['Theme', 'Accent color', 'Reduce motion'])
+    expect(headings).toEqual(['Theme', 'Palette', 'Reduce motion'])
     const theme = within(region).getByRole('radiogroup', { name: 'Theme' })
     expect(
       within(theme)
         .getAllByRole('radio')
         .map((r) => r.getAttribute('aria-label')),
     ).toEqual(['Light', 'Dark', 'System'])
-    const accents = within(region).getByRole('radiogroup', { name: 'Accent color' })
-    expect(
-      within(accents)
-        .getAllByRole('radio')
-        .map((r) => r.getAttribute('aria-label')),
-    ).toEqual(['Mawl', 'Sky', 'Peach', 'Lilac', 'Rose', 'Slate'])
-    expect(within(region).getByText("Mawl's own purple.")).toBeTruthy()
-  })
-
-  it('explains that a custom accent is adjusted to stay readable', async () => {
-    localStorage.setItem(
-      'mawl.appearance',
-      JSON.stringify({ theme: 'system', accent: '#12A4B0', reduceMotion: false }),
-    )
-    await renderApp('/settings')
-    const region = screen.getByRole('region', { name: 'Appearance' })
-    expect(
-      within(region).getByText(
-        'Custom color. Mawl adjusts text and focus rings on it so they stay readable.',
-      ),
-    ).toBeTruthy()
+    expect(within(region).getByRole('radiogroup', { name: 'Palette' })).toBeTruthy()
   })
 })
-
 describe('links into settings', () => {
   it('the palette Settings entry wears the same gear as the sidebar', async () => {
     const { user } = await renderApp('/t')

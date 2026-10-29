@@ -1,4 +1,4 @@
-import { accentPresets } from '@mawl/ui'
+import { paletteList } from '@mawl/ui'
 import { useNavigate } from '@tanstack/react-router'
 import { Command } from 'cmdk'
 import { Laptop, Monitor, Moon, PanelLeft, Search, Sun, Wind } from 'lucide-react'
@@ -51,7 +51,7 @@ const groupClass =
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, panelOpen, setPanelOpen, sidebarVisible, toggleSidebar } =
     useShell()
-  const { appearance, setTheme, setAccent, setReduceMotion } = useAppearance()
+  const { appearance, setTheme, setPalette, setReduceMotion } = useAppearance()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -139,23 +139,23 @@ export function CommandPalette() {
                       >
                         Dark theme
                       </Item>
-                      {accentPresets.map((preset) => (
+                      {paletteList.map((p) => (
                         <Item
-                          key={preset.id}
-                          keywords={['accent', 'color', 'colour', preset.id]}
+                          key={p.id}
+                          keywords={['palette', 'colors', 'colours', 'scheme', p.id]}
                           icon={
                             <span
                               aria-hidden="true"
-                              className="size-[18px] rounded-pill"
-                              style={{ background: preset.hex }}
+                              data-palette={p.id}
+                              data-theme={
+                                appearance.theme === 'system' ? undefined : appearance.theme
+                              }
+                              className="size-[18px] shrink-0 rounded-pill bg-accent-fill shadow-[0_0_0_2px_var(--surface-2)]"
                             />
                           }
-                          onSelect={run(
-                            () => setAccent(preset.hex),
-                            `Accent set to ${preset.name}`,
-                          )}
+                          onSelect={run(() => setPalette(p.id), `Palette set to ${p.name}`)}
                         >
-                          {`${preset.name} accent`}
+                          {`Palette: ${p.name}`}
                         </Item>
                       ))}
                       <Item

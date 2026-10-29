@@ -64,12 +64,14 @@ describe('command palette', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
-  it('changes the accent', async () => {
+  it('switches the palette', async () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Control>}k{/Control}')
-    await user.keyboard('peach')
+    expect(await screen.findByRole('option', { name: 'Palette: Rosé Pine' })).toBeTruthy()
+    await user.keyboard('dracula')
     await user.keyboard('{Enter}')
-    expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').accent).toBe('#F7C4A3')
+    expect(document.documentElement.getAttribute('data-palette')).toBe('dracula')
+    expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').palette).toBe('dracula')
   })
 
   it('says so when nothing matches', async () => {
