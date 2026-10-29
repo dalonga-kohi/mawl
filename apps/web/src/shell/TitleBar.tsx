@@ -73,8 +73,7 @@ export function TitleBar({
 
   const ToggleIcon = maximized ? Copy : Square
   return (
-    <div
-      role="toolbar"
+    <section
       data-tauri-drag-region
       aria-label="Title bar"
       data-focused={focused}
@@ -120,6 +119,6 @@ export function TitleBar({
           <X aria-hidden="true" className="size-4" strokeWidth={1.5} />
         </CaptionButton>
       </div>
-    </div>
+    </section>
   )
 }

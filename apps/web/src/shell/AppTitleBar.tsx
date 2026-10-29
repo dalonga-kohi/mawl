@@ -59,6 +59,7 @@ export function AppTitleBar({ controls }: { controls: WindowControls }) {
       <BarButton aria-label="Back" disabled={!history.canGoBack()} onClick={() => history.back()}>
         <ArrowLeft aria-hidden="true" />
       </BarButton>
+      {/* No disabled state: the history API has no can-go-forward, and a guess would lie. */}
       <BarButton aria-label="Forward" onClick={() => history.forward()}>
         <ArrowRight aria-hidden="true" />
       </BarButton>
@@ -68,7 +69,7 @@ export function AppTitleBar({ controls }: { controls: WindowControls }) {
         aria-label="Search"
         onClick={(e) => openPaletteFrom(e.currentTarget)}
         className={cn(
-          'tween ml-auto flex h-7 w-56 min-w-0 shrink items-center gap-2 rounded-sm bg-hover px-2.5 text-small text-text-3',
+          'tween ml-auto flex h-8 w-56 min-w-0 shrink items-center gap-2 rounded-sm bg-hover px-2.5 text-small text-text-3',
           'hover:bg-selected hover:text-text-2 active:scale-[.97] max-[600px]:w-8 max-[600px]:justify-center max-[600px]:px-0',
         )}
       >

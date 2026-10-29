@@ -19,7 +19,7 @@ describe('SplashFrame', () => {
         <main>Splash</main>
       </SplashFrame>,
     )
-    expect(screen.getByRole('toolbar', { name: 'Title bar' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Title bar' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
     expect(screen.getByRole('main')).toBeTruthy()
   })
@@ -30,7 +30,7 @@ describe('SplashFrame', () => {
         <main>Splash</main>
       </SplashFrame>,
     )
-    expect(screen.queryByRole('toolbar')).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Title bar' })).toBeNull()
     expect(screen.getByRole('main')).toBeTruthy()
   })
 })
