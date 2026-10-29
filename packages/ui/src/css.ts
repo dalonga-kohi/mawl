@@ -64,6 +64,9 @@ const derivedDecls: Decl[] = [
   ['--warn-soft', mix('warn', 12, 'var(--surface)')],
   ['--danger-soft', mix('danger', 12, 'var(--surface)')],
   ['--secondary-soft', mix('secondary', 12, 'var(--surface)')],
+  // Row and control fills: a wash of the text color, so they read on any background in any palette.
+  ['--hover', mix('text', 6, 'transparent')],
+  ['--selected', mix('text', 10, 'transparent')],
 ]
 
 const fixedDecls: Decl[] = [
@@ -116,6 +119,8 @@ const colorTokens = [
   'secondary',
   'secondary-ink',
   'secondary-soft',
+  'hover',
+  'selected',
 ]
 
 /** Tailwind v4 reads runtime vars through `inline`, so utilities follow theme and palette changes. */

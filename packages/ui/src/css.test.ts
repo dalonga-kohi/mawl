@@ -158,9 +158,18 @@ describe('generateTokensCss', () => {
     )
   })
 
-  it('defines the round shape scale: pills for controls, card 24, panel 28, dialog 32', () => {
-    expect(radii).toEqual({ xs: 8, sm: 12, md: 18, card: 24, panel: 28, dialog: 32, pill: 999 })
+  it('defines the rounded-rectangle shape scale: rows 10, cards 12, panels 14, dialogs 16', () => {
+    expect(radii).toEqual({ xs: 6, sm: 8, md: 10, card: 12, panel: 14, dialog: 16 })
     for (const [k, v] of Object.entries(radii)) expect(root.get(`--r-${k}`)).toBe(`${v}px`)
+    expect(root.has('--r-pill')).toBe(false)
+  })
+
+  it('draws hover and selected fills from the text color, so they work in every palette', () => {
+    expect(root.get('--hover')).toBe('color-mix(in oklab, var(--text) 6%, transparent)')
+    expect(root.get('--selected')).toBe('color-mix(in oklab, var(--text) 10%, transparent)')
+    const theme = declarations(themeBlock)
+    expect(theme.get('--color-hover')).toBe('var(--hover)')
+    expect(theme.get('--color-selected')).toBe('var(--selected)')
   })
 
   it('defines space, type, font and motion tokens', () => {

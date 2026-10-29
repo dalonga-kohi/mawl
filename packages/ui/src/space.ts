@@ -4,14 +4,16 @@
 export const spacing = [4, 8, 12, 16, 20, 24, 32, 40, 56] as const
 
 /**
- * Everything is round. Interactive controls (buttons, inputs, tabs, chips, toggles) are pills; the
- * small radii are for things inside a surface (inline code, skeleton lines, menu rows, tooltips).
- * - xs 8: inline code, kbd, skeleton lines
- * - sm 12: menu rows, tooltips, code blocks inside a card
- * - md 18: message bubbles, notices, small tiles
- * - card 24, panel 28, dialog 32 (dialogs, the window and the mobile sheet)
+ * Soft rounded rectangles, not pills (DESIGN.md §5). The radius grows with the surface; things that
+ * are truly round (orbs, avatars, status dots, switch thumbs) use Tailwind's `rounded-full`.
+ * - xs 6: inline code, kbd, skeleton lines
+ * - sm 8: tooltips, badges, chips, menu items, small icon buttons
+ * - md 10: buttons, nav and list rows, tabs and segments, palette rows
+ * - card 12: cards, inputs, tiles, menus and popovers, notices, message bubbles
+ * - panel 14: the composer, the command palette, sheets and other large surfaces
+ * - dialog 16: dialogs, the window and the mobile sheet
  */
-export const radii = { xs: 8, sm: 12, md: 18, card: 24, panel: 28, dialog: 32, pill: 999 } as const
+export const radii = { xs: 6, sm: 8, md: 10, card: 12, panel: 14, dialog: 16 } as const
 
 /** Dark mode swaps shadows for a 1 px --line hairline (surface contrast does the work). */
 export const shadows = {
