@@ -1,5 +1,5 @@
 import { newId } from '@mawl/contracts'
-import { createToolRegistry, type ToolLedger, webFetchTool } from '@mawl/core'
+import { allowAllGate, createToolRegistry, type ToolLedger, webFetchTool } from '@mawl/core'
 import { describe, expect, it, vi } from 'vitest'
 import type { PinnedTransport, ResolveHost } from '../providers/egress/guarded-fetch.ts'
 import { guardedWebFetch } from './registry.ts'
@@ -27,6 +27,7 @@ function fetchVia(dns: Record<string, string | string[]>, transport: PinnedTrans
     return list.map((address) => ({ address, family: address.includes(':') ? 6 : 4 }))
   }
   const run = createToolRegistry({
+    gate: allowAllGate,
     tools: [webFetchTool({ fetch: guardedWebFetch({ resolve, transport }) })],
   }).forRun({ runId, profileId })
   return async (url: string) => {
@@ -152,6 +153,7 @@ describe('web_fetch egress: redirect chains', () => {
     }
     const transport = vi.fn<PinnedTransport>(async () => hop('https://rebind.example/second'))
     const run = createToolRegistry({
+      gate: allowAllGate,
       tools: [webFetchTool({ fetch: guardedWebFetch({ resolve, transport }) })],
     }).forRun({ runId, profileId })
     const r = await run.invoke(

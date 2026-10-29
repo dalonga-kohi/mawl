@@ -33,7 +33,7 @@ function harness(
   const artifacts = opts.artifacts === null ? undefined : (opts.artifacts ?? new MemoryArtifacts())
   const registry = createToolRegistry({
     tools: opts.tools ?? [echoTool()],
-    ...(opts.gate ? { gate: opts.gate } : {}),
+    gate: opts.gate ?? allowAllGate,
     ...(artifacts ? { artifacts } : {}),
   })
   const tools = registry.forRun({ runId, profileId })
@@ -84,7 +84,14 @@ describe('tool registry: the run-bound tool set', () => {
   })
 
   it('refuses two tools with the same name', () => {
-    expect(() => createToolRegistry({ tools: [echoTool(), echoTool()] })).toThrow(/duplicate/)
+    expect(() =>
+      createToolRegistry({ tools: [echoTool(), echoTool()], gate: allowAllGate }),
+    ).toThrow(/duplicate/)
+  })
+
+  it('refuses to build without a gate, so a registry can never default to allow-all', () => {
+    // @ts-expect-error the gate is required
+    expect(() => createToolRegistry({ tools: [echoTool()] })).toThrow(/gate/)
   })
 })
 
@@ -279,6 +286,7 @@ describe('tool registry: the single choke point', () => {
     const abort = new AbortController()
     const ledger = new MemoryLedger()
     const tools = createToolRegistry({
+      gate: allowAllGate,
       tools: [
         echoTool(async () => {
           abort.abort('cancel')

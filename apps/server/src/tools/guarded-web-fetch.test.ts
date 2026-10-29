@@ -1,5 +1,5 @@
 import { newId } from '@mawl/contracts'
-import { createToolRegistry, type ToolLedger, webFetchTool } from '@mawl/core'
+import { allowAllGate, createToolRegistry, type ToolLedger, webFetchTool } from '@mawl/core'
 import { describe, expect, it, vi } from 'vitest'
 import type { PinnedTransport, ResolveHost } from '../providers/egress/guarded-fetch.ts'
 import { guardedWebFetch } from './registry.ts'
@@ -26,6 +26,7 @@ function fetchVia(dns: Record<string, string>, transport: PinnedTransport) {
     return address ? [{ address, family: address.includes(':') ? 6 : 4 }] : []
   }
   const run = createToolRegistry({
+    gate: allowAllGate,
     tools: [webFetchTool({ fetch: guardedWebFetch({ resolve, transport }) })],
   }).forRun({ runId, profileId })
   return async (url: string) => {

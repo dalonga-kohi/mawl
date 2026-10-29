@@ -11,6 +11,7 @@ import { fakeModel, fixedClock } from '@mawl/testkit'
 import type { ModelMessage } from 'ai'
 import { z } from 'zod'
 import { defineTool } from '../tools/define.ts'
+import { allowAllGate } from '../tools/gate.ts'
 import { createToolRegistry, type ToolRegistryOptions } from '../tools/registry.ts'
 import type {
   ToolCallKey,
@@ -46,10 +47,12 @@ export interface RecordedEvent {
  */
 export function testTools(
   fns: Record<string, (input: Record<string, unknown>) => string | Promise<string>>,
-  options: Omit<ToolRegistryOptions, 'tools'> = {},
+  options: Partial<Omit<ToolRegistryOptions, 'tools'>> = {},
 ): ToolRegistry {
   return createToolRegistry({
     ...options,
+    // Engine tests are about the loop, not the policy: allow unless a test passes a gate.
+    gate: options.gate ?? allowAllGate,
     tools: Object.entries(fns).map(([name, fn]) =>
       defineTool({
         name,

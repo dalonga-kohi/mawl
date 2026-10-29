@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { answerRecord } from './builtin/ask-user.ts'
 import { defineTool } from './define.ts'
+import { allowAllGate } from './gate.ts'
 import { createToolRegistry, TOOL_RESULT_TAG } from './registry.ts'
 import { MemoryArtifacts, MemoryLedger } from './test-util.ts'
 import { ARTIFACT_PREVIEW_CHARS, ARTIFACT_THRESHOLD_TOKENS, EVENT_PREVIEW_CHARS } from './tokens.ts'
@@ -29,7 +30,7 @@ function tool(
 
 function bind(tools: Tool[], gate?: ToolGate, artifacts = new MemoryArtifacts()) {
   const ledger = new MemoryLedger()
-  const reg = createToolRegistry({ tools, artifacts, ...(gate ? { gate } : {}) }).forRun({
+  const reg = createToolRegistry({ tools, artifacts, gate: gate ?? allowAllGate }).forRun({
     runId,
     profileId,
   })

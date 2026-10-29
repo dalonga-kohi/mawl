@@ -1,6 +1,5 @@
 import { tool as sdkTool, type ToolSet } from 'ai'
 import { delimitData } from '../prompts/assemble.ts'
-import { allowAllGate } from './gate.ts'
 import { cut, storable, storableJson } from './text.ts'
 import {
   ARTIFACT_PREVIEW_CHARS,
@@ -26,10 +25,11 @@ export const TOOL_RESULT_TAG = 'tool_result'
 export interface ToolRegistryOptions {
   tools: readonly Tool[]
   /**
-   * Default: allow everything, for tests only. Every production registry passes the policy engine
-   * (`policyGate`); the server does so in `createServerTools`.
+   * Required, so a registry can never default to allow-all. Every production registry passes the
+   * policy engine (`policyGate`); the server does so in `createServerTools`. Core tests pass
+   * `allowAllGate` explicitly.
    */
-  gate?: ToolGate
+  gate: ToolGate
   /** Where large outputs go. Without it they are truncated. */
   artifacts?: ArtifactStore
 }
@@ -97,7 +97,9 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
     if (byName.has(t.name)) throw new Error(`duplicate tool name: ${t.name}`)
     byName.set(t.name, t)
   }
-  const gate = options.gate ?? allowAllGate
+  // Checked at run time too, for callers outside the type checker.
+  if (!options.gate) throw new Error('a tool registry needs a gate')
+  const gate = options.gate
   const artifacts = options.artifacts
   const names = [...byName.keys()].sort()
   const toolSet: ToolSet = Object.fromEntries(

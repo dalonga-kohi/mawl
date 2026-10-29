@@ -1,5 +1,6 @@
 import { newId } from '@mawl/contracts'
 import { describe, expect, it } from 'vitest'
+import { allowAllGate } from '../gate.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryArtifacts, MemoryLedger } from '../test-util.ts'
 import { ARTIFACT_THRESHOLD_TOKENS, estimateTokens } from '../tokens.ts'
@@ -13,7 +14,10 @@ const profileId = newId('profile')
 
 function bind(tools: Tool[], artifacts = new MemoryArtifacts()) {
   const ledger = new MemoryLedger()
-  const run = createToolRegistry({ tools, artifacts }).forRun({ runId, profileId })
+  const run = createToolRegistry({ tools, artifacts, gate: allowAllGate }).forRun({
+    runId,
+    profileId,
+  })
   let n = 0
   const call = (toolName: string, input: unknown) =>
     run.invoke(

@@ -1,5 +1,6 @@
 import { newId } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllGate } from '../gate.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryLedger } from '../test-util.ts'
 import {
@@ -26,6 +27,7 @@ type FetchFn = (url: string, init: RequestInit) => Promise<Response>
 function bind(provider: SearchProvider, timeoutMs?: number) {
   const ledger = new MemoryLedger()
   const run = createToolRegistry({
+    gate: allowAllGate,
     tools: [webSearchTool({ provider: async () => provider, ...(timeoutMs ? { timeoutMs } : {}) })],
   }).forRun({ runId, profileId })
   let n = 0
@@ -231,6 +233,7 @@ describe('web_search tool', () => {
     const ledger = new MemoryLedger()
     const next = vi.fn(async () => ({ backend: 'ddgs', results: [] }))
     const run = createToolRegistry({
+      gate: allowAllGate,
       tools: [
         webSearchTool({
           provider: async () =>

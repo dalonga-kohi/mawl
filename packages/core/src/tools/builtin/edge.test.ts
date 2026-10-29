@@ -2,6 +2,7 @@ import { newId } from '@mawl/contracts'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineTool } from '../define.ts'
+import { allowAllGate } from '../gate.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryArtifacts, MemoryLedger } from '../test-util.ts'
 import type { Tool } from '../types.ts'
@@ -18,7 +19,10 @@ type FetchFn = WebFetchDeps['fetch']
 
 function bind(tools: Tool[], artifacts = new MemoryArtifacts(), signal?: AbortSignal) {
   const ledger = new MemoryLedger()
-  const reg = createToolRegistry({ tools, artifacts }).forRun({ runId, profileId })
+  const reg = createToolRegistry({ tools, artifacts, gate: allowAllGate }).forRun({
+    runId,
+    profileId,
+  })
   let n = 0
   const call = (toolName: string, input: unknown) =>
     reg.invoke(
@@ -525,7 +529,10 @@ describe('notify edge: caps', () => {
   it('emits the same notification once even if the call is replayed', async () => {
     const h = bind([notifyTool()])
     const input = { title: 't', body: 'b' }
-    const reg = createToolRegistry({ tools: [notifyTool()] }).forRun({ runId, profileId })
+    const reg = createToolRegistry({ tools: [notifyTool()], gate: allowAllGate }).forRun({
+      runId,
+      profileId,
+    })
     const ctx = { ledger: h.ledger, signal: new AbortController().signal, allowPark: true }
     const call = { stepIdx: 0, toolCallId: 'same', toolName: 'notify', input }
     await reg.invoke(call, ctx)

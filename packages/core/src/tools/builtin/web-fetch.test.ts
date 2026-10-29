@@ -1,5 +1,6 @@
 import { newId } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllGate } from '../gate.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryArtifacts, MemoryLedger } from '../test-util.ts'
 import { BlockedAddressError, type WebFetchDeps, webFetchTool } from './web-fetch.ts'
@@ -16,6 +17,7 @@ function bind(
 ) {
   const ledger = new MemoryLedger()
   const run = createToolRegistry({
+    gate: allowAllGate,
     tools: [webFetchTool({ fetch, ...over })],
     artifacts: new MemoryArtifacts(),
   }).forRun({ runId, profileId })
