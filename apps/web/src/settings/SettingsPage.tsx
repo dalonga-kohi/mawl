@@ -102,7 +102,8 @@ function PaletteTile({
         className="relative block aspect-[4/3] overflow-hidden rounded-[12px] bg-bg shadow-[inset_0_0_0_1px_var(--line)] transition-[translate,box-shadow] duration-(--dur-fast) ease-out group-hover:-translate-y-0.5 group-hover:shadow-[inset_0_0_0_1px_var(--line),0_10px_24px_-10px_var(--accent)]"
       >
         <span className="absolute inset-y-0 left-0 flex w-[30%] flex-col gap-1.5 bg-surface-2 px-1.5 pt-2.5">
-          <span className="h-1.5 w-full rounded-pill bg-accent-soft" />
+          {/* Base tokens only: color-mix tokens (accent-soft) are computed on <html> and would wear the app palette. */}
+          <span className="h-1.5 w-full rounded-pill bg-accent-fill opacity-30" />
           <span className="h-1 w-4/5 rounded-pill bg-text-3 opacity-50" />
           <span className="h-1 w-3/5 rounded-pill bg-text-3 opacity-50" />
         </span>

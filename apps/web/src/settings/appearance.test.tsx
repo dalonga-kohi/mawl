@@ -64,6 +64,13 @@ describe('settings, appearance', () => {
     expect(preview?.getAttribute('aria-hidden')).toBe('true')
   })
 
+  it('draws previews from base tokens only, never the html-computed color-mix ones', async () => {
+    await renderApp('/settings')
+    for (const preview of palettes().querySelectorAll('[data-palette]')) {
+      expect(preview.outerHTML).not.toMatch(/-(soft|softer|ring)\b/)
+    }
+  })
+
   it('leaves the tile theme to the system when the theme follows it', async () => {
     await renderApp('/settings')
     const preview = tile('Claude').querySelector('[data-palette]')
