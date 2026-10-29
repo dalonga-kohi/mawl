@@ -13,8 +13,11 @@ import { Mawl } from '../mascot/Mawl.tsx'
 import type { MascotState } from '../mascot/states.ts'
 import { transitions } from '../motion/presets.ts'
 import { Button } from '../ui/Button.tsx'
+import { cx } from '../ui/cx.ts'
 import { Input } from '../ui/Input.tsx'
 import type { ConnectResult, HostBridge } from './bridge.ts'
+import { SplashField } from './Field.tsx'
+import { MIN_BEAT_MS, usePacedStatus } from './pace.ts'
 import {
   type ConnectError,
   connectErrorCopy,
@@ -24,12 +27,13 @@ import {
   type RemoteHealth,
   type Target,
 } from './remote.ts'
-import { describe, INITIAL_STATUS, STEPS, type Status } from './status.ts'
+import { OrbStage, type StageMode } from './Stage.tsx'
+import { describe, INITIAL_STATUS, type Status, type View } from './status.ts'
 
-/** How long "Ready" stays on screen so Mawl's hop reads, before the splash fades into the app. */
+/** How long "Ready" stays on screen so the last bead and Mawl's hop read, before the hand-off. */
 export const READY_HOLD_MS = 650
-/** Matches the exit transition below. */
-const EXIT_MS = 220
+/** The ring, the copy and the field fade away; the orb stays where the app picks it up. */
+const EXIT_MS = 280
 const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
@@ -55,10 +59,10 @@ type Screen =
   | { kind: 'relaunching'; to: 'remote' | 'local' }
 
 /**
- * The desktop splash: what the host's supervisor is doing while the server boots, restarts or
- * stops, the failed screen with its way out, and "Connect to a remote Mawl". Rendered by the
- * bundled `splash.html` in the Tauri origin; the app itself loads from the server (or the remote
- * Mawl) once it is ready.
+ * The desktop splash (U14): the orb on a slow palette field, a progress ring with a glyph bead
+ * per real boot step, the failed screen with one next action, and "Connect to a remote Mawl".
+ * Rendered by the bundled `splash.html` in the Tauri origin; the app itself loads from the server
+ * (or the remote Mawl) once it is ready, and picks the orb up where the splash leaves it.
  */
 export function Splash({
   bridge,
@@ -105,14 +109,14 @@ export function Splash({
     [target],
   )
 
-  // Nothing to show until the host said which Mawl this window is for (a few milliseconds).
-  if (!target) return <main className="min-h-[calc(100dvh-var(--titlebar-h))] bg-bg" />
+  // Nothing to show until the host said which Mawl this window is for (a few milliseconds): the
+  // field alone, so the first frame is already the splash's.
+  if (!target) return <Frame stage={null} />
 
   if (screen.kind === 'relaunching') {
     return (
-      <Frame>
-        <Message
-          mascot="working"
+      <Frame stage={<OrbStage mascot="done" mode="calm" />}>
+        <Caption
           title="Restarting Mawl"
           detail={
             screen.to === 'remote'
@@ -148,61 +152,65 @@ export function Splash({
   )
 }
 
-/** The centred column every splash screen shares; `leaving` fades it out into the app. */
-function Frame({ children, leaving = false }: { children: ReactNode; leaving?: boolean }) {
+/**
+ * Every launch screen: the field behind, the stage in the exact centre of the window below the
+ * title bar (the top and bottom rows share the rest), copy and actions under it. When the copy
+ * and actions need more room than the bottom row has, the stage glides up instead of clipping.
+ */
+function Frame({
+  stage,
+  leaving = false,
+  children,
+}: {
+  stage: ReactNode
+  leaving?: boolean
+  children?: ReactNode
+}) {
   return (
-    <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center overflow-hidden bg-bg px-6 py-10 text-text">
-      <motion.div
-        className="flex w-full max-w-[380px] flex-col items-center text-center"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={
-          leaving
-            ? { opacity: 0, scale: 1.02, transition: { duration: EXIT_MS / 1000, ease: 'easeIn' } }
-            : { opacity: 1, scale: 1, transition: transitions.gentle }
-        }
-      >
-        {children}
-      </motion.div>
+    <main className="relative grid min-h-[calc(100dvh-var(--titlebar-h))] overflow-hidden bg-bg text-text">
+      <SplashField dimmed={leaving} />
+      <div className="relative grid grid-rows-[1fr_auto_1fr] justify-items-center px-6 py-8">
+        <span aria-hidden="true" />
+        <motion.div layout="position" transition={transitions.glide}>
+          {stage}
+        </motion.div>
+        <motion.div
+          className="flex w-full max-w-[360px] flex-col items-center self-start pt-4 text-center"
+          initial={false}
+          animate={{
+            opacity: leaving ? 0 : 1,
+            y: leaving ? 6 : 0,
+            transition: leaving ? { duration: EXIT_MS / 1000 } : transitions.gentle,
+          }}
+        >
+          {children}
+        </motion.div>
+      </div>
     </main>
   )
 }
 
-/** Mawl, then a title and a line that cross-fade when they change. */
-function Message({
-  mascot,
-  title,
-  detail,
-}: {
-  mascot: MascotState
-  title: string
-  detail: string
-}) {
+/** A title and a line that cross-fade when they change, announced politely. */
+function Caption({ title, detail }: { title: string; detail: string }) {
   return (
-    <>
-      <Mawl size={128} state={mascot} />
-      <div
-        role="status"
-        aria-live="polite"
-        className="mt-6 flex min-h-[4.5rem] flex-col items-center"
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={`${title}|${detail}`}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0, transition: transitions.fade }}
-            exit={{ opacity: 0, transition: transitions.exit }}
-            className="flex flex-col items-center"
-          >
-            <h1 className="font-display text-title text-balance">{title}</h1>
-            <p className="mt-1.5 text-pretty text-text-2">{detail}</p>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </>
+    <div role="status" aria-live="polite" className="flex min-h-[4.5rem] flex-col items-center">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={`${title}|${detail}`}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0, transition: transitions.fade }}
+          exit={{ opacity: 0, transition: transitions.exit }}
+          className="flex flex-col items-center"
+        >
+          <h1 className="font-display text-title text-balance">{title}</h1>
+          <p className="mt-1.5 max-w-[34ch] text-pretty text-text-2">{detail}</p>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   )
 }
 
-/** Ready: let Mawl hop, fade out, then hand the window to the app. */
+/** Ready: let the last bead land and Mawl hop, fade all but the orb, then hand over to the app. */
 function useEnterWhenReady(ready: boolean, bridge: HostBridge): boolean {
   const [leaving, setLeaving] = useState(false)
   const reduce = useReducedMotionConfig() ?? false
@@ -225,7 +233,15 @@ function useEnterWhenReady(ready: boolean, bridge: HostBridge): boolean {
   return leaving
 }
 
-/** This PC's server: the supervisor's status, and the failed screen with its way out. */
+function stageModeFor(view: View, leaving: boolean): StageMode {
+  if (leaving) return 'leaving'
+  if (view.failed) return 'failed'
+  if (view.retry) return 'retry'
+  if (view.done === undefined) return 'calm'
+  return 'progress'
+}
+
+/** This PC's server: the supervisor's status, paced into beats, and the failed screen. */
 function LocalStatus({
   bridge,
   clipboard,
@@ -235,7 +251,8 @@ function LocalStatus({
   clipboard: Pick<Clipboard, 'writeText'> | undefined
   onConnect: () => void
 }) {
-  const [status, setStatus] = useState<Status>(INITIAL_STATUS)
+  const [latest, setLatest] = useState<Status | undefined>()
+  const status = usePacedStatus(latest) ?? INITIAL_STATUS
   const view = describe(status)
   const leaving = useEnterWhenReady(status.phase === 'ready', bridge)
 
@@ -247,7 +264,7 @@ function LocalStatus({
     void bridge
       .onStatus((s) => {
         heard = true
-        setStatus(s)
+        setLatest(s)
       })
       .then((off) => {
         if (alive) unlisten = off
@@ -255,7 +272,7 @@ function LocalStatus({
       })
     void bridge.status().then(
       (s) => {
-        if (alive && !heard) setStatus(s)
+        if (alive && !heard) setLatest(s)
       },
       () => {
         // No snapshot: the events will tell.
@@ -268,13 +285,29 @@ function LocalStatus({
   }, [bridge])
 
   return (
-    <Frame leaving={leaving}>
-      <Message mascot={view.mascot} title={view.title} detail={view.detail} />
-      {view.done === undefined ? null : (
-        <Track done={view.done} active={view.active ?? false} label={view.detail} />
-      )}
+    <Frame
+      leaving={leaving}
+      stage={
+        <OrbStage
+          mascot={view.mascot}
+          mode={stageModeFor(view, leaving)}
+          progress={
+            view.done === undefined
+              ? undefined
+              : { done: view.done, active: view.active ?? false, label: view.detail }
+          }
+          retry={view.retry}
+        />
+      }
+    >
+      <Caption title={view.title} detail={view.detail} />
       {view.failed ? (
-        <FailedActions bridge={bridge} clipboard={clipboard} onConnect={onConnect} />
+        <FailedActions
+          next={view.next ?? 'retry'}
+          bridge={bridge}
+          clipboard={clipboard}
+          onConnect={onConnect}
+        />
       ) : null}
     </Frame>
   )
@@ -307,16 +340,25 @@ function RemoteStatus({
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` re-runs the check on Try again.
   useEffect(() => {
     let alive = true
+    let hold: ReturnType<typeof setTimeout> | undefined
+    const since = Date.now()
     setPhase({ kind: 'checking' })
     bridge.checkRemote().then(
       (health) => {
         if (!alive) return
-        setPhase(health === 'ready' ? { kind: 'ready' } : { kind: 'failed', health })
+        if (health !== 'ready') {
+          setPhase({ kind: 'failed', health })
+          return
+        }
+        // A fast answer still gets its beat, so "Connecting" never flashes.
+        const wait = Math.max(0, MIN_BEAT_MS - (Date.now() - since))
+        hold = setTimeout(() => alive && setPhase({ kind: 'ready' }), wait)
       },
       () => alive && setPhase({ kind: 'failed', health: 'unreachable' }),
     )
     return () => {
       alive = false
+      clearTimeout(hold)
     }
   }, [bridge, attempt])
 
@@ -330,74 +372,102 @@ function RemoteStatus({
     }
   }
 
-  const message =
+  const message: { mascot: MascotState; title: string; detail: string } =
     phase.kind === 'failed'
       ? {
-          mascot: 'oops' as const,
+          mascot: 'oops',
           title: 'Can’t reach your remote Mawl',
           detail: describeRemote(phase.health === 'ready' ? 'unreachable' : phase.health, host),
         }
       : phase.kind === 'ready'
-        ? { mascot: 'done' as const, title: 'Ready', detail: `Opening ${host}` }
-        : { mascot: 'thinking' as const, title: 'Connecting', detail: `Checking ${host}` }
+        ? { mascot: 'done', title: 'Ready', detail: `Opening ${host}` }
+        : { mascot: 'thinking', title: 'Connecting', detail: `Checking ${host}` }
+
+  const mode: StageMode = leaving
+    ? 'leaving'
+    : phase.kind === 'failed'
+      ? 'failed'
+      : attempt > 0 && phase.kind === 'checking'
+        ? 'retry'
+        : 'progress'
 
   return (
-    <Frame leaving={leaving}>
-      <Message {...message} />
+    <Frame
+      leaving={leaving}
+      stage={
+        <OrbStage
+          mascot={message.mascot}
+          mode={mode}
+          progress={
+            phase.kind === 'failed'
+              ? undefined
+              : phase.kind === 'ready'
+                ? { done: 3, active: false, label: message.detail }
+                : { done: 0, active: true, label: message.detail }
+          }
+          retry={attempt > 0 ? { attempt: attempt + 1 } : undefined}
+        />
+      }
+    >
+      <Caption title={message.title} detail={message.detail} />
       {phase.kind === 'failed' ? (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
-          className="mt-8 flex w-full flex-col items-stretch gap-2.5"
-        >
-          <Button variant="primary" disabled={switching} onClick={() => setAttempt((n) => n + 1)}>
+        <Actions>
+          <Button
+            variant="primary"
+            className="w-full"
+            disabled={switching}
+            onClick={() => setAttempt((n) => n + 1)}
+          >
             Try again
           </Button>
-          <Button variant="soft" disabled={switching} onClick={onChange}>
-            Change address
-          </Button>
-          <Button variant="ghost" disabled={switching} onClick={() => void switchToLocal()}>
-            Use this PC’s Mawl
-          </Button>
+          <Secondary>
+            <Button variant="ghost" size="sm" disabled={switching} onClick={onChange}>
+              Change address
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={switching}
+              onClick={() => void switchToLocal()}
+            >
+              Use this PC’s Mawl
+            </Button>
+          </Secondary>
           {refused ? (
             <p role="alert" className="text-small text-danger">
               {refused}
             </p>
           ) : null}
-        </motion.div>
+        </Actions>
       ) : null}
     </Frame>
   )
 }
 
-/** Three slim segments, one per real boot step. The active one carries a soft shimmer. */
-function Track({ done, active, label }: { done: number; active: boolean; label: string }) {
+/** The failed screens' actions: one primary, then quieter ways out, all on the keyboard path. */
+function Actions({ children }: { children: ReactNode }) {
   return (
-    <div
-      role="progressbar"
-      aria-label="Starting Mawl"
-      aria-valuemin={0}
-      aria-valuemax={STEPS.length}
-      aria-valuenow={done}
-      aria-valuetext={label}
-      className="mt-7 flex w-[188px] gap-1.5"
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
+      className="mt-6 flex w-full max-w-[300px] flex-col items-stretch gap-3"
     >
-      {STEPS.map((step, i) => (
-        <span
-          key={step}
-          data-state={i < done ? 'done' : i === done && active ? 'active' : 'todo'}
-          className="splash-step h-1.5 flex-1 rounded-full"
-        />
-      ))}
-    </div>
+      {children}
+    </motion.div>
   )
 }
 
+function Secondary({ children }: { children: ReactNode }) {
+  return <div className="flex flex-wrap justify-center gap-x-1 gap-y-1">{children}</div>
+}
+
 function FailedActions({
+  next,
   bridge,
   clipboard,
   onConnect,
 }: {
+  next: 'retry' | 'quit'
   bridge: HostBridge
   clipboard: Pick<Clipboard, 'writeText'> | undefined
   onConnect: () => void
@@ -449,52 +519,66 @@ function FailedActions({
     reset.current = setTimeout(() => setCopy('idle'), COPIED_MS)
   }, [bridge, clipboard])
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
-      className="mt-8 flex w-full flex-col items-stretch gap-2.5"
+  const quit = (primary: boolean) => (
+    <Button
+      variant={primary ? 'primary' : 'ghost'}
+      size={primary ? 'md' : 'sm'}
+      className={cx(primary && 'w-full')}
+      disabled={busy !== undefined}
+      onClick={() => run('quit', () => bridge.quit())}
     >
-      <Button
-        variant="primary"
-        disabled={busy !== undefined}
-        onClick={() => run('retry', () => bridge.retry())}
-      >
-        Try again
-      </Button>
-      <Button variant="soft" onClick={() => void copyDiagnostics()} disabled={copy === 'copying'}>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key={copy === 'copied' ? 'copied' : 'copy'}
-            className="inline-flex items-center gap-2"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1, transition: transitions.bouncy }}
-            exit={{ opacity: 0, scale: 0.9, transition: transitions.exit }}
-          >
-            {copy === 'copied' ? (
-              <>
-                <Check aria-hidden="true" className="text-ok" />
-                Copied
-              </>
-            ) : (
-              <>
-                <Copy aria-hidden="true" />
-                Copy diagnostics
-              </>
-            )}
-          </motion.span>
-        </AnimatePresence>
-      </Button>
-      <Button variant="ghost" disabled={busy !== undefined} onClick={onConnect}>
-        Connect to a remote Mawl
-      </Button>
-      <Button
-        variant="ghost"
-        disabled={busy !== undefined}
-        onClick={() => run('quit', () => bridge.quit())}
-      >
-        Quit Mawl
-      </Button>
+      Quit Mawl
+    </Button>
+  )
+
+  return (
+    <Actions>
+      {next === 'retry' ? (
+        <Button
+          variant="primary"
+          className="w-full"
+          disabled={busy !== undefined}
+          onClick={() => run('retry', () => bridge.retry())}
+        >
+          Try again
+        </Button>
+      ) : (
+        quit(true)
+      )}
+      <Secondary>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void copyDiagnostics()}
+          disabled={copy === 'copying'}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={copy === 'copied' ? 'copied' : 'copy'}
+              className="inline-flex items-center gap-1.5"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1, transition: transitions.bouncy }}
+              exit={{ opacity: 0, scale: 0.9, transition: transitions.exit }}
+            >
+              {copy === 'copied' ? (
+                <>
+                  <Check aria-hidden="true" className="size-4 text-ok" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy aria-hidden="true" className="size-4" />
+                  Copy diagnostics
+                </>
+              )}
+            </motion.span>
+          </AnimatePresence>
+        </Button>
+        <Button variant="ghost" size="sm" disabled={busy !== undefined} onClick={onConnect}>
+          Connect to a remote Mawl
+        </Button>
+        {next === 'retry' ? quit(false) : null}
+      </Secondary>
       {refused ? (
         <p role="alert" className="text-small text-danger">
           {refused}
@@ -507,7 +591,7 @@ function FailedActions({
             ? 'Couldn’t reach the clipboard. Try again.'
             : ''}
       </p>
-    </motion.div>
+    </Actions>
   )
 }
 
@@ -588,16 +672,21 @@ function ConnectForm({
       {problem.message}
     </p>
   ) : null
+  // The orb follows the form: asking, checking, or unhappy with the answer.
+  const mood: MascotState = busy ? 'thinking' : problem ? 'oops' : 'waiting'
 
   return (
-    <main className="grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center bg-bg px-5 py-10 text-text">
+    <main className="relative grid min-h-[calc(100dvh-var(--titlebar-h))] place-items-center overflow-hidden bg-bg px-5 py-10 text-text">
+      <SplashField />
       <motion.div
-        className="flex w-full max-w-[400px] flex-col items-center text-center"
+        className="relative flex w-full max-w-[400px] flex-col items-center text-center"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
       >
-        <Mawl size={88} state="waiting" />
-        <h1 className="mt-5 font-display text-title text-balance">Connect to a remote Mawl</h1>
+        <span className="splash-orb">
+          <Mawl size={88} state={mood} />
+        </span>
+        <h1 className="mt-4 font-display text-title text-balance">Connect to a remote Mawl</h1>
         <p className="mt-2 text-pretty text-text-2">
           Open a Mawl that runs on another computer, such as a home server you reach over Tailscale.
           Nothing is saved until that Mawl accepts the token.
@@ -607,7 +696,8 @@ function ConnectForm({
         <form
           noValidate
           onSubmit={(e) => void submit(e)}
-          className="mt-6 flex w-full flex-col gap-3 rounded-card bg-surface p-5 text-left shadow-1"
+          aria-busy={busy === 'connect'}
+          className="mt-6 flex w-full flex-col gap-3 rounded-panel bg-surface p-5 text-left shadow-1"
         >
           <label htmlFor={ids.address} className="text-small font-semibold text-text-2">
             Address
