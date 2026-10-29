@@ -22,6 +22,11 @@ import { createRunStore } from './store.ts'
 const { runs } = schema
 
 export const RUN_TASK = 'run.execute'
+/** Resolves pending approvals past their expiry as denials (`ApprovalService.expireDue`). */
+// No dots: Graphile's crontab only accepts letters, digits and `_:/-` in a task name.
+export const APPROVALS_EXPIRE_TASK = 'approvals_expire'
+/** Once a minute; Graphile's cron survives restarts, so an expiry is never missed for long. */
+export const APPROVALS_CRONTAB = `* * * * * ${APPROVALS_EXPIRE_TASK}`
 const JOB_MAX_ATTEMPTS = 5
 const CONCURRENCY = 4
 /** A job that finds its run still unwinding in this process tries again this long after. */
@@ -116,6 +121,9 @@ export interface RunWorkerDeps {
   requeueDelayMs?: number
   deltas?: DeltaSink
   tools?: ToolRegistry
+  secretBox?: SecretBox
+  /** Expires due approvals (`ApprovalService.expireDue`). Without it no expiry job is scheduled. */
+  expireApprovals?: () => Promise<number>
 }
 
 export interface RunWorker {
@@ -140,7 +148,7 @@ function graphileLogger(logger: Logger): GraphileLogger {
  * end the job and a new job continues the run, so a job never outlives one execution.
  */
 export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
-  const { pool, db, logger, registry } = deps
+  const { pool, db, logger, registry, expireApprovals } = deps
   const log = graphileLogger(logger)
 
   await runMigrations({ pgPool: pool, logger: log })
@@ -165,13 +173,22 @@ export async function startRunWorker(deps: RunWorkerDeps): Promise<RunWorker> {
         ...(deps.clock ? { clock: deps.clock } : {}),
         ...(deps.deltas ? { deltas: deps.deltas } : {}),
         ...(deps.tools ? { tools: deps.tools } : {}),
+        ...(deps.secretBox ? { secretBox: deps.secretBox } : {}),
         requeue: (runId, retry) =>
           addJob(
             { runId, retry },
             new Date(Date.now() + (deps.requeueDelayMs ?? REQUEUE_DELAY_MS)),
           ),
       }),
+      ...(expireApprovals
+        ? {
+            [APPROVALS_EXPIRE_TASK]: async () => {
+              await expireApprovals()
+            },
+          }
+        : {}),
     },
+    ...(expireApprovals ? { crontab: APPROVALS_CRONTAB } : {}),
   })
   addJob = async (payload, runAt) => {
     await runner.addJob(RUN_TASK, payload, {

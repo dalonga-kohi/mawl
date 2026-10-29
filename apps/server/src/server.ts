@@ -7,6 +7,7 @@ import { serve } from '@hono/node-server'
 import { ABORT_SHUTDOWN, type ProfileRecord, type ResolvedModel, type RunRecord } from '@mawl/core'
 import { createDb, type DbHandle, migrate, migrationsFolder } from '@mawl/db'
 import { createApp } from './app.ts'
+import { createApprovalService } from './approvals/service.ts'
 import { resolveAuthToken } from './auth/resolve.ts'
 import {
   type ClaudeBinaryManifest,
@@ -350,6 +351,12 @@ export async function startServer(
       })
       await live.start()
     }
+    // Decisions and expiries resume runs through the worker, which starts below.
+    const approvalService = createApprovalService({
+      db: handle.db,
+      logger,
+      enqueue: (runId) => (worker ? worker.enqueue(runId) : Promise.resolve()),
+    })
     if (overrides.worker !== false) {
       worker = await startRunWorker({
         pool: handle.pool,
@@ -358,6 +365,8 @@ export async function startServer(
         registry,
         resolveModel: overrides.resolveModel ?? createModelResolver(providerService),
         tools: createServerTools({ db: handle.db, search: searchService, logger }),
+        secretBox,
+        expireApprovals: () => approvalService.expireDue(),
         ...(live ? { deltas: live.deltas } : {}),
       })
       logger.info('run worker started')
@@ -384,6 +393,7 @@ export async function startServer(
       profiles: profileService,
       user: userService,
       search: searchService,
+      approvals: approvalService,
       checkDb: async () => {
         await probeDb(handle.pool, HEALTH_QUERY_TIMEOUT_MS)
       },
@@ -399,6 +409,7 @@ export async function startServer(
           profiles: profileService,
           user: userService,
           search: searchService,
+          approvals: approvalService,
           events: createEventsService({ bus: live.bus }),
         }),
         logger,

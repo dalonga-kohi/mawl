@@ -3,6 +3,7 @@ import { ORPCError, onError } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
 import { type Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import type { ApprovalService } from './approvals/service.ts'
 import { OWNER } from './auth/principal.ts'
 import { bearerToken, tokenMatches } from './auth/token.ts'
 import { checkHost, type HostPolicy } from './events/host.ts'
@@ -24,6 +25,7 @@ export interface AppDeps {
   profiles?: ProfileService
   user?: UserService
   search?: SearchService
+  approvals?: ApprovalService
   /** Resolves when the database answers; rejects otherwise. */
   checkDb: () => Promise<void>
   /** Health probe deadline. Defaults to 2000 ms. */
@@ -80,6 +82,7 @@ export function createApp({
   profiles,
   user,
   search,
+  approvals,
   checkDb,
   healthTimeoutMs,
   hosts,
@@ -134,6 +137,7 @@ export function createApp({
       ...(profiles ? { profiles } : {}),
       ...(user ? { user } : {}),
       ...(search ? { search } : {}),
+      ...(approvals ? { approvals } : {}),
     }),
     {
       // Procedure path and error code only. Inputs and outputs may hold credentials.
