@@ -18,8 +18,8 @@ export interface Gaze {
  */
 export const GAZES = {
   centre: { yaw: 0, pitch: 0, weight: 4 },
-  left: { yaw: -54, pitch: 0, weight: 2 },
-  right: { yaw: 54, pitch: 0, weight: 2 },
+  left: { yaw: -43, pitch: 0, weight: 2 },
+  right: { yaw: 43, pitch: 0, weight: 2 },
   down: { yaw: 0, pitch: 14, weight: 1 },
   upLeft: { yaw: -30, pitch: -20, weight: 1 },
   upRight: { yaw: 30, pitch: -20, weight: 1 },
@@ -138,10 +138,13 @@ export function startIdleLife(
  * The face sits on a sphere a little larger than the drawn orb, so a far gaze carries the leading
  * eye past the outline, where the orb's clip cuts it off.
  */
-const SPHERE_R = ART.r * 1.05
+const SPHERE_R = ART.r * 1.1
 const EYE_ANGLE = Math.asin(ART.eyeX / SPHERE_R)
-/** A glyph turned nearly edge-on still keeps this much width, so it is cut, not erased. */
-const MIN_SQUASH = 0.35
+/**
+ * Glyphs squash with the square root of the turn, gentler than a true cosine, and never below this,
+ * so a leading eye at the edge is cut by the outline rather than thinned to nothing.
+ */
+const MIN_SQUASH = 0.45
 const rad = (deg: number) => (deg * Math.PI) / 180
 
 export interface ProjectedEye {
@@ -161,7 +164,7 @@ export function projectEye(side: 'l' | 'r', yaw: number, pitch: number): Project
   return {
     x: ART.cx + SPHERE_R * Math.sin(angle) * Math.cos(tilt),
     y: ART.eyeY + SPHERE_R * Math.sin(tilt),
-    sx: Math.max(MIN_SQUASH, Math.cos(angle) / Math.cos(EYE_ANGLE)),
+    sx: Math.max(MIN_SQUASH, Math.sqrt(Math.max(0, Math.cos(angle)) / Math.cos(EYE_ANGLE))),
     sy: Math.cos(tilt),
   }
 }

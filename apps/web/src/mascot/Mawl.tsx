@@ -190,7 +190,9 @@ function ProjectedEye({
   return (
     <motion.g
       data-part="eye-anchor"
-      style={{ x, y, scaleX, scaleY, transformBox: 'view-box', transformOrigin: '0px 0px' }}
+      // Scale about the eye's own centre: the glyph is drawn around (0, 0) and the anchor carries
+      // no other transform, so origin 0 0 of the view box is that centre before the translate.
+      style={{ x, y, scaleX, scaleY, originX: 0, originY: 0, transformBox: 'view-box' }}
     >
       {children}
     </motion.g>
