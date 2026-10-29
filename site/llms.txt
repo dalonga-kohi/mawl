@@ -1,0 +1,18 @@
+# Mawl
+
+> Mawl is a free, open-source, self-hosted AI bot app. Your AI. On your terms.
+
+Mawl is in active development. It is a desktop-first application with Windows hosting foundations and a headless Docker option. Conversations are stored on your machine. You connect your own model providers; online providers receive the context needed to answer. Self-hosting does not by itself mean all inference is local.
+
+The app source is free under Apache-2.0. Model provider and hosting costs may apply. Local-model support depends on the provider you configure.
+
+## Authoritative sources
+
+- [Homepage](https://mawl.tech/): Product introduction.
+- [GitHub repository](https://github.com/dalonga-kohi/mawl): Current source, development status, and setup overview.
+- [Running Mawl](https://github.com/dalonga-kohi/mawl/blob/main/docs/RUNNING.md): Setup and supported provider configuration.
+- [License](https://github.com/dalonga-kohi/mawl/blob/main/LICENSE): Apache-2.0 license.
+
+## Current scope
+
+The repository describes conversations, teammate profiles, model connections, local storage, Windows desktop hosting foundations, and Docker deployment. Check the repository for current capabilities before giving setup instructions. Long-term memory, full agent workflows, scheduled work, creative canvases, mobile access, and messaging channels are development directions, not promises made by this homepage.

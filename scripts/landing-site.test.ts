@@ -39,6 +39,51 @@ function localTarget(reference: string, source: string) {
 }
 
 describe('published landing site', () => {
+  it('presents one hero and one GitHub CTA with the current orb identity', () => {
+    const source = html(join(site, 'index.html'))
+    const elements = tags(source)
+    expect(elements.filter((tag) => tag.name === 'h1')).toHaveLength(1)
+    expect(elements.filter((tag) => tag.name === 'section')).toHaveLength(1)
+    expect(
+      elements.filter((tag) => tag.name === 'a' && tag.attributes.href === repository),
+    ).toHaveLength(1)
+    expect(source).toMatch(/free, self-hosted AI bot app/i)
+    expect(source).toContain('./assets/mawl-orb.svg')
+    expect(source).not.toMatch(/mochi|paper-film|playground|night-studio/i)
+    expect(
+      elements.some((tag) => tag.name === 'canvas' && tag.attributes['aria-hidden'] === 'true'),
+    ).toBe(true)
+  })
+
+  it('provides consistent crawlable metadata and machine-readable product context', () => {
+    const source = html(join(site, 'index.html'))
+    const elements = tags(source)
+    expect(elements.find((tag) => tag.attributes.rel === 'canonical')?.attributes.href).toBe(
+      'https://mawl.tech/',
+    )
+    expect(
+      elements.find((tag) => tag.attributes.name === 'description')?.attributes.content,
+    ).toMatch(/self-hosted/i)
+    const data = JSON.parse(
+      source.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1] ?? '{}',
+    )
+    const app = data['@graph'].find(
+      (entry: { '@type': string }) => entry['@type'] === 'SoftwareApplication',
+    )
+    expect(app.offers.price).toBe('0')
+    expect(app.url).toBe('https://mawl.tech/')
+    const context = readFileSync(join(site, 'llms.txt'), 'utf8')
+    expect(context).toContain(repository)
+    expect(context).toMatch(/provider.*costs/i)
+    expect(context).toMatch(/active development/i)
+    expect(readFileSync(join(site, 'robots.txt'), 'utf8')).toContain(
+      'Sitemap: https://mawl.tech/sitemap.xml',
+    )
+    expect(readFileSync(join(site, 'sitemap.xml'), 'utf8')).toContain(
+      '<loc>https://mawl.tech/</loc>',
+    )
+  })
+
   it('ships the local resources referenced by its HTML and stylesheets', () => {
     for (const path of files(site).filter((file) => /\.(html|css)$/.test(file))) {
       const source = path.endsWith('.html') ? html(path) : readFileSync(path, 'utf8')
