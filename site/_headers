@@ -1,8 +1,7 @@
-/review/*
-  X-Robots-Tag: noindex, nofollow
-/assets/social-card.html
-  X-Robots-Tag: noindex, nofollow
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
 /README.md
   X-Robots-Tag: noindex, nofollow
-/assets/*.prompt.txt
+/preview.mjs
   X-Robots-Tag: noindex, nofollow

@@ -1,9 +1,6 @@
 User-agent: *
 Allow: /
-Disallow: /review/
-Disallow: /README.md
 Disallow: /preview.mjs
-Disallow: /assets/social-card.html
-Disallow: /assets/*.prompt.txt
+Disallow: /README.md
 
 Sitemap: https://mawl.tech/sitemap.xml
