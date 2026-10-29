@@ -313,7 +313,7 @@ function SidebarDrawer() {
               }}
             >
               <motion.div
-                className="fixed inset-y-0 left-0 z-50 w-[min(320px,calc(100vw-40px))] touch-pan-y rounded-r-dialog bg-bg pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] shadow-2 outline-none"
+                className="fixed top-(--titlebar-h) bottom-0 left-0 z-50 w-[min(320px,calc(100vw-40px))] touch-pan-y rounded-r-dialog bg-bg pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] shadow-2 outline-none"
                 initial={reduce ? { opacity: 0 } : { x: '-100%' }}
                 animate={
                   reduce

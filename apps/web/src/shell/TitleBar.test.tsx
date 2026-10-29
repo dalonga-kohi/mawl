@@ -49,7 +49,7 @@ describe('TitleBar', () => {
     const f = fakeControls()
     render(<TitleBar controls={f.controls} />)
     await vi.waitFor(() => expect(f.controls.watch).toHaveBeenCalled())
-    const bar = screen.getByRole('banner')
+    const bar = screen.getByRole('toolbar', { name: 'Title bar' })
     act(() => f.emit().onFocus(false))
     expect(bar.getAttribute('data-focused')).toBe('false')
     act(() => f.emit().onFocus(true))
@@ -65,7 +65,9 @@ describe('TitleBar', () => {
         </button>
       </TitleBar>,
     )
-    expect(screen.getByRole('banner').hasAttribute('data-tauri-drag-region')).toBe(true)
+    expect(
+      screen.getByRole('toolbar', { name: 'Title bar' }).hasAttribute('data-tauri-drag-region'),
+    ).toBe(true)
     await userEvent.setup().click(screen.getByRole('button', { name: 'Item' }))
     expect(onClick).toHaveBeenCalledOnce()
   })
