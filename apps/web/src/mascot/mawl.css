@@ -37,15 +37,15 @@
 
 /* Idle and listening: a slow breath. Look-around and blinks are scheduled in idle-life.ts. */
 .mawl:is([data-state="idle"], [data-state="listening"]) .mawl-motion {
-  animation: mawl-breathe 3.4s ease-in-out infinite;
+  animation: orb-breathe 3.4s ease-in-out infinite;
 }
 
 /* Thinking: the orb drifts a little, the two thought dots bob. */
 .mawl[data-state="thinking"] .mawl-motion {
-  animation: mawl-sway 2.4s ease-in-out infinite;
+  animation: orb-sway 2.4s ease-in-out infinite;
 }
 .mawl-dot {
-  animation: mawl-dot 1.2s ease-in-out infinite;
+  animation: orb-dot 1.2s ease-in-out infinite;
 }
 .mawl-dot:nth-child(2) {
   animation-delay: 0.2s;
@@ -53,30 +53,30 @@
 
 /* Working: the star eyes turn, gently. */
 .mawl[data-state="working"] .mawl-glyph-star {
-  animation: mawl-spin 6s linear infinite;
+  animation: orb-spin 6s linear infinite;
 }
 
 /* Waiting: the ?! mark floats. */
 .mawl-ask {
-  animation: mawl-float 2.4s ease-in-out infinite;
+  animation: orb-float 2.4s ease-in-out infinite;
 }
 
 /* Done: one hop when it lands in done. */
 .mawl[data-state="done"] .mawl-motion {
-  animation: mawl-hop 0.55s var(--ease-out) 1;
+  animation: orb-hop 0.55s var(--ease-out) 1;
 }
 
 /* Oops: a short shake, then a pause. */
 .mawl[data-state="oops"] .mawl-motion {
-  animation: mawl-shake 1.8s ease-in-out infinite;
+  animation: orb-shake 1.8s ease-in-out infinite;
 }
 
 /* Sleepy: slow deep breathing, the z marks rise. */
 .mawl[data-state="sleepy"] .mawl-motion {
-  animation: mawl-breathe-deep 5.5s ease-in-out infinite;
+  animation: orb-breathe-deep 5.5s ease-in-out infinite;
 }
 .mawl-z {
-  animation: mawl-z 2.8s ease-out infinite;
+  animation: orb-z 2.8s ease-out infinite;
 }
 .mawl-z:nth-child(2) {
   animation-delay: 1.4s;
@@ -84,7 +84,7 @@
 
 /* Click: one hop on top of whatever the state is doing. */
 .mawl.is-hopping .mawl-hop {
-  animation: mawl-hop 0.55s var(--ease-out) 1;
+  animation: orb-hop 0.55s var(--ease-out) 1;
 }
 
 /* Reduced motion (the OS or the in-app toggle, which sets .is-still through Motion's config): the
@@ -99,7 +99,7 @@
   }
 }
 
-@keyframes mawl-breathe {
+@keyframes orb-breathe {
   0%,
   100% {
     transform: scale(1, 1);
@@ -108,7 +108,7 @@
     transform: scale(1.015, 0.985);
   }
 }
-@keyframes mawl-breathe-deep {
+@keyframes orb-breathe-deep {
   0%,
   100% {
     transform: scale(1, 1);
@@ -117,7 +117,7 @@
     transform: scale(1.035, 0.955);
   }
 }
-@keyframes mawl-sway {
+@keyframes orb-sway {
   0%,
   100% {
     transform: rotate(-2deg);
@@ -126,12 +126,12 @@
     transform: rotate(2deg);
   }
 }
-@keyframes mawl-spin {
+@keyframes orb-spin {
   to {
     transform: rotate(360deg);
   }
 }
-@keyframes mawl-hop {
+@keyframes orb-hop {
   0% {
     transform: translateY(0) scale(1.05, 0.94);
   }
@@ -145,7 +145,7 @@
     transform: translateY(0) scale(1, 1);
   }
 }
-@keyframes mawl-shake {
+@keyframes orb-shake {
   0%,
   40%,
   100% {
@@ -166,7 +166,7 @@
     transform: translateX(4px);
   }
 }
-@keyframes mawl-dot {
+@keyframes orb-dot {
   0%,
   100% {
     transform: translateY(0);
@@ -177,7 +177,7 @@
     opacity: 1;
   }
 }
-@keyframes mawl-float {
+@keyframes orb-float {
   0%,
   100% {
     transform: translateY(0);
@@ -186,7 +186,7 @@
     transform: translateY(-6px);
   }
 }
-@keyframes mawl-z {
+@keyframes orb-z {
   0% {
     transform: translate(0, 0);
     opacity: 0;

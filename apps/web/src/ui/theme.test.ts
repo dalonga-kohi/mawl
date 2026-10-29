@@ -92,6 +92,16 @@ describe('token discipline', () => {
     expect(offenders).toEqual([])
   })
 
+  it('names every @keyframes once across the stylesheets, so no animation silently overrides another', () => {
+    const names = sources
+      .filter((f) => f.endsWith('.css'))
+      .flatMap((f) =>
+        [...readFileSync(f, 'utf8').matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1]),
+      )
+    const dupes = names.filter((n, i) => names.indexOf(n) !== i)
+    expect(dupes).toEqual([])
+  })
+
   it('imports with relative paths (the @/ alias exists only for the shadcn CLI)', () => {
     const offenders = sources.filter((f) => /from\s+['"]@\//.test(readFileSync(f, 'utf8')))
     expect(offenders).toEqual([])
