@@ -1,24 +1,42 @@
-import type { Profile, ProviderCredential, UserProfile } from '@mawl/contracts'
+import type { Approval, Profile, ProviderCredential, UserProfile } from '@mawl/contracts'
 import { QueryClient } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App.tsx'
 import type { Api } from '../api/ApiProvider.tsx'
 import { createAppRouter } from '../router.tsx'
+import { fakeApprovalsApi } from './fake-approvals-api.ts'
 import { fakeChatApi } from './fake-chat-api.ts'
 import { fakeProvidersApi } from './fake-providers-api.ts'
 import { fakeUserApi } from './fake-user-api.ts'
 
 /** A whole fake backend: providers plus profiles, threads, runs and the live stream. */
 export function fakeApi(
-  options: { credentials?: ProviderCredential[]; profiles?: Profile[]; user?: UserProfile } = {},
+  options: {
+    credentials?: ProviderCredential[]
+    profiles?: Profile[]
+    user?: UserProfile
+    approvals?: Approval[]
+  } = {},
 ) {
   const providers = fakeProvidersApi(options.credentials)
+  const approvals = fakeApprovalsApi(options.approvals)
   const chat = fakeChatApi(options.profiles ? { profiles: options.profiles } : {})
   const owner = fakeUserApi(options.user)
-  const api: Api = { providers: providers.api, user: owner.api, ...chat.api }
+  const api: Api = {
+    providers: providers.api,
+    user: owner.api,
+    approvals: approvals.api,
+    ...chat.api,
+    // The fake stream hands the app's query cache to the approvals fake, like the event store.
+    live: (client) => {
+      approvals.attach(client)
+      return chat.api.live(client)
+    },
+  }
   return {
     api,
+    approvals,
     providers: providers.state,
     chat: chat.state,
     server: chat.server,

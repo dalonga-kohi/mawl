@@ -12,6 +12,7 @@ import {
 } from 'motion/react'
 import { Dialog } from 'radix-ui'
 import { type ReactNode, useEffect, useState } from 'react'
+import { usePendingApprovals } from '../approvals/queries.ts'
 import { overlayFade, transitions } from '../motion/presets.ts'
 import { ProfileDialog } from '../profile/ProfileDialog.tsx'
 import { useProfile } from '../profile/useProfile.ts'
@@ -74,12 +75,9 @@ export function ApprovalsBadge({ count }: { count: number }) {
   )
 }
 
-/**
- * Approvals waiting on the owner.
- * reason: the approval queue (D2.4) has no API yet, so nothing is ever pending and no badge shows.
- */
+/** Approvals waiting on the owner. No badge while loading or when the list cannot load. */
 function usePendingApprovalCount(): number {
-  return 0
+  return usePendingApprovals().data?.length ?? 0
 }
 
 function NavLink({ item, trailing }: { item: NavItem; trailing?: ReactNode }) {
