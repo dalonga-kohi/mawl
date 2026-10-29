@@ -80,7 +80,8 @@ describe('splash races and failure paths', () => {
     const { unmount } = render(<Splash bridge={bridge} />)
     await screen.findByRole('heading', { name: 'Waking up' })
     unmount()
-    expect(off).toHaveBeenCalledTimes(1)
+    // The subscription resolves asynchronously: an unmount before it lands unsubscribes right after.
+    await vi.waitFor(() => expect(off).toHaveBeenCalledTimes(1))
   })
 
   it('does not call enterApp after it unmounted during the ready hold', async () => {
