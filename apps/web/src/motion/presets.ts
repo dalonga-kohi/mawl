@@ -9,6 +9,8 @@ export const transitions = {
   gentle: spring.gentle,
   snappy: spring.snappy,
   bouncy: spring.bouncy,
+  /** Critically damped: the sidebar slide, the active-row indicator and anchored popovers. */
+  glide: spring.glide,
   fade: { duration: durSeconds.base, ease: ease.out },
   /** Exit faster than enter: about 70% of the enter duration. */
   exit: { duration: durSeconds.base * 0.7, ease: ease.out },

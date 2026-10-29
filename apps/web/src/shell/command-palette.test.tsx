@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { renderApp, stubViewport } from '../test/render-app.tsx'
+import { paletteTransformOrigin } from './CommandPalette.tsx'
 
 beforeEach(() => stubViewport(1440))
 
@@ -20,8 +21,8 @@ describe('command palette', () => {
     stubViewport(390)
     const { user } = await renderApp('/settings')
     await user.click(screen.getByRole('button', { name: 'Show sidebar' }))
-    const nav = await screen.findByRole('navigation', { name: 'Main' })
-    await user.click(within(nav).getByRole('button', { name: /^Search/ }))
+    const drawer = await screen.findByRole('dialog', { name: 'Sidebar' })
+    await user.click(within(drawer).getByRole('button', { name: /^Search/ }))
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
   })
 
@@ -33,8 +34,8 @@ describe('command palette', () => {
 
   it('opens from the search row in the sidebar', async () => {
     const { user } = await renderApp('/t')
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    await user.click(within(nav).getByRole('button', { name: /^Search/ }))
+    const bar = screen.getByRole('complementary', { name: 'Sidebar' })
+    await user.click(within(bar).getByRole('button', { name: /^Search/ }))
     expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeTruthy()
   })
 
@@ -72,6 +73,28 @@ describe('command palette', () => {
     await user.keyboard('{Enter}')
     expect(document.documentElement.getAttribute('data-palette')).toBe('dracula')
     expect(JSON.parse(localStorage.getItem('mawl.appearance') ?? '{}').palette).toBe('dracula')
+  })
+
+  it('opens with an empty search every time', async () => {
+    const { user } = await renderApp('/t')
+    await user.keyboard('{Control>}k{/Control}')
+    await screen.findByRole('dialog', { name: 'Command palette' })
+    await user.keyboard('zzzqqq')
+    await user.keyboard('{Escape}')
+    await user.keyboard('{Control>}k{/Control}')
+    const dialog = await screen.findByRole('dialog', { name: 'Command palette' })
+    await waitFor(() =>
+      expect((within(dialog).getByRole('combobox') as HTMLInputElement).value).toBe(''),
+    )
+    expect(within(dialog).queryByText('Nothing found')).toBeNull()
+  })
+
+  it('grows out of the control that opened it, or from its top center when opened by key', () => {
+    expect(paletteTransformOrigin(null)).toBe('50% 0%')
+    // 1440 x 900: the 560 px box starts at x 440, y 126.
+    expect(paletteTransformOrigin({ x: 140, y: 30 }, { width: 1440, height: 900 })).toBe(
+      '-300px -96px',
+    )
   })
 
   it('says so when nothing matches', async () => {

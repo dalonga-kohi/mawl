@@ -16,6 +16,7 @@ const legacy = (name: string, context = '') =>
 
 async function openDialog(user: Awaited<ReturnType<typeof renderApp>>['user'], name: RegExp) {
   await user.click(await profileButton(name))
+  await user.click(await screen.findByRole('menuitem', { name: 'Edit profile' }))
   return screen.findByRole('dialog', { name: 'Your profile' })
 }
 
