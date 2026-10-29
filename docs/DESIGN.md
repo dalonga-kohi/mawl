@@ -141,15 +141,16 @@ Rules:
 ## 5. Space, shape, elevation
 
 - **Spacing:** 4 px base grid. Tokens 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 56.
-- **Radii: everything is round** (UI-REDESIGN §2).
-  - `--r-pill` 999 for every interactive control: buttons, inputs and selects, tabs, chips, badges, toggles, avatars. Icon buttons and the send button are circles.
-  - `--r-xs` 8 for inline code, `kbd` and skeleton lines
-  - `--r-sm` 12 for menu rows and code blocks inside a card
-  - `--r-md` 18 for notices and menus
-  - `--r-card` 24 for cards and textareas (a several-line field reads as one soft card)
-  - `--r-panel` 28 for panels and side sheets
-  - `--r-dialog` 32 for dialogs, the window and the mobile sheet
-  - Nested surfaces follow outer = inner + padding (a menu of 12 px rows with 6 px padding is 18).
+- **Radii: soft rounded rectangles, not pills** (U10, replacing the all-pill scale of UI-REDESIGN §2). The radius grows with the surface:
+  - `--r-xs` 6 for inline code, `kbd` and skeleton lines
+  - `--r-sm` 8 for tooltips, badges, chips, menu items and small icon triggers
+  - `--r-md` 10 for buttons and icon buttons, nav and list rows, tabs and segments, palette rows
+  - `--r-card` 12 for cards, inputs and selects, textareas, tiles, menus and popovers, notices, message bubbles, toasts
+  - `--r-panel` 14 for the composer, the command palette, sheets and other large surfaces
+  - `--r-dialog` 16 for dialogs, the drawer edge, the window and the mobile sheet
+  - There is no pill token. Things that are truly round stay round with Tailwind's static `rounded-full`: orbs and avatars, status and live dots, switch tracks and thumbs, the composer's `+`, send and stop buttons, and the floating Jump to latest button. `apps/web/src/ui/theme.test.ts` fails on any `rounded-pill`.
+  - Nested surfaces follow outer = inner + padding (a 12 px segmented track with 3 px padding holds 10 px segments).
+- **Fills:** rows and ghost controls never get borders. Hover is `--hover` (the text color at 6 %), selected and pressed-open is `--selected` (10 %); both are washes of `--text`, so they read on any background in every palette and theme (`bg-hover`, `bg-selected`).
 - **Elevation:** avoid it mostly. Use surface contrast before shadows.
   - `--shadow-1: 0 1px 2px rgb(29 27 22 / .05)` for the composer, selected rows and popovers
   - `--shadow-2: 0 12px 32px -12px rgb(29 27 22 / .16)` for menus, dialogs and the floating computer preview
@@ -157,11 +158,13 @@ Rules:
   - Overlays behind dialogs, sheets and the palette are a soft wash of the background (`bg/70` with a 2 px blur), not grey.
 - **Scrollbars:** slim overlay pills. A 10 px transparent track holds a fully round thumb (3 px transparent border, so it reads as a 4 px pill) with no arrow buttons. The thumb is invisible at rest and fades in over 200 ms while its scroller is hovered or has focus inside, in `--text-3` at low alpha (`--text-2` on thumb hover or drag). It is plain CSS in `styles.css`: the `::-webkit-scrollbar` path serves Chromium and WebView2, and `scrollbar-width`/`scrollbar-color` apply only under `@supports not selector(::-webkit-scrollbar)` (Chromium ignores the pseudo-elements once those are set). The messages and page scrollers reserve `scrollbar-gutter: stable`; dialogs, menus, the sidebar list and the context panel use `overscroll-behavior: contain`. Only the Jump to latest button scrolls smoothly, and not under reduced motion. The chat scroller is never wrapped in a JS scroll area, so stick-to-bottom stays native.
 - **Layout (desktop):**
-  1. Sidebar, 280 px, on the window background (`--bg`). Top to bottom: the word Mawl (display font, 24 px, no mascot) and a hide button; Search, Tools, Scheduled, Approvals; **Pinned** and **Teammates** groups; one bottom row with the profile button and a Settings gear. No New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
+  1. Sidebar, 280 px, on the window background (`--bg`), read like a chat app (U10). Top to bottom: a **Search** row (opens the command palette, which grows out of the row; `Ctrl K` hint in a small `kbd`) with the hide button beside it; **Tools**, **Scheduled**, **Approvals** (a count badge in `--accent-fill` that pops in on `spring.bouncy` once approvals exist, capped at 99+); a quiet "Teammates" label and the **teammates as chats**: a 40 px orb in the teammate's colourway, the name, the time of the latest conversation, a pin mark for pinned ones, and one line under it (the latest conversation, or "Working…" in teal with a breathing teal live dot on the orb while a run goes). Pinned teammates sort to the top. The list ends with a **New teammate** row (a round plus slot where an orb would be). Loading shows four skeleton rows; no teammates shows a small orb, "No teammates yet", one line and a primary New teammate button; a failed load says what happened with Retry. Last, after a 1 px `--line`, the **owner row**: a round initial on `--selected`, the name and a chevron that opens the account menu above it (Edit profile, Settings, Hide sidebar with its shortcut), and a sliders button that opens Settings. No wordmark, no New chat button, no icon rail. A 1 px `--line` on its right edge divides it from the conversation.
+     - One **active indicator** (a `--selected` fill, `--r-md`) marks the current place and slides between nav rows, the open teammate and the sliders button through a shared Motion `layoutId` on `spring.glide`.
+     - Keyboard: Tab runs top to bottom; inside the teammate list Up and Down move between rows, Home and End jump to the ends, Enter opens; `Ctrl+B` hides or shows; Esc closes the drawer.
   2. Conversation (fluid): a flat, full-bleed pane on the same `--bg` as the sidebar: edge to edge, no tonal change, no radius, no inset, no outer border and no shadow.
-  3. Context panel, 360 px, collapsible, flat on `--bg` with a faint 1 px `--line` on its left edge: Computer / Memory / Run. The header is only the segmented pill tabs (no title). Each tab has a calm `EmptyPanel` (round icon tile, title, one line, no mascot): Computer (monitor), Memory (book) and Run (activity; with a run it shows the tile and a few plain facts). Open or closed is remembered per browser (`mawl.panel`) and starts open. Below 1100 px it is a sheet, which is raised and so uses `--surface` and is never remembered.
-  - The sidebar hides completely (`Ctrl+B` or the button); a round show button then appears in the page header. The choice is remembered.
-  - Below 1100 px the context panel becomes a sheet. Below 760 px the sidebar is a left drawer with a rounded sheet edge opened from the header button. There is no bottom tab bar.
+  3. Context panel, 360 px, collapsible, flat on `--bg` with a faint 1 px `--line` on its left edge: Computer / Memory / Run. The header is only the rounded segmented tabs (no title). Each tab has a calm `EmptyPanel` (round icon tile, title, one line, no mascot): Computer (monitor), Memory (book) and Run (activity; with a run it shows the tile and a few plain facts). Open or closed is remembered per browser (`mawl.panel`) and starts open. Below 1100 px it is a sheet, which is raised and so uses `--surface` and is never remembered.
+  - The sidebar hides completely (`Ctrl+B`, the button or the account menu); a show button then appears in the page header. It opens and closes on `spring.glide`, animating its width so the conversation reflows with it while the content rides the edge. The choice is remembered.
+  - Below 1100 px the context panel becomes a sheet. Below 760 px the sidebar is a left drawer (`--bg`, a 16 px rounded outer edge, safe-area padding) over the soft scrim, opened from the header button. It follows a leftward swipe 1:1 and closes when the swipe, projected forward by its velocity, passes 100 px; otherwise it springs home. There is no bottom tab bar.
 
 ## 6. Iconography
 
@@ -181,14 +184,15 @@ Don't hand-roll animation engines.
 | `spring.gentle` | `{ type: 'spring', stiffness: 170, damping: 26 }` | Panels, sheets, layout shifts |
 | `spring.snappy` | `{ stiffness: 420, damping: 34 }` | Toggles, tabs, chips |
 | `spring.bouncy` | `{ stiffness: 260, damping: 14 }` | Celebrations, mascot hops, badge pop-in |
-| `dur.fast` | 120 ms | Hover and press feedback |
+| `spring.glide` | `{ stiffness: 440, damping: 42 }` | Critically damped (ratio 1.0, about 0.3 s response): the sidebar slide, the drawer, the active-row indicator, list reorders, the palette opening |
+| `dur.fast` | 100 ms | Hover and press feedback |
 | `dur.base` | 200 ms | Fades and color |
 | `dur.slow` | 320 ms | Page transitions, accent-bearing surfaces |
 | `ease.out` | `cubic-bezier(.2,.8,.2,1)` | Default tween |
 
 Patterns:
-- **Press:** scale 0.97 on press and spring back. Applies to buttons, cards and list rows.
-- **Hover:** bg moves to `--surface-2` over 120 ms. No lifting cards.
+- **Press:** scale 0.97 on pointer-down (`active:scale-[.97]`, 100 ms) and back on release. Applies to buttons, cards and list rows.
+- **Hover:** the `--hover` fill fades in over 100 ms (`.tween`); icons may make one small gesture (the sliders turn, the chevron dips, the plus turns, the wrench tilts). No lifting cards.
 - **Messages in:** opacity 0→1, y 6→0, using `spring.gentle`. Streaming text gets a soft caret pulse.
 - **Tool activity:** the card enters collapsed. A thin progress shimmer runs while it works, then the icon changes to a check ✓ with a small `spring.bouncy` pop.
 - **Approvals:** the badge count pops in. Approving collapses the card into a green line ("Approved · sent to Nora").
@@ -197,6 +201,18 @@ Patterns:
 - **Exit faster than enter:** about 70% of the enter duration.
 - **Reduced motion:** `prefers-reduced-motion` (and the in-app toggle) turns springs into 0-duration opacity fades and freezes the mascot on its pose frames.
 - **Ambient motion** is limited to the mascot and the "live" dot on the computer thumbnail.
+
+### Interaction principles
+
+How Mawl applies Apple's fluid-interface guidance (WWDC "Designing Fluid Interfaces" and "Principles of Great Design") on the web:
+- **Respond on pointer-down.** Press feedback is CSS `:active` (scale .97 in 100 ms), never a click handler; hover fills fade in within 100 ms. Nothing on the input path waits on a timer or an animation.
+- **Springs, critically damped by default.** UI motion uses `spring.glide` (damping ratio 1.0, no overshoot). Bounce (`spring.bouncy`) is kept for moments with energy: a badge popping in, the orb's hop. Springs start from the current on-screen value, so every motion can be interrupted and reversed mid-flight (toggle the sidebar twice quickly and it turns around, it does not finish first).
+- **Direct manipulation.** The phone drawer follows the finger 1:1 and hands the release velocity to the closing spring; whether it closes is decided by projecting the flick forward (deceleration 0.998), not by where the finger let go.
+- **Same path in and out, anchored to the trigger.** The sidebar and the drawer leave the way they came; menus grow from their trigger (Radix transform origin); the command palette grows out of the Search row that opened it, or from its top center when opened by key.
+- **Materials only where they help.** Raised things sit on `--surface`; the scrim behind the drawer, dialogs and the palette is a soft 2 px blur of the background. No stacked translucent layers.
+- **Reduced motion is a fade, not nothing.** `prefers-reduced-motion` or the in-app toggle swaps slides and springs for short opacity fades (the sidebar keeps its width and fades; the drawer fades in place; the active indicator moves without sliding) and stops the live dot's breathing.
+- **Type tracking by size.** Display text runs slightly tight, body text at 0 (§4).
+- **Familiarity, simplicity, wayfinding.** The sidebar reads like the chat apps people already use (search on top, conversations as rows, the owner at the bottom); one active indicator always answers "where am I"; every list says what to do when it is empty or failed.
 
 ## 8. The mascot: Mawl
 
@@ -239,34 +255,34 @@ The orb is drawn in code (`build.mjs`), so no mascot sheet and no onboarding ill
 
 ## 9. Components (inventory)
 
-Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster, plus two Mawl-made pieces: `IconTile` (a round `--surface-2` tile with one icon) and `EmptyPanel` (icon tile, title, one line, optional action) for empty lists and pages. The mascot appears only on the new-chat landing, in the chat header and as teammate avatars. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, pill controls, `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
+Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, configured by `apps/web/components.json`). The shipped set: Button and IconButton, Dialog and Modal, Sheet, Tooltip, Input and Textarea, Switch, Tabs, Badge, Avatar, ScrollArea, Separator, DropdownMenu and the Sonner Toaster, plus two Mawl-made pieces: `IconTile` (a round `--surface-2` tile with one icon) and `EmptyPanel` (icon tile, title, one line, optional action) for empty lists and pages. The mascot appears only on the new-chat landing, in the chat header and as teammate avatars. To add one, read the registry source with `pnpm dlx shadcn@4.22.1 add <name> --view` (or `view <name>`) and adapt it by hand into a PascalCase file: relative imports, `cn` from `./cn.ts`, Mawl tokens, rounded-rectangle controls (§5), `active:scale-[.97]`, 44 px `pointer-coarse:` targets. Don't run a plain `add`: it writes lowercase files with `@/` imports. Don't use Tailwind's `dark:` variant either; it follows the OS, not `data-theme`, and the tokens already switch per theme.
 
-- **Navigation:** Sidebar (hideable; a drawer under 760 px), TeammateList (row: avatar, name, latest conversation line, time, live dot; unread pill once the API reports it; a ⋯ menu to pin), CommandPalette (cmdk): a centered round card (`--r-panel` 28, on `--surface`) over the soft wash. It opens with a pill search field on `--surface-2` that has no focus ring (the highlighted row shows where you are); rows are pills with an icon, a label and a right-aligned shortcut hint where one exists (hide or show the sidebar). Groups (Go to, Appearance, Layout) have sentence-case headings, the list scrolls with the global scrollbar, and an empty search says "Nothing found". Rows are 44 px under `pointer-coarse`.
+- **Navigation:** Sidebar (hideable; a drawer under 760 px; §5), TeammateList (row: orb, name, time, pin mark, latest conversation or status line, live dot; an unread count once the API reports it; a ⋯ menu to pin; ends with New teammate), CommandPalette (cmdk): a centered rounded card (`--r-panel` 14, on `--surface`) over the soft wash that grows from whatever opened it and always opens with an empty search. Its search field is a `--r-card` field on `--surface-2` with no focus ring (the highlighted row shows where you are); rows are `--r-md` rows with an icon, a label and a right-aligned shortcut hint where one exists (hide or show the sidebar), highlighted with `--selected`. Groups (Go to, Appearance, Layout) have sentence-case headings, the list scrolls with the global scrollbar, and an empty search says "Nothing found". Rows are 44 px under `pointer-coarse`.
 - **Chat:**
-  - Messages sit in one centered 720 px column. Assistant replies are plain on `--bg`, no bubble, at most 68ch wide. User messages are tail-less `--r-card` (24 px) bubbles on `--surface-2`, aligned right. Times show on hover or focus with a mouse and always on touch. Messages enter with opacity and y 6 to 0 on `spring.gentle`; streaming text ends in a soft caret pulse.
+  - Messages sit in one centered 720 px column. Assistant replies are plain on `--bg`, no bubble, at most 68ch wide. User messages are tail-less `--r-card` (12 px) bubbles on `--surface-2`, aligned right. Times show on hover or focus with a mouse and always on touch. Messages enter with opacity and y 6 to 0 on `spring.gentle`; streaming text ends in a soft caret pulse.
   - Markdown: code blocks are round `--surface` cards with a 1 px `--line`, the language and a Copy button, in JetBrains Mono; tables are round cards with a `--surface-2` header row.
-  - Tool activity (`ToolActivity`): one round pill per run of tool calls ("Used 3 tools", "Used 2 tools, 1 didn't work") with a spinner, check or alert, and a thin shimmer while working. It expands into a card listing each step with its own status, arguments and result. Stored tool parts carry no timings yet, so no duration is shown.
+  - Tool activity (`ToolActivity`): one rounded row per run of tool calls ("Used 3 tools", "Used 2 tools, 1 didn't work") with a spinner, check or alert, and a thin shimmer while working. It expands into a card listing each step with its own status, arguments and result. Stored tool parts carry no timings yet, so no duration is shown.
   - Reasoning: a muted "Thinking" disclosure above the reply, closed by default.
-  - Failed runs: an inline `--danger-soft` card that says what happened and how to fix it, with a "Try again" pill that resends the owner's last message (and a model settings link when the fix lives there).
+  - Failed runs: an inline `--danger-soft` card that says what happened and how to fix it, with a "Try again" button that resends the owner's last message (and a model settings link when the fix lives there).
   - ApprovalCard: action sentence, redacted args, and the buttons Approve / Deny / Open details.
   - TakeoverBanner.
-  - Composer: a pill on `--surface` with a 1 px `--line` (plus `--shadow-1` in light). Its 28 px radius is a full pill at the thin one-line height of 44 px and reads as a soft card when the text wraps. Left a 32 px round ghost `+` menu (18 px icon; attachments show as a disabled "Attach files, soon" item until uploads exist), then the autosizing input (Enter sends, Shift+Enter adds a line) and a round 32 px send button (`--accent-fill`, 16 px `ArrowUp`, muted to `--surface-2` when empty, press scale .94; coarse pointers keep a 44 px hit area through a `before:` pseudo-element). The model is not in the composer: it shows in the header (below). While a run is going the send button becomes a round Stop button with a square icon. Focus draws a soft accent ring around the whole pill.
-  - Header: show-sidebar button when needed, a small Mawl that mirrors the run, the teammate name with a one-line status, a quiet display-only model pill (model id in the mono font, title "credential / model id", hidden under 760 px), the conversation menu and the panel toggle. No border or shadow under it.
+  - Composer: a rounded box (`--r-panel` 14) on `--surface` with a 1 px `--line` (plus `--shadow-1` in light); it grows as the text wraps. Left a 32 px round ghost `+` menu (18 px icon; attachments show as a disabled "Attach files, soon" item until uploads exist), then the autosizing input (Enter sends, Shift+Enter adds a line) and a round 32 px send button (`--accent-fill`, 16 px `ArrowUp`, muted to `--surface-2` when empty, press scale .94; coarse pointers keep a 44 px hit area through a `before:` pseudo-element). The model is not in the composer: it shows in the header (below). While a run is going the send button becomes a round Stop button with a square icon. Focus draws a soft accent ring around the whole box.
+  - Header: show-sidebar button when needed, a small Mawl that mirrors the run, the teammate name with a one-line status, a quiet display-only model label (model id in the mono font, title "credential / model id", hidden under 760 px), the conversation menu and the panel toggle. No border or shadow under it.
   - Scroll to latest: a small round `ArrowDown` button floats above the composer when the owner scrolls up; new text follows only while pinned to the bottom.
-  - New chat (the empty state): a large Mawl (120 px, 88 px on phones; listening while the owner types), the Bricolage greeting "What's next, {first name}?" (or "What's next?"), the composer in the middle of the view and three soft suggestion pills under it that fill the composer without sending. Nothing else. After the first send the same composer docks to the bottom with a `spring.gentle` layout transition and Mawl moves into the header through a shared `layoutId`; reduced motion makes both instant.
+  - New chat (the empty state): a large Mawl (120 px, 88 px on phones; listening while the owner types), the Bricolage greeting "What's next, {first name}?" (or "What's next?"), the composer in the middle of the view and three soft suggestion buttons under it that fill the composer without sending. Nothing else. After the first send the same composer docks to the bottom with a `spring.gentle` layout transition and Mawl moves into the header through a shared `layoutId`; reduced motion makes both instant.
 - **Computer:**
   - ComputerThumbnail: a live 16:10 mini-screen with a "live" dot.
   - ComputerPanel: noVNC canvas, toolbar (Watch · Take control · Give back · Type a password · Fullscreen) and lease timer.
   - AgentCursorGhost.
 - **Memory:** BlockCard (fill meter), FactRow, Timeline, SkillCard, DiffView.
 - **Routines:** RoutineRow (natural-language summary, next run, toggle), RunHistory.
-- **Settings:** one calm column inside the page frame. From 760 px a 200 px list of pill links (icon and name; the current one on `--surface-2` with an accent-ink icon) sits beside the open section; below 760 px the same links become one pill segmented track above it. The section lives in `?section=` (`appearance` is the bare `/settings`). Only sections that exist are listed, never "coming soon" ones. Each section has its own heading and one line, then round `--surface` cards (24 px, 20 px padding), each with a heading, one helper line and its control.
-  - Appearance: Theme (a pill segmented control: Light, Dark, System), Accent color (round swatches Mawl, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
+- **Settings:** one calm column inside the page frame. From 760 px a 200 px list of rounded links (icon and name; the current one on `--selected` with an accent-ink icon) sits beside the open section; below 760 px the same links become one rounded segmented track above it. The section lives in `?section=` (`appearance` is the bare `/settings`). Only sections that exist are listed, never "coming soon" ones. Each section has its own heading and one line, then rounded `--surface` cards (`--r-card`, 20 px padding), each with a heading, one helper line and its control.
+  - Appearance: Theme (a rounded segmented control: Light, Dark, System), Accent color (round swatches Mawl, Sky, Peach, Lilac, Rose, Slate, then a conic Custom picker; one line under them names the choice, and for a custom color says Mawl adjusts text and focus rings so they stay readable) and Reduce motion (a switch).
   - Models and keys: each connected model is its own round card (mark, name, what it is, Check and Remove or Sign out), then one card per way to connect (ChatGPT plan, Claude plan with its steps opening inside the card, API key). Loading is a skeleton card, an unreachable server an inline card with Try again, and an empty list a card with an icon tile.
   - Later: Channels, Devices (QR pairing), Data.
-- **New teammate dialog** (`NewTeammateDialog`): a 32 px dialog with pill Name and Model fields, a round `Select` for the model connection (a native select with the pill look and our own chevron), a 24 px Job textarea card, and soft Cancel and primary Create pills. Errors sit under their field and say how to fix it; Create reads "Creating…" and is disabled while the server works; a failed create shows a danger notice. Escape closes it and returns focus.
+- **New teammate dialog** (`NewTeammateDialog`): a `--r-dialog` dialog with rounded Name and Model fields, a rounded `Select` for the model connection (a native select with the field look and our own chevron), a Job textarea card, and soft Cancel and primary Create buttons. Errors sit under their field and say how to fix it; Create reads "Creating…" and is disabled while the server works; a failed create shows a danger notice. Escape closes it and returns focus.
 - **Your profile dialog** (from the sidebar's profile row, not part of Settings): Name and Personal context, saved on the server. The Save button reads "Saving…" while the save is in flight; the sidebar and greeting show the new name at once and roll back with a toast if the server refuses. Errors sit under their field ("Keep your name to 80 characters.", "Trim it by N characters.") and the context counter turns danger past 2000. Cancel and Escape drop the edits.
-- **Feedback:** Toasts (Sonner, bottom-center, mascot glyph), Skeletons (soft shimmer, no spinners in lists), Inline errors that say how to fix the problem.
+- **Feedback:** Toasts (Sonner, bottom-center, a `--r-card` card on `--surface` that follows the theme), Skeletons (soft shimmer, no spinners in lists), Inline errors that say how to fix the problem.
 
 ## 10. Key screens
 
@@ -276,7 +292,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
    - The river wave at the bottom; it advances with each step through a horizontal wave-offset animation.
 2. **Home / chat:** the three panes. The header shows the teammate name, status ("working · 3 steps"), a computer thumbnail and a ⋯ menu.
 3. **Computer:** the panel is expanded and the chat collapses to a narrow side column. "Take control" puts an accent ring around the screen.
-4. **Approvals:** a pill control with Needs you (default) and Activity; Needs you is an inbox list grouped by teammate, with an inline decision on each. Tools (Connections, Skills, Plugins) and Scheduled share the same page frame (title, one-line subtitle, centered column) and, until their data exists, an icon-tile empty state.
+4. **Approvals:** a segmented control with Needs you (default) and Activity; Needs you is an inbox list grouped by teammate, with an inline decision on each. Tools (Connections, Skills, Plugins) and Scheduled share the same page frame (title, one-line subtitle, centered column) and, until their data exists, an icon-tile empty state.
 5. **Activity:** a day-grouped timeline of sentences, filterable.
 6. **Memory:** tabs for Blocks / Facts / Timeline / Skills, plus an overnight changes card at the top.
 7. **Routines:** a list with natural-language summaries and next run times. "New routine" opens a sheet with an NL input that turns into a parsed schedule preview.
@@ -289,7 +305,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
 ## 11. Accessibility checklist (blocking for review)
 
 - Text contrast ≥ 4.5:1, UI components ≥ 3:1, in both themes and in every palette (`packages/ui/src/palette.test.ts`).
-- Visible focus: a 2 px `--accent-ring` with a 2 px offset. Never remove outlines. The one exception is the composer text field (and its pill): the caret shows focus there, so it draws no ring; the composer's buttons keep theirs.
+- Visible focus: a 2 px `--accent-ring` with a 2 px offset. Never remove outlines. The one exception is the composer text field (and its box): the caret shows focus there, so it draws no ring; the composer's buttons keep theirs.
 - Everything is reachable by keyboard; the chat list uses roving focus. Icon buttons have `aria-label`.
 - Touch targets ≥ 44 px on mobile; ≥ 8 px gap between targets. On the web the size follows the input, not the width: `pointer-coarse:` raises buttons, segments, swatches and tabs to 44 px, while mouse users keep the denser sizes. A control that must stay visually small (the switch) widens its hit area with a `before:` pseudo-element.
 - Streaming messages use `aria-live="polite"` (throttled); approvals use `role="alertdialog"` only when blocking.
