@@ -35,6 +35,18 @@ export class ApprovalConflictError extends Error {
   }
 }
 
+/**
+ * A pending approval whose run is not waiting for it. A cancel resolves the approval in the same
+ * transaction, so this means the data is inconsistent: nothing is resolved, and the caller gets
+ * an internal error instead of a misleading conflict.
+ */
+export class ApprovalInvariantError extends Error {
+  constructor(readonly id: string) {
+    super('approval is pending but its run is not waiting for it')
+    this.name = 'ApprovalInvariantError'
+  }
+}
+
 /** Who decided: the owner's device (none before pairing, D8.1) and the channel. */
 export interface DecidedBy {
   deviceId: DeviceId | null
@@ -102,7 +114,7 @@ async function resolve(
   if (row.status !== 'pending') return { conflict: row.status }
   // A pending approval always belongs to a waiting run (a cancel resolves it in the same
   // transaction); anything else is refused rather than guessed at.
-  if (run.status !== 'waiting_approval') return { conflict: row.status }
+  if (run.status !== 'waiting_approval') throw new ApprovalInvariantError(id)
   const outcome = want(row.expired)
   if (outcome === null) return { conflict: row.status }
 
@@ -221,9 +233,19 @@ export function createApprovalService({
         .limit(EXPIRE_BATCH)
       let expired = 0
       for (const { id } of due) {
-        const result = await db.transaction((tx) =>
-          resolve(tx, id, (isExpired) => (isExpired ? 'expired' : null), null),
-        )
+        let result: Awaited<ReturnType<typeof resolve>>
+        try {
+          result = await db.transaction((tx) =>
+            resolve(tx, id, (isExpired) => (isExpired ? 'expired' : null), null),
+          )
+        } catch (err) {
+          // One bad row must not stall the sweep. Id and name only, never the detail.
+          logger.error(
+            { approvalId: id, errName: err instanceof Error ? err.name : 'unknown' },
+            'could not expire approval',
+          )
+          continue
+        }
         if (result && 'outcome' in result) {
           expired++
           await enqueueQuietly(result.runId)
