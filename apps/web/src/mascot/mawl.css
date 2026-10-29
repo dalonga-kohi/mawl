@@ -1,213 +1,101 @@
 /*
- * Mawl, the lemon-lime mochi (docs/UI-REDESIGN.md §3-4). The palette is fixed and never follows
- * the accent; it is the only place these colors live. Shapes and keyframes are ported from the
- * user's mint reference. Ambient motion belongs only to the mascot (DESIGN.md §7).
+ * Mawl, the orb (DESIGN.md §8). Colours come from the colourway in ways.ts; this file holds only
+ * motion. Eye changes are Motion springs in Mawl.tsx; the ambient loops below are keyed on
+ * `data-state`. Ambient motion belongs only to the mascot (DESIGN.md §7). Distances are in the
+ * orb's 400-unit artwork, so they scale with it.
  */
 .mawl,
 .mawl-avatar {
-  --mawl-body-top: #e4f09a;
-  --mawl-body-bottom: #bfd45e;
-  --mawl-ear: #d2e47a;
-  --mawl-ear-inner: #a8be4a;
-  --mawl-tail-top: #a4bc48;
-  --mawl-tail-bottom: #869b36;
-  --mawl-ink: #26301a;
-  --mawl-blush: #ff9aa8;
-  --mawl-tongue: #ff9aa8;
-  --mawl-sparkle: #f6d66b;
-  --mawl-sweat: #8fd3f4;
   overflow: visible;
 }
 
-/* A teammate color keeps its hue but takes Mawl's lightness, so the ink eyes always read. */
-.mawl-avatar.is-tinted {
-  --mawl-body-top: oklch(from var(--mawl-tint) 0.94 calc(c * 0.55) h);
-  --mawl-body-bottom: oklch(from var(--mawl-tint) 0.84 calc(c * 0.8) h);
-  --mawl-ear: oklch(from var(--mawl-tint) 0.89 calc(c * 0.7) h);
-  --mawl-ear-inner: oklch(from var(--mawl-tint) 0.74 c h);
-}
-/* Heavier eyes at tray and list-icon sizes. */
-:is(.mawl, .mawl-avatar).is-tiny [data-part^="eyes-"] path {
-  stroke-width: 8.5;
-}
-:is(.mawl, .mawl-avatar).is-tiny [data-part="eyes-round"] circle {
-  r: 6;
-}
-/* The avatar never animates, so it shows its active eyes only and skips the cross-fade. */
-.mawl-avatar [data-part^="eyes-"]:not([data-on]) {
-  display: none;
-}
-
-.mawl :is(.mawl-hop, .mawl-bounce, .mawl-squish, .mawl-tail, .mawl-ears, .mawl-paw, .mawl-blink),
-.mawl :is(.mawl-shadow, .mawl-bubble, .mawl-sparkle) {
+.mawl :is(.mawl-hop, .mawl-motion, .mawl-press, .mawl-glyph, .mawl-mark, .mawl-dot, .mawl-z) {
   transform-box: fill-box;
-}
-
-.mawl-shadow {
-  fill: var(--mawl-ink);
-  opacity: 0.13;
   transform-origin: 50% 50%;
 }
-.mawl-blush {
-  opacity: 0.4;
+.mawl :is(.mawl-hop, .mawl-motion) {
+  transform-origin: 50% 100%;
 }
-.mawl-zz {
-  fill: var(--text-2);
+.mawl-mark {
   font-family: var(--ff-ui);
-  font-weight: 500;
-}
-
-/* Face parts and effects cross-fade between states. */
-.mawl :is([data-part^="eyes-"], [data-part^="mouth-"], [data-part^="fx-"]) {
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
-.mawl [data-on] {
-  opacity: 1;
+  font-weight: 800;
 }
 
 .mawl-look {
-  transform: var(--mawl-look, none);
   transition: transform 0.15s var(--ease-out);
 }
-.mawl-ears {
-  transform-origin: 50% 100%;
-  transition: transform var(--dur-slow) var(--ease-out);
+
+/* Hover and press on an orb that hops when clicked. */
+.mawl.is-pressable {
+  cursor: pointer;
 }
-.mawl-paw {
-  opacity: 0;
-  transform-origin: 85% 100%;
-  transition: opacity var(--dur-base) var(--ease-out);
+.mawl-press {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.mawl.is-pressable:hover .mawl-press {
+  transform: scale(1.03);
+}
+.mawl.is-pressable:active .mawl-press {
+  transform: scale(0.97);
 }
 
-/* Idle: breathing squish, tail wag, a blink every ~3 s. */
-.mawl-squish {
-  transform-origin: 50% 100%;
-  animation: mawl-breathe-body 3.4s ease-in-out infinite;
-}
-.mawl-bounce,
-.mawl-hop {
-  transform-origin: 50% 100%;
-}
-.mawl-tail {
-  transform-origin: 20% 90%;
-  animation: mawl-wag 2.6s ease-in-out infinite;
+/* Idle and listening: a slow breath and a blink every ~3 s. */
+.mawl:is([data-state="idle"], [data-state="listening"]) .mawl-motion {
+  animation: mawl-breathe 3.4s ease-in-out infinite;
 }
 .mawl-blink {
-  transform-origin: 50% 50%;
   animation: mawl-blink 3.2s linear infinite;
 }
 
-/* Listening: eyes glance down at the composer (via --mawl-look), ears perk. */
-.mawl[data-state="listening"] .mawl-ears {
-  transform: translateY(-1.5px);
+/* Thinking: the orb drifts a little, the two thought dots bob. */
+.mawl[data-state="thinking"] .mawl-motion {
+  animation: mawl-sway 2.4s ease-in-out infinite;
+}
+.mawl-dot {
+  animation: mawl-dot 1.2s ease-in-out infinite;
+}
+.mawl-dot:nth-child(2) {
+  animation-delay: 0.2s;
 }
 
-/* Thinking: head tilt, slower tail, three bobbing dots. */
-.mawl[data-state="thinking"] .mawl-bounce {
-  animation: mawl-tilt 1.8s ease-in-out infinite;
-}
-.mawl[data-state="thinking"] .mawl-tail {
-  animation: mawl-wag-slow 4s ease-in-out infinite;
+/* Working: the star eyes turn, gently. */
+.mawl[data-state="working"] .mawl-glyph-star {
+  animation: mawl-spin 6s linear infinite;
 }
 
-/* Working: quick bob, tail slap, chips drift off. */
-.mawl[data-state="working"] .mawl-bounce {
-  animation: mawl-bob 0.45s ease-in-out infinite;
-}
-.mawl[data-state="working"] .mawl-tail {
-  animation: mawl-slap 0.45s ease-in-out infinite;
+/* Waiting: the ?! mark floats. */
+.mawl-ask {
+  animation: mawl-float 2.4s ease-in-out infinite;
 }
 
-/* Waiting: a small "!" bubble and a slow wave. */
-.mawl[data-state="waiting"] .mawl-paw {
-  opacity: 1;
-  animation: mawl-wave 2.4s ease-in-out infinite;
-}
-.mawl[data-state="waiting"] .mawl-tail {
-  animation: mawl-wag-slow 4s ease-in-out infinite;
+/* Done: one hop when it lands in done. */
+.mawl[data-state="done"] .mawl-motion {
+  animation: mawl-hop 0.55s var(--ease-out) 1;
 }
 
-/* Done: hop with a shadow, fast tail, sparkles. */
-.mawl[data-state="done"] .mawl-squish {
-  animation: none;
-}
-.mawl[data-state="done"] .mawl-bounce {
-  animation: mawl-hop 0.9s ease-in-out infinite;
-}
-.mawl[data-state="done"] .mawl-shadow {
-  animation: mawl-shadow 0.9s ease-in-out infinite;
-}
-.mawl[data-state="done"] .mawl-tail {
-  animation: mawl-wag-fast 0.45s ease-in-out infinite;
-}
-
-/* Oops: a shake and a sweat drop. */
-.mawl[data-state="oops"] .mawl-bounce {
+/* Oops: a short shake, then a pause. */
+.mawl[data-state="oops"] .mawl-motion {
   animation: mawl-shake 1.8s ease-in-out infinite;
 }
-.mawl:is([data-state="oops"], [data-state="sleepy"]) .mawl-tail {
-  animation: none;
-}
 
-/* Sleepy: slow deep breathing, floating z. */
-.mawl[data-state="sleepy"] .mawl-squish {
+/* Sleepy: slow deep breathing, the z marks rise. */
+.mawl[data-state="sleepy"] .mawl-motion {
   animation: mawl-breathe-deep 5.5s ease-in-out infinite;
+}
+.mawl-z {
+  animation: mawl-z 2.8s ease-out infinite;
+}
+.mawl-z:nth-child(2) {
+  animation-delay: 1.4s;
 }
 
 /* Click: one hop on top of whatever the state is doing. */
 .mawl.is-hopping .mawl-hop {
-  animation: mawl-hop 0.55s ease-in-out 1;
+  animation: mawl-hop 0.55s var(--ease-out) 1;
 }
 
-/* Effects. */
-.mawl-dot {
-  animation: mawl-dot 1s ease-in-out infinite;
-}
-.mawl-dot:nth-child(2) {
-  animation-delay: 0.18s;
-}
-.mawl-dot:nth-child(3) {
-  animation-delay: 0.36s;
-}
-.mawl-chip {
-  animation: mawl-drift 0.7s ease-out infinite;
-}
-[data-part="fx-chips"] > :nth-child(2) .mawl-chip {
-  animation-delay: 0.23s;
-}
-[data-part="fx-chips"] > :nth-child(3) .mawl-chip {
-  animation-delay: 0.46s;
-}
-.mawl-sparkle {
-  transform-origin: 50% 50%;
-  animation: mawl-twinkle 1.4s ease-in-out infinite;
-}
-[data-part="fx-sparkles"] > :nth-child(2) .mawl-sparkle {
-  animation-delay: 0.45s;
-}
-[data-part="fx-sparkles"] > :nth-child(3) .mawl-sparkle {
-  animation-delay: 0.9s;
-}
-.mawl-drop {
-  animation: mawl-sweat 1.8s ease-in infinite;
-}
-.mawl-zz text {
-  animation: mawl-zz 2.6s ease-out infinite;
-}
-.mawl-zz > :nth-child(2) text {
-  animation-delay: 0.9s;
-}
-.mawl-zz > :nth-child(3) text {
-  animation-delay: 1.8s;
-}
-.mawl-bubble {
-  transform-origin: 0% 100%;
-  animation: mawl-float 2.4s ease-in-out infinite;
-}
-
-/* Reduced motion (the OS or the in-app toggle, which sets .is-still through Motion's config):
-   Mawl holds its pose, every effect shown at rest. */
+/* Reduced motion (the OS or the in-app toggle, which sets .is-still through Motion's config): the
+   orb holds its pose, every effect shown at rest, and hover does not scale. */
 .mawl.is-still *,
 .reduce-motion .mawl * {
   animation: none !important;
@@ -218,13 +106,13 @@
   }
 }
 
-@keyframes mawl-breathe-body {
+@keyframes mawl-breathe {
   0%,
   100% {
     transform: scale(1, 1);
   }
   50% {
-    transform: scale(1.025, 0.965);
+    transform: scale(1.015, 0.985);
   }
 }
 @keyframes mawl-breathe-deep {
@@ -233,43 +121,7 @@
     transform: scale(1, 1);
   }
   50% {
-    transform: scale(1.04, 0.945);
-  }
-}
-@keyframes mawl-wag {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  50% {
-    transform: rotate(7deg);
-  }
-}
-@keyframes mawl-wag-slow {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-  50% {
-    transform: rotate(3deg);
-  }
-}
-@keyframes mawl-wag-fast {
-  0%,
-  100% {
-    transform: rotate(-6deg);
-  }
-  50% {
-    transform: rotate(12deg);
-  }
-}
-@keyframes mawl-slap {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(15deg);
+    transform: scale(1.035, 0.955);
   }
 }
 @keyframes mawl-blink {
@@ -279,45 +131,35 @@
     transform: scaleY(1);
   }
   96% {
-    transform: scaleY(0.12);
+    transform: scaleY(0.1);
   }
 }
-@keyframes mawl-tilt {
+@keyframes mawl-sway {
   0%,
   100% {
-    transform: rotate(-3deg);
+    transform: rotate(-2deg);
   }
   50% {
-    transform: rotate(3deg);
+    transform: rotate(2deg);
   }
 }
-@keyframes mawl-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-2.5px);
+@keyframes mawl-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 @keyframes mawl-hop {
-  0%,
+  0% {
+    transform: translateY(0) scale(1.05, 0.94);
+  }
+  40% {
+    transform: translateY(-36px) scale(0.97, 1.04);
+  }
+  75% {
+    transform: translateY(0) scale(1.04, 0.96);
+  }
   100% {
-    transform: translateY(0) scale(1.06, 0.92);
-  }
-  45% {
-    transform: translateY(-14px) scale(0.96, 1.05);
-  }
-}
-@keyframes mawl-shadow {
-  0%,
-  100% {
-    transform: scale(1.08, 1);
-    opacity: 0.13;
-  }
-  45% {
-    transform: scale(0.7, 0.9);
-    opacity: 0.07;
+    transform: translateY(0) scale(1, 1);
   }
 }
 @keyframes mawl-shake {
@@ -328,81 +170,40 @@
   }
   5%,
   15% {
-    transform: translateX(-2.5px);
+    transform: translateX(-8px);
   }
   10%,
   20% {
-    transform: translateX(2.5px);
+    transform: translateX(8px);
   }
   25% {
-    transform: translateX(-1.5px);
+    transform: translateX(-4px);
   }
   30% {
-    transform: translateX(1.5px);
-  }
-}
-@keyframes mawl-wave {
-  0%,
-  60%,
-  100% {
-    transform: rotate(0);
-  }
-  20% {
-    transform: rotate(-16deg);
-  }
-  40% {
-    transform: rotate(8deg);
+    transform: translateX(4px);
   }
 }
 @keyframes mawl-dot {
   0%,
   100% {
     transform: translateY(0);
-    opacity: 0.45;
+    opacity: 0.55;
   }
   50% {
-    transform: translateY(-4px);
+    transform: translateY(-8px);
     opacity: 1;
   }
 }
-@keyframes mawl-twinkle {
+@keyframes mawl-float {
   0%,
   100% {
-    transform: scale(0);
-    opacity: 0;
+    transform: translateY(0);
   }
   50% {
-    transform: scale(1);
-    opacity: 1;
+    transform: translateY(-6px);
   }
 }
-@keyframes mawl-drift {
-  0% {
-    transform: translate(0, 0);
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(8px, -9px);
-    opacity: 0;
-  }
-}
-@keyframes mawl-sweat {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(12px);
-    opacity: 0;
-  }
-}
-@keyframes mawl-zz {
+@keyframes mawl-z {
   0% {
     transform: translate(0, 0);
     opacity: 0;
@@ -411,16 +212,7 @@
     opacity: 1;
   }
   100% {
-    transform: translate(8px, -14px);
+    transform: translate(12px, -22px);
     opacity: 0;
-  }
-}
-@keyframes mawl-float {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-2px) scale(1.04);
   }
 }

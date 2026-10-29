@@ -10,8 +10,10 @@ const svgOf = (container: HTMLElement) => {
   if (!svg) throw new Error('no Mawl rendered')
   return svg as SVGSVGElement
 }
-const on = (svg: SVGSVGElement) =>
-  [...svg.querySelectorAll('[data-part][data-on]')].map((n) => n.getAttribute('data-part')).sort()
+const glyphs = (svg: SVGSVGElement) =>
+  [...svg.querySelectorAll('[data-part="eye"]')].map((n) => n.getAttribute('data-glyph'))
+const effects = (svg: SVGSVGElement) =>
+  [...svg.querySelectorAll('[data-part^="fx-"]')].map((n) => n.getAttribute('data-part'))
 const look = (svg: SVGSVGElement) => svg.querySelector<SVGGElement>('.mawl-look')
 const reduced = (ui: ReactElement) => <MotionConfig reducedMotion="always">{ui}</MotionConfig>
 
@@ -22,7 +24,7 @@ function placeAt(svg: SVGSVGElement, left: number, top: number, size: number) {
 }
 const nextFrame = () => act(() => new Promise<void>((r) => requestAnimationFrame(() => r())))
 
-describe('Mawl', () => {
+describe('Mawl, the orb', () => {
   it('is decorative and reports its state', () => {
     const { container } = render(<Mawl state="thinking" />)
     const svg = svgOf(container)
@@ -30,30 +32,49 @@ describe('Mawl', () => {
     expect(svg.getAttribute('data-state')).toBe('thinking')
   })
 
-  it('rests idle by default', () => {
-    const { container } = render(<Mawl />)
-    expect(svgOf(container).getAttribute('data-state')).toBe('idle')
+  it('rests idle, in lavender, by default', () => {
+    const svg = svgOf(render(<Mawl />).container)
+    expect(svg.getAttribute('data-state')).toBe('idle')
+    expect(svg.getAttribute('data-way')).toBe('lavender')
   })
 
-  it('shows exactly the eyes, mouth and effect of each state', () => {
+  it('draws one circle body', () => {
+    const svg = svgOf(render(<Mawl size={160} />).container)
+    expect(svg.querySelectorAll('circle[data-part="body"]')).toHaveLength(1)
+  })
+
+  it('shows the glyph eyes and the effect of each state', () => {
     for (const state of MASCOT_STATES) {
       const { container, unmount } = render(<Mawl state={state} size={160} />)
+      const svg = svgOf(container)
       const pose = POSES[state]
-      const expected = [`eyes-${pose.eyes}`, `mouth-${pose.mouth}`]
-      if (pose.fx) expected.push(`fx-${pose.fx}`)
-      expect(on(svgOf(container)), state).toEqual(expected.sort())
+      expect(glyphs(svg), state).toEqual([pose.l, pose.r])
+      expect(effects(svg), state).toEqual(pose.fx ? [`fx-${pose.fx}`] : [])
       unmount()
     }
   })
 
-  it('gives the new states their own cues', () => {
-    expect(POSES.waiting.fx).toBe('alert')
+  it('gives every state its own eyes', () => {
+    expect(POSES.idle).toMatchObject({ l: 'bar', r: 'bar' })
+    expect(POSES.listening).toMatchObject({ l: 'short', r: 'short' })
     expect(POSES.listening.look?.y).toBeGreaterThan(0)
-    const { container } = render(<Mawl state="listening" size={160} />)
-    expect(svgOf(container).style.getPropertyValue('--mawl-look')).toBe('translate(0px, 4px)')
+    expect(POSES.thinking).toMatchObject({ l: 'ring', r: 'ring', fx: 'think' })
+    expect(POSES.thinking.look?.x).toBeGreaterThan(0)
+    expect(POSES.thinking.look?.y).toBeLessThan(0)
+    expect(POSES.working).toMatchObject({ l: 'star', r: 'star' })
+    expect(POSES.waiting).toMatchObject({ l: 'plus', r: 'plus', fx: 'ask' })
+    expect(POSES.done).toMatchObject({ l: 'up', r: 'up' })
+    expect(POSES.oops).toMatchObject({ l: 'x', r: 'x' })
+    expect(POSES.sleepy).toMatchObject({ l: 'l', r: 'r', fx: 'z' })
   })
 
-  it('keeps gradient and clip ids unique per instance', () => {
+  it('wears the colourway it is given', () => {
+    const svg = svgOf(render(<Mawl size={160} way="teal" />).container)
+    expect(svg.getAttribute('data-way')).toBe('teal')
+    expect(svg.querySelector('[data-part="eye"] [fill], [data-part="eye"] [stroke]')).toBeTruthy()
+  })
+
+  it('keeps gradient ids unique per instance and points the body at its own', () => {
     const { container } = render(
       <>
         <Mawl size={160} />
@@ -66,21 +87,32 @@ describe('Mawl', () => {
     const [first] = container.querySelectorAll('svg.mawl')
     const body = first?.querySelector('[data-part="body"]')
     const ref = body?.getAttribute('fill')?.match(/^url\(#(.+)\)$/)?.[1]
-    expect(ref && first?.querySelector(`[id="${ref}"]`)).toBeTruthy()
+    expect(ref && first?.querySelector(`radialGradient[id="${ref}"]`)).toBeTruthy()
   })
 
-  it('sizes by width and drops the effects when small', () => {
-    const big = render(<Mawl size={160} />)
-    expect(svgOf(big.container).getAttribute('width')).toBe('160')
-    expect(big.container.querySelector('[data-part^="fx-"]')).toBeTruthy()
-    const small = render(<Mawl size={16} state="done" />)
-    const svg = svgOf(small.container)
-    expect(svg.getAttribute('width')).toBe('16')
-    expect(small.container.querySelector('[data-part^="fx-"]')).toBeNull()
-    expect(small.container.querySelector('.mawl-shadow')).toBeNull()
-    expect(svg.classList).toContain('is-tiny')
-    expect(svgOf(big.container).classList).not.toContain('is-tiny')
-    expect(on(svg)).toContain('eyes-happy')
+  it('is soft from 48 px and flat, with heavier strokes, below it', () => {
+    const soft = svgOf(render(<Mawl size={48} state="oops" />).container)
+    expect(soft.querySelector('[data-part="body"]')?.getAttribute('fill')).toMatch(/^url\(#/)
+    expect(soft.classList).not.toContain('is-flat')
+    const flat = svgOf(render(<Mawl size={32} state="oops" />).container)
+    expect(flat.querySelector('[data-part="body"]')?.getAttribute('fill')).toMatch(/^#/)
+    expect(flat.querySelector('radialGradient')).toBeNull()
+    expect(flat.classList).toContain('is-flat')
+    const width = (svg: SVGSVGElement) =>
+      Number(svg.querySelector('[data-part="eye"] path')?.getAttribute('stroke-width'))
+    expect(width(flat)).toBeGreaterThan(width(soft))
+  })
+
+  it('is square at the requested size and drops the effects when small', () => {
+    const big = svgOf(render(<Mawl size={160} state="sleepy" />).container)
+    expect(big.getAttribute('width')).toBe('160')
+    expect(big.getAttribute('height')).toBe('160')
+    expect(effects(big)).toEqual(['fx-z'])
+    const small = svgOf(render(<Mawl size={34} state="sleepy" />).container)
+    expect(small.getAttribute('width')).toBe('34')
+    expect(small.getAttribute('height')).toBe('34')
+    expect(effects(small)).toEqual([])
+    expect(glyphs(small)).toEqual(['l', 'r'])
   })
 
   it('follows the pointer with its eyes while idle and large', async () => {
@@ -89,7 +121,18 @@ describe('Mawl', () => {
     placeAt(svg, 0, 0, 160)
     fireEvent.pointerMove(document, { clientX: 2000, clientY: 80 })
     await nextFrame()
-    expect(look(svg)?.style.transform).toMatch(/^translate\(5(\.0)?px/)
+    expect(look(svg)?.style.transform).toMatch(/^translate\(14(\.0)?px/)
+  })
+
+  it('follows the pointer from 64 px, not below', async () => {
+    const at = render(<Mawl size={64} />)
+    const below = render(<Mawl size={63} />)
+    placeAt(svgOf(at.container), 0, 0, 64)
+    placeAt(svgOf(below.container), 0, 0, 63)
+    fireEvent.pointerMove(document, { clientX: 2000, clientY: 30 })
+    await nextFrame()
+    expect(look(svgOf(at.container))?.style.transform).not.toBe('')
+    expect(look(svgOf(below.container))?.style.transform).toBe('')
   })
 
   it('keeps its eyes still when small, busy or asked to reduce motion', async () => {
@@ -112,6 +155,21 @@ describe('Mawl', () => {
     await nextFrame()
     rerender(<Mawl size={160} state="thinking" />)
     expect(look(svg)?.style.transform).toBe('')
+  })
+
+  it('blinks only with bar eyes', () => {
+    const idle = svgOf(render(<Mawl size={160} />).container)
+    expect(idle.querySelectorAll('.mawl-blink')).toHaveLength(2)
+    const done = svgOf(render(<Mawl size={160} state="done" />).container)
+    expect(done.querySelector('.mawl-blink')).toBeNull()
+  })
+
+  it('answers hover and press when it can be clicked', () => {
+    expect(svgOf(render(<Mawl size={160} />).container).classList).toContain('is-pressable')
+    expect(svgOf(render(<Mawl size={40} />).container).classList).not.toContain('is-pressable')
+    expect(svgOf(render(reduced(<Mawl size={160} />)).container).classList).not.toContain(
+      'is-pressable',
+    )
   })
 
   it('hops when clicked, then lands', () => {
@@ -137,11 +195,12 @@ describe('Mawl', () => {
     expect(svg.classList.contains('is-hopping')).toBe(false)
   })
 
-  it('does not hop under reduced motion', () => {
-    const { container } = render(reduced(<Mawl size={160} />))
+  it('does not hop under reduced motion, and holds its pose', () => {
+    const { container } = render(reduced(<Mawl size={160} state="sleepy" />))
     const svg = svgOf(container)
     fireEvent.click(svg)
     expect(svg.classList.contains('is-hopping')).toBe(false)
     expect(svg.classList.contains('is-still')).toBe(true)
+    expect(effects(svg)).toEqual(['fx-z'])
   })
 })

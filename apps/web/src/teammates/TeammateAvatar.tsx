@@ -2,9 +2,9 @@ import { MawlAvatar } from '../mascot/MawlAvatar.tsx'
 import type { MascotState } from '../mascot/states.ts'
 
 /**
- * A round, neutral chip holding the simplified Mawl, which wears the teammate's own color
- * (UI-REDESIGN.md §3). The chip stays neutral so the tinted Mawl stands out against it. The color is
- * the teammate's data, not a design token, so it only ever tints: text never sits on it.
+ * The teammate's orb, in the colourway its stored colour maps to (DESIGN.md §8). The orb is round
+ * already, so it fills the avatar box with no chip behind it. The colour is the teammate's data,
+ * not a design token: it only picks a colourway, and text never sits on it.
  */
 export function TeammateAvatar({
   color,
@@ -18,10 +18,10 @@ export function TeammateAvatar({
   return (
     <span
       aria-hidden="true"
-      className="grid shrink-0 place-items-center overflow-hidden rounded-pill bg-surface-2"
+      className="grid shrink-0 place-items-center"
       style={{ width: size, height: size }}
     >
-      <MawlAvatar color={color} size={Math.round(size * 0.8)} state={state} />
+      <MawlAvatar color={color} size={size} state={state} />
     </span>
   )
 }
