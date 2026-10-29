@@ -98,7 +98,8 @@ describe('the host commands ACL', () => {
     expect(titlebar).toContain('.local(false)')
     expect(titlebar).toContain('.window(MAIN_WINDOW)')
     expect(titlebar).not.toMatch(/\.remote\(\s*"[^"]*\*/)
-    const granted = [...titlebar.matchAll(/\.permission\("([^"]+)"\)/g)].map((m) => m[1])
+    const list = /const PERMISSIONS: \[&str; \d+\] = \[([\s\S]*?)\];/.exec(titlebar)?.[1] ?? ''
+    const granted = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1])
     expect(granted.sort()).toEqual([
       'core:event:allow-listen',
       'core:event:allow-unlisten',
