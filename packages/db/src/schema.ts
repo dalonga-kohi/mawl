@@ -1,4 +1,5 @@
 import type {
+  ApprovalId,
   ArtifactId,
   CredentialId,
   Json,
@@ -13,6 +14,8 @@ import type {
   Usage,
 } from '@mawl/contracts'
 import {
+  ActionClass,
+  ApprovalStatus,
   ChannelKind,
   MessageRole,
   ProviderKind,
@@ -292,7 +295,7 @@ export const toolResults = pgTable(
   ],
 )
 
-/** What a parked run waits for. `question` today (ask_user); `approval` is reserved for D2.4. */
+/** What a parked run waits for: `question` (ask_user) or `approval` (a parked `ask` call). */
 export const RUN_WAIT_KINDS = ['question', 'approval'] as const
 
 /**
@@ -322,6 +325,62 @@ export const runWaits = pgTable(
       sql`${t.kind} in (${sql.raw(RUN_WAIT_KINDS.map((k) => `'${k}'`).join(', '))})`,
     ),
     check('run_waits_step_idx_check', sql`${t.stepIdx} >= 0`),
+  ],
+)
+
+/**
+ * A tool call the policy parked for the owner (`ask`, D2.4), one per (run, step idx, tool call
+ * id). `args_enc` is the exact argument text the call replays when approved (R9), encrypted with
+ * the secret box (AAD `approvals:<id>`); `args_hash` is its SHA-256, checked before any replay.
+ * Only `args_redacted_json` is ever shown. A pending row has no `decided_at`; anything else does.
+ */
+export const approvals = pgTable(
+  'approvals',
+  {
+    id: text('id').$type<ApprovalId>().primaryKey(),
+    profileId: text('profile_id')
+      .$type<ProfileId>()
+      .notNull()
+      .references(() => profiles.id),
+    runId: text('run_id')
+      .$type<RunId>()
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    stepIdx: integer('step_idx').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    tool: text('tool').notNull(),
+    actionClass: text('action_class').$type<ActionClass>().notNull(),
+    argsEnc: bytea('args_enc').notNull(),
+    argsHash: text('args_hash').notNull(),
+    argsRedacted: jsonbValue('args_redacted_json').notNull(),
+    reason: text('reason').notNull(),
+    status: text('status').$type<ApprovalStatus>().notNull().default('pending'),
+    decidedByDevice: text('decided_by_device'),
+    decidedViaChannel: text('decided_via_channel').$type<(typeof ORIGINS)[number]>(),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    decidedAt: ts('decided_at'),
+  },
+  (t) => [
+    unique('approvals_call_unique').on(t.runId, t.stepIdx, t.toolCallId),
+    check(
+      'approvals_status_check',
+      sql`${t.status} in (${sql.raw(ApprovalStatus.options.map((s) => `'${s}'`).join(', '))})`,
+    ),
+    check(
+      'approvals_action_class_check',
+      sql`${t.actionClass} in (${sql.raw(ActionClass.options.map((s) => `'${s}'`).join(', '))})`,
+    ),
+    check(
+      'approvals_channel_check',
+      sql`${t.decidedViaChannel} is null or ${t.decidedViaChannel} in (${sql.raw(ORIGINS.map((o) => `'${o}'`).join(', '))})`,
+    ),
+    check('approvals_decided_check', sql`(${t.status} = 'pending') = (${t.decidedAt} is null)`),
+    check('approvals_args_hash_check', sql`${t.argsHash} ~ '^[0-9a-f]{64}$'`),
+    check('approvals_step_idx_check', sql`${t.stepIdx} >= 0`),
+    // The expiry sweep reads pending rows by expiry; the inbox reads a profile's newest first.
+    index('approvals_status_expires_idx').on(t.status, t.expiresAt),
+    index('approvals_profile_created_idx').on(t.profileId, t.createdAt.desc()),
   ],
 )
 
