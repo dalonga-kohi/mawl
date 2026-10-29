@@ -47,12 +47,12 @@ describe('the server policy gate (PGlite)', () => {
     expect(d).toMatchObject({ decision: 'allow', audit: { level: 'auto', source: 'user_rule' } })
   })
 
-  it('denies a first fetch to an unknown host', async () => {
+  it('parks a first fetch to an unknown host for approval', async () => {
     const { profileId, runId } = await seed()
     const d = await createPolicyGate(db, logger).check(
       fetchReq(runId, profileId, 'https://example.org/'),
     )
-    expect(d).toMatchObject({ decision: 'deny', audit: { level: 'ask', source: 'global' } })
+    expect(d).toMatchObject({ decision: 'park', audit: { level: 'ask', source: 'global' } })
   })
 
   it('a host fetched earlier in the run is allowed by a fresh gate (survives a resume)', async () => {
@@ -81,8 +81,38 @@ describe('the server policy gate (PGlite)', () => {
       decision: 'allow',
     })
     expect(await gate.check(fetchReq(runId, profileId, 'https://denied.example/'))).toMatchObject({
-      decision: 'deny',
+      decision: 'park',
     })
+  })
+
+  it('a host the owner approved earlier in the run counts as seen', async () => {
+    const { profileId, runId } = await seed()
+    const store = createRunStore(db)
+    await store.recordToolCall(runId, {
+      toolCallId: 'c1',
+      tool: 'web_fetch',
+      argsRedacted: { url: 'https://approved.example/a' },
+      actionClass: 'read',
+      level: 'ask',
+      source: 'global',
+      approved: true,
+    })
+    const gate = createPolicyGate(db, logger)
+    expect(
+      await gate.check(fetchReq(runId, profileId, 'https://approved.example/b')),
+    ).toMatchObject({ decision: 'allow', audit: { level: 'auto' } })
+    // A redirect hop to it is followed too; one to an unseen host is not.
+    const hop = (to: string) =>
+      gate.checkRedirect?.({
+        runId,
+        profileId,
+        tool: 'web_fetch',
+        actionClass: 'read',
+        from: 'https://other.example/',
+        to,
+      })
+    expect(await hop('https://approved.example/c')).toBe(true)
+    expect(await hop('https://unseen.example/')).toBe(false)
   })
 
   it('hosts seen in another run do not count', async () => {
@@ -98,7 +128,7 @@ describe('the server policy gate (PGlite)', () => {
     })
     expect(
       await createPolicyGate(db, logger).check(fetchReq(runId, profileId, 'https://example.net/')),
-    ).toMatchObject({ decision: 'deny' })
+    ).toMatchObject({ decision: 'park' })
   })
 
   it('stores the audit fields on run.tool_call', async () => {
@@ -121,7 +151,7 @@ describe('the server policy gate (PGlite)', () => {
     const d = await createPolicyGate(db, logger).check(
       fetchReq(runId, profileId, 'https://example.com/'),
     )
-    expect(d).toMatchObject({ decision: 'deny', audit: { level: 'ask' } })
+    expect(d).toMatchObject({ decision: 'park', audit: { level: 'ask' } })
     expect(warn).toHaveBeenCalledWith({ profileId }, expect.stringContaining('policy'))
     warn.mockRestore()
   })
@@ -136,7 +166,7 @@ describe('the server policy gate (PGlite)', () => {
       args: {},
       argsRedacted: {},
     })
-    expect(d).toMatchObject({ decision: 'deny', audit: { level: 'ask', source: 'global' } })
+    expect(d).toMatchObject({ decision: 'park', audit: { level: 'ask', source: 'global' } })
   })
 
   it('an unknown run fails closed', async () => {
@@ -148,6 +178,7 @@ describe('the server policy gate (PGlite)', () => {
       args: {},
       argsRedacted: {},
     })
-    expect(d.decision).toBe('deny')
+    // The strict fallback (teammate trigger): never allowed without the owner.
+    expect(d).toMatchObject({ decision: 'park', audit: { level: 'ask' } })
   })
 })

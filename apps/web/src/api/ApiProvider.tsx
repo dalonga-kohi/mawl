@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import type { ApprovalsApi } from './approvals-api.ts'
 import type {
   LiveFactory,
   LiveStatus,
@@ -26,6 +27,8 @@ export interface Api {
   profiles: ProfilesApi
   threads: ThreadsApi
   runs: RunsApi
+  /** Tool calls parked for the owner's decision. */
+  approvals: ApprovalsApi
   /** Opens the live event stream for the app's query cache. */
   live: LiveFactory
 }

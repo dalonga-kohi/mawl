@@ -52,11 +52,12 @@ function harness(deps: Partial<PolicyGateDeps> = {}) {
       { stepIdx: 0, toolCallId: `c${++n}`, toolName, input },
       { ledger, signal: new AbortController().signal, allowPark: true },
     )
-    if (r.kind !== 'result') throw new Error('expected a result')
+    const event = ledger.events.filter((e) => e.type === 'run.tool_call').at(-1)?.payload
+    // A parked call needs the owner: for these tests it is not run, like a denial.
+    if (r.kind === 'park') return { denied: true, parked: true, text: '', event }
     const o = r.part.output
     const text = o.type === 'text' || o.type === 'error-text' ? o.value : ''
-    const event = ledger.events.filter((e) => e.type === 'run.tool_call').at(-1)?.payload
-    return { denied: r.record.isError && text.includes('denied'), text, event }
+    return { denied: r.record.isError && text.includes('denied'), parked: false, text, event }
   }
   return { call, fetch, ran, ledger }
 }
@@ -70,13 +71,39 @@ describe('policyGate through the tool registry', () => {
     expect(r.event).not.toHaveProperty('mode')
   })
 
-  it('denies a first web_fetch to a host (ask, until approvals exist) without fetching', async () => {
+  it('parks a first web_fetch to a host for approval (ask) without fetching', async () => {
     const h = harness()
     const r = await h.call('web_fetch', { url: 'https://a.com/x?secret=1' })
-    expect(r.denied).toBe(true)
-    expect(r.text).toMatch(/approvals .*not available yet/i)
+    expect(r.parked).toBe(true)
     expect(h.fetch).not.toHaveBeenCalled()
     expect(r.event).toMatchObject({ level: 'ask', source: 'global' })
+  })
+
+  it('emits park for ask and handoff, deny for block, allow for auto', async () => {
+    const gate = policyGate({
+      load: async () => ({ policy: {}, trigger: 'user' }),
+      seenHosts: async () => [],
+    })
+    const check = (tool: string, actionClass: ActionClass) =>
+      gate.check({ runId, profileId, tool, actionClass, args: {}, argsRedacted: {} })
+    expect(await check('reader', 'read')).toMatchObject({ decision: 'allow' })
+    expect(await check('writer', 'write_local')).toMatchObject({
+      decision: 'park',
+      audit: { level: 'ask' },
+    })
+    expect(await check('pay', 'purchase')).toMatchObject({
+      decision: 'park',
+      audit: { level: 'handoff' },
+    })
+    const blocked = await gate.check({
+      runId,
+      profileId,
+      tool: 'web_fetch',
+      actionClass: 'read',
+      args: { url: 'http://127.0.0.1/' },
+      argsRedacted: {},
+    })
+    expect(blocked).toMatchObject({ decision: 'deny', audit: { level: 'block' } })
   })
 
   it('fetches a host already fetched in this run (read from the ledger, so it survives a resume)', async () => {
@@ -196,12 +223,83 @@ describe('policyGate through the tool registry', () => {
   })
 })
 
+describe('policyGate.checkRedirect: a cross-host hop is decided like a fetch of its own', () => {
+  const hop = (deps: Partial<PolicyGateDeps>, to: string, from = 'https://a.com/start') =>
+    policyGate({
+      load: async () => ({ policy: {}, trigger: 'user' }),
+      seenHosts: async () => [],
+      ...deps,
+    }).checkRedirect?.({ runId, profileId, tool: 'web_fetch', actionClass: 'read', from, to })
+
+  it('follows a hop on the same host without loading anything', async () => {
+    const load = vi.fn(async () => ({ policy: {}, trigger: 'user' as const }))
+    expect(await hop({ load }, 'http://A.com:8080/next')).toBe(true)
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('follows a hop to an allow-listed host or a host this run already fetched', async () => {
+    const allowed = async () => ({ policy: { allowedHosts: ['b.com'] }, trigger: 'user' as const })
+    expect(await hop({ load: allowed }, 'https://b.com/x')).toBe(true)
+    expect(await hop({ seenHosts: async () => ['c.com'] }, 'https://c.com/x')).toBe(true)
+  })
+
+  it('stops at a hop to a host the owner has not seen, a local address, or on a load failure', async () => {
+    expect(await hop({}, 'https://evil.com/collect?d=1')).toBe(false)
+    expect(
+      await hop(
+        { load: async () => ({ policy: { mode: 'autopilot' }, trigger: 'user' }) },
+        'http://192.168.1.1/',
+      ),
+    ).toBe(false)
+    const onLoadError = vi.fn()
+    expect(
+      await hop(
+        {
+          seenHosts: async () => {
+            throw new Error('db down')
+          },
+          onLoadError,
+        },
+        'https://c.com/',
+      ),
+    ).toBe(false)
+    expect(onLoadError).toHaveBeenCalled()
+  })
+
+  it('respects a block rule on the target and Autopilot only outside teammate runs', async () => {
+    const rules = [{ match: { tool: 'web_fetch', argPattern: 'https://b.com/*' }, level: 'block' }]
+    expect(
+      await hop(
+        { load: async () => ({ policy: { rules, allowedHosts: ['b.com'] }, trigger: 'user' }) },
+        'https://b.com/x',
+      ),
+    ).toBe(false)
+    const autopilot = (trigger: 'user' | 'teammate') => async () => ({
+      policy: { mode: 'autopilot' },
+      trigger,
+    })
+    expect(await hop({ load: autopilot('user') }, 'https://d.com/')).toBe(true)
+    expect(await hop({ load: autopilot('teammate') }, 'https://d.com/')).toBe(false)
+  })
+
+  it('refuses a hop from a call url that does not parse', async () => {
+    expect(await hop({}, 'https://b.com/', 'not a url')).toBe(false)
+  })
+})
+
 describe('hostsFromToolCalls', () => {
-  it('keeps only hosts of allowed web_fetch calls', () => {
+  it('keeps only hosts of allowed or owner-approved web_fetch calls', () => {
     const hosts = hostsFromToolCalls([
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'https://A.com:8443/p?…' } },
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'https://xn--bcher-kva.de/' } },
       { tool: 'web_fetch', level: 'ask', argsRedacted: { url: 'https://denied.com/' } },
+      {
+        tool: 'web_fetch',
+        level: 'ask',
+        approved: true,
+        argsRedacted: { url: 'https://approved.org/' },
+      },
+      { tool: 'web_fetch', level: 'ask', approved: 'yes', argsRedacted: { url: 'https://x.io/' } },
       { tool: 'web_fetch', argsRedacted: { url: 'https://legacy.com/' } },
       { tool: 'web_search', level: 'auto', argsRedacted: { url: 'https://other.com/' } },
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'http://127.0.0.1/' } },
@@ -210,6 +308,6 @@ describe('hostsFromToolCalls', () => {
       null,
       'junk',
     ])
-    expect(hosts).toEqual(['a.com', 'xn--bcher-kva.de'])
+    expect(hosts).toEqual(['a.com', 'xn--bcher-kva.de', 'approved.org'])
   })
 })

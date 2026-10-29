@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import type * as schemaNs from './schema.ts'
 import {
+  approvals,
   artifacts,
   events,
   jsonValue,
@@ -48,6 +49,7 @@ const schemaTables = {
   toolResults,
   runWaits,
   serviceCredentials,
+  approvals,
 }
 
 export type TestDb = PgDatabase<PgQueryResultHKT, typeof schemaNs>
@@ -132,8 +134,8 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           m.db,
           sql`select count(*)::int as n from information_schema.tables where table_schema = 'public'`,
         )
-        // 13 tables (the drizzle journal lives in schema "drizzle").
-        expect(row?.n).toBe(13)
+        // 14 tables (the drizzle journal lives in schema "drizzle").
+        expect(row?.n).toBe(14)
       } finally {
         await m.close()
       }
@@ -729,6 +731,63 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
       }
     })
 
+    it('keeps one approval per tool call, with closed statuses, a hex hash and a decision time', async () => {
+      const m = await fresh()
+      try {
+        const { id: runId, profileId } = await seedRun(m.db)
+        const row = (over: Partial<typeof approvals.$inferInsert> = {}) => ({
+          id: newId('approval'),
+          profileId,
+          runId,
+          stepIdx: 0,
+          toolCallId: 'call_1',
+          tool: 'web_fetch',
+          actionClass: 'read' as const,
+          argsEnc: Uint8Array.from([1, 2, 3]),
+          argsHash: 'ab'.repeat(32),
+          argsRedacted: { url: 'https://a.com/' },
+          reason: 'First fetch to a.com in this run.',
+          expiresAt: new Date('2026-01-03T00:00:00.000Z'),
+          ...over,
+        })
+        await m.db.insert(approvals).values(row())
+        const [stored] = await m.db.select().from(approvals)
+        expect(stored?.status).toBe('pending')
+        expect(Array.from(stored?.argsEnc ?? [])).toEqual([1, 2, 3])
+        // The same call cannot be parked twice; another call of the step can.
+        await expect(m.db.insert(approvals).values(row())).rejects.toThrow()
+        await m.db.insert(approvals).values(row({ toolCallId: 'call_2' }))
+        const bad: Partial<typeof approvals.$inferInsert>[] = [
+          { status: 'maybe' as never },
+          { status: 'approved' },
+          { decidedAt: new Date() },
+          { argsHash: 'not-hex' },
+          { actionClass: 'teleport' as never },
+          { decidedViaChannel: 'fax' as never },
+          { stepIdx: -1 },
+        ]
+        for (const [i, over] of bad.entries()) {
+          await expect(
+            m.db.insert(approvals).values(row({ toolCallId: `bad_${i}`, ...over })),
+            JSON.stringify(over),
+          ).rejects.toThrow()
+        }
+        await m.db.insert(approvals).values(
+          row({
+            toolCallId: 'call_3',
+            status: 'denied',
+            decidedAt: new Date(),
+            decidedViaChannel: 'app',
+          }),
+        )
+        // A run delete takes its approvals with it.
+        await m.db.delete(runs).where(eq(runs.id, runId))
+        expect(await m.db.select().from(approvals)).toHaveLength(0)
+      } finally {
+        await m.close()
+      }
+    })
+
     it('creates the expected indexes', async () => {
       const m = await fresh()
       try {
@@ -748,6 +807,9 @@ export function describeMigrations(label: string, make: () => Promise<MadeDb>) {
           run_steps_run_idx_unique: '(run_id, idx)',
           oauth_clients_provider_created_idx: '(provider, created_at DESC NULLS LAST)',
           provider_credentials_oauth_client_id_unique: '(oauth_client_id)',
+          approvals_call_unique: '(run_id, step_idx, tool_call_id)',
+          approvals_status_expires_idx: '(status, expires_at)',
+          approvals_profile_created_idx: '(profile_id, created_at DESC NULLS LAST)',
         }
         for (const [name, cols] of Object.entries(expected)) {
           expect(def(name), name).toContain(cols)

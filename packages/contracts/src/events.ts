@@ -46,6 +46,8 @@ export const EVENT_PAYLOADS = {
     source: PolicySource.optional(),
     /** Present (`autopilot`) when the profile ran in Autopilot mode. */
     mode: PolicyMode.optional(),
+    /** Set when the call runs because the owner approved it (D2.4); `level` keeps the policy's answer. */
+    approved: z.literal(true).optional(),
   }),
   'run.tool_result': z.object({
     toolCallId: z.string().min(1),

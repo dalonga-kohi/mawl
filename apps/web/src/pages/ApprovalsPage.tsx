@@ -1,5 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Activity, CircleCheck } from 'lucide-react'
+import { Activity } from 'lucide-react'
+import { NeedsYou } from '../approvals/NeedsYou.tsx'
 import { EmptyPanel } from '../ui/EmptyPanel.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/Tabs.tsx'
 import { PageShell } from './PageShell.tsx'
@@ -7,8 +8,7 @@ import type { ApprovalsTab } from './search.ts'
 
 /**
  * Needs you and Activity (UI-REDESIGN.md §5). The tab lives in `?tab=`.
- * reason: both lists stay empty until the approval queue (D2.4) and the activity feed (D2.12)
- * exist; the sidebar count waits for D2.4 too.
+ * reason: Activity stays empty until the activity feed (D2.12) exists.
  */
 export function ApprovalsPage() {
   const { tab } = useSearch({ from: '/approvals' })
@@ -29,9 +29,7 @@ export function ApprovalsPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="needs-you">
-          <EmptyPanel icon={CircleCheck} title="You're all caught up">
-            When a teammate needs your OK, it appears here.
-          </EmptyPanel>
+          <NeedsYou />
         </TabsContent>
         <TabsContent value="activity">
           <EmptyPanel icon={Activity} title="No activity yet">

@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { MotionGlobalConfig } from 'motion/react'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { HostBridge } from './bridge.ts'
 import { READY_HOLD_MS, Splash } from './Splash.tsx'
 import type { Status } from './status.ts'
@@ -28,6 +29,17 @@ function fakeBridge(first: Status) {
 
 const FAILED: Status = { phase: 'failed', reason: { kind: 'exited', code: 1 } }
 
+// These tests are about what the splash says and does, not how it moves. With animations on, the
+// old title waits for a Motion exit animation before the new one mounts, and on a loaded CI runner
+// that exit outlived even a 15 s wait. Skipping animations finishes every enter and exit at once;
+// the timers the splash itself sets (the ready hold) still run in real time.
+beforeAll(() => {
+  MotionGlobalConfig.skipAnimations = true
+})
+afterAll(() => {
+  MotionGlobalConfig.skipAnimations = false
+})
+
 describe('the desktop splash', () => {
   it('shows the real boot stage and moves the track as the host reports progress', async () => {
     const { bridge, emit } = fakeBridge({ phase: 'starting', stage: 'database' })
@@ -38,11 +50,7 @@ describe('the desktop splash', () => {
     expect(track.getAttribute('aria-valuetext')).toBe('Starting the database')
 
     emit({ phase: 'starting', stage: 'server' })
-    // The old title leaves through a Motion exit animation first. It is the first one in this file,
-    // and on a loaded CI runner it overran the default 5 s (main failed once at 5.4 s).
-    expect(
-      await screen.findByRole('heading', { name: 'Almost there' }, { timeout: 15_000 }),
-    ).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Almost there' })).toBeTruthy()
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('1')
     expect(screen.queryByRole('button')).toBeNull()
   })

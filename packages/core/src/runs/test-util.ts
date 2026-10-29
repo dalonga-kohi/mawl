@@ -10,9 +10,12 @@ import {
 import { fakeModel, fixedClock } from '@mawl/testkit'
 import type { ModelMessage } from 'ai'
 import { z } from 'zod'
+import { type ApprovalRefusal, approvalRefusedRecord } from '../tools/approval.ts'
 import { defineTool } from '../tools/define.ts'
+import { allowAllGate } from '../tools/gate.ts'
 import { createToolRegistry, type ToolRegistryOptions } from '../tools/registry.ts'
 import type {
+  ApprovedCall,
   ToolCallKey,
   ToolEmit,
   ToolLedger,
@@ -46,10 +49,12 @@ export interface RecordedEvent {
  */
 export function testTools(
   fns: Record<string, (input: Record<string, unknown>) => string | Promise<string>>,
-  options: Omit<ToolRegistryOptions, 'tools'> = {},
+  options: Partial<Omit<ToolRegistryOptions, 'tools'>> = {},
 ): ToolRegistry {
   return createToolRegistry({
     ...options,
+    // Engine tests are about the loop, not the policy: allow unless a test passes a gate.
+    gate: options.gate ?? allowAllGate,
     tools: Object.entries(fns).map(([name, fn]) =>
       defineTool({
         name,
@@ -197,9 +202,39 @@ export class MemoryRunStore implements RunStore {
   }
 
   async park(runId: RunId, wait: RunWait, activeMsDelta: number): Promise<boolean> {
-    const ok = await this.transition(runId, 'running', 'waiting_user', { activeMsDelta })
+    const to = wait.kind === 'approval' ? 'waiting_approval' : 'waiting_user'
+    const ok = await this.transition(runId, 'running', to, { activeMsDelta })
     if (ok) this.waits.set(runId, { ...wait, answer: null })
     return ok
+  }
+
+  readonly grants = new Map<string, ApprovedCall>()
+
+  async approvedCall(runId: RunId, key: ToolCallKey): Promise<ApprovedCall | null> {
+    return this.grants.get(toolKey(runId, key)) ?? null
+  }
+
+  /**
+   * What the server's approvals.decide does: approve leaves the stored call for the replay; deny or
+   * expire records the refusal as the call's result. Either way the run goes back to running.
+   */
+  async decide(runId: RunId, decision: 'approve' | ApprovalRefusal): Promise<boolean> {
+    const wait = this.waits.get(runId)
+    if (wait?.kind !== 'approval' || wait.answer !== null) return false
+    if (!(await this.transition(runId, 'waiting_approval', 'running'))) return false
+    wait.answer = decision
+    if (decision === 'approve') {
+      const { tool, argsText, argsHash } = wait.approval
+      this.grants.set(toolKey(runId, wait), { status: 'approved', tool, argsText, argsHash })
+    } else {
+      await this.recordToolResult(
+        runId,
+        wait,
+        approvalRefusedRecord(wait.approval.tool, decision),
+        [],
+      )
+    }
+    return true
   }
 
   async toolResult(runId: RunId, key: ToolCallKey): Promise<ToolResultRecord | null> {
@@ -232,7 +267,7 @@ export class MemoryRunStore implements RunStore {
   /** What the server's reply does: record the answer as the tool result and resume the run. */
   async reply(runId: RunId, record: ToolResultRecord): Promise<boolean> {
     const wait = this.waits.get(runId)
-    if (!wait || wait.answer !== null) return false
+    if (wait?.kind !== 'question' || wait.answer !== null) return false
     if (!(await this.transition(runId, 'waiting_user', 'running'))) return false
     wait.answer = record.preview
     await this.recordToolResult(runId, wait, record, [])

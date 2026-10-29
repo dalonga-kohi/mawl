@@ -13,6 +13,8 @@ const payloads: Record<EventType, unknown> = {
     tool: 'shell',
     argsRedacted: { cmd: 'ls' },
     actionClass: 'shell_exec',
+    level: 'ask',
+    approved: true,
   },
   'run.tool_result': { toolCallId: 'c1', preview: 'ok', artifactId: f.id('art'), isError: false },
   'run.step': { stepId: f.id('step'), idx: 1, kind: 'tool' },

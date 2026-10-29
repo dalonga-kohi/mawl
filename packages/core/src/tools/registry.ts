@@ -1,6 +1,6 @@
 import { tool as sdkTool, type ToolSet } from 'ai'
 import { delimitData } from '../prompts/assemble.ts'
-import { allowAllGate } from './gate.ts'
+import { argsHash, canonicalArgs, replayApproved } from './approval.ts'
 import { cut, storable, storableJson } from './text.ts'
 import {
   ARTIFACT_PREVIEW_CHARS,
@@ -26,10 +26,11 @@ export const TOOL_RESULT_TAG = 'tool_result'
 export interface ToolRegistryOptions {
   tools: readonly Tool[]
   /**
-   * Default: allow everything, for tests only. Every production registry passes the policy engine
-   * (`policyGate`); the server does so in `createServerTools`.
+   * Required, so a registry can never default to allow-all. Every production registry passes the
+   * policy engine (`policyGate`); the server does so in `createServerTools`. Core tests pass
+   * `allowAllGate` explicitly.
    */
-  gate?: ToolGate
+  gate: ToolGate
   /** Where large outputs go. Without it they are truncated. */
   artifacts?: ArtifactStore
 }
@@ -97,7 +98,9 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
     if (byName.has(t.name)) throw new Error(`duplicate tool name: ${t.name}`)
     byName.set(t.name, t)
   }
-  const gate = options.gate ?? allowAllGate
+  // Checked at run time too, for callers outside the type checker.
+  if (!options.gate) throw new Error('a tool registry needs a gate')
+  const gate = options.gate
   const artifacts = options.artifacts
   const names = [...byName.keys()].sort()
   const toolSet: ToolSet = Object.fromEntries(
@@ -152,17 +155,20 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             argsRedacted: prepared.argsRedacted,
           })
           const audit = decision.audit
-          await ledger.recordToolCall(runId, {
-            toolCallId: call.toolCallId,
-            tool: t.name,
-            argsRedacted: prepared.argsRedacted,
-            actionClass: t.actionClass,
-            ...(audit ? { level: audit.level, source: audit.source } : {}),
-            ...(audit?.mode ? { mode: audit.mode } : {}),
-          })
-          // Only an explicit allow runs the tool: `deny`, `park` (a denial until approvals land;
-          // D2.4 parks the run here instead) and any unknown variant are refused.
-          if (decision.decision !== 'allow') {
+          const recordCall = (approved: boolean) =>
+            ledger.recordToolCall(runId, {
+              toolCallId: call.toolCallId,
+              tool: t.name,
+              argsRedacted: prepared.argsRedacted,
+              actionClass: t.actionClass,
+              ...(audit ? { level: audit.level, source: audit.source } : {}),
+              ...(audit?.mode ? { mode: audit.mode } : {}),
+              ...(approved ? { approved: true as const } : {}),
+            })
+          // Only an explicit allow, or a park the owner approved, runs the tool: `deny` and any
+          // unknown variant are refused.
+          if (decision.decision !== 'allow' && decision.decision !== 'park') {
+            await recordCall(false)
             const reason =
               typeof decision.reason === 'string' ? decision.reason : 'no usable decision'
             return save(
@@ -170,14 +176,89 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             )
           }
 
+          let runnable = prepared
+          let approved = false
+          if (decision.decision === 'park') {
+            // Approvals are keyed by this run's (step idx, tool call id): no other run, and so
+            // no teammate-triggered run, can use one (R19).
+            const grant = await ledger.approvedCall(runId, key)
+            if (grant) {
+              const replay = replayApproved(t, grant, prepared)
+              if (!replay) {
+                await recordCall(false)
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    'The approved call does not match what was approved, so it was not run.',
+                  ),
+                )
+              }
+              runnable = replay
+              approved = true
+            } else {
+              await recordCall(false)
+              if (decision.audit.level !== 'ask') {
+                // A hand-off means the owner does it themselves; approving it would let the
+                // teammate do it instead. Refused until takeover exists.
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    `Policy denied this call: ${clip(decision.reason, 300)} This needs a hand-off ` +
+                      'to the owner, which is not available yet, so it was not run.',
+                  ),
+                )
+              }
+              if (!allowPark) {
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    'Another call in this step is already waiting for the owner; this one was not run.',
+                  ),
+                )
+              }
+              const argsText = canonicalArgs(prepared.args)
+              const reason = storable(clip(decision.reason, 300))
+              return {
+                kind: 'park',
+                wait: {
+                  kind: 'approval',
+                  payload: { tool: t.name, reason },
+                  approval: {
+                    tool: t.name,
+                    actionClass: t.actionClass,
+                    argsText,
+                    argsHash: argsHash(argsText),
+                    argsRedacted: prepared.argsRedacted,
+                    reason,
+                  },
+                },
+              }
+            }
+          }
+          await recordCall(approved)
+
           let outcome: Awaited<ReturnType<typeof prepared.run>>
           try {
-            outcome = await prepared.run({
+            outcome = await runnable.run({
               runId,
               profileId,
               stepIdx: call.stepIdx,
               toolCallId: call.toolCallId,
               signal,
+              allowRedirect: async (from, to) =>
+                gate.checkRedirect
+                  ? gate.checkRedirect({
+                      runId,
+                      profileId,
+                      tool: t.name,
+                      actionClass: t.actionClass,
+                      from,
+                      to,
+                    })
+                  : false,
             })
           } catch (err) {
             // Cancel, pause or shutdown: nothing is recorded, and the engine decides what happens.

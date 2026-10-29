@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveStatus, useRunText } from '../api/ApiProvider.tsx'
 import { errorCode } from '../api/providers-api.ts'
+import { RunApprovals } from '../approvals/RunApprovals.tsx'
 import { Mawl } from '../mascot/Mawl.tsx'
 import { useMascotState } from '../mascot/mascot-state.ts'
 import type { MascotState } from '../mascot/states.ts'
@@ -358,6 +359,13 @@ function Conversation({
               <MessageItem key={m.id} message={m} />
             ))}
             {showPendingBubble && pending ? <UserBubble text={pending.prompt} pending /> : null}
+            {runId && isActive(run?.status) ? (
+              <RunApprovals
+                runId={runId}
+                waiting={run?.status === 'waiting_approval'}
+                teammate={profile.name}
+              />
+            ) : null}
             <RunTail
               run={run}
               text={text}
@@ -515,6 +523,8 @@ function RunTail({
       </motion.article>
     )
   }
+  // A run parked for the owner shows its approval card instead of the thinking dots.
+  if (run.status === 'waiting_approval') return null
   if (isActive(run.status)) return <Thinking name={name} />
   if (run.status === 'failed') return <RunFailure run={run} onRetry={onRetry} />
   if (run.status === 'cancelled') {

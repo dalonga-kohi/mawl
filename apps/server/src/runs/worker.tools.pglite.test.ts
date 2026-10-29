@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite-pgvector'
 import type { RunId } from '@mawl/contracts'
@@ -8,6 +9,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createLogger } from '../logger.ts'
+import { createSecretBox, type SecretBox } from '../secrets/index.ts'
 import { createServerTools } from '../tools/registry.ts'
 import { RunRegistry } from './registry.ts'
 import { createRunService } from './service.ts'
@@ -45,7 +47,10 @@ describe('run.execute with the built-in tools (PGlite)', () => {
     }),
   }
 
-  function task(model: ReturnType<typeof fakeModel>, over: { supportsTools?: boolean } = {}) {
+  function task(
+    model: ReturnType<typeof fakeModel>,
+    over: { supportsTools?: boolean; secretBox?: SecretBox } = {},
+  ) {
     const registry = new RunRegistry()
     const webFetch = vi.fn(
       async () =>
@@ -62,6 +67,7 @@ describe('run.execute with the built-in tools (PGlite)', () => {
         ...(over.supportsTools === undefined ? {} : { supportsTools: over.supportsTools }),
       }),
       requeue: async () => {},
+      ...(over.secretBox ? { secretBox: over.secretBox } : {}),
       tools: createServerTools({ db, search: noSearch, webFetch }),
     })
     return {
@@ -139,20 +145,18 @@ describe('run.execute with the built-in tools (PGlite)', () => {
     expect(result?.artifactId).toBe(art?.id)
   })
 
-  it('goes through the policy engine by default: a first fetch to a host is denied, not fetched', async () => {
+  it('goes through the policy engine by default: a first fetch to a host waits for approval', async () => {
     const runId = await seedQueued({})
     const t = task(
-      fakeModel([
-        { toolCalls: [{ name: 'web_fetch', input: { url: 'https://example.com/' } }] },
-        { text: 'could not read it' },
-      ]),
+      fakeModel([{ toolCalls: [{ name: 'web_fetch', input: { url: 'https://example.com/' } }] }]),
+      { secretBox: await createSecretBox(new Uint8Array(randomBytes(32))) },
     )
     await t.run(runId)
-    expect(await statusOf(runId)).toBe('succeeded')
+    expect(await statusOf(runId)).toBe('waiting_approval')
+    expect(t.registry.size).toBe(0)
     expect(t.webFetch).not.toHaveBeenCalled()
     const result = await createRunStore(db).toolResult(runId, { stepIdx: 0, toolCallId: 'call_1' })
-    expect(result?.isError).toBe(true)
-    expect(result?.preview).toContain('denied')
+    expect(result).toBeNull()
     const [call] = await db
       .select()
       .from(events)

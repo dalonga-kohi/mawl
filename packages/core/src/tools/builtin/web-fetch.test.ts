@@ -1,7 +1,9 @@
 import { newId } from '@mawl/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { allowAllGate } from '../gate.ts'
 import { createToolRegistry } from '../registry.ts'
 import { MemoryArtifacts, MemoryLedger } from '../test-util.ts'
+import type { ToolGate } from '../types.ts'
 import { BlockedAddressError, type WebFetchDeps, webFetchTool } from './web-fetch.ts'
 
 const runId = newId('run')
@@ -13,9 +15,11 @@ function bind(
   fetch: FetchFn,
   over: Partial<WebFetchDeps> = {},
   signal = new AbortController().signal,
+  gate: ToolGate = allowAllGate,
 ) {
   const ledger = new MemoryLedger()
   const run = createToolRegistry({
+    gate,
     tools: [webFetchTool({ fetch, ...over })],
     artifacts: new MemoryArtifacts(),
   }).forRun({ runId, profileId })
@@ -171,6 +175,45 @@ describe('web_fetch: hostile urls', () => {
       'https://b.example/final',
     ])
     expect(fetch.mock.calls.every((c) => c[1].redirect === 'manual')).toBe(true)
+  })
+
+  it('asks the gate before following each hop, with the call url and the next one', async () => {
+    const checkRedirect = vi.fn<NonNullable<ToolGate['checkRedirect']>>(
+      async (req) => !req.to.startsWith('https://evil.example/'),
+    )
+    const fetch = vi.fn<FetchFn>(async (url) => {
+      if (url === 'https://a.example/start') return redirect('/next')
+      if (url === 'https://a.example/next') return redirect('https://evil.example/collect?d=1')
+      return html('<p>never</p>')
+    })
+    const gate: ToolGate = { check: allowAllGate.check, checkRedirect }
+    const r = await bind(fetch, {}, new AbortController().signal, gate).call({
+      url: 'https://a.example/start',
+    })
+    const out = text(r)
+    expect(out).toContain('error redirect_refused')
+    expect(out).toContain('https://evil.example/collect?d=1')
+    expect(fetch.mock.calls.map((c) => c[0])).toEqual([
+      'https://a.example/start',
+      'https://a.example/next',
+    ])
+    expect(checkRedirect.mock.calls.map((c) => [c[0].from, c[0].to])).toEqual([
+      ['https://a.example/start', 'https://a.example/next'],
+      ['https://a.example/start', 'https://evil.example/collect?d=1'],
+    ])
+    expect(checkRedirect.mock.calls[0]?.[0]).toMatchObject({ runId, profileId, tool: 'web_fetch' })
+  })
+
+  it('refuses every redirect when the gate cannot check one', async () => {
+    const fetch = vi.fn<FetchFn>(async (url) =>
+      url === 'https://a.example/' ? redirect('https://b.example/') : html('<p>never</p>'),
+    )
+    const gate: ToolGate = { check: allowAllGate.check }
+    const out = text(
+      await bind(fetch, {}, new AbortController().signal, gate).call({ url: 'https://a.example/' }),
+    )
+    expect(out).toContain('error redirect_refused')
+    expect(fetch).toHaveBeenCalledOnce()
   })
 
   it('stops at a redirect hop the guard refuses', async () => {

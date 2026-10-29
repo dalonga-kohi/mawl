@@ -1,4 +1,5 @@
 import type { ProfileId, RunId, ThreadId } from '@mawl/contracts'
+import type { ApprovalListInput } from './approvals-api.ts'
 
 /**
  * Query keys in the exact shape @orpc/tanstack-query generates (`[path, { input?, type }]`), so the
@@ -17,4 +18,7 @@ export const keys = {
   messages: (threadId: ThreadId) =>
     op(['threads', 'messages'], 'infinite', { threadId, limit: MESSAGE_PAGE }),
   run: (id: RunId) => op(['runs', 'get'], 'query', { id }),
+  approvals: (input: ApprovalListInput) => op(['approvals', 'list'], 'query', input),
+  /** Every approvals query; what a decision invalidates. */
+  approvalsAll: () => [['approvals'], {}] as const,
 }

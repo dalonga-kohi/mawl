@@ -42,6 +42,10 @@ export function createApi(token: string, origin: string = window.location.origin
       get: (id) => rpc.runs.get({ id }),
       cancel: (id) => rpc.runs.cancel({ id }),
     },
+    approvals: {
+      list: (input) => rpc.approvals.list(input),
+      decide: (input) => rpc.approvals.decide(input),
+    },
     live: (queryClient) => createEventStore({ events: rpc.events, queryClient, utils }),
   }
 }

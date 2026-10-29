@@ -9,8 +9,9 @@ const { runs, profiles, events } = schema
 /**
  * The policy engine wired to the database. Every call reads the run's trigger and the profile's
  * `policy_json` (so an edit applies at once), and `web_fetch` calls read the hosts this run already
- * fetched from its own `run.tool_call` events (index `events_run_id_idx`), so a resumed run keeps
- * them. Neither the policy nor the hosts are ever logged.
+ * fetched (allowed or owner-approved) from its own `run.tool_call` events (index
+ * `events_run_id_idx`), so a resumed run keeps them. Neither the policy nor the hosts are ever
+ * logged.
  */
 export function createPolicyGate(db: ProvidersDb, logger?: Logger): ToolGate {
   return policyGate({
@@ -32,7 +33,8 @@ export function createPolicyGate(db: ProvidersDb, logger?: Logger): ToolGate {
             eq(events.runId, runId),
             eq(events.type, 'run.tool_call'),
             sql`${events.payload}->>'tool' = 'web_fetch'`,
-            sql`${events.payload}->>'level' = 'auto'`,
+            // Allowed calls, and calls the owner approved (D2.4): either unlocks the host.
+            sql`(${events.payload}->>'level' = 'auto' or ${events.payload}->'approved' = 'true'::jsonb)`,
           ),
         )
       return hostsFromToolCalls(rows.map((r) => r.payload))

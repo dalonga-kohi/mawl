@@ -7,6 +7,7 @@ import {
   type ToolResultPart,
 } from 'ai'
 import { ProviderFailureError } from '../providers/failure.ts'
+import { denyAllGate } from '../tools/gate.ts'
 import { createToolRegistry } from '../tools/registry.ts'
 import type { WaitRequest } from '../tools/types.ts'
 import { ModelNotConfiguredError, toRunErrorCode } from './errors.ts'
@@ -140,7 +141,7 @@ export async function executeRun(deps: ExecuteRunDeps): Promise<RunOutcome> {
   const sdkTools = offered && offered.names.length > 0 ? offered.toolSet : undefined
   // Calls the model made without tools on offer (or after they went away on resume) still get an
   // answer: the empty registry gives each one a typed unknown_tool result.
-  const runner = offered ?? createToolRegistry({ tools: [] }).forRun(bind)
+  const runner = offered ?? createToolRegistry({ tools: [], gate: denyAllGate }).forRun(bind)
 
   /**
    * Runs the tool calls of a persisted model step through the registry, in call order. Results

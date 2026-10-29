@@ -242,6 +242,10 @@ export function fakeChatApi(initial: { profiles?: Profile[] } = {}) {
       setRun(id, { status: 'running' })
       await invalidate()
     },
+    async waitingApproval(id: RunId = lastRun().id) {
+      setRun(id, { status: 'waiting_approval' })
+      await invalidate()
+    },
     /** The run succeeded with `reply` stored as the assistant message. */
     async finish(reply: string, id: RunId = lastRun().id) {
       const r = state.runs.get(id) as Run

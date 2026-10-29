@@ -2,6 +2,7 @@ import { fakeModel } from '@mawl/testkit'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineTool } from '../tools/define.ts'
+import { allowAllGate } from '../tools/gate.ts'
 import { createToolRegistry, textRecord } from '../tools/registry.ts'
 import type { ToolGate } from '../tools/types.ts'
 import { executeRun } from './execute.ts'
@@ -267,7 +268,7 @@ describe('executeRun: ask_user parks the run', () => {
     }),
   })
   const tools = (extra: Parameters<typeof createToolRegistry>[0]['tools'] = []) =>
-    createToolRegistry({ tools: [ask, ...extra] })
+    createToolRegistry({ tools: [ask, ...extra], gate: allowAllGate })
 
   it('moves the run to waiting_user, stores the question and ends the execution', async () => {
     const h = setup(

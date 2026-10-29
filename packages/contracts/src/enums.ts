@@ -49,7 +49,8 @@ export const ActionClass = z.enum([
 ])
 export type ActionClass = z.infer<typeof ActionClass>
 
-export const ApprovalStatus = z.enum(['pending', 'approved', 'denied', 'expired'])
+/** `cancelled`: the run was cancelled while the approval was pending. */
+export const ApprovalStatus = z.enum(['pending', 'approved', 'denied', 'expired', 'cancelled'])
 export type ApprovalStatus = z.infer<typeof ApprovalStatus>
 
 export const ChannelKind = z.enum(['telegram', 'discord'])

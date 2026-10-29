@@ -1,6 +1,11 @@
-import { type CredentialId, contract, type RunStatus } from '@mawl/contracts'
+import { type ApprovalStatus, type CredentialId, contract, type RunStatus } from '@mawl/contracts'
 import { listProviderDescriptors } from '@mawl/core'
 import { implement, ORPCError } from '@orpc/server'
+import {
+  ApprovalConflictError,
+  ApprovalNotFoundError,
+  type ApprovalService,
+} from './approvals/service.ts'
 import type { Principal } from './auth/principal.ts'
 import {
   type ConnectionState,
@@ -36,6 +41,8 @@ export interface RouterDeps {
   events?: EventsService
   /** Without it the search key procedures stay 501 stubs. */
   search?: SearchService
+  /** Without it the approvals procedures stay 501 stubs. */
+  approvals?: ApprovalService
 }
 
 /**
@@ -89,6 +96,24 @@ const runErrors =
     throw err
   }
 
+type ApprovalErrors = {
+  NOT_FOUND: (options: { data: { entity: string; id: string } }) => Error
+  CONFLICT?: (options: { data: { status: ApprovalStatus } }) => Error
+}
+
+/** Maps the approval service's domain errors to the contract's typed NOT_FOUND and CONFLICT. */
+const approvalErrors =
+  (errors: ApprovalErrors) =>
+  (err: unknown): never => {
+    if (err instanceof ApprovalNotFoundError) {
+      throw errors.NOT_FOUND({ data: { entity: 'approval', id: err.id } })
+    }
+    if (err instanceof ApprovalConflictError && errors.CONFLICT) {
+      throw errors.CONFLICT({ data: { status: err.status } })
+    }
+    throw err
+  }
+
 type ProfileErrors = {
   NOT_FOUND?: (options: { data: { entity: string; id: string } }) => Error
   SLUG_TAKEN?: (options: { data: { slug: string } }) => Error
@@ -124,6 +149,7 @@ export function createRouter({
   profiles,
   user,
   search,
+  approvals,
 }: RouterDeps) {
   const os = implement(contract).$context<RouterContext>()
   return os.router({
@@ -188,10 +214,31 @@ export function createRouter({
           setKey: stub(os.search.setKey),
           clearKey: stub(os.search.clearKey),
         },
-    approvals: {
-      list: stub(os.approvals.list),
-      decide: stub(os.approvals.decide),
-    },
+    // Owner-authenticated only, and never reachable from a tool: the decision cannot change the
+    // parked call, and nothing here writes the policy.
+    approvals: approvals
+      ? {
+          list: os.approvals.list.handler(({ input, context, errors }) => {
+            if (context.principal?.kind !== 'owner') throw errors.UNAUTHORIZED()
+            return approvals.list(input ?? {})
+          }),
+          get: os.approvals.get.handler(({ input, context, errors }) => {
+            if (context.principal?.kind !== 'owner') throw errors.UNAUTHORIZED()
+            return approvals.get(input.id).catch(approvalErrors(errors))
+          }),
+          decide: os.approvals.decide.handler(({ input, context, errors }) => {
+            if (context.principal?.kind !== 'owner') throw errors.UNAUTHORIZED()
+            // No device ids before pairing (D8.1): the owner's app session decides.
+            return approvals
+              .decide(input.id, input.decision, { deviceId: null, via: 'app' })
+              .catch(approvalErrors(errors))
+          }),
+        }
+      : {
+          list: stub(os.approvals.list),
+          get: stub(os.approvals.get),
+          decide: stub(os.approvals.decide),
+        },
     devices: {
       pair: stub(os.devices.pair),
       list: stub(os.devices.list),

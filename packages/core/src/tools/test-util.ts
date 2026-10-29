@@ -1,5 +1,12 @@
 import { type ArtifactId, newId, type ProfileId, type RunId } from '@mawl/contracts'
-import type { ArtifactStore, ToolCallKey, ToolEmit, ToolLedger, ToolResultRecord } from './types.ts'
+import type {
+  ApprovedCall,
+  ArtifactStore,
+  ToolCallKey,
+  ToolEmit,
+  ToolLedger,
+  ToolResultRecord,
+} from './types.ts'
 
 export interface LedgerEvent {
   type: 'run.tool_call' | 'run.tool_result' | 'notify'
@@ -13,6 +20,16 @@ const keyOf = (runId: RunId, k: ToolCallKey) => `${runId}|${k.stepIdx}|${k.toolC
 export class MemoryLedger implements ToolLedger {
   readonly results = new Map<string, ToolResultRecord>()
   readonly events: LedgerEvent[] = []
+  readonly grants = new Map<string, ApprovedCall>()
+
+  /** Test hook: what the server's approve leaves behind for this call. */
+  grant(runId: RunId, key: ToolCallKey, grant: ApprovedCall): void {
+    this.grants.set(keyOf(runId, key), grant)
+  }
+
+  async approvedCall(runId: RunId, key: ToolCallKey): Promise<ApprovedCall | null> {
+    return this.grants.get(keyOf(runId, key)) ?? null
+  }
 
   async toolResult(runId: RunId, key: ToolCallKey): Promise<ToolResultRecord | null> {
     return this.results.get(keyOf(runId, key)) ?? null

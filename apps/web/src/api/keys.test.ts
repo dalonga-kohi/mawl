@@ -34,6 +34,18 @@ describe('query keys', () => {
     )
   })
 
+  it('match the approvals list keys, and the event store invalidation reaches them', () => {
+    expect(keys.approvals({ status: 'pending' })).toEqual(
+      utils.approvals.list.queryKey({ input: { status: 'pending' } }),
+    )
+    expect(keys.approvals({ limit: 50 })).toEqual(
+      utils.approvals.list.queryKey({ input: { limit: 50 } }),
+    )
+    expect(partialMatchKey(keys.approvals({ status: 'pending' }), utils.approvals.key())).toBe(true)
+    expect(partialMatchKey(keys.approvalsAll(), utils.approvals.key())).toBe(true)
+    expect(partialMatchKey(keys.approvals({ limit: 50 }), keys.approvalsAll())).toBe(true)
+  })
+
   it('are reached by the event store invalidations for threads and runs', () => {
     expect(partialMatchKey(keys.threads(profileId), utils.threads.key())).toBe(true)
     expect(partialMatchKey(keys.messages(threadId), utils.threads.key())).toBe(true)

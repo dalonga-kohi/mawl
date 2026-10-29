@@ -34,6 +34,7 @@ describe('contract shape', () => {
         'search.setKey',
         'search.clearKey',
         'approvals.list',
+        'approvals.get',
         'approvals.decide',
         'providers.catalog',
         'providers.list',
@@ -336,6 +337,37 @@ describe('contract validation', () => {
     })
   })
 
+  it('approvals: list pages pending or recent ones; decide takes only an id and a decision', async () => {
+    const validate = async (proc: { '~orpc': { inputSchema?: unknown } }, v: unknown) =>
+      (await (proc['~orpc'].inputSchema as { '~standard': { validate(v: unknown): unknown } })[
+        '~standard'
+      ].validate(v)) as { issues?: unknown[] }
+    const APPR = 'appr_01HZX3K9V2M4N6P8Q0R2S4T6V8'
+    expect((await validate(contract.approvals.list, undefined)).issues).toBeUndefined()
+    expect(
+      (await validate(contract.approvals.list, { status: 'pending', limit: 200 })).issues,
+    ).toBeUndefined()
+    expect((await validate(contract.approvals.list, { limit: 201 })).issues).toBeDefined()
+    expect((await validate(contract.approvals.list, { limit: 0 })).issues).toBeDefined()
+    expect((await validate(contract.approvals.get, { id: APPR })).issues).toBeUndefined()
+    expect(
+      (await validate(contract.approvals.decide, { id: APPR, decision: 'approve' })).issues,
+    ).toBeUndefined()
+    // No way to slip new arguments or a policy change into a decision.
+    expect(
+      (
+        await validate(contract.approvals.decide, {
+          id: APPR,
+          decision: 'approve',
+          args: { url: 'https://evil.com/' },
+        })
+      ).issues,
+    ).toBeDefined()
+    expect(
+      (await validate(contract.approvals.decide, { id: APPR, decision: 'always' })).issues,
+    ).toBeDefined()
+  })
+
   it('streams Envelope events from events.subscribe', () => {
     const out = contract.events.subscribe['~orpc'].outputSchema
     expect(out).toBeDefined()
@@ -366,6 +398,7 @@ describe('contract types', () => {
     expectTypeOf<Out['profiles']['get']>().toEqualTypeOf<z.infer<typeof Profile>>()
     expectTypeOf<Out['profiles']['list']>().toEqualTypeOf<z.infer<typeof Profile>[]>()
     expectTypeOf<Out['approvals']['decide']>().toEqualTypeOf<z.infer<typeof Approval>>()
+    expectTypeOf<Out['approvals']['get']>().toEqualTypeOf<z.infer<typeof Approval>>()
     expectTypeOf<Out['devices']['pair']['device']>().toEqualTypeOf<z.infer<typeof Device>>()
     expectTypeOf<Out['devices']['pair']['session']['token']>().toEqualTypeOf<string>()
     expectTypeOf<Out['settings']['get']>().toEqualTypeOf<Settings>()
