@@ -27,6 +27,12 @@ import { describe, INITIAL_STATUS, type Status, type View } from './status.ts'
 export const READY_HOLD_MS = 650
 /** The hold when the very first status was already Ready (a healthy server, e.g. reopening from the tray). */
 export const QUICK_READY_HOLD_MS = 250
+
+/** How long Ready stays up before the splash leaves. */
+export function readyHoldMs(quick: boolean, reduce: boolean): number {
+  if (reduce) return 0
+  return quick ? QUICK_READY_HOLD_MS : READY_HOLD_MS
+}
 const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
@@ -155,10 +161,7 @@ function useEnterWhenReady(ready: boolean, bridge: HostBridge, quick: boolean): 
       setLeaving(false)
       return
     }
-    const hold = setTimeout(
-      () => setLeaving(true),
-      reduce ? 0 : quick ? QUICK_READY_HOLD_MS : READY_HOLD_MS,
-    )
+    const hold = setTimeout(() => setLeaving(true), readyHoldMs(quick, reduce))
     return () => clearTimeout(hold)
   }, [ready, reduce, quick])
 

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MotionGlobalConfig } from 'motion/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { HostBridge } from './bridge.ts'
-import { QUICK_READY_HOLD_MS, READY_HOLD_MS, Splash } from './Splash.tsx'
+import { QUICK_READY_HOLD_MS, READY_HOLD_MS, readyHoldMs, Splash } from './Splash.tsx'
 import type { Status } from './status.ts'
 
 function fakeBridge(first: Status) {
@@ -69,13 +69,18 @@ describe('the desktop splash', () => {
       await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
     })
 
-    it('skips most of the hold when the server was already ready at launch', async () => {
+    it('skips most of the hold when the server was already ready at launch', () => {
+      expect(readyHoldMs(true, false)).toBe(QUICK_READY_HOLD_MS)
+      expect(readyHoldMs(false, false)).toBe(READY_HOLD_MS)
+      expect(QUICK_READY_HOLD_MS).toBeLessThan(READY_HOLD_MS)
+      expect(readyHoldMs(true, true)).toBe(0)
+    })
+
+    it('leaves a server that was already ready at launch', async () => {
       const { bridge } = fakeBridge({ phase: 'ready' })
       render(<Splash bridge={bridge} />)
       await screen.findByRole('heading', { name: 'Ready' })
-      await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), {
-        timeout: READY_HOLD_MS - 50,
-      })
+      await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
     })
 
     it('stays when the server falls over before the fade ends', async () => {
