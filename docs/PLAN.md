@@ -13,7 +13,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked (w
 | [D0 — Spikes (de-risk the redesign)](docs/plan/d0.md) | 2 | 0 | 0 | 0 |
 | [P0 — Foundation](docs/plan/p0.md) | 5 | 0 | 0 | 0 |
 | [P1 — Talk to a teammate (web + desktop)](docs/plan/p1.md) | 9 | 0 | 0 | 1 |
-| [U — Mawl UI redesign (see [UI-REDESIGN.md](UI-REDESIGN.md))](docs/plan/u.md) | 7 | 0 | 5 | 0 |
+| [U — Mawl UI redesign (see [UI-REDESIGN.md](UI-REDESIGN.md))](docs/plan/u.md) | 7 | 0 | 6 | 0 |
 | [D1 — Desktop host (install and go)](docs/plan/d1.md) | 13 | 1 | 6 | 1 |
 | [D2 — The agent loop](docs/plan/d2.md) | 4 | 0 | 11 | 0 |
 | [D3 — Nodes: This PC first, then Docker computers](docs/plan/d3.md) | 0 | 0 | 12 | 0 |
