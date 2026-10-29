@@ -21,9 +21,9 @@
     "test:e2e": "pnpm --filter @mawl/web e2e"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.3",
     "@types/node": "26.6.5",
-    "turbo": "2.11.9",
+    "turbo": "2.11.10",
     "typescript": "7.0.2",
     "vitest": "5.0.5",
     "yaml": "2.9.1"

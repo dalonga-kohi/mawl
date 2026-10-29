@@ -20,12 +20,12 @@
     "@mawl/contracts": "workspace:*",
     "@mawl/core": "workspace:*",
     "@mawl/db": "workspace:*",
-    "@orpc/client": "1.15.7",
-    "@orpc/contract": "1.15.7",
-    "@orpc/server": "1.15.7",
+    "@orpc/client": "1.16.1",
+    "@orpc/contract": "1.16.1",
+    "@orpc/server": "1.16.1",
     "drizzle-orm": "0.45.4",
     "graphile-worker": "0.18.0",
-    "hono": "4.13.13",
+    "hono": "4.13.14",
     "libsodium-wrappers": "0.8.4",
     "pg": "8.23.1",
     "pino": "10.4.0",
@@ -34,14 +34,14 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.10",
-    "@electric-sql/pglite-pgvector": "0.0.11",
+    "@electric-sql/pglite": "0.5.12",
+    "@electric-sql/pglite-pgvector": "0.0.13",
     "@mawl/client": "workspace:*",
     "@mawl/testkit": "workspace:*",
     "@types/pg": "8.23.1",
     "@types/ws": "8.18.2",
     "esbuild": "0.28.2",
-    "jose": "6.2.12",
+    "jose": "6.2.13",
     "tsx": "4.23.15"
   }
 }
