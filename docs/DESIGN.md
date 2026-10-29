@@ -197,14 +197,16 @@ Mawl is **the orb**: one circle, one colourway, and glyph eyes that carry every 
 
 - **Style:** a 400-unit artwork, the orb at r 165. From 48 px up it has the **soft** treatment, a radial light at the top left (body lightened 22 % to body to body darkened 14 %). Below 48 px it is **flat**, cropped to the orb, without effects, and its eyes are drawn a third larger with thicker strokes so they read from 16 px (tray, list icons) up.
 - **Colourways** (`ways.ts`), each a body and an ink for the eyes: lavender `#BDA4ED` / `#1B1233` (Mawl's own, the default), purple `#7950E8` / `#F2F5FC`, night `#1B2433` / `#BDA4ED`, teal `#80DACE` / `#0B2F33`, peach `#F8B79B` / `#3A1A10`, rose `#F4A9C0` / `#3A1021`, sky `#A9C8F4` / `#12264A`. A teammate wears the colourway its stored color maps to (`wayForColor`): an exact body, a legacy soft preset (Lime becomes lavender, Lilac purple, Slate night), else the nearest body.
-- **Drawing:** one inline SVG per instance with a gradient id from `useId`, so several orbs never share a `url(#…)`. Each state picks a left and right glyph, a resting look offset and at most one effect (`POSES` in `glyphs.tsx`). The effects (thought dots, `?!`, `z`) sit up and to the right, in the body color.
-- **Motion:** eyes change through Motion: the new glyph pops in on `spring.bouncy` while the old one fades out over `dur.fast`, and the look offset moves on `spring.gentle`, so a state change reads in under 100 ms. Ambient loops are CSS keyframes keyed on `data-state`. A clickable orb (48 px and up) scales to 1.03 on hover and 0.97 on press over `dur.fast`.
+- **Drawing:** one inline SVG per instance with gradient and clip ids from `useId`, so several orbs never share a `url(#…)`. Each state picks a left and right glyph, a resting look offset and at most one effect (`POSES` in `glyphs.tsx`). The effects (thought dots, `?!`, `z`) sit up and to the right, in the body color.
+- **Eyes on a sphere:** one gaze (yaw and pitch, two Motion springs on `spring.gentle`) drives both eyes. Each eye is projected onto a sphere a little larger than the orb (`projectEye` in `idle-life.ts`): it moves along the curve and its glyph squashes as it turns away, so the trailing eye closes in on the leading one. The eyes sit in a group clipped to the orb circle, so a far look carries the leading eye over the outline and cuts it off, like a face turning on a ball. Transforms only, nothing re-renders per frame.
+- **Idle life:** while `idle` (and, half as far and less often, while `listening`) the orb looks around on its own: every 2 to 5 s it may pick left, right, up-left, up-right or down (centre is the most likely), eases there, holds 0.6 to 1.8 s and comes back. It blinks every 3 to 6 s, sometimes twice, closing for 120 ms. The schedule takes an injectable clock (tests use fake timers), pauses while the tab is hidden, and never runs below 48 px or under reduced motion. There is no pointer tracking.
+- **Motion:** eyes change through Motion: the new glyph pops in on `spring.bouncy` while the old one fades out over `dur.fast`, so a state change reads in under 100 ms. Ambient loops are CSS keyframes keyed on `data-state`, named `orb-*` so no other stylesheet's keyframe can override them. A clickable orb (48 px and up) scales to 1.03 on hover and 0.97 on press over `dur.fast`.
 - **States:**
 
 | State | When | Eyes | Motion and effect |
 |---|---|---|---|
-| `idle` | Nothing happening | Vertical bars | A slow breath and a blink every ~3 s. At 64 px and up the eyes follow the pointer (at most once per frame) |
-| `listening` | The owner is typing | Shorter bars, glancing down at the composer | Breath and blink |
+| `idle` | Nothing happening | Vertical bars | A slow breath; looks around and blinks on its own (idle life) |
+| `listening` | The owner is typing | Shorter bars, glancing down at the composer | Breath; a quieter idle life |
 | `thinking` | A run is queued or the model is generating | Rings, looking up and to the right | A gentle sway; two thought dots bob |
 | `working` | Tools are running, or the context is compacting | Asterisks | The asterisks turn slowly |
 | `waiting` | Needs approval, takeover or a reply | Plus signs | A floating `?!` |
@@ -213,7 +215,7 @@ Mawl is **the orb**: one circle, one colourway, and glyph eyes that carry every 
 | `sleepy` | The run is paused, or a computer is asleep | Corner brackets | Slow deep breathing; rising `z` marks |
 
 - **Click:** a large orb hops once. Small ones (under 48 px, like the chat header) don't.
-- **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) stop every loop, the pointer follow, the hover scale and the hop; Mawl holds its pose with every effect shown at rest, and eye changes become short fades.
+- **Reduced motion:** the OS setting and the in-app toggle (through Motion's `MotionConfig`) stop every loop, the idle life (look-around and blinks), the hover scale and the hop; Mawl holds its pose with every effect shown at rest, and eye changes become short fades.
 - **Still avatar:** `MawlAvatar` draws the orb and its eyes only, never moves, and shows the state through its eyes. It takes `way` or the teammate's `color`, and wears lavender without either.
 - **Placement:**
   - the chat header (the focused teammate's state)
