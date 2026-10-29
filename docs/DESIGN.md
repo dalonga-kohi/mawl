@@ -26,7 +26,37 @@ Mawl, a soft lavender orb with glyph eyes, keeps watch while your teammates work
 
 All colors are CSS variables in `packages/ui/src/tokens.css`, generated from `packages/ui/src/*.ts` by `pnpm --filter @mawl/ui generate`. Components never use raw hex.
 
-The default palette is **Mawl** (2026-10 orb redesign, PLAN U8): cool paper in light, deep navy in dark, a violet primary and a teal secondary. U9 adds named palettes beside it.
+The owner picks a **named palette** in Settings → Appearance (or `Palette: <name>` in `Ctrl+K`): Mawl (default), Dracula, Catppuccin, Gruvbox, Claude, Rosé Pine or Nord (PLAN U9). Each palette ships hand-checked colors for light and dark (`palettes` in `packages/ui/src/palette.ts`); nothing is derived from a user-picked accent any more, and the free accent picker is gone.
+
+**How it switches.** `<html>` carries two attributes: `data-theme` (`light`, `dark`, or absent for the OS setting) and `data-palette` (the palette id; absent means Mawl). `tokens.css` holds every palette as plain CSS-variable blocks: Mawl on `:root` as the default, then per palette a light block `[data-palette="x"]`, a system-dark block inside `@media (prefers-color-scheme: dark)` and a forced-dark block `[data-palette="x"][data-theme="dark"]`. A switch is only an attribute change; no color is written from JavaScript. `main.tsx` sets both attributes before React renders, so the first paint is already right. Palette selectors are not tied to `:root`, so any element can wear a palette (the settings tiles do); such a preview must use base tokens only, because the `color-mix` tokens (`--accent-soft`, `--accent-ring`, the `-soft` tints) are computed once on `<html>`.
+
+**The flow.** The owner opens Settings → Appearance and sees Theme (Light, Dark, System) and then the palette tiles, the current one ringed with a check. Each tile is a live miniature in its own palette and the current theme: sidebar, card, ink line, primary pill and teal dot. Hovering lifts the tile with a soft glow in its primary; a press scales to .97; a click (or the arrow keys in the radio group) recolors the whole app with a 200 ms cross-fade, the ring slides to the new tile, and "Dracula on. Saved." appears on a reserved line under the tiles. The choice is saved in `mawl.appearance` and survives reload. The cross-fade is the `color-swap` class on `<html>` for `--dur-base` + 50 ms after a palette or theme change (never on first paint): colors, borders and shadows only, skipped under reduced motion (OS or the in-app toggle).
+
+**Saved preferences.** `mawl.appearance` holds `{ theme, palette, reduceMotion }`, parsed with zod field by field. A record from before U9 (an `accent`, no `palette`) loads as Mawl and is rewritten without the accent; an unknown id falls back to Mawl. The desktop splash still receives only theme and motion from the host, so it wears Mawl until U14 carries the palette over.
+
+### The palettes
+
+Every palette sets the same tokens in both themes: `--bg`, `--surface` (card), `--surface-2` (sidebar), `--line`, `--text`, `--text-2`, `--text-3`, the primary (`--accent` and `--accent-fill`), `--on-accent`, `--accent-ink`, `--secondary`, `--secondary-ink`, `--ok`, `--warn`, `--danger` and `--info`. `--accent-hover` and `--accent-press` step the fill 4 % and 8 % of OKLCH lightness away from its text color (`primaryStates()`), so they only add contrast. A test (`packages/ui/src/palette.test.ts`) holds every palette × theme to:
+- `--text`, `--text-2`, `--text-3` ≥ 4.5:1 on bg, surface and surface-2, stepping down in strength;
+- `--accent-ink` and `--secondary-ink` ≥ 4.5:1 on bg, surface, surface-2 and their own soft tint;
+- `--on-accent` ≥ 4.5:1 on the fill, hover and press;
+- `--ok`, `--warn`, `--danger`, `--info` ≥ 4.5:1 as text on bg, surface and their soft tint;
+- primary and secondary fills ≥ 3:1 on bg and surface; the focus ring ≥ 3:1 on every surface;
+- `--line` visible (≥ 1.1:1) but under 3:1. Hairlines separate, they do not mark controls, so they are deliberately held under the 3:1 UI bar; every control has a fill, a label or the focus ring instead.
+
+| Palette | Light | Dark | Primary (light / dark) | Notes |
+|---|---|---|---|---|
+| **Mawl** (default) | cool paper `#F5F7FC`, white cards | deep navy `#0B1019` | `#7950E8` with white text in both | Values below |
+| Dracula | Alucard (official light) `#FFFBEB` | `#282A36`, sidebar `#21222C`, card `#343746` | `#644AC9` (white text) / `#BD93F9` (dark text) | Light: text-3, ink, orange and red one step darker. Dark: comment lifted to `#A9B0D3` for text-3, purple ink and red one step lighter |
+| Catppuccin | Latte `#EFF1F5`, a near-white card `#FBFBFD` (derived) | Mocha `#1E1E2E`, mantle sidebar, surface0 card | mauve `#8839EF` (white text) / `#CBA6F7` (dark text) | Latte ink, teal, green, yellow, red and blue are darker text-safe steps; Mocha red one step lighter |
+| Gruvbox | official light `#FBF1C7`, bg0_h card | official dark `#282828`, bg0_h sidebar, bg1 card | orange `#AF3A03` (white text) / `#FE8019` (dark text) | Light aqua, green, yellow are darker steps; dark orange ink, aqua ink, red and blue lighter steps |
+| Claude | cream `#FAF9F5`, white cards | warm ink `#262624` | clay `#B5512F` (the brand `#C96442` fails 4.5:1 with white) / `#D97757` with dark text | Teal secondary added for status |
+| Rosé Pine | Dawn `#FAF4ED` | Main `#191724`, overlay card | iris, darkened to `#7A5F9A` for white text / `#C4A7E7` | Dawn subtle and muted, iris ink, gold, love and foam are darker steps; Main subtle and muted lighter |
+| Nord | derived from Snow Storm: nord6 bg, nord5 sidebar, `#FAFBFC` card | Polar Night nord0 bg, a derived darker sidebar `#272C36`, nord1 card | nord10 darkened to `#4C6E99` / nord8 `#88C0D0` with dark text | Light frost and aurora are darker text-safe steps; dark text-3, ink, green, red and blue lighter steps |
+
+Where an official color failed the bar, `palette.ts` keeps the nearest step of the same hue that passes and names the official value in a comment beside it. Nord has no official light theme; its light side is derived from Snow Storm (nord4 to nord6) with Polar Night text and darkened frost and aurora accents. Catppuccin and Rosé Pine light use their official Latte and Dawn; Dracula light uses Alucard; Gruvbox ships both officially; Claude is a house interpretation (warm clay on cream, warm ink in dark).
+
+The Mawl palette in full:
 
 ### Neutrals: light
 | Token | Hex | Use |
@@ -53,38 +83,14 @@ Deep navy. Surfaces separate by a step in lightness and a 1 px `--line` hairline
 | `--text-3` | `#8390A4` | Meta (4.8:1 or more on bg, surface and surface-2) |
 
 ### Primary (the accent)
-The primary is **Mawl violet `#7950E8`**, the same fill in both themes; white text on it is 5.1:1. Its accent ink, for small text, links and icons, is hand-picked per theme: `#5E32C5` in light and `#BDA4ED` in dark (7.7:1 and 7.2:1 on the card). The engine pins these values for the Mawl primary instead of deriving them (`mawlAccent` in `palette.ts`, `mawlScale` in `accent.ts`).
-
-Until U9 replaces it with palettes, the user can still pick another accent in Settings → Appearance. The soft presets keep their fill and take ink text:
-
-| Preset | Base (fill) | `--accent-ink`, light |
-|---|---|---|
-| **Mawl** (default) | `#7950E8` | `#5E32C5` (hand-picked) |
-| Sky | `#A9D3F5` | `#4A718E` |
-| Peach | `#F7C4A3` | `#906246` |
-| Lilac | `#CBB9F4` | `#75649A` |
-| Rose | `#F4B6C4` | `#945D6A` |
-| Slate | `#B9C3CF` | `#666D78` |
-| Custom | any | derived; the engine checks contrast |
-
-Ink on every soft preset fill is 8.8:1 or better; every derived light `--accent-ink` is about 5.2:1 on the surface. In dark mode the soft presets are light enough to double as the ink. Retired presets (Lake, Moss, Amber, Coral, Plum, the old dark Slate, and Lime, the mochi's color) load as the default, by color, id or name (`apps/web/src/appearance/prefs.ts`).
-
-**The accent engine** (`packages/ui/accent.ts`, using `culori`) turns one hex into a scale. It converts the hex to OKLCH and generates:
-- `--accent` (base)
-- `--accent-hover` (L −4%)
-- `--accent-press` (L −8%)
-- `--accent-soft`: the base mixed over the surface, 24% in light and 14% in dark. Used for selection, the current nav item and user bubbles.
-- `--accent-softer`: half of that (12% light, 7% dark)
-- `--accent-ring`: the focus ring, mixed from `--accent-ink` (100% light, 80% dark), so it reaches 3:1 on bg and surface even for pastel accents
-- `--accent-fill`: background for filled buttons and the send button. For light accents the engine keeps the base and switches the text to ink, but only when ink is ≥ 6:1 on the base and still ≥ 4.5:1 on `--accent-hover` and `--accent-press`. Otherwise the fill is darkened in OKLCH L until **white text reaches ≥ 4.5:1**. Hover and press are derived from the fill.
-- `--on-accent`: the text color on `--accent-fill`, white or ink (`--text` of the light theme), whichever passes 4.5:1
-- `--accent-ink`: the accent as small text, an icon or a link. It is the base darkened (light) or lightened (dark) until it reaches ≥ 4.5:1 on bg, surface, surface-2 and the soft tint.
-- `--accent` (base) is for fills, tints and decoration; text, icons and rings always use `--accent-ink`.
-
-In dark mode the base L is raised to at least 0.68 so it stays readable, and the fill, hover, press and ink are derived from that raised base (the Mawl primary keeps its own fill and ink; only its `--accent` tint base is raised). The engine computes both scales at once and sets `--accent-light-{accent,hover,press,fill,on,ink}` and `--accent-dark-{…}`; the stylesheet maps `--accent` and friends to the right scale per theme, so a theme flip needs no JavaScript. Changing the accent is a CSS-variable swap, and colors tween over 320 ms (`transition: background-color, color`).
+The Mawl primary is **Mawl violet `#7950E8`**, the same fill in both themes; white text on it is 5.1:1. Its accent ink, for small text, links and icons, is `#5E32C5` in light and `#BDA4ED` in dark (7.7:1 and 7.2:1 on the card). In every palette:
+- `--accent` is the primary as a base for tints and decoration (`--accent-soft`: 24 % over the surface in light, 14 % in dark; `--accent-softer` half of that). Text, icons and rings never use it.
+- `--accent-fill` / `--on-accent` are the filled button and its text; `--accent-hover` / `--accent-press` are derived from the fill.
+- `--accent-ink` is the primary as small text, an icon or a link.
+- `--accent-ring` is the focus ring, mixed from `--accent-ink` (100 % in light, 80 % in dark).
 
 ### Secondary (teal)
-For status, online, the computer and success. Never for primary actions. `--secondary` is for fills and UI only (light `#087F86` is 4.46:1 on bg, under the text bar); `--secondary-ink` is the only teal text color.
+For status, online, the computer and success. Never for primary actions. `--secondary` is for fills and UI only; `--secondary-ink` is the only secondary text color. Mawl's teal below (light `#087F86` is 4.46:1 on bg, under the text bar); the other palettes use their own cyan, aqua, foam or frost (table above).
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -95,16 +101,17 @@ For status, online, the computer and success. Never for primary actions. `--seco
 ### shadcn/ui variables
 `apps/web/src/styles.css` maps shadcn's semantic variables onto these tokens, so a component taken from the shadcn registry already speaks Mawl: `--background` → `--bg`, `--foreground` → `--text`, `--card`/`--popover` → `--surface`, `--primary` → `--accent-fill`, `--primary-foreground` → `--on-accent`, `--muted` → `--surface-2`, `--muted-foreground` → `--text-2`, `--destructive` → `--danger`, `--border`/`--input` → `--line`, `--ring` → `--accent-ring`, `--radius` → `--r-card`. Two shadcn names are not aliased because Mawl owns them: `--accent` is Mawl's brand color and `--secondary` is the teal. A pasted component that uses shadcn's neutral `bg-secondary` or `bg-accent` fill should use `bg-surface-2`. A test (`apps/web/src/ui/theme.test.ts`) keeps the mapping and the no-raw-hex rule honest.
 
-### Semantic (fixed, never accent-driven)
+### Semantic (per palette)
+Mawl's values; each palette sets its own, held to the same bar.
 - `--ok` `#007A4A` light, `#40B078` dark
 - `--warn` `#985D00` light, `#D98A14` dark
 - `--danger` `#C33632` light, `#F4766C` dark
-- `--info` = accent
+- `--info` `#5E32C5` light, `#BDA4ED` dark (the accent ink)
 
 Each theme has its own value so the color reaches 4.5:1 as text on that theme's card and on its own `-soft` tint (12 % over the surface). The dark ok and danger were lifted for the navy card.
 
 ### Mascot colors (fixed)
-The orb's colourways never follow the palette or the accent. They live with the mascot in `apps/web/src/mascot/ways.ts` (see §8), the only place these hex values exist. The old beaver and lime mascot tokens are gone from `packages/ui`.
+The orb's colourways never follow the palette. They live with the mascot in `apps/web/src/mascot/ways.ts` (see §8), the only place these hex values exist. The old beaver and lime mascot tokens are gone from `packages/ui`.
 
 ## 4. Typography
 
@@ -176,7 +183,7 @@ Don't hand-roll animation engines.
 | `spring.bouncy` | `{ stiffness: 260, damping: 14 }` | Celebrations, mascot hops, badge pop-in |
 | `dur.fast` | 120 ms | Hover and press feedback |
 | `dur.base` | 200 ms | Fades and color |
-| `dur.slow` | 320 ms | Theme and accent change, page transitions |
+| `dur.slow` | 320 ms | Page transitions, accent-bearing surfaces |
 | `ease.out` | `cubic-bezier(.2,.8,.2,1)` | Default tween |
 
 Patterns:
@@ -186,7 +193,7 @@ Patterns:
 - **Tool activity:** the card enters collapsed. A thin progress shimmer runs while it works, then the icon changes to a check ✓ with a small `spring.bouncy` pop.
 - **Approvals:** the badge count pops in. Approving collapses the card into a green line ("Approved · sent to Nora").
 - **Shared-element transitions** (Motion `layoutId`): from the computer thumbnail to the full computer panel; from a teammate avatar to the chat header.
-- **Accent change:** a 320 ms color tween plus a single ripple from the chosen swatch.
+- **Palette or theme change:** a 200 ms (`dur.base`) cross-fade of colors only, while `color-swap` is on `<html>`; the selection ring slides between palette tiles on the snappy spring. Reduced motion swaps both for an instant change.
 - **Exit faster than enter:** about 70% of the enter duration.
 - **Reduced motion:** `prefers-reduced-motion` (and the in-app toggle) turns springs into 0-duration opacity fades and freezes the mascot on its pose frames.
 - **Ambient motion** is limited to the mascot and the "live" dot on the computer thumbnail.
@@ -281,7 +288,7 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
 
 ## 11. Accessibility checklist (blocking for review)
 
-- Text contrast ≥ 4.5:1, UI components ≥ 3:1, in both themes and with all accent presets.
+- Text contrast ≥ 4.5:1, UI components ≥ 3:1, in both themes and in every palette (`packages/ui/src/palette.test.ts`).
 - Visible focus: a 2 px `--accent-ring` with a 2 px offset. Never remove outlines. The one exception is the composer text field (and its pill): the caret shows focus there, so it draws no ring; the composer's buttons keep theirs.
 - Everything is reachable by keyboard; the chat list uses roving focus. Icon buttons have `aria-label`.
 - Touch targets ≥ 44 px on mobile; ≥ 8 px gap between targets. On the web the size follows the input, not the width: `pointer-coarse:` raises buttons, segments, swatches and tabs to 44 px, while mouse users keep the denser sizes. A control that must stay visually small (the switch) widens its hit area with a `before:` pseudo-element.
