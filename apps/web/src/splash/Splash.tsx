@@ -1,14 +1,6 @@
 import { Check, Copy } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotionConfig } from 'motion/react'
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from 'react'
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Mawl } from '../mascot/Mawl.tsx'
 import type { MascotState } from '../mascot/states.ts'
 import { transitions } from '../motion/presets.ts'
@@ -17,6 +9,7 @@ import { cx } from '../ui/cx.ts'
 import { Input } from '../ui/Input.tsx'
 import type { ConnectResult, HostBridge } from './bridge.ts'
 import { SplashField } from './Field.tsx'
+import { Actions, Caption, EXIT_MS, LaunchFrame, Secondary } from './LaunchFrame.tsx'
 import { MIN_BEAT_MS, usePacedStatus } from './pace.ts'
 import {
   type ConnectError,
@@ -32,8 +25,6 @@ import { describe, INITIAL_STATUS, type Status, type View } from './status.ts'
 
 /** How long "Ready" stays on screen so the last bead and Mawl's hop read, before the hand-off. */
 export const READY_HOLD_MS = 650
-/** The ring, the copy and the field fade away; the orb stays where the app picks it up. */
-const EXIT_MS = 280
 const COPIED_MS = 2000
 
 type CopyState = 'idle' | 'copying' | 'copied' | 'error'
@@ -111,11 +102,11 @@ export function Splash({
 
   // Nothing to show until the host said which Mawl this window is for (a few milliseconds): the
   // field alone, so the first frame is already the splash's.
-  if (!target) return <Frame stage={null} />
+  if (!target) return <LaunchFrame stage={null} />
 
   if (screen.kind === 'relaunching') {
     return (
-      <Frame stage={<OrbStage mascot="done" mode="calm" />}>
+      <LaunchFrame stage={<OrbStage mascot="done" mode="calm" />}>
         <Caption
           title="Restarting Mawl"
           detail={
@@ -124,7 +115,7 @@ export function Splash({
               : 'Mawl opens again on this PC’s server.'
           }
         />
-      </Frame>
+      </LaunchFrame>
     )
   }
 
@@ -149,64 +140,6 @@ export function Splash({
     />
   ) : (
     <LocalStatus bridge={bridge} clipboard={clipboard} onConnect={openConnect} />
-  )
-}
-
-/**
- * Every launch screen: the field behind, the stage in the exact centre of the window below the
- * title bar (the top and bottom rows share the rest), copy and actions under it. When the copy
- * and actions need more room than the bottom row has, the stage glides up instead of clipping.
- */
-function Frame({
-  stage,
-  leaving = false,
-  children,
-}: {
-  stage: ReactNode
-  leaving?: boolean
-  children?: ReactNode
-}) {
-  return (
-    <main className="relative grid min-h-[calc(100dvh-var(--titlebar-h))] overflow-hidden bg-bg text-text">
-      <SplashField dimmed={leaving} />
-      <div className="relative grid grid-rows-[1fr_auto_1fr] justify-items-center px-6 py-8">
-        <span aria-hidden="true" />
-        <motion.div layout="position" transition={transitions.glide}>
-          {stage}
-        </motion.div>
-        <motion.div
-          className="flex w-full max-w-[360px] flex-col items-center self-start pt-4 text-center"
-          initial={false}
-          animate={{
-            opacity: leaving ? 0 : 1,
-            y: leaving ? 6 : 0,
-            transition: leaving ? { duration: EXIT_MS / 1000 } : transitions.gentle,
-          }}
-        >
-          {children}
-        </motion.div>
-      </div>
-    </main>
-  )
-}
-
-/** A title and a line that cross-fade when they change, announced politely. */
-function Caption({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div role="status" aria-live="polite" className="flex min-h-[4.5rem] flex-col items-center">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={`${title}|${detail}`}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0, transition: transitions.fade }}
-          exit={{ opacity: 0, transition: transitions.exit }}
-          className="flex flex-col items-center"
-        >
-          <h1 className="font-display text-title text-balance">{title}</h1>
-          <p className="mt-1.5 max-w-[34ch] text-pretty text-text-2">{detail}</p>
-        </motion.div>
-      </AnimatePresence>
-    </div>
   )
 }
 
@@ -252,7 +185,8 @@ function LocalStatus({
   onConnect: () => void
 }) {
   const [latest, setLatest] = useState<Status | undefined>()
-  const status = usePacedStatus(latest) ?? INITIAL_STATUS
+  const paced = usePacedStatus(latest)
+  const status = paced ?? INITIAL_STATUS
   const view = describe(status)
   const leaving = useEnterWhenReady(status.phase === 'ready', bridge)
 
@@ -284,8 +218,12 @@ function LocalStatus({
     }
   }, [bridge])
 
+  // The host answers within a few milliseconds. Until then only the field shows, so a failed or
+  // finished boot never opens on a "Waking up" that was not true.
+  if (!paced) return <LaunchFrame stage={null} />
+
   return (
-    <Frame
+    <LaunchFrame
       leaving={leaving}
       stage={
         <OrbStage
@@ -309,7 +247,7 @@ function LocalStatus({
           onConnect={onConnect}
         />
       ) : null}
-    </Frame>
+    </LaunchFrame>
   )
 }
 
@@ -392,7 +330,7 @@ function RemoteStatus({
         : 'progress'
 
   return (
-    <Frame
+    <LaunchFrame
       leaving={leaving}
       stage={
         <OrbStage
@@ -440,25 +378,8 @@ function RemoteStatus({
           ) : null}
         </Actions>
       ) : null}
-    </Frame>
+    </LaunchFrame>
   )
-}
-
-/** The failed screens' actions: one primary, then quieter ways out, all on the keyboard path. */
-function Actions({ children }: { children: ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0, transition: transitions.gentle }}
-      className="mt-6 flex w-full max-w-[300px] flex-col items-stretch gap-3"
-    >
-      {children}
-    </motion.div>
-  )
-}
-
-function Secondary({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap justify-center gap-x-1 gap-y-1">{children}</div>
 }
 
 function FailedActions({

@@ -1,7 +1,7 @@
 import { durSeconds, ease, spring } from '@mawl/ui'
 import { RotateCw } from 'lucide-react'
 import { motion, useAnimate, useReducedMotionConfig } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { type Ref, useEffect, useRef, useState } from 'react'
 import { type Glyph, GlyphShape } from '../mascot/glyphs.tsx'
 import { Mawl } from '../mascot/Mawl.tsx'
 import type { MascotState } from '../mascot/states.ts'
@@ -38,6 +38,7 @@ export function OrbStage({
   progress,
   retry,
   way = 'orange',
+  orbRef,
 }: {
   mascot: MascotState
   mode: StageMode
@@ -45,6 +46,8 @@ export function OrbStage({
   /** A retry in progress: its number, and the most there will be when that is known. */
   retry?: { attempt: number; of?: number | undefined } | undefined
   way?: OrbWay
+  /** The box around the orb, for a hand-off that starts where it is drawn. */
+  orbRef?: Ref<HTMLSpanElement>
 }) {
   const reduce = useReducedMotionConfig() ?? false
   const waking = useWake(!reduce && mode === 'progress' && (progress?.done ?? 0) === 0)
@@ -99,7 +102,9 @@ export function OrbStage({
         initial={{ opacity: 0, y: -28, scaleX: 0.94, scaleY: 1.08 }}
         animate={{ opacity: 1, y: 0, scaleX: 1, scaleY: 1, transition: spring.bouncy }}
       >
-        <Mawl size={STAGE_ORB} state={waking ? 'sleepy' : mascot} way={way} />
+        <span ref={orbRef} className="block">
+          <Mawl size={STAGE_ORB} state={waking ? 'sleepy' : mascot} way={way} />
+        </span>
       </motion.div>
       {retry && mode === 'retry' ? (
         <span
