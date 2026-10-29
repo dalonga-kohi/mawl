@@ -65,4 +65,29 @@ group('supervisor status', () => {
   it('shows no progress track while closing', () => {
     expect(describe({ phase: 'stopping' }).done).toBeUndefined()
   })
+
+  it('gives each boot step its own eyes, in time with the beads', () => {
+    expect(describe({ phase: 'starting', stage: 'database' }).mascot).toBe('thinking')
+    expect(describe({ phase: 'starting', stage: 'server' }).mascot).toBe('working')
+    expect(describe({ phase: 'ready' }).mascot).toBe('done')
+  })
+
+  it('counts a retry so the ring can pulse with the try number', () => {
+    const view = describe({
+      phase: 'restarting',
+      attempt: 2,
+      reason: { kind: 'boot_timeout' },
+      retry_in_ms: null,
+    })
+    expect(view.retry).toEqual({ attempt: 2, of: 5 })
+    expect(describe({ phase: 'starting', stage: 'server' }).retry).toBeUndefined()
+  })
+
+  it('offers exactly one next action on a failure: try again, or quit to reinstall', () => {
+    expect(describe({ phase: 'failed', reason: { kind: 'exited', code: 1 } }).next).toBe('retry')
+    expect(describe({ phase: 'failed', reason: { kind: 'boot_timeout' } }).next).toBe('retry')
+    // Starting again cannot bring missing files back.
+    expect(describe({ phase: 'failed', reason: { kind: 'not_installed' } }).next).toBe('quit')
+    expect(describe({ phase: 'ready' }).next).toBeUndefined()
+  })
 })

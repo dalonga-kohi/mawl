@@ -52,6 +52,10 @@ export interface View {
   active?: boolean
   /** The failed screen with its actions. */
   failed?: boolean
+  /** The failed screen's one primary action. */
+  next?: 'retry' | 'quit'
+  /** A restart in progress: the ring pulses and shows which try it is. */
+  retry?: { attempt: number; of: number }
 }
 
 function why(reason: Failure): string {
@@ -75,14 +79,14 @@ export function describe(status: Status): View {
     case 'starting':
       return status.stage === 'database'
         ? {
-            mascot: 'sleepy',
+            mascot: 'thinking',
             title: 'Waking up',
             detail: 'Starting the database',
             done: 0,
             active: true,
           }
         : {
-            mascot: 'thinking',
+            mascot: 'working',
             title: 'Almost there',
             detail: 'Starting the Mawl server',
             done: 1,
@@ -92,11 +96,12 @@ export function describe(status: Status): View {
       return { mascot: 'done', title: 'Ready', detail: 'Opening Mawl', done: 3 }
     case 'restarting':
       return {
-        mascot: 'working',
+        mascot: 'thinking',
         title: 'Restarting',
         detail: `${why(status.reason)} Starting it again (try ${status.attempt} of ${MAX_RESTARTS}).`,
         done: 0,
         active: true,
+        retry: { attempt: status.attempt, of: MAX_RESTARTS },
       }
     case 'stopping':
       return {
@@ -113,12 +118,14 @@ export function describe(status: Status): View {
             title: 'Mawl can’t start',
             detail: `${why(status.reason)} Reinstall Mawl to fix this.`,
             failed: true,
+            next: 'quit',
           }
         : {
             mascot: 'oops',
             title: 'Mawl can’t start',
             detail: `${why(status.reason)} Mawl restarted it ${MAX_RESTARTS} times, then stopped.`,
             failed: true,
+            next: 'retry',
           }
   }
 }
