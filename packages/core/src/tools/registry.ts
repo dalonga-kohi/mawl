@@ -1,5 +1,6 @@
 import { tool as sdkTool, type ToolSet } from 'ai'
 import { delimitData } from '../prompts/assemble.ts'
+import { argsHash, canonicalArgs, replayApproved } from './approval.ts'
 import { cut, storable, storableJson } from './text.ts'
 import {
   ARTIFACT_PREVIEW_CHARS,
@@ -154,17 +155,20 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             argsRedacted: prepared.argsRedacted,
           })
           const audit = decision.audit
-          await ledger.recordToolCall(runId, {
-            toolCallId: call.toolCallId,
-            tool: t.name,
-            argsRedacted: prepared.argsRedacted,
-            actionClass: t.actionClass,
-            ...(audit ? { level: audit.level, source: audit.source } : {}),
-            ...(audit?.mode ? { mode: audit.mode } : {}),
-          })
-          // Only an explicit allow runs the tool: `deny`, `park` (a denial until approvals land;
-          // D2.4 parks the run here instead) and any unknown variant are refused.
-          if (decision.decision !== 'allow') {
+          const recordCall = (approved: boolean) =>
+            ledger.recordToolCall(runId, {
+              toolCallId: call.toolCallId,
+              tool: t.name,
+              argsRedacted: prepared.argsRedacted,
+              actionClass: t.actionClass,
+              ...(audit ? { level: audit.level, source: audit.source } : {}),
+              ...(audit?.mode ? { mode: audit.mode } : {}),
+              ...(approved ? { approved: true as const } : {}),
+            })
+          // Only an explicit allow, or a park the owner approved, runs the tool: `deny` and any
+          // unknown variant are refused.
+          if (decision.decision !== 'allow' && decision.decision !== 'park') {
+            await recordCall(false)
             const reason =
               typeof decision.reason === 'string' ? decision.reason : 'no usable decision'
             return save(
@@ -172,9 +176,73 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
             )
           }
 
+          let runnable = prepared
+          let approved = false
+          if (decision.decision === 'park') {
+            // Approvals are keyed by this run's (step idx, tool call id): no other run, and so
+            // no teammate-triggered run, can use one (R19).
+            const grant = await ledger.approvedCall(runId, key)
+            if (grant) {
+              const replay = replayApproved(t, grant, prepared)
+              if (!replay) {
+                await recordCall(false)
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    'The approved call does not match what was approved, so it was not run.',
+                  ),
+                )
+              }
+              runnable = replay
+              approved = true
+            } else {
+              await recordCall(false)
+              if (decision.audit.level !== 'ask') {
+                // A hand-off means the owner does it themselves; approving it would let the
+                // teammate do it instead. Refused until takeover exists.
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    `Policy denied this call: ${clip(decision.reason, 300)} This needs a hand-off ` +
+                      'to the owner, which is not available yet, so it was not run.',
+                  ),
+                )
+              }
+              if (!allowPark) {
+                return save(
+                  errorRecord(
+                    t.name,
+                    'denied',
+                    'Another call in this step is already waiting for the owner; this one was not run.',
+                  ),
+                )
+              }
+              const argsText = canonicalArgs(prepared.args)
+              const reason = storable(clip(decision.reason, 300))
+              return {
+                kind: 'park',
+                wait: {
+                  kind: 'approval',
+                  payload: { tool: t.name, reason },
+                  approval: {
+                    tool: t.name,
+                    actionClass: t.actionClass,
+                    argsText,
+                    argsHash: argsHash(argsText),
+                    argsRedacted: prepared.argsRedacted,
+                    reason,
+                  },
+                },
+              }
+            }
+          }
+          await recordCall(approved)
+
           let outcome: Awaited<ReturnType<typeof prepared.run>>
           try {
-            outcome = await prepared.run({
+            outcome = await runnable.run({
               runId,
               profileId,
               stepIdx: call.stepIdx,

@@ -41,15 +41,16 @@ function mcpServerOf(tool: string): string | undefined {
 }
 
 /**
- * The hosts of allowed (`level: 'auto'`) `web_fetch` calls among `run.tool_call` payloads. Denied
- * or pre-D2.3 calls (no level) never count, so a refused fetch cannot unlock its host.
+ * The hosts of allowed (`level: 'auto'`) or owner-approved (`approved: true`, D2.4) `web_fetch`
+ * calls among `run.tool_call` payloads. Denied, parked or pre-D2.3 calls (no level) never count,
+ * so a refused fetch cannot unlock its host.
  */
 export function hostsFromToolCalls(payloads: readonly unknown[]): string[] {
   const out = new Set<string>()
   for (const p of payloads) {
     if (p === null || typeof p !== 'object') continue
-    const e = p as { tool?: unknown; level?: unknown; argsRedacted?: unknown }
-    if (e.tool !== 'web_fetch' || e.level !== 'auto') continue
+    const e = p as { tool?: unknown; level?: unknown; approved?: unknown; argsRedacted?: unknown }
+    if (e.tool !== 'web_fetch' || (e.level !== 'auto' && e.approved !== true)) continue
     const args = e.argsRedacted
     if (args === null || typeof args !== 'object') continue
     const url = (args as { url?: unknown }).url
@@ -60,15 +61,12 @@ export function hostsFromToolCalls(payloads: readonly unknown[]): string[] {
   return [...out]
 }
 
-/** Until approvals land (D2.4), a call that needs the owner is refused with this note. */
-const NO_APPROVALS_YET =
-  'Approvals and hand-offs are not available yet, so calls that need the owner are not run.'
-
 /**
  * The policy engine as the registry's `ToolGate`. Per call: load the run's context, parse the
  * profile policy (invalid: defaults), look up seen hosts for `web_fetch`, `decide`, and map the
- * level: `auto` allows; `block` denies; `ask` and `handoff` deny with a note until D2.4 turns
- * them into `park`. Any failure to load fails closed: default policy, trigger `teammate`.
+ * level: `auto` allows; `block` denies; `ask` and `handoff` park (the registry asks the owner for
+ * an approval on `ask` and refuses a `handoff` until takeover exists). Any failure to load fails
+ * closed: default policy, trigger `teammate`.
  */
 export function policyGate(deps: PolicyGateDeps): ToolGate {
   return {
@@ -126,7 +124,7 @@ export function policyGate(deps: PolicyGateDeps): ToolGate {
       }
       if (d.level === 'auto') return { decision: 'allow', audit }
       if (d.level === 'block') return { decision: 'deny', reason: d.reason, audit }
-      return { decision: 'deny', reason: `${d.reason} ${NO_APPROVALS_YET}`, audit }
+      return { decision: 'park', reason: d.reason, audit }
     },
   }
 }

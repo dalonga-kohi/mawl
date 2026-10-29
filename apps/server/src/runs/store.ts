@@ -213,6 +213,8 @@ export function createRunStore(db: ProvidersDb): RunStore {
     },
 
     async park(runId, wait: RunWait, activeMsDelta): Promise<boolean> {
+      // Replaced by the approvals table in the next commit of D2.4.
+      if (wait.kind === 'approval') throw new Error('approvals are not stored yet')
       return db.transaction(async (tx) => {
         const [row] = await tx
           .update(runs)
@@ -252,6 +254,11 @@ export function createRunStore(db: ProvidersDb): RunStore {
           ),
         )
       return row ? toToolRecord(row) : null
+    },
+
+    async approvedCall(): Promise<null> {
+      // Nothing is approved before the approvals table exists (next commit of D2.4).
+      return null
     },
 
     async recordToolCall(runId, call): Promise<void> {

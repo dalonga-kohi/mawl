@@ -1,6 +1,14 @@
+export {
+  APPROVAL_TTL_MS,
+  type ApprovalRefusal,
+  approvalRefusedRecord,
+  argsHash,
+  canonicalArgs,
+  replayApproved,
+} from './approval.ts'
 export * from './builtin/index.ts'
 export { defaultRedact, defineTool, type ToolDefinition } from './define.ts'
-export { allowAllGate } from './gate.ts'
+export { allowAllGate, denyAllGate } from './gate.ts'
 export {
   createToolRegistry,
   errorRecord,
@@ -15,6 +23,8 @@ export {
   estimateTokens,
 } from './tokens.ts'
 export type {
+  ApprovalRequest,
+  ApprovedCall,
   ArtifactStore,
   InvokeResult,
   RunTools,

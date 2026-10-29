@@ -231,26 +231,6 @@ describe('tool registry: the single choke point', () => {
     expect(seen.run).toBe('git status')
   })
 
-  it('treats a park decision as a denial until approvals exist (D2.4 seam)', async () => {
-    const run = vi.fn(async () => ({ kind: 'ok' as const, text: 'ran' }))
-    const h = harness({
-      gate: {
-        check: async () => ({
-          decision: 'park',
-          reason: 'needs your approval',
-          audit: { level: 'ask', source: 'global' },
-        }),
-      },
-      tools: [echoTool(run)],
-    })
-    const r = await h.invoke('echo', { q: 'x' })
-    expect(run).not.toHaveBeenCalled()
-    expect(r.kind).toBe('result')
-    expect(textOf(r)).toContain('denied')
-    expect(textOf(r)).toContain('needs your approval')
-    expect(h.ledger.events[0]?.payload).toMatchObject({ level: 'ask', source: 'global' })
-  })
-
   it('answers an unknown tool with a typed error, without asking the gate', async () => {
     const gate = { check: vi.fn(allowAllGate.check) }
     const h = harness({ gate })

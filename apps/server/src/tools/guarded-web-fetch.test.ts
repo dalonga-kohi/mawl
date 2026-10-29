@@ -13,6 +13,7 @@ function ledger(): ToolLedger {
   return {
     toolResult: async (_r, k) => results.get(k.toolCallId) ?? null,
     recordToolCall: async () => {},
+    approvedCall: async () => null,
     recordToolResult: async (_r, k, record) => {
       results.set(k.toolCallId, record)
       return record

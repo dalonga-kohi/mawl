@@ -61,8 +61,12 @@ export interface NewToolStep {
   activeMsDelta: number
 }
 
-/** What a parked run waits for, tied to the tool call that asked (resumed by recording its result). */
-export interface RunWait extends WaitRequest {
+/**
+ * What a parked run waits for, tied to the tool call that asked: a question (resumed by recording
+ * its answer as the call's result) or an approval (resumed by approving it, so the call replays,
+ * or by denying, expiring or cancelling it).
+ */
+export type RunWait = WaitRequest & {
   /** Index of the model step whose tool call parked the run. */
   stepIdx: number
   toolCallId: string
@@ -114,8 +118,10 @@ export interface RunStore extends ToolLedger {
   /** Writes a tool row and its `run.step` event, with the same rules as `appendStep`. */
   appendToolStep(runId: RunId, step: NewToolStep): Promise<AppendResult>
   /**
-   * Parks the run: records the wait and moves `running` to `waiting_user` (with its `run.status`
-   * event) atomically. False when the CAS was lost (cancel or pause won); nothing is written then.
+   * Parks the run: records the wait and moves `running` to `waiting_user` (a question) or
+   * `waiting_approval` (an approval: the store also keeps the call's argument text encrypted with
+   * its hash and emits `approval.created`), with its `run.status` event, atomically. False when
+   * the CAS was lost (cancel or pause won); nothing is written then.
    */
   park(runId: RunId, wait: RunWait, activeMsDelta: number): Promise<boolean>
   /**
@@ -195,7 +201,8 @@ export interface ExecuteRunDeps {
  * - `succeeded` / `failed`: the engine ended the run.
  * - `superseded`: cancel or pause won; the engine stopped without writing.
  * - `interrupted`: shutdown, or a duplicate execution hit an existing step; the run is untouched.
- * - `waiting`: the run parked (`waiting_user`); the job ends and a reply enqueues a new one.
+ * - `waiting`: the run parked (`waiting_user` or `waiting_approval`); the job ends and a reply or a
+ *   decision enqueues a new one.
  */
 export type RunOutcome =
   | { outcome: 'skipped' }

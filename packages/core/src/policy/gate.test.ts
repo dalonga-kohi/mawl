@@ -52,11 +52,12 @@ function harness(deps: Partial<PolicyGateDeps> = {}) {
       { stepIdx: 0, toolCallId: `c${++n}`, toolName, input },
       { ledger, signal: new AbortController().signal, allowPark: true },
     )
-    if (r.kind !== 'result') throw new Error('expected a result')
+    const event = ledger.events.filter((e) => e.type === 'run.tool_call').at(-1)?.payload
+    // A parked call needs the owner: for these tests it is not run, like a denial.
+    if (r.kind === 'park') return { denied: true, parked: true, text: '', event }
     const o = r.part.output
     const text = o.type === 'text' || o.type === 'error-text' ? o.value : ''
-    const event = ledger.events.filter((e) => e.type === 'run.tool_call').at(-1)?.payload
-    return { denied: r.record.isError && text.includes('denied'), text, event }
+    return { denied: r.record.isError && text.includes('denied'), parked: false, text, event }
   }
   return { call, fetch, ran, ledger }
 }
@@ -70,13 +71,39 @@ describe('policyGate through the tool registry', () => {
     expect(r.event).not.toHaveProperty('mode')
   })
 
-  it('denies a first web_fetch to a host (ask, until approvals exist) without fetching', async () => {
+  it('parks a first web_fetch to a host for approval (ask) without fetching', async () => {
     const h = harness()
     const r = await h.call('web_fetch', { url: 'https://a.com/x?secret=1' })
-    expect(r.denied).toBe(true)
-    expect(r.text).toMatch(/approvals .*not available yet/i)
+    expect(r.parked).toBe(true)
     expect(h.fetch).not.toHaveBeenCalled()
     expect(r.event).toMatchObject({ level: 'ask', source: 'global' })
+  })
+
+  it('emits park for ask and handoff, deny for block, allow for auto', async () => {
+    const gate = policyGate({
+      load: async () => ({ policy: {}, trigger: 'user' }),
+      seenHosts: async () => [],
+    })
+    const check = (tool: string, actionClass: ActionClass) =>
+      gate.check({ runId, profileId, tool, actionClass, args: {}, argsRedacted: {} })
+    expect(await check('reader', 'read')).toMatchObject({ decision: 'allow' })
+    expect(await check('writer', 'write_local')).toMatchObject({
+      decision: 'park',
+      audit: { level: 'ask' },
+    })
+    expect(await check('pay', 'purchase')).toMatchObject({
+      decision: 'park',
+      audit: { level: 'handoff' },
+    })
+    const blocked = await gate.check({
+      runId,
+      profileId,
+      tool: 'web_fetch',
+      actionClass: 'read',
+      args: { url: 'http://127.0.0.1/' },
+      argsRedacted: {},
+    })
+    expect(blocked).toMatchObject({ decision: 'deny', audit: { level: 'block' } })
   })
 
   it('fetches a host already fetched in this run (read from the ledger, so it survives a resume)', async () => {
@@ -197,11 +224,18 @@ describe('policyGate through the tool registry', () => {
 })
 
 describe('hostsFromToolCalls', () => {
-  it('keeps only hosts of allowed web_fetch calls', () => {
+  it('keeps only hosts of allowed or owner-approved web_fetch calls', () => {
     const hosts = hostsFromToolCalls([
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'https://A.com:8443/p?…' } },
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'https://xn--bcher-kva.de/' } },
       { tool: 'web_fetch', level: 'ask', argsRedacted: { url: 'https://denied.com/' } },
+      {
+        tool: 'web_fetch',
+        level: 'ask',
+        approved: true,
+        argsRedacted: { url: 'https://approved.org/' },
+      },
+      { tool: 'web_fetch', level: 'ask', approved: 'yes', argsRedacted: { url: 'https://x.io/' } },
       { tool: 'web_fetch', argsRedacted: { url: 'https://legacy.com/' } },
       { tool: 'web_search', level: 'auto', argsRedacted: { url: 'https://other.com/' } },
       { tool: 'web_fetch', level: 'auto', argsRedacted: { url: 'http://127.0.0.1/' } },
@@ -210,6 +244,6 @@ describe('hostsFromToolCalls', () => {
       null,
       'junk',
     ])
-    expect(hosts).toEqual(['a.com', 'xn--bcher-kva.de'])
+    expect(hosts).toEqual(['a.com', 'xn--bcher-kva.de', 'approved.org'])
   })
 })

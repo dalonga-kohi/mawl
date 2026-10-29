@@ -39,11 +39,38 @@ export type ToolEmit = {
   payload: { title: string; body: string; level: 'info' | 'warn' | 'error' }
 }
 
-/** A run waiting on someone outside the loop. Generic so D2.4 approvals reuse the record. */
-export interface WaitRequest {
-  kind: 'question'
-  payload: Json
+/**
+ * A tool call the policy parked for the owner (`ask`). The store keeps `argsText` encrypted with
+ * its hash; approve replays exactly that text (R9). Only `argsRedacted` is ever shown.
+ */
+export interface ApprovalRequest {
+  tool: string
+  actionClass: ActionClass
+  /** The parsed arguments as JSON (`canonicalArgs`). Never logged, shown or put in an event. */
+  argsText: string
+  /** SHA-256 hex of `argsText` (`argsHash`). */
+  argsHash: string
+  argsRedacted: Json
+  /** Mawl's own text: why the call needs the owner. */
+  reason: string
 }
+
+/**
+ * A run waiting on someone outside the loop: a question (`ask_user`, state `waiting_user`) or an
+ * approval (`waiting_approval`). `payload` is what the wait row shows; it never holds arguments.
+ */
+export type WaitRequest =
+  | { kind: 'question'; payload: Json }
+  | { kind: 'approval'; payload: Json; approval: ApprovalRequest }
+
+/**
+ * What the ledger knows about an approved call: the stored text and hash (decrypted on the
+ * server), or `unreadable` when it cannot be decrypted. Null when the call has no approval in
+ * the approved state. Keyed by (run, step idx, tool call id), so no other run can use it (R19).
+ */
+export type ApprovedCall =
+  | { status: 'approved'; tool: string; argsText: string; argsHash: string }
+  | { status: 'unreadable' }
 
 /**
  * What a tool's `run` returns.
@@ -110,8 +137,8 @@ export interface ToolGateAudit {
 /**
  * - `allow`: the tool runs.
  * - `deny`: the model gets a typed `denied` result with the reason.
- * - `park`: the call needs the owner (`ask` or `handoff`). Until approvals land (D2.4) the
- *   registry treats it as `deny`; D2.4 parks the run instead, without a type change.
+ * - `park`: the call needs the owner (`audit.level` is `ask` or `handoff`). An `ask` parks the run
+ *   for an approval; a `handoff` is refused until takeover exists (the owner must act, not approve).
  */
 export type ToolGateDecision =
   | { decision: 'allow'; audit?: ToolGateAudit }
@@ -120,7 +147,7 @@ export type ToolGateDecision =
 
 /**
  * The policy hook every tool call passes before it executes. The server passes the policy engine
- * (`policyGate`); D2.4 adds the `ask` path (approvals). This is the only place a decision is made.
+ * (`policyGate`). This is the only place a decision is made.
  */
 export interface ToolGate {
   check(request: ToolGateRequest): Promise<ToolGateDecision>
@@ -157,8 +184,12 @@ export interface ToolLedger {
       level?: PolicyLevel
       source?: PolicySource
       mode?: 'autopilot'
+      /** The call runs because the owner approved it. */
+      approved?: true
     },
   ): Promise<void>
+  /** The approval of this call when it is approved (see `ApprovedCall`), else null. */
+  approvedCall(runId: RunId, key: ToolCallKey): Promise<ApprovedCall | null>
   /**
    * Stores the result once, with its `run.tool_result` event and the `emit` events, atomically.
    * The first writer wins: a second call for the same key writes nothing and returns the stored
