@@ -9,6 +9,7 @@ afterEach(() => {
   cleanup()
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
+  document.documentElement.removeAttribute('data-palette')
   document.documentElement.removeAttribute('style')
   document.documentElement.classList.remove('reduce-motion')
 })

@@ -108,6 +108,29 @@ describe('token discipline', () => {
   })
 })
 
+describe('palette and theme swaps', () => {
+  const start = styles.indexOf('@media (prefers-reduced-motion: no-preference)')
+  const rule = styles.slice(start, styles.indexOf('\n}\n', start))
+
+  it('cross-fades colors only, only during a swap and never under reduced motion', () => {
+    expect(start).toBeGreaterThan(-1)
+    expect(rule).toContain(':root.color-swap:not(.reduce-motion) *')
+    expect(rule).toMatch(/transition-property:[^;]*background-color[^;]*color/)
+    expect(rule).not.toMatch(/transition-property:[^;]*(transform|translate|scale|width|height)/)
+    expect(rule).toContain('transition-duration: var(--dur-base)')
+  })
+
+  it('stays outside any @layer, so it wins over the layered Tailwind utilities', () => {
+    const before = styles.slice(0, start)
+    const opened = (before.match(/@layer [\w-]+\s*\{/g) ?? []).length
+    expect(opened).toBeGreaterThan(0)
+    // Every layer block opened before the rule has closed: count braces from the last @layer.
+    const lastLayer = before.lastIndexOf('@layer')
+    const tail = before.slice(lastLayer)
+    expect((tail.match(/\{/g) ?? []).length).toBe((tail.match(/\}/g) ?? []).length)
+  })
+})
+
 describe('scrollbars', () => {
   it('draws slim round overlay thumbs that appear on hover, with the standard path only as a fallback', () => {
     expect(styles).toMatch(/::-webkit-scrollbar-thumb\s*\{[^}]*border-radius:\s*999px/)

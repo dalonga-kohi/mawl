@@ -10,7 +10,7 @@
  * shadcn/ui's semantic variables, pointed at the @mawl/ui token with the same role, so a component
  * pasted from the registry already speaks Mawl. packages/ui stays the single source of truth; these
  * are aliases only. Two shadcn names are deliberately not aliased because Mawl owns them:
- * `--accent` is Mawl's user-chosen brand color, and `--secondary` is the Mawl teal (status,
+ * `--accent` is the active palette's primary, and `--secondary` is the Mawl teal (status,
  * online, computer). A pasted component that uses shadcn's neutral `bg-secondary` or
  * `bg-accent` fill should use `bg-surface-2` instead.
  */
@@ -35,7 +35,7 @@
 /*
  * Tailwind sees only Mawl tokens: the default palette, fonts and radii are cleared so a raw
  * color can't sneak into a component. Every value points at a CSS variable from tokens.css, which
- * already switches per theme and per accent.
+ * already switches per theme and per palette.
  */
 @theme inline {
   --color-*: initial;
@@ -173,7 +173,7 @@
 }
 
 @layer components {
-  /* Accent swaps tween over 320 ms (DESIGN.md §3). Only accent-bearing surfaces get the transition.
+  /* Accent-bearing surfaces tween their colors over 320 ms (DESIGN.md §3).
      `scale` is Tailwind 4's press property (`active:scale-[.97]`); it answers within 120 ms. */
   .accent-tween {
     transition:
@@ -281,6 +281,23 @@
     scrollbar-color: var(--thumb) transparent;
   }
 }
+/* A palette or theme change cross-fades every color over --dur-base (DESIGN.md §3).
+   AppearanceProvider puts `color-swap` on <html> for that window only, so day-to-day transitions
+   keep their own timing. Unlayered on purpose: it must win over Tailwind's layered utilities.
+   Colors only; never layout. Reduced motion (OS or the in-app toggle) skips it. */
+@media (prefers-reduced-motion: no-preference) {
+  :root.color-swap:not(.reduce-motion),
+  :root.color-swap:not(.reduce-motion) *,
+  :root.color-swap:not(.reduce-motion) *::before,
+  :root.color-swap:not(.reduce-motion) *::after {
+    transition-property:
+      background-color, color, border-color, outline-color, text-decoration-color, fill, stroke,
+      box-shadow;
+    transition-duration: var(--dur-base);
+    transition-timing-function: var(--ease-out);
+  }
+}
+
 /* Reduced motion: the OS setting or the in-app toggle (class on <html>). Motion components follow
    MotionConfig; this freezes CSS animation. Mawl holds its pose on its own (mascot/mawl.css). */
 @media (prefers-reduced-motion: reduce) {
