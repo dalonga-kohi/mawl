@@ -85,7 +85,8 @@ describe('teammates landing', () => {
 
   it('points to model settings from the new teammate button when nothing is connected', async () => {
     const { user } = await renderApp('/t')
-    await user.click(screen.getByRole('button', { name: 'New teammate' }))
+    const sidebar = screen.getByRole('complementary', { name: 'Sidebar' })
+    await user.click(await within(sidebar).findByRole('button', { name: 'New teammate' }))
     const dialog = await screen.findByRole('dialog', { name: 'New teammate' })
     expect(within(dialog).getByRole('link', { name: 'Connect a model' })).toBeTruthy()
   })

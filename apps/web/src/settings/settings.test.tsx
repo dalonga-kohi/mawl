@@ -81,7 +81,7 @@ describe('settings page', () => {
   })
 })
 describe('links into settings', () => {
-  it('the palette Settings entry wears the same gear as the sidebar', async () => {
+  it('the palette Settings entry wears the same sliders icon as the sidebar', async () => {
     const { user } = await renderApp('/t')
     await user.keyboard('{Control>}k{/Control}')
     const palette = await screen.findByRole('dialog', { name: 'Command palette' })

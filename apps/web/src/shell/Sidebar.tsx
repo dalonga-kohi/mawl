@@ -1,13 +1,6 @@
 import { durSeconds } from '@mawl/ui'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import {
-  ChevronDown,
-  PanelLeftClose,
-  Search,
-  Settings,
-  SlidersHorizontal,
-  User,
-} from 'lucide-react'
+import { ChevronDown, PanelLeftClose, Search, SlidersHorizontal, User } from 'lucide-react'
 import {
   AnimatePresence,
   LayoutGroup,
@@ -187,7 +180,7 @@ function Footer() {
             Edit profile
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void navigate({ to: '/settings' })}>
-            <Settings aria-hidden="true" />
+            <SlidersHorizontal aria-hidden="true" />
             Settings
           </DropdownMenuItem>
           <DropdownMenuSeparator />
