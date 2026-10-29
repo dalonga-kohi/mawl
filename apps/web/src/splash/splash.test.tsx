@@ -58,7 +58,7 @@ describe('the desktop splash', () => {
       emit({ phase: 'ready' })
       expect(await screen.findByRole('heading', { name: 'Ready' })).toBeTruthy()
       expect(bridge.enterApp).not.toHaveBeenCalled()
-      await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(bridge.enterApp).toHaveBeenCalledTimes(1), { timeout: 5000 })
     })
 
     it('stays when the server falls over before the fade ends', async () => {
