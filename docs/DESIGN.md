@@ -32,7 +32,7 @@ The owner picks a **named palette** in Settings → Appearance (or `Palette: <na
 
 **The flow.** The owner opens Settings → Appearance and sees Theme (Light, Dark, System) and then the palette tiles, the current one ringed with a check. Each tile is a live miniature in its own palette and the current theme: sidebar, card, ink line, primary pill and teal dot. Hovering lifts the tile with a soft glow in its primary; a press scales to .97; a click (or the arrow keys in the radio group) recolors the whole app with a 200 ms cross-fade, the ring slides to the new tile, and "Dracula on. Saved." appears on a reserved line under the tiles. The choice is saved in `mawl.appearance` and survives reload. The cross-fade is the `color-swap` class on `<html>` for `--dur-base` + 50 ms after a palette or theme change (never on first paint): colors, borders and shadows only, skipped under reduced motion (OS or the in-app toggle).
 
-**Saved preferences.** `mawl.appearance` holds `{ theme, palette, reduceMotion }`, parsed with zod field by field. A record from before U9 (an `accent`, no `palette`) loads as Mawl and is rewritten without the accent; an unknown id falls back to Mawl. The desktop splash still receives only theme and motion from the host, so it wears Mawl until U14 carries the palette over.
+**Saved preferences.** `mawl.appearance` holds `{ theme, palette, reduceMotion }`, parsed with zod field by field. A record from before U9 (an `accent`, no `palette`) loads as Mawl and is rewritten without the accent; an unknown id falls back to Mawl. The desktop host reads the same record from the app page (plus the page's painted `--bg`) into `<data>/appearance.json`: the splash wears the owner's theme and palette, and the window is built in that background colour, so no frame flashes white or the wrong palette. The app page runs `public/prepaint.js` (a blocking same-origin script; the CSP allows no inline one) to set `data-theme`, `data-palette` and `reduce-motion` before its first paint.
 
 ### The palettes
 
@@ -302,7 +302,13 @@ Build on Radix primitives in local shadcn components (`apps/web/src/ui/`, config
    - Tab bar: Teammates · Activity · (mascot center, quick ask) · Approvals · Settings.
    - Chat is full screen.
    - Computer is landscape-aware with a keyboard bar.
-
+10. **Launch and connecting screens (U14):** the desktop splash, the remote connect form and its states, the owner-token gate. One frame (`splash/LaunchFrame.tsx`): the orb stage sits in the exact centre of the window below the title bar, copy and actions under it; when they need more room the stage glides up.
+   - **Stage** (`splash/Stage.tsx`): the 128 px orb drops in with a squash and opens its eyes from sleepy brackets; a thin ring of three arcs with glyph beads (Database `+`, Server `*`, Ready `^`) tracks the real steps, the last bead closing the ring at the top. A finished step closes its arc, fills its bead (`--accent-fill` with `--on-accent` glyph) and hops the orb. Eyes follow the step: thinking, working, done.
+   - **Beats** (`splash/pace.ts`): forward progress is held at least 600 ms per step and a skipped step is walked through, so a fast boot never flashes; failures, restarts and stops show at once.
+   - **Field** (`splash/Field.tsx`): two slow glows in the palette's primary and secondary, a still riso grain tile and seven drifting eye glyphs (`+ * ^ ? !`) in `--text-3`; on a fine pointer the layers follow the pointer a little. Decorative and `aria-hidden`.
+   - **Failure:** the orb goes `oops` and shakes once (not looped on these screens), the ring dims, the copy says what happened, and there is exactly one primary action (Try again; Quit Mawl when files are missing), with quieter ways out under it. A restart pulses the ring and shows the try number.
+   - **Ready:** the last bead lands, the ring, copy and field fade, and only the orb stays. The app's first frame draws that same orb as a curtain (`motion/entry.tsx`); the chat landing claims it and the orb flies onto the landing orb while the curtain fades (no claim: it fades in place). The token gate hands its own orb over the same way.
+   - **Reduced motion:** a still orb, no drift, parallax, hops or flight; changes are short fades.
 ## 11. Accessibility checklist (blocking for review)
 
 - Text contrast ≥ 4.5:1, UI components ≥ 3:1, in both themes and in every palette (`packages/ui/src/palette.test.ts`).
